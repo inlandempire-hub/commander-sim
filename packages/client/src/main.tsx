@@ -13,6 +13,8 @@ import { useNetworkGameController } from "./useNetworkGameController.js";
 import { useBotOpponent } from "./useBotOpponent.js";
 import { DeckBuilder } from "./deckbuilder/DeckBuilder.js";
 import { browserStore, findDeck, loadDecks, toDeckList } from "./deckbuilder/deckStorage.js";
+import type { ArtOverrides } from "./cardArt.js";
+import type { ArtOverridesByPlayer } from "./artContext.js";
 import "./styles.css";
 import "./deckbuilder/deckbuilder.css";
 
@@ -22,6 +24,21 @@ const SEAT_LABELS: Record<string, string> = { donny: "Deadly Donny", mike: "Salt
 interface NamedDeck {
   name: string;
   deck: DeckList;
+  /** Only saved decks can carry these; the built-in archetypes use default printings. */
+  artOverrides?: ArtOverrides;
+}
+
+/**
+ * Art is chosen per deck, so the same card can legitimately look different on
+ * the two sides of the table. This keys each seat's choices by the seat label
+ * the game was created with.
+ */
+function artBySeat(entries: Array<[string, NamedDeck | undefined]>): ArtOverridesByPlayer {
+  const byPlayer: ArtOverridesByPlayer = {};
+  for (const [seatLabel, named] of entries) {
+    if (named?.artOverrides) byPlayer[seatLabel] = named.artOverrides;
+  }
+  return byPlayer;
 }
 
 /**
@@ -45,6 +62,10 @@ function LocalRoot({ decks }: { decks: { human?: NamedDeck; opponent?: NamedDeck
   return (
     <App
       controller={controller}
+      artOverrides={artBySeat([
+        [SEAT_LABELS.donny!, decks.human],
+        [SEAT_LABELS.mike!, decks.opponent],
+      ])}
       modeNotice={
         decks.human && decks.opponent
           ? `Hotseat: ${SEAT_LABELS.donny} playing ${decks.human.name} against ${SEAT_LABELS.mike} playing ${decks.opponent.name}.`
@@ -78,7 +99,7 @@ function loadSavedDeck(deckId: string): NamedDeck | { error: string } {
   if (!validation.legal) {
     return { error: `"${saved.name}" is not a legal Commander deck: ${validation.errors[0]}` };
   }
-  return { name: saved.name, deck };
+  return { name: saved.name, deck, artOverrides: saved.artOverrides };
 }
 
 function BotRoot({
@@ -109,6 +130,10 @@ function BotRoot({
   return (
     <App
       controller={humanOnly}
+      artOverrides={artBySeat([
+        [humanLabel, humanDeck],
+        [botLabel, botDeck],
+      ])}
       modeNotice={
         humanDeck && botDeck
           ? `You are ${humanLabel} playing ${humanDeck.name}. The bot is ${botLabel} playing ${botDeck.name}.`

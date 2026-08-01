@@ -489,3 +489,95 @@
   color: var(--text-dim);
   font-style: italic;
 }
+
+/* --- art picker ----------------------------------------------------------- */
+
+/*
+ * Opens inline in the deck panel rather than as a modal over the whole page:
+ * you are choosing art for one card in a list of a hundred, and losing your
+ * place in that list to a full-screen overlay is worse than a slightly
+ * cramped grid.
+ */
+.artpicker {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px;
+  margin: 10px 0;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.artpicker__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.artpicker__head .btn {
+  margin-left: auto;
+}
+
+.artpicker__count {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.artpicker__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.artpicker__option {
+  width: 100%;
+  background: transparent;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.artpicker__option:hover {
+  border-color: var(--accent);
+}
+
+.artpicker__option--on {
+  border-color: #6fd08c;
+  box-shadow: 0 0 0 1px #6fd08c;
+}
+
+.artpicker__option img {
+  width: 100%;
+  aspect-ratio: 626 / 457;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+}
+
+.artpicker__set {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.artpicker__artist {
+  font-size: 10px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

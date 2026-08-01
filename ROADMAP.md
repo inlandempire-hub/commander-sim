@@ -983,3 +983,63 @@ commanders were correct. 253 tests, typecheck clean, no console errors.
 - **The two players face each other**, opponent's board mirrored above yours as
   if sitting across a table - not two identical stacked panels repeating the
   same layout top to bottom.
+
+## Phase 6: the table, and card art (2026-08-01)
+
+The UI overhaul, built to the two constraints agreed above, plus real card
+illustrations.
+
+### One screen, two players facing each other
+
+`.table` is a CSS grid exactly `100vh` tall that never scrolls. Four rows down
+the left - header, the opponent's half, the centre strip, your half - with the
+card detail panel as a full-height column on the right.
+
+The two halves are the *same component*. `PlayerBoard` takes a `flipped` prop,
+and the flip is two CSS direction changes rather than a second layout:
+
+- `.side` is `row` / `.side--flipped` is `row-reverse`, putting your rail (life,
+  mana, command zone, graveyard) on the left and the opponent's on the right.
+- `.side__zones` is `column-reverse` / `column`, so both players' zones run
+  hand, lands, others, creatures *outward from the centre*. The two creature
+  rows meet in the middle, where combat happens.
+
+Cards take their height from the row they are in (`height: 100%`,
+`aspect-ratio: 5/7`, capped at `--card-max-h`), so a full board and an empty one
+occupy the same space and no screen size needs its own breakpoint. A row with
+more cards than fit scrolls sideways; the page itself never scrolls.
+
+Verified at 1280x720: table exactly 720px tall, both halves 313px, zero
+overflowing rows, `document.scrollHeight === innerHeight`. Row positions confirm
+the mirror - Salty Mike's hand at y=39 and creatures at y=227, Deadly Donny's
+creatures at y=409 and hand at y=596, rails at x=879 and x=13 respectively.
+
+### Card art
+
+Every non-token fixture now carries `scryfallId` - 815 of them, stamped in bulk
+by `tools/scryfall-report/add_scryfall_ids.py` from the oracle bulk file. The
+two misses are the Soldier and Saproling tokens, which correctly have no card
+row.
+
+**No images or image URLs are stored in this repo.** Every Scryfall image URL is
+derivable from the id, so `cardArt.ts` builds it and the browser fetches from
+Scryfall's CDN - the board uses `art_crop` (we draw our own frame, because it
+has to show live P/T, counters and combat state), the detail panel `normal`.
+A card with no image, offline or a token, falls back to the text box it was.
+
+Art is chosen **per deck**, not per card: `SavedDeck.artOverrides` maps our card
+id to a chosen Scryfall printing id, and an `ArtOverridesByPlayer` context keys
+those by seat so both players see their own choices in the same game. The deck
+builder's `ArtPicker` fetches `?unique=prints` on demand.
+
+See [docs/CARD-ART.md](docs/CARD-ART.md) for the storage numbers, the
+representative-printing question, and why choosing the default clears the
+override rather than storing it.
+
+**Verified this session:** all 17 board images loaded from the CDN; hovering
+Ankle Biter showed its full card image plus rules in the detail panel; playing a
+Plains moved it to the lands row and re-derived the castable highlight; the art
+picker listed 63 printings of Lightning Bolt and persisted the LEA one; and a
+hotseat game where one deck chose the Alpha Mountain showed `eace2c85...` on
+Deadly Donny's side against the default `c49d378e...` on Salty Mike's, same
+card, same game. 270 tests, typecheck clean.

@@ -1,5 +1,11 @@
 import type { GameState } from "@mtg-commander-sim/engine";
 
+/**
+ * The centre strip's controls. Turn, phase and step live in the top bar now,
+ * so this is only the things you can press and the things you need told:
+ * whose priority it is, what a pending spell is waiting for, and any error.
+ */
+
 export interface ActionBarProps {
   state: GameState;
   onPassPriority: () => void;
@@ -32,21 +38,10 @@ export function ActionBar({
   onClearError,
 }: ActionBarProps) {
   const priorityPlayerId = state.players[state.priorityPlayerIndex]?.id ?? "?";
-  const activePlayerId = state.players[state.activePlayerIndex]?.id ?? "?";
   const gameOver = state.players.find((p) => p.hasLost);
 
   return (
     <div className="action-bar">
-      <div className="action-bar__status">
-        <span>
-          Turn {state.turnNumber} — {activePlayerId}'s turn
-        </span>
-        <span className="action-bar__step">
-          {state.phase} / {state.step}
-        </span>
-        <span>Priority: {priorityPlayerId}</span>
-      </div>
-
       {gameOver ? (
         <div className="action-bar__game-over">
           {gameOver.id} has lost — {gameOver.lossReason}

@@ -1,4 +1,5 @@
 import type { DeckList } from "@mtg-commander-sim/engine";
+import type { ArtOverrides } from "../cardArt.js";
 
 /**
  * Saved decks live in the browser's localStorage, one blob for all of them.
@@ -20,6 +21,12 @@ export interface SavedDeck {
   commanderId: string | null;
   /** One entry per physical card, so basic lands repeat. Excludes the commander. */
   libraryIds: string[];
+  /**
+   * Chosen printing per card, for decks that picked their own art. Only cards
+   * you actually changed appear here - everything else uses the card's default
+   * printing - so a deck that never touched the art picker stores nothing.
+   */
+  artOverrides?: ArtOverrides;
   updatedAt: number;
 }
 

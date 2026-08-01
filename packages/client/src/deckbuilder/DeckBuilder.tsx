@@ -20,6 +20,7 @@ import {
 } from "./cardPool.js";
 import {
   addCard,
+  artChoiceCount,
   canAdd,
   cardCounts,
   clearCommander,
@@ -29,6 +30,7 @@ import {
   groupByType,
   manaCurve,
   removeCard,
+  setCardArt,
   setCommander,
   setCount,
   swapCard,
@@ -49,6 +51,7 @@ import {
 } from "./deckStorage.js";
 import { deckSummary, exportDeckText, importDeckText, type ImportResult } from "./deckText.js";
 import { ScryfallPanel } from "./ScryfallPanel.js";
+import { ArtPicker } from "./ArtPicker.js";
 
 /** How many pool results to render at once. Beyond this you should be filtering, not scrolling. */
 const MAX_RESULTS = 150;
@@ -96,6 +99,8 @@ export function DeckBuilder() {
   const [importText, setImportText] = useState("");
   const [importReport, setImportReport] = useState<ImportResult | null>(null);
   const [opponent, setOpponent] = useState("random");
+  /** The card whose art picker is open, if any. */
+  const [artCardId, setArtCardId] = useState<string | null>(null);
 
   useEffect(() => {
     saveDecks(store, decks);
@@ -103,6 +108,7 @@ export function DeckBuilder() {
 
   const deck = decks.find((d) => d.id === activeId) ?? null;
   const commanderDef = deck?.commanderId ? definitions[deck.commanderId] : undefined;
+  const artCardDef = artCardId ? definitions[artCardId] : undefined;
 
   // The commander's colour identity is a filter you almost always want on, so
   // it's derived rather than something you have to keep in step by hand.
@@ -446,6 +452,18 @@ export function DeckBuilder() {
                     onClick={() => update(clearCommander)}
                   >
                     Clear
+                  </button>{" "}
+                  <button
+                    type="button"
+                    className={`btn btn--small ${
+                      deck.artOverrides?.[commanderDef.id] ? "btn--on" : ""
+                    }`}
+                    title="Choose which printing's artwork this deck shows"
+                    onClick={() =>
+                      setArtCardId((current) => (current === commanderDef.id ? null : commanderDef.id))
+                    }
+                  >
+                    Art
                   </button>
                 </p>
               ) : (
@@ -539,6 +557,18 @@ export function DeckBuilder() {
                             Swap
                           </button>
                         )}
+                        <button
+                          type="button"
+                          className={`btn btn--small ${
+                            deck.artOverrides?.[entry.def.id] ? "btn--on" : ""
+                          }`}
+                          title="Choose which printing's artwork this deck shows"
+                          onClick={() =>
+                            setArtCardId((current) => (current === entry.def.id ? null : entry.def.id))
+                          }
+                        >
+                          Art
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -548,6 +578,26 @@ export function DeckBuilder() {
                 <p className="muted">Nothing in the deck yet. Click a card on the left to add it.</p>
               )}
             </div>
+
+            {artCardDef && (
+              <ArtPicker
+                definition={artCardDef}
+                chosenId={deck.artOverrides?.[artCardDef.id]}
+                onChoose={(scryfallId) =>
+                  update((current) => setCardArt(current, artCardDef.id, scryfallId))
+                }
+                onClose={() => setArtCardId(null)}
+              />
+            )}
+
+            {artChoiceCount(deck) > 0 && (
+              <p className="muted">
+                {artChoiceCount(deck) === 1
+                  ? "1 card in this deck uses"
+                  : `${artChoiceCount(deck)} cards in this deck use`}{" "}
+                a printing other than the default. Art is cosmetic - it never changes what a card does.
+              </p>
+            )}
 
             <div className="builder__text">
               <button

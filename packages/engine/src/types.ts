@@ -163,6 +163,17 @@ export interface ActivatedAbility {
 export interface CardDefinition {
   id: string;
   name: string;
+  /**
+   * Scryfall's id for this card, used only to build an image URL - see
+   * packages/client/src/cardArt.ts. Every Scryfall image URL is derivable from
+   * it, so no artwork or image URL is stored in this repo; the browser fetches
+   * from Scryfall's CDN at runtime. Absent on tokens, which have no card row.
+   *
+   * This is the id of Scryfall's *representative* printing, which is what the
+   * oracle_cards bulk file holds. A deck can override it per card - see
+   * docs/CARD-ART.md.
+   */
+  scryfallId?: string;
   types: CardType[];
   subtypes?: string[];
   supertypes?: Array<"Legendary" | "Basic" | "Snow">;

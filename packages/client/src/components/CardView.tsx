@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   effectivePower,
@@ -7,6 +8,8 @@ import {
   type GameState,
 } from "@mtg-commander-sim/engine";
 import { formatManaCost, typeLine } from "../format.js";
+import { cardArtUrl } from "../cardArt.js";
+import { useArtOverrides } from "../artContext.js";
 
 const COLOR_CLASS: Record<string, string> = {
   W: "card--W",
@@ -46,8 +49,12 @@ export interface CardViewProps {
    * hint; the engine still validates the click.
    */
   playable?: boolean;
-  /** Called with this card's definition id on hover, and null on leave, to drive the detail panel. */
-  onHover?: (definitionId: string | null) => void;
+  /**
+   * Called with this card's definition id on hover, and null on leave, to
+   * drive the detail panel. The owner comes along so the panel can show that
+   * player's chosen printing rather than the default one.
+   */
+  onHover?: (definitionId: string | null, ownerId?: string) => void;
   /**
    * A short line under the card - "Blocks Craw Wurm", "Blocked by 2". Combat
    * assignments are invisible otherwise: a highlight tells you a creature is
@@ -77,6 +84,15 @@ export function CardView({
   const temporary = instance.temporaryPowerBonus !== 0 || instance.temporaryToughnessBonus !== 0;
   const signed = (n: number): string => (n >= 0 ? `+${n}` : `${n}`);
 
+  // The card renders as a name-and-text box until the illustration arrives,
+  // and stays that way permanently if it never does - offline, a token with no
+  // printing, a URL Scryfall has retired. The text card is the one that has to
+  // work; the art is decoration on top of it.
+  const overrides = useArtOverrides(instance.ownerId);
+  const artUrl = cardArtUrl(definition, "art_crop", overrides);
+  const [artFailed, setArtFailed] = useState(false);
+  const showArt = artUrl !== undefined && !artFailed;
+
   return (
     <motion.div
       layout
@@ -91,34 +107,55 @@ export function CardView({
         small ? "card--small" : "",
         instance.isCommander ? "card--commander" : "",
         playable ? "card--playable" : "",
+        showArt ? "card--art" : "card--noart",
       ]
         .filter(Boolean)
         .join(" ")}
       onClick={disabled ? undefined : onClick}
-      onMouseEnter={onHover ? () => onHover(definition.id) : undefined}
+      onMouseEnter={onHover ? () => onHover(definition.id, instance.ownerId) : undefined}
       onMouseLeave={onHover ? () => onHover(null) : undefined}
-      title={typeLine(definition)}
+      title={`${definition.name} - ${typeLine(definition)}`}
     >
-      <div className="card__header">
-        <span className="card__name">{definition.name}</span>
-        {showCost && <span className="card__cost">{formatManaCost(definition.manaCost)}</span>}
-      </div>
-      <div className="card__type">{typeLine(definition)}</div>
-      {isCreature && (
-        <div className="card__pt">
-          {power}/{toughness}
-          {instance.plusOneCounters > 0 && <span className="card__counters"> (+{instance.plusOneCounters})</span>}
-          {temporary && (
-            // Until-end-of-turn pumps, shown separately from permanent counters.
-            <span className="card__counters">
-              {" "}
-              ({signed(instance.temporaryPowerBonus)}/{signed(instance.temporaryToughnessBonus)} EOT)
+      {showArt && (
+        <img
+          className="card__image"
+          src={artUrl}
+          alt=""
+          // Deliberately not lazy: only the cards actually in play are
+          // rendered at all, so every one of these is on screen already, and
+          // deferring them just means a board that fills in late.
+          draggable={false}
+          onError={() => setArtFailed(true)}
+        />
+      )}
+      <div className="card__body">
+        <div className="card__header">
+          <span className="card__name">{definition.name}</span>
+          {showCost && <span className="card__cost">{formatManaCost(definition.manaCost)}</span>}
+        </div>
+        {/* With art there is no room for a type line or keyword list, and no
+            need - the detail panel reads out the whole card on hover. */}
+        {!showArt && <div className="card__type">{typeLine(definition)}</div>}
+        <div className="card__footer">
+          {isCreature && (
+            <span className="card__pt">
+              {power}/{toughness}
+              {instance.plusOneCounters > 0 && <span className="card__counters"> (+{instance.plusOneCounters})</span>}
+              {temporary && (
+                // Until-end-of-turn pumps, shown separately from permanent counters.
+                <span className="card__counters">
+                  {" "}
+                  ({signed(instance.temporaryPowerBonus)}/{signed(instance.temporaryToughnessBonus)} EOT)
+                </span>
+              )}
+              {instance.damageMarked > 0 && <span className="card__damage"> (-{instance.damageMarked})</span>}
             </span>
           )}
-          {instance.damageMarked > 0 && <span className="card__damage"> (-{instance.damageMarked})</span>}
+          {!showArt && definition.keywords?.length ? (
+            <span className="card__keywords">{definition.keywords.join(", ")}</span>
+          ) : null}
         </div>
-      )}
-      {definition.keywords?.length ? <div className="card__keywords">{definition.keywords.join(", ")}</div> : null}
+      </div>
       {badge && <div className="card__badge">{badge}</div>}
     </motion.div>
   );

@@ -12,7 +12,7 @@ export interface StackViewProps {
   selectingSpellTarget?: boolean;
   onStackObjectClick?: (stackObjectId: string) => void;
   /** Reports the card under the cursor so the detail panel can show its full text. */
-  onHover?: (definitionId: string | null) => void;
+  onHover?: (definitionId: string | null, ownerId?: string) => void;
 }
 
 export function StackView({
@@ -23,9 +23,9 @@ export function StackView({
   onHover,
 }: StackViewProps) {
   return (
-    <div className={`zone zone--stack ${selectingSpellTarget ? "zone--targeting" : ""}`}>
+    <div className={`stack ${selectingSpellTarget ? "zone--targeting" : ""}`}>
       <div className="zone__label">Stack ({state.stack.length})</div>
-      <div className="zone__cards">
+      <div className="stack__cards">
         {[...state.stack].reverse().map((obj) => {
           const instance = state.stackCards.find((c) => c.instanceId === obj.sourceInstanceId);
           if (!instance) {

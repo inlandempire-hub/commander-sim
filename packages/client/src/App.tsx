@@ -6,6 +6,7 @@ import { PlayerBoard } from "./components/PlayerBoard.js";
 import { StackView } from "./components/StackView.js";
 import { ActionBar } from "./components/ActionBar.js";
 import { CardDetail } from "./components/CardDetail.js";
+import { ArtOverridesProvider, type ArtOverridesByPlayer } from "./artContext.js";
 
 interface PendingTarget {
   ownerId: string;
@@ -19,6 +20,12 @@ interface PendingTarget {
   abilityIndex?: number;
 }
 
+/** The card the detail panel is reading out, and whose copy of it. */
+interface HoveredCard {
+  definitionId: string;
+  ownerId?: string;
+}
+
 function toggleSet(set: Set<string>, id: string): Set<string> {
   const next = new Set(set);
   if (next.has(id)) next.delete(id);
@@ -29,15 +36,17 @@ function toggleSet(set: Set<string>, id: string): Set<string> {
 export interface AppProps {
   controller: GameController;
   modeNotice: string;
+  /** Per-deck card art choices, keyed by the seat that chose them. */
+  artOverrides?: ArtOverridesByPlayer;
 }
 
-export function App({ controller, modeNotice }: AppProps) {
+export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const { state, lastError, clearError } = controller;
   const [pendingTarget, setPendingTarget] = useState<PendingTarget | null>(null);
   const [selectedAttackerIds, setSelectedAttackerIds] = useState<Set<string>>(new Set());
   const [selectedBlockerSourceId, setSelectedBlockerSourceId] = useState<string | null>(null);
   const [blockerAssignments, setBlockerAssignments] = useState<Record<string, string>>({});
-  const [hoveredDefinitionId, setHoveredDefinitionId] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<HoveredCard | null>(null);
 
   // Auto-pass: whenever the priority holder (a seat this client controls) has
   // nothing productive to do, pass on their behalf instead of making them
@@ -55,9 +64,8 @@ export function App({ controller, modeNotice }: AppProps) {
 
   if (!state) {
     return (
-      <div className="app">
-        <h1 className="app__title">MTG Commander Sim</h1>
-        <p className="app__notice">{modeNotice}</p>
+      <div className="table table--waiting">
+        <p className="table__notice">{modeNotice}</p>
         <div className="action-bar">
           <div className="action-bar__status">
             <span>{lastError ?? "Waiting for the other player to connect..."}</span>
@@ -78,6 +86,17 @@ export function App({ controller, modeNotice }: AppProps) {
   const pendingSelectorKind = pendingSelector?.kind;
   const pendingPermanentType = pendingSelector?.kind === "permanent" ? pendingSelector.cardType : undefined;
 
+  /**
+   * Who sits at the near edge of the table. In network and bot modes that's
+   * the seat this client drives; in hotseat, where the client drives both, it
+   * is fixed to the first player rather than following the turn - two people
+   * sharing one screen need the board to stay put, and swapping sides every
+   * turn would send every card animating across the table.
+   */
+  const controlled = state.players.filter((p) => controller.canControlPlayer(p.id));
+  const bottomPlayer = controlled.length === 1 ? controlled[0]! : state.players[0]!;
+  const topPlayers = state.players.filter((p) => p.id !== bottomPlayer.id);
+
   // What the detail panel reads out. A hovered card wins, because that's you
   // deliberately asking; otherwise it falls back to whatever is currently on
   // the stack, which is the thing you most need to be able to read and the one
@@ -86,8 +105,13 @@ export function App({ controller, modeNotice }: AppProps) {
   const topOfStackCard = topOfStack
     ? state.stackCards.find((c) => c.instanceId === topOfStack.sourceInstanceId)
     : undefined;
-  const detailDefinitionId = hoveredDefinitionId ?? topOfStackCard?.definitionId;
-  const detailReason = hoveredDefinitionId ? "hover" : topOfStackCard ? "stack" : undefined;
+  const detailDefinitionId = hovered?.definitionId ?? topOfStackCard?.definitionId;
+  const detailOwnerId = hovered ? hovered.ownerId : topOfStackCard?.ownerId;
+  const detailReason = hovered ? "hover" : topOfStackCard ? "stack" : undefined;
+
+  function handleHover(definitionId: string | null, ownerId?: string) {
+    setHovered(definitionId ? { definitionId, ownerId } : null);
+  }
 
   function handleHandCardClick(ownerId: string, instanceId: string) {
     const owner = state!.players.find((p) => p.id === ownerId)!;
@@ -250,90 +274,102 @@ export function App({ controller, modeNotice }: AppProps) {
     controller.passPriority(priorityPlayerId);
   }
 
+  /** Shared by both sides, so the only difference between them is `flipped`. */
+  const boardProps = (player: (typeof state.players)[number]) => ({
+    player,
+    state: state!,
+    cardDefinitions: state!.cardDefinitions,
+    isActivePlayer: player.id === activePlayer.id,
+    hasPriority: player.id === priorityPlayerId,
+    selectedAttackerIds: player.id === activePlayer.id ? selectedAttackerIds : new Set<string>(),
+    attackingIds: new Set(Object.keys(state!.attackers)),
+    selectedBlockerSourceId,
+    blockerAssignments,
+    onHandCardClick: (instanceId: string) => handleHandCardClick(player.id, instanceId),
+    onCommandCardClick: (instanceId: string) => handleCommandCardClick(player.id, instanceId),
+    onBattlefieldCardClick: (instanceId: string) => handleBattlefieldCardClick(player.id, instanceId),
+    onGraveyardCardClick: handleGraveyardCardClick,
+    selectingGraveyardTarget:
+      pendingSelectorKind === "card-in-your-graveyard" && player.id === pendingTarget?.ownerId,
+    selectingPermanentType: pendingPermanentType,
+    canPlay:
+      // Only for seats this client actually plays, and only while they hold
+      // priority - a highlight during someone else's window would be promising
+      // something you can't do yet.
+      controller.canControlPlayer(player.id) && player.id === priorityPlayerId
+        ? (instanceId: string) => canPlayCardNow(state!, player.id, instanceId)
+        : undefined,
+    onHover: handleHover,
+    onLifeClick: () => handlePlayerTargetClick(player.id),
+  });
+
   return (
-    <div className="app">
-      <h1 className="app__title">MTG Commander Sim</h1>
-      <p className="app__notice">
-        {modeNotice}{" "}
-        <a className="app__link" href="?mode=deck">
-          Deck builder
-        </a>
-      </p>
+    <ArtOverridesProvider value={artOverrides ?? {}}>
+      <div className="table">
+        <header className="table__top">
+          <span className="table__title">MTG Commander Sim</span>
+          <span className="table__turn">
+            Turn {state.turnNumber} — {activePlayer.id}
+          </span>
+          <span className="table__step">
+            {state.phase} / {state.step}
+          </span>
+          <span className="table__notice">{modeNotice}</span>
+          <a className="table__link" href="?mode=deck">
+            Deck builder
+          </a>
+        </header>
 
-      <ActionBar
-        state={state}
-        onPassPriority={handlePassPriority}
-        showConfirmAttackers={isDeclareAttackersStep && controller.canControlPlayer(activePlayer.id)}
-        onConfirmAttackers={handleConfirmAttackers}
-        showConfirmBlockers={isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)}
-        onConfirmBlockers={handleConfirmBlockers}
-        canActForPriorityPlayer={canActForPriorityPlayer}
-        pendingTargetPrompt={
-          pendingTarget
-            ? `Choose a target for ${pendingTarget.cardName}`
-            : // Blocking is two clicks and neither is guessable, so say so.
-              isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)
-              ? selectedBlockerSourceId
-                ? "Now click the attacker it should block. Click the blocker again to cancel."
-                : `Click one of your creatures, then the attacker it blocks. ${
-                    Object.keys(blockerAssignments).length
-                  } block(s) set - several creatures can gang up on one attacker.`
-              : null
-        }
-        showCancel={pendingTarget !== null}
-        onCancelTargeting={() => setPendingTarget(null)}
-        lastError={lastError}
-        onClearError={clearError}
-      />
+        <AnimatePresence>
+          {topPlayers.map((player) => (
+            <PlayerBoard key={player.id} flipped {...boardProps(player)} />
+          ))}
 
-      <AnimatePresence>
-        {state.players.map((player) => (
-          <PlayerBoard
-            key={player.id}
-            player={player}
-            state={state}
-            cardDefinitions={state.cardDefinitions}
-            isActivePlayer={player.id === activePlayer.id}
-            hasPriority={player.id === state.players[state.priorityPlayerIndex]!.id}
-            selectedAttackerIds={player.id === activePlayer.id ? selectedAttackerIds : new Set()}
-            attackingIds={new Set(Object.keys(state.attackers))}
-            selectedBlockerSourceId={selectedBlockerSourceId}
-            blockerAssignments={blockerAssignments}
-            onHandCardClick={(instanceId) => handleHandCardClick(player.id, instanceId)}
-            onCommandCardClick={(instanceId) => handleCommandCardClick(player.id, instanceId)}
-            onBattlefieldCardClick={(instanceId) => handleBattlefieldCardClick(player.id, instanceId)}
-            onGraveyardCardClick={handleGraveyardCardClick}
-            selectingGraveyardTarget={
-              pendingSelectorKind === "card-in-your-graveyard" && player.id === pendingTarget?.ownerId
-            }
-            selectingPermanentType={pendingPermanentType}
-            canPlay={
-              // Only for seats this client actually plays, and only while
-              // they hold priority - a highlight during someone else's window
-              // would be promising something you can't do yet.
-              controller.canControlPlayer(player.id) && player.id === priorityPlayerId
-                ? (instanceId) => canPlayCardNow(state!, player.id, instanceId)
-                : undefined
-            }
-            onHover={setHoveredDefinitionId}
-            onLifeClick={() => handlePlayerTargetClick(player.id)}
-          />
-        ))}
-      </AnimatePresence>
+          <div className="table__centre" key="centre">
+            <StackView
+              state={state}
+              cardDefinitions={state.cardDefinitions}
+              selectingSpellTarget={pendingSelectorKind === "spell"}
+              onStackObjectClick={handleStackObjectClick}
+              onHover={handleHover}
+            />
+            <ActionBar
+              state={state}
+              onPassPriority={handlePassPriority}
+              showConfirmAttackers={isDeclareAttackersStep && controller.canControlPlayer(activePlayer.id)}
+              onConfirmAttackers={handleConfirmAttackers}
+              showConfirmBlockers={isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)}
+              onConfirmBlockers={handleConfirmBlockers}
+              canActForPriorityPlayer={canActForPriorityPlayer}
+              pendingTargetPrompt={
+                pendingTarget
+                  ? `Choose a target for ${pendingTarget.cardName}`
+                  : // Blocking is two clicks and neither is guessable, so say so.
+                    isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)
+                    ? selectedBlockerSourceId
+                      ? "Now click the attacker it should block. Click the blocker again to cancel."
+                      : `Click one of your creatures, then the attacker it blocks. ${
+                          Object.keys(blockerAssignments).length
+                        } block(s) set - several creatures can gang up on one attacker.`
+                    : null
+              }
+              showCancel={pendingTarget !== null}
+              onCancelTargeting={() => setPendingTarget(null)}
+              lastError={lastError}
+              onClearError={clearError}
+            />
+          </div>
 
-      <StackView
-        state={state}
-        cardDefinitions={state.cardDefinitions}
-        selectingSpellTarget={pendingSelectorKind === "spell"}
-        onStackObjectClick={handleStackObjectClick}
-        onHover={setHoveredDefinitionId}
-      />
+          <PlayerBoard key={bottomPlayer.id} {...boardProps(bottomPlayer)} />
+        </AnimatePresence>
 
-      <CardDetail
-        definition={detailDefinitionId ? state.cardDefinitions[detailDefinitionId] : undefined}
-        cardDefinitions={state.cardDefinitions}
-        reason={detailReason}
-      />
-    </div>
+        <CardDetail
+          definition={detailDefinitionId ? state.cardDefinitions[detailDefinitionId] : undefined}
+          cardDefinitions={state.cardDefinitions}
+          reason={detailReason}
+          ownerId={detailOwnerId}
+        />
+      </div>
+    </ArtOverridesProvider>
   );
 }

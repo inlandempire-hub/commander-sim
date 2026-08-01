@@ -91,6 +91,51 @@ export function clearCommander(deck: SavedDeck): SavedDeck {
   return { ...deck, commanderId: null };
 }
 
+/**
+ * Picks which printing's artwork this deck shows for a card. Passing null goes
+ * back to the card's default printing.
+ *
+ * Only cards you actually changed are stored, and the whole field disappears
+ * once the last choice is cleared - so a deck that never opened the art picker
+ * is byte-for-byte what it was before the feature existed.
+ *
+ * Purely cosmetic: nothing here touches libraryIds, so the deck's legality and
+ * contents are unchanged by any art choice.
+ */
+export function setCardArt(deck: SavedDeck, cardId: string, scryfallId: string | null): SavedDeck {
+  const next = { ...(deck.artOverrides ?? {}) };
+  if (scryfallId === null) delete next[cardId];
+  else next[cardId] = scryfallId;
+
+  if (Object.keys(next).length === 0) {
+    const { artOverrides: _dropped, ...rest } = deck;
+    return rest;
+  }
+  return { ...deck, artOverrides: next };
+}
+
+/** How many cards in this deck use a printing other than their default. */
+export function artChoiceCount(deck: SavedDeck): number {
+  return Object.keys(deck.artOverrides ?? {}).length;
+}
+
+/**
+ * Forgets art choices for cards no longer in the deck. Worth doing when a
+ * deck is edited heavily, so removing and re-adding a card doesn't silently
+ * bring back an old choice you'd forgotten you made.
+ */
+export function pruneCardArt(deck: SavedDeck): SavedDeck {
+  if (!deck.artOverrides) return deck;
+  const present = new Set([...deck.libraryIds, ...(deck.commanderId ? [deck.commanderId] : [])]);
+  const kept = Object.entries(deck.artOverrides).filter(([cardId]) => present.has(cardId));
+  if (kept.length === Object.keys(deck.artOverrides).length) return deck;
+  if (kept.length === 0) {
+    const { artOverrides: _dropped, ...rest } = deck;
+    return rest;
+  }
+  return { ...deck, artOverrides: Object.fromEntries(kept) };
+}
+
 /** Tops the deck up to exactly 100 with a basic land. Removes basics if it's over. */
 export function fillWithBasics(deck: SavedDeck, basicLandId: string): SavedDeck {
   const shortfall = COMMANDER_DECK_SIZE - totalCards(deck);
