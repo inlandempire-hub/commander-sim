@@ -920,3 +920,66 @@ typecheck clean.
 - The highlight means "castable", not "a good idea".
 - The detail panel shows printed power/toughness, not current - the card on the
   battlefield already shows the live value including anthems and counters.
+
+## Combat clarity and decks everywhere (2026-08-01)
+
+### Any deck, any mode
+
+Hotseat and bot mode now read the same pair of deck parameters, so a deck you
+built is playable in either: `?deck=`/`&vs=` name the built-in archetypes,
+`?mydeck=`/`&vsdeck=` take ids from the deck builder. Previously only bot mode
+accepted `?mydeck=`, so hotseat was stuck with the five archetypes.
+
+The deck builder gained a **Play hotseat** button beside "Play against the
+bot", and its opponent dropdown now lists your own saved decks alongside the
+archetypes (only ones that are actually legal to play).
+
+### Combat was silently stuck, and blocks were invisible
+
+Two real bugs, both found by trying to play a full combat through the UI.
+
+**1. Confirming attackers or blockers did nothing visible.** `declareAttackers`
+and `declareBlockers` record the declaration but leave the player holding
+priority - the step advances on the *priority pass*, not the declaration. And
+`shouldAutoPass` deliberately refuses to auto-pass while you still have an
+untapped creature that could attack, because that's a real decision. Net
+effect: you clicked "Confirm Attackers", nothing happened, no error, and the
+game sat there until you noticed you also had to click "Pass Priority". With
+zero attackers selected it looked completely frozen.
+
+Fixed in the client, not the engine - the engine is right that declaring and
+passing are separate actions. `handleConfirmAttackers` / `handleConfirmBlockers`
+now pass priority after declaring, since "confirm" is the player saying they're
+done. Blockers pass on behalf of whoever actually holds priority (the attacker
+during declare-blockers), and only if this client controls that seat.
+
+**2. Block assignments had no visual feedback at all.** The engine has always
+supported assigning specific blockers to specific attackers, including several
+creatures ganging up on one (`declareBlockers` takes explicit pairs, and
+`combat.test.ts` covers multi-blocker damage). But the UI drew an assigned
+blocker with exactly the same highlight as a selected one and as an attacker -
+so there was no way to tell whether a block had registered, or what was paired
+with what. It looked like the feature didn't exist.
+
+Now every creature in combat carries a label: "Attacking", "Blocked by 2",
+"Blocks Craw Wurm", or "Pick an attacker to block". The action bar explains the
+two-click flow and counts the blocks set so far. Clicking a creature that is
+already blocking takes the block back.
+
+**Verified this session** in a hotseat game played through the UI: attacked
+with a Grizzly Bears, assigned Elite Vanguard to block it, then ganged Wild
+Griffin onto the same attacker - labels read "Blocked by 2" on the attacker and
+"Blocks Grizzly Bears" on both blockers. Clicking Wild Griffin took its block
+back ("Blocked by 1"), re-assigning restored it. Confirming resolved combat
+correctly: the 2/2 attacker died to four damage, Elite Vanguard traded, Wild
+Griffin survived, and no damage got through to the player. Also launched a
+deck-builder deck into hotseat against an archetype and confirmed both
+commanders were correct. 253 tests, typecheck clean, no console errors.
+
+### UI direction agreed for Phase 6
+
+- **Everything must fit one screen.** No vertical scrolling to see your own
+  board. This is the main constraint the redesign has to satisfy.
+- **The two players face each other**, opponent's board mirrored above yours as
+  if sitting across a table - not two identical stacked panels repeating the
+  same layout top to bottom.

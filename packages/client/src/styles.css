@@ -439,3 +439,14 @@ body {
   font-weight: 400;
   color: var(--text-dim);
 }
+
+/* Combat pairing label - which blocker is on which attacker. */
+.card__badge {
+  margin-top: 3px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #ffd479;
+  border-top: 1px solid var(--border);
+  padding-top: 2px;
+}

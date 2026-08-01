@@ -142,15 +142,36 @@ export function DeckBuilder() {
     setImportText("");
   }
 
-  function handlePlay() {
+  /**
+   * Launches a game with this deck. The opponent is either one of the built-in
+   * archetypes or another deck you saved - a saved opponent is passed by id as
+   * `vsdeck`, an archetype by name as `vs`.
+   *
+   * `hotseat` swaps the bot for a second person on the same screen. Same deck
+   * parameters either way, which is the point: any deck you build is playable
+   * in any mode.
+   */
+  function handlePlay(hotseat: boolean) {
     if (!deck) return;
-    const vs =
-      opponent === "random"
-        ? ARCHETYPES[Math.floor(Math.random() * ARCHETYPES.length)]!.name
-        : opponent;
-    const params = new URLSearchParams({ mode: "bot", mydeck: deck.id, vs });
+    const params = new URLSearchParams({ mydeck: deck.id });
+    if (!hotseat) params.set("mode", "bot");
+
+    const savedOpponent = decks.find((d) => d.id === opponent);
+    if (savedOpponent) {
+      params.set("vsdeck", savedOpponent.id);
+    } else {
+      params.set(
+        "vs",
+        opponent === "random"
+          ? ARCHETYPES[Math.floor(Math.random() * ARCHETYPES.length)]!.name
+          : opponent,
+      );
+    }
     window.location.search = `?${params.toString()}`;
   }
+
+  /** A saved deck can only be an opponent once it's actually legal to play. */
+  const playableOpponents = decks.filter((d) => d.id !== activeId && deckStatus(d, definitions).playable);
 
   return (
     <div className="builder">
@@ -379,15 +400,33 @@ export function DeckBuilder() {
                       {a.name}
                     </option>
                   ))}
+                  {playableOpponents.length > 0 && (
+                    <optgroup label="Your decks">
+                      {playableOpponents.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </label>
               <button
                 type="button"
                 className="btn btn--play"
                 disabled={!status?.playable}
-                onClick={handlePlay}
+                onClick={() => handlePlay(false)}
               >
-                Play this deck against the bot
+                Play against the bot
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={!status?.playable}
+                title="Two people taking turns on this one screen"
+                onClick={() => handlePlay(true)}
+              >
+                Play hotseat
               </button>
             </div>
 

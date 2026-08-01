@@ -10,6 +10,8 @@ export interface ActionBarProps {
   /** False when priority belongs to a seat this client doesn't drive (the bot, or the opponent over the network). */
   canActForPriorityPlayer: boolean;
   pendingTargetPrompt: string | null;
+  /** The blocking prompt is guidance, not a pending choice, so it has nothing to cancel. */
+  showCancel?: boolean;
   onCancelTargeting: () => void;
   lastError: string | null;
   onClearError: () => void;
@@ -24,6 +26,7 @@ export function ActionBar({
   onConfirmBlockers,
   canActForPriorityPlayer,
   pendingTargetPrompt,
+  showCancel,
   onCancelTargeting,
   lastError,
   onClearError,
@@ -53,7 +56,7 @@ export function ActionBar({
           {pendingTargetPrompt && (
             <div className="action-bar__prompt">
               <span>{pendingTargetPrompt}</span>
-              <button onClick={onCancelTargeting}>Cancel</button>
+              {showCancel && <button onClick={onCancelTargeting}>Cancel</button>}
             </div>
           )}
           {/* Declaring attackers/blockers isn't a priority action - the defending

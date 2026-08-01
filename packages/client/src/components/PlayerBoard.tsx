@@ -64,6 +64,28 @@ export function PlayerBoard({
   const targetingClass = (group: CardType): string =>
     selectingPermanentType === group ? "zone--targeting" : "";
   const assignedBlockerIds = new Set(Object.keys(blockerAssignments));
+
+  /**
+   * What this creature is doing in combat, in words. Without it an attacker,
+   * a selected blocker and an assigned blocker all look the same - a highlight
+   * with no indication of what is paired with what.
+   */
+  const combatBadge = (instanceId: string): string | undefined => {
+    const blocking = blockerAssignments[instanceId];
+    if (blocking) {
+      const attacker = state.players
+        .flatMap((p) => p.battlefield)
+        .find((c) => c.instanceId === blocking);
+      const name = attacker ? cardDefinitions[attacker.definitionId]?.name : undefined;
+      return `Blocks ${name ?? "attacker"}`;
+    }
+    if (attackingIds.has(instanceId)) {
+      const blockers = Object.values(blockerAssignments).filter((id) => id === instanceId).length;
+      return blockers > 0 ? `Blocked by ${blockers}` : "Attacking";
+    }
+    if (selectedBlockerSourceId === instanceId) return "Pick an attacker to block";
+    return undefined;
+  };
   const manaPoolSummary = Object.entries(player.manaPool)
     .filter(([, amount]) => (amount ?? 0) > 0)
     .map(([color, amount]) => `${amount}${color === "generic" ? "" : color}`)
@@ -132,6 +154,7 @@ export function PlayerBoard({
                   selectedBlockerSourceId === instance.instanceId ||
                   assignedBlockerIds.has(instance.instanceId)
                 }
+                badge={combatBadge(instance.instanceId)}
                 onHover={onHover}
                 onClick={() => onBattlefieldCardClick(instance.instanceId)}
               />

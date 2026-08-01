@@ -48,6 +48,12 @@ export interface CardViewProps {
   playable?: boolean;
   /** Called with this card's definition id on hover, and null on leave, to drive the detail panel. */
   onHover?: (definitionId: string | null) => void;
+  /**
+   * A short line under the card - "Blocks Craw Wurm", "Blocked by 2". Combat
+   * assignments are invisible otherwise: a highlight tells you a creature is
+   * involved but never what it's paired with.
+   */
+  badge?: string;
 }
 
 export function CardView({
@@ -60,6 +66,7 @@ export function CardView({
   small,
   playable,
   onHover,
+  badge,
 }: CardViewProps) {
   const isCreature = definition.types.includes("Creature");
   const showCost = instance.zone === "hand" || instance.zone === "command" || instance.zone === "stack";
@@ -112,6 +119,7 @@ export function CardView({
         </div>
       )}
       {definition.keywords?.length ? <div className="card__keywords">{definition.keywords.join(", ")}</div> : null}
+      {badge && <div className="card__badge">{badge}</div>}
     </motion.div>
   );
 }

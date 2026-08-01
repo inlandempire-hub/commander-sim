@@ -131,6 +131,17 @@ export function App({ controller, modeNotice }: AppProps) {
     }
 
     if (isDeclareBlockersStep && ownerId !== activePlayer.id) {
+      // Clicking a creature that's already blocking takes the block back,
+      // rather than silently re-selecting it and leaving the old assignment.
+      if (blockerAssignments[instanceId]) {
+        setBlockerAssignments((prev) => {
+          const next = { ...prev };
+          delete next[instanceId];
+          return next;
+        });
+        setSelectedBlockerSourceId(null);
+        return;
+      }
       setSelectedBlockerSourceId((prev) => (prev === instanceId ? null : instanceId));
       return;
     }
@@ -201,6 +212,13 @@ export function App({ controller, modeNotice }: AppProps) {
     setPendingTarget(null);
   }
 
+  /**
+   * Declaring is not the same as being finished: the engine records the
+   * declaration but leaves you holding priority, and auto-pass deliberately
+   * won't move on while you still have an untapped creature that *could*
+   * attack. So confirming has to pass priority too, or the board sits there
+   * looking frozen with no indication that a second click is needed.
+   */
   function handleConfirmAttackers() {
     const defender = state!.players.find((p) => p.id !== activePlayer.id)!;
     const declarations = [...selectedAttackerIds].map((attackerInstanceId) => ({
@@ -209,6 +227,7 @@ export function App({ controller, modeNotice }: AppProps) {
     }));
     controller.declareAttackers(activePlayer.id, declarations);
     setSelectedAttackerIds(new Set());
+    controller.passPriority(activePlayer.id);
   }
 
   function handleConfirmBlockers() {
@@ -220,6 +239,10 @@ export function App({ controller, modeNotice }: AppProps) {
     controller.declareBlockers(defendingPlayer.id, declarations);
     setBlockerAssignments({});
     setSelectedBlockerSourceId(null);
+    // The attacker holds priority during declare-blockers, so it's their pass
+    // that moves combat on - not the defender's.
+    const priorityHolder = state!.players[state!.priorityPlayerIndex]!.id;
+    if (controller.canControlPlayer(priorityHolder)) controller.passPriority(priorityHolder);
   }
 
   function handlePassPriority() {
@@ -245,7 +268,19 @@ export function App({ controller, modeNotice }: AppProps) {
         showConfirmBlockers={isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)}
         onConfirmBlockers={handleConfirmBlockers}
         canActForPriorityPlayer={canActForPriorityPlayer}
-        pendingTargetPrompt={pendingTarget ? `Choose a target for ${pendingTarget.cardName}` : null}
+        pendingTargetPrompt={
+          pendingTarget
+            ? `Choose a target for ${pendingTarget.cardName}`
+            : // Blocking is two clicks and neither is guessable, so say so.
+              isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)
+              ? selectedBlockerSourceId
+                ? "Now click the attacker it should block. Click the blocker again to cancel."
+                : `Click one of your creatures, then the attacker it blocks. ${
+                    Object.keys(blockerAssignments).length
+                  } block(s) set - several creatures can gang up on one attacker.`
+              : null
+        }
+        showCancel={pendingTarget !== null}
         onCancelTargeting={() => setPendingTarget(null)}
         lastError={lastError}
         onClearError={clearError}

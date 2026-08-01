@@ -30,6 +30,8 @@ interface NamedDeck {
  * sharing a screen can play the built decks rather than only the demo pair.
  */
 function LocalRoot({ decks }: { decks: { human?: NamedDeck; opponent?: NamedDeck } }) {
+  // Both seats fall back together: a hotseat game with one real deck and one
+  // demo deck would be a confusing half-state, so it's both or neither.
   const controller = useLocalGameController(
     decks.human && decks.opponent
       ? {
@@ -142,28 +144,48 @@ function Notice({ message }: { message: string }) {
   );
 }
 
+/**
+ * Resolves one seat's deck from the URL. A saved deck id wins over an
+ * archetype name when both are given, since naming a specific deck you built
+ * is the more deliberate instruction of the two.
+ *
+ * Used for every seat in every mode, so "play the deck I built" works in
+ * hotseat exactly as it does against the bot.
+ */
+function resolveDeck(
+  savedId: string | null,
+  archetypeName: string | null,
+): NamedDeck | { error: string } | undefined {
+  if (savedId) return loadSavedDeck(savedId);
+  return findArchetype(archetypeName);
+}
+
+function isError(value: unknown): value is { error: string } {
+  return typeof value === "object" && value !== null && "error" in value;
+}
+
 function Root() {
   const params = new URLSearchParams(window.location.search);
   const mode = params.get("mode");
 
   if (mode === "deck") return <DeckBuilder />;
 
+  // Both seats read the same pair of parameters everywhere: ?deck=/&vs= name
+  // the built-in archetypes, ?mydeck=/&vsdeck= take ids from the deck builder.
+  const myDeck = resolveDeck(params.get("mydeck"), params.get("deck"));
+  const theirDeck = resolveDeck(params.get("vsdeck"), params.get("vs"));
+  if (isError(myDeck)) return <Notice message={myDeck.error} />;
+  if (isError(theirDeck)) return <Notice message={theirDeck.error} />;
+
   if (mode === "bot") {
     const humanSeat = params.get("seat") === "mike" ? "mike" : "donny";
     const delayMs = Number(params.get("delay") ?? 450);
-    // ?deck=white&vs=black picks archetypes; ?mydeck=<id> plays something built
-    // in the deck builder instead. Either missing falls back to the demo decks.
-    const savedDeckId = params.get("mydeck");
-    const saved = savedDeckId ? loadSavedDeck(savedDeckId) : undefined;
-    if (saved && "error" in saved) return <Notice message={saved.error} />;
-    const humanDeck = saved ?? findArchetype(params.get("deck"));
-    const botDeck = findArchetype(params.get("vs"));
     return (
       <BotRoot
         humanSeat={humanSeat}
         delayMs={Number.isFinite(delayMs) ? delayMs : 450}
-        humanDeck={humanDeck}
-        botDeck={botDeck}
+        humanDeck={myDeck}
+        botDeck={theirDeck}
       />
     );
   }
@@ -184,7 +206,7 @@ function Root() {
     return <NetworkRoot seat={seat} serverUrl={serverUrl} />;
   }
 
-  return <LocalRoot decks={{ human: findArchetype(params.get("deck")), opponent: findArchetype(params.get("vs")) }} />;
+  return <LocalRoot decks={{ human: myDeck, opponent: theirDeck }} />;
 }
 
 const rootElement = document.getElementById("root");
