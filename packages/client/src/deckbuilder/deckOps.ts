@@ -3,7 +3,7 @@ import {
   type CardDefinition,
   type CardType,
 } from "@mtg-commander-sim/engine";
-import { manaValue } from "./cardText.js";
+import { manaValue } from "../cardText.js";
 import { isBasicLand, MAX_CURVE, withinIdentity } from "./cardPool.js";
 import type { SavedDeck } from "./deckStorage.js";
 

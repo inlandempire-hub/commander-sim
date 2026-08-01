@@ -834,3 +834,89 @@ hand against the bot's mono-green Overgrowth. No console errors at any point.
 - Hotseat and network modes still use archetypes/demo decks; only bot mode
   takes a `?mydeck=` saved deck so far.
 - The pool browser renders the first 150 matches; beyond that you filter.
+
+## Playing without the bookkeeping (2026-08-01)
+
+Three quality-of-life changes, all requested after the first real session
+against the bot. Grouped because they share machinery.
+
+### Lands tap themselves to pay for a spell
+
+`packages/engine/src/autoTap.ts`. Click a card you can afford and it just gets
+cast - the engine works out the cost (commander tax included), taps what it
+needs, and pays. It never taps anything speculatively: nothing happens until
+you actually cast something, so you keep the ability to hold lands open for an
+instant. (Pre-tapping would also actively lose you mana, since pools empty each
+step.)
+
+**The logic already existed** - the bot has always had to tap its own lands, so
+`manaSources` / `couldAfford` / `nextSourceToTap` moved out of
+`packages/bot/src/mana.ts` into the engine and the bot now re-exports them.
+One implementation, used by the human client, the bot and the server alike.
+
+`castSpellWithAutoTap` and `activateAbilityWithAutoTap` wrap the strict engine
+functions; `useLocalGameController` and the server dispatcher both call the
+wrappers. Timing, targets, priority and Ward are untouched - auto-tap never
+makes an illegal cast legal.
+
+**Rollback matters more than it looks.** `withAutoTap` untaps everything it
+tapped and restores the mana pool if the action then throws. Without it,
+clicking an instant at the wrong moment, or a spell whose target had just
+become illegal, would leave your lands tapped for an action that never
+happened - a whole turn's mana gone to a misclick. Safe to undo because mana
+abilities resolve immediately and do nothing but add mana; no trigger observes
+the tap. Four of the tests cover exactly this.
+
+Still greedy rather than a real cost solver: with mono-coloured decks every
+source makes the deck's one colour, so greedy is optimal. Hybrid or
+multi-colour costs would need proper solving.
+
+### Card detail panel
+
+`packages/client/src/components/CardDetail.tsx` - a panel pinned to the right
+of the board showing the full name, cost, type line, rules text and printed
+power/toughness of whatever you're looking at. Hovering any card anywhere wins;
+otherwise it falls back to whatever is on the stack, which is the one moment
+you most need to read a card and can't hover it before it resolves.
+
+Rules text comes from `describeCard` (`packages/client/src/cardText.ts`, moved
+up out of `deckbuilder/` now that both surfaces use it) - the same renderer the
+deck builder uses, which turns the engine's structured effect data into English.
+So the panel describes what the engine will actually do rather than being a
+second description that could drift from it.
+
+Before this, a card on the table showed only its name, which is useless unless
+you already know every card by heart.
+
+### "You can play this" highlight
+
+A green glow on cards in hand and the command zone that are castable right now.
+Driven by `canPlayCardNow` in `autoPass.ts`, factored out of the existing
+`hasAnyLegalAction` rather than reimplemented - so the highlight can't disagree
+with what the engine will accept. It accounts for timing, mana you could still
+produce from untapped lands (not just what's floating), the land-drop limit,
+commander tax, and whether a targeted spell has anything legal to point at.
+Only ever shown for seats this client controls, and only while they hold
+priority.
+
+**Verified this session** in a real game against the bot: opening hand showed
+exactly the three Islands lit (land drop available, nothing else affordable);
+played to two untapped Islands and the commander lit up; one click cast
+Caelorna, Coral Tyrant, tapping both Islands with no manual tapping and leaving
+nothing floating. With three lands, everything at three mana or less lit up
+while both counterspells correctly stayed dark - no spell on the stack to
+target. Clicking an unaffordable Divination produced the normal error and
+tapped nothing. Casting it once affordable tapped all three lands, showed
+"On the stack - Divination, Sorcery, Draw 2 cards" in the detail panel while it
+resolved, and drew two. Hovering showed correct full text for an instant, a
+sorcery and a creature. No console errors. 18 new engine tests (253 total),
+typecheck clean.
+
+**Known simplifications:**
+- Auto-tap is greedy, not a solver (see above).
+- No way to choose *which* lands get tapped. It prefers sources that match a
+  colour the cost actually needs, then anything. Fine while decks are
+  mono-coloured; a "tap these instead" flow would be needed otherwise.
+- The highlight means "castable", not "a good idea".
+- The detail panel shows printed power/toughness, not current - the card on the
+  battlefield already shows the live value including anthems and counters.

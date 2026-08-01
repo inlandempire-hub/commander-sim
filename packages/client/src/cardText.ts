@@ -5,7 +5,7 @@ import type {
   TargetSelector,
   TriggeredAbility,
 } from "@mtg-commander-sim/engine";
-import { formatManaCost } from "../format.js";
+import { formatManaCost } from "./format.js";
 
 /**
  * Renders a card's structured data back into readable rules text.

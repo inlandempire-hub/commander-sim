@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { shouldAutoPass, targetSelectorOf, type Effect } from "@mtg-commander-sim/engine";
+import { canPlayCardNow, shouldAutoPass, targetSelectorOf, type Effect } from "@mtg-commander-sim/engine";
 import type { GameController } from "./gameController.js";
 import { PlayerBoard } from "./components/PlayerBoard.js";
 import { StackView } from "./components/StackView.js";
 import { ActionBar } from "./components/ActionBar.js";
+import { CardDetail } from "./components/CardDetail.js";
 
 interface PendingTarget {
   ownerId: string;
@@ -36,6 +37,7 @@ export function App({ controller, modeNotice }: AppProps) {
   const [selectedAttackerIds, setSelectedAttackerIds] = useState<Set<string>>(new Set());
   const [selectedBlockerSourceId, setSelectedBlockerSourceId] = useState<string | null>(null);
   const [blockerAssignments, setBlockerAssignments] = useState<Record<string, string>>({});
+  const [hoveredDefinitionId, setHoveredDefinitionId] = useState<string | null>(null);
 
   // Auto-pass: whenever the priority holder (a seat this client controls) has
   // nothing productive to do, pass on their behalf instead of making them
@@ -75,6 +77,17 @@ export function App({ controller, modeNotice }: AppProps) {
   const pendingSelector = pendingTarget ? targetSelectorOf(pendingTarget.effect) : undefined;
   const pendingSelectorKind = pendingSelector?.kind;
   const pendingPermanentType = pendingSelector?.kind === "permanent" ? pendingSelector.cardType : undefined;
+
+  // What the detail panel reads out. A hovered card wins, because that's you
+  // deliberately asking; otherwise it falls back to whatever is currently on
+  // the stack, which is the thing you most need to be able to read and the one
+  // moment you can't hover it before it resolves.
+  const topOfStack = state.stack[state.stack.length - 1];
+  const topOfStackCard = topOfStack
+    ? state.stackCards.find((c) => c.instanceId === topOfStack.sourceInstanceId)
+    : undefined;
+  const detailDefinitionId = hoveredDefinitionId ?? topOfStackCard?.definitionId;
+  const detailReason = hoveredDefinitionId ? "hover" : topOfStackCard ? "stack" : undefined;
 
   function handleHandCardClick(ownerId: string, instanceId: string) {
     const owner = state!.players.find((p) => p.id === ownerId)!;
@@ -259,6 +272,15 @@ export function App({ controller, modeNotice }: AppProps) {
               pendingSelectorKind === "card-in-your-graveyard" && player.id === pendingTarget?.ownerId
             }
             selectingPermanentType={pendingPermanentType}
+            canPlay={
+              // Only for seats this client actually plays, and only while
+              // they hold priority - a highlight during someone else's window
+              // would be promising something you can't do yet.
+              controller.canControlPlayer(player.id) && player.id === priorityPlayerId
+                ? (instanceId) => canPlayCardNow(state!, player.id, instanceId)
+                : undefined
+            }
+            onHover={setHoveredDefinitionId}
             onLifeClick={() => handlePlayerTargetClick(player.id)}
           />
         ))}
@@ -269,6 +291,13 @@ export function App({ controller, modeNotice }: AppProps) {
         cardDefinitions={state.cardDefinitions}
         selectingSpellTarget={pendingSelectorKind === "spell"}
         onStackObjectClick={handleStackObjectClick}
+        onHover={setHoveredDefinitionId}
+      />
+
+      <CardDetail
+        definition={detailDefinitionId ? state.cardDefinitions[detailDefinitionId] : undefined}
+        cardDefinitions={state.cardDefinitions}
+        reason={detailReason}
       />
     </div>
   );

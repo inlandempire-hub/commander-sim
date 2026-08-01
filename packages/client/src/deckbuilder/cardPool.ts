@@ -1,6 +1,6 @@
 import type { CardDefinition, CardType, Color } from "@mtg-commander-sim/engine";
 import { typeLine } from "../format.js";
-import { describeCard, manaValue } from "./cardText.js";
+import { describeCard, manaValue } from "../cardText.js";
 
 /**
  * The searchable index over the cards the engine actually implements.

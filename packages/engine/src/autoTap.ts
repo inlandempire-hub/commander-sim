@@ -1,0 +1,219 @@
+import { ALL_COLORS, type CardInstance, type Color, type GameState, type ManaCost, type Player, type StackTarget } from "./types.js";
+import { findInstance, requireDefinition, requirePlayer } from "./state.js";
+import { applyCommanderTax, canPayManaCostFromPool, potentialAvailableMana } from "./mana.js";
+import { activateAbility } from "./abilities.js";
+import { castSpell, type CastOptions } from "./casting.js";
+
+/**
+ * Tapping lands to pay for a spell.
+ *
+ * Nobody wants to click five Islands before every spell - that's bookkeeping,
+ * not a decision. So the engine offers to do it: work out what a card costs,
+ * tap what's needed, cast it.
+ *
+ * Deliberately only ever triggered by *casting something*. It never taps
+ * anything speculatively, so mana is only committed when it's being spent, and
+ * you keep the ability to hold lands open for an instant. (In real Magic,
+ * mana left floating empties at the end of each step anyway, so pre-tapping
+ * would actively lose you mana.)
+ *
+ * This logic started life in the bot, which has always had to tap its own
+ * lands. Moved here so the human's client, the bot and the server all pay for
+ * spells exactly the same way rather than keeping three copies in step.
+ */
+
+const EMPTY_COST: ManaCost = { generic: 0, colors: {} };
+
+/** A permanent that taps for mana with no additional cost, plus which colour it makes. */
+export interface ManaSource {
+  instance: CardInstance;
+  abilityIndex: number;
+  color: Color;
+  amount: number;
+}
+
+export function manaSources(state: GameState, player: Player): ManaSource[] {
+  const sources: ManaSource[] = [];
+  for (const instance of player.battlefield) {
+    if (instance.tapped) continue;
+    const def = state.cardDefinitions[instance.definitionId];
+    if (!def) continue;
+    // Summoning-sick creatures can't use tap abilities, but lands always can.
+    if (def.types.includes("Creature") && instance.summoningSickness) continue;
+    def.activatedAbilities?.forEach((ability, abilityIndex) => {
+      if (!ability.cost.tap || ability.cost.mana) return;
+      if (ability.effect.kind !== "addMana") return;
+      sources.push({ instance, abilityIndex, color: ability.effect.color, amount: ability.effect.amount });
+    });
+  }
+  return sources;
+}
+
+/** Whether the player could pay `cost` if they tapped everything available, floating mana included. */
+export function couldAfford(state: GameState, playerId: string, cost: ManaCost): boolean {
+  return canPayManaCostFromPool(potentialAvailableMana(state, playerId), cost);
+}
+
+/**
+ * Picks the next land (or mana creature) to tap toward paying `cost`.
+ * Colour requirements are satisfied first, since a source producing a colour
+ * the cost actually needs is strictly more useful than one that only helps
+ * with the generic portion. Returns null when the pool already covers the
+ * cost or nothing left can help.
+ *
+ * This is deliberately greedy rather than a real cost solver. With the
+ * current mono-coloured pools every source produces the deck's one colour,
+ * so greedy is optimal; a card with hybrid or multi-colour requirements
+ * would need proper solving (see the limitations note in ROADMAP.md).
+ */
+export function nextSourceToTap(
+  state: GameState,
+  player: Player,
+  cost: ManaCost,
+): { instanceId: string; abilityIndex: number } | null {
+  if (canPayManaCostFromPool(player.manaPool, cost)) return null;
+
+  const sources = manaSources(state, player);
+  if (sources.length === 0) return null;
+
+  const shortfallColors = ALL_COLORS.filter(
+    (color) => (player.manaPool[color] ?? 0) < (cost.colors[color] ?? 0),
+  );
+
+  const preferred =
+    shortfallColors.length > 0
+      ? sources.find((s) => shortfallColors.includes(s.color))
+      : // Colour requirements are met; anything untapped now helps with the generic part.
+        sources[0];
+
+  const chosen = preferred ?? sources[0];
+  if (!chosen) return null;
+  return { instanceId: chosen.instance.instanceId, abilityIndex: chosen.abilityIndex };
+}
+
+/**
+ * What it actually costs this player to cast this card right now, commander
+ * tax included. The tax is only charged from the command zone, which is why
+ * this needs to know where the card is being cast from.
+ */
+export function castingCostOf(
+  state: GameState,
+  playerId: string,
+  instanceId: string,
+  fromCommandZone = false,
+): ManaCost {
+  const player = requirePlayer(state, playerId);
+  const found = findInstance(state, instanceId);
+  if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
+  const cost = requireDefinition(state, found.instance.definitionId).manaCost ?? EMPTY_COST;
+  if (!fromCommandZone) return cost;
+  return applyCommanderTax(cost, player.commanderCastCount[instanceId] ?? 0);
+}
+
+/**
+ * Taps mana sources until `cost` is payable from the floating pool. Returns
+ * whether it succeeded.
+ *
+ * Nothing is tapped at all when the cost can't be met, so a spell you cannot
+ * afford never costs you a land. That matters because tapping is irreversible
+ * - a half-paid cost would leave you strictly worse off than not having tried.
+ */
+export function autoTapForCost(state: GameState, playerId: string, cost: ManaCost): boolean {
+  return tapSourcesFor(state, playerId, cost).paid;
+}
+
+/**
+ * The undoable form. Also reports which permanents it tapped, so a caller
+ * whose action then turns out to be illegal can put them back - see
+ * `withAutoTap`.
+ */
+function tapSourcesFor(
+  state: GameState,
+  playerId: string,
+  cost: ManaCost,
+): { paid: boolean; tappedInstanceIds: string[] } {
+  const player = requirePlayer(state, playerId);
+  if (canPayManaCostFromPool(player.manaPool, cost)) return { paid: true, tappedInstanceIds: [] };
+  if (!couldAfford(state, playerId, cost)) return { paid: false, tappedInstanceIds: [] };
+
+  const tappedInstanceIds: string[] = [];
+  // Bounded by the number of permanents that could possibly be tapped, so a
+  // source that somehow fails to reduce the shortfall ends the loop instead of
+  // spinning forever.
+  for (let guard = player.battlefield.length; guard > 0; guard--) {
+    const next = nextSourceToTap(state, player, cost);
+    if (!next) break;
+    activateAbility(state, playerId, next.instanceId, next.abilityIndex);
+    tappedInstanceIds.push(next.instanceId);
+  }
+  return { paid: canPayManaCostFromPool(player.manaPool, cost), tappedInstanceIds };
+}
+
+/**
+ * Taps for `cost`, runs `action`, and puts every tapped permanent back if the
+ * action throws.
+ *
+ * Without this, clicking a card that turns out to be illegal - an instant at
+ * the wrong time, a spell whose target just died - would leave the lands
+ * tapped and the mana floating, costing a whole turn's mana for an action that
+ * never happened. Tapping is irreversible in the real game precisely because
+ * you chose to do it; doing it automatically means the engine has to be able
+ * to take it back.
+ *
+ * Safe to undo because mana abilities resolve immediately and do nothing but
+ * add mana - no triggers fire, nothing else observes the tap.
+ */
+function withAutoTap(state: GameState, playerId: string, cost: ManaCost, action: () => void): void {
+  const player = requirePlayer(state, playerId);
+  const poolBefore = { ...player.manaPool };
+  const { tappedInstanceIds } = tapSourcesFor(state, playerId, cost);
+  try {
+    action();
+  } catch (err) {
+    for (const instanceId of tappedInstanceIds) {
+      const found = findInstance(state, instanceId);
+      if (found) found.instance.tapped = false;
+    }
+    player.manaPool = poolBefore;
+    throw err;
+  }
+}
+
+/**
+ * Casts a spell, tapping lands for it first if the floating pool doesn't
+ * already cover the cost.
+ *
+ * Everything else - timing, targets, priority, commander tax, Ward - is left
+ * entirely to `castSpell`. This only removes the manual tapping step; it never
+ * makes an otherwise illegal cast legal.
+ */
+export function castSpellWithAutoTap(
+  state: GameState,
+  playerId: string,
+  instanceId: string,
+  targets: StackTarget[] = [],
+  options: CastOptions = {},
+): void {
+  const cost = castingCostOf(state, playerId, instanceId, options.fromCommandZone);
+  withAutoTap(state, playerId, cost, () => castSpell(state, playerId, instanceId, targets, options));
+}
+
+/** The same convenience for an activated ability that costs mana (not just a tap). */
+export function activateAbilityWithAutoTap(
+  state: GameState,
+  playerId: string,
+  instanceId: string,
+  abilityIndex: number,
+  targets: StackTarget[] = [],
+): void {
+  const found = findInstance(state, instanceId);
+  const ability = found
+    ? requireDefinition(state, found.instance.definitionId).activatedAbilities?.[abilityIndex]
+    : undefined;
+  const run = () => activateAbility(state, playerId, instanceId, abilityIndex, targets);
+  if (!ability?.cost.mana) {
+    run();
+    return;
+  }
+  withAutoTap(state, playerId, ability.cost.mana, run);
+}

@@ -19,6 +19,44 @@ function hasSomethingToTarget(state: GameState, playerId: string, effect: Effect
 }
 
 /**
+ * Whether this specific card in `playerId`'s hand or command zone can be
+ * played right now: correct timing window, affordable from mana they could
+ * still produce (not just what's floating), and - if it needs a target -
+ * something legal to point it at.
+ *
+ * Exported because the UI needs to answer exactly this question to highlight
+ * the cards you can actually play. It reads the same rules `hasAnyLegalAction`
+ * does, rather than the client keeping its own approximation that drifts.
+ */
+export function canPlayCardNow(state: GameState, playerId: string, instanceId: string): boolean {
+  const player = requirePlayer(state, playerId);
+  const inHand = player.hand.find((c) => c.instanceId === instanceId);
+  const inCommand = player.command.find((c) => c.instanceId === instanceId);
+  const instance = inHand ?? inCommand;
+  if (!instance) return false;
+
+  const potentialMana = potentialAvailableMana(state, playerId);
+  const isMainPhaseWindow = canCastAtSorcerySpeed(state, playerId);
+  const def = requireDefinition(state, instance.definitionId);
+
+  if (inCommand) {
+    if (!isMainPhaseWindow) return false;
+    const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
+    return canPayManaCostFromPool(potentialMana, applyCommanderTax(def.manaCost ?? EMPTY_COST, timesCast));
+  }
+
+  const castableAnytime = def.types.includes("Instant") || (def.keywords?.includes("Flash") ?? false);
+  if (!castableAnytime && !isMainPhaseWindow) return false;
+
+  if (def.types.includes("Land")) {
+    return isMainPhaseWindow && player.landsPlayedThisTurn < 1;
+  }
+
+  if (!canPayManaCostFromPool(potentialMana, def.manaCost ?? EMPTY_COST)) return false;
+  return hasSomethingToTarget(state, playerId, def.castEffect);
+}
+
+/**
  * Whether `playerId` has any legal action available right now, given
  * whatever priority window they're currently in. Always checks instants and
  * non-mana activated abilities (legal at any time you have priority); only
@@ -33,27 +71,8 @@ export function hasAnyLegalAction(state: GameState, playerId: string): boolean {
   const potentialMana = potentialAvailableMana(state, playerId);
   const isMainPhaseWindow = canCastAtSorcerySpeed(state, playerId);
 
-  for (const instance of player.hand) {
-    const def = requireDefinition(state, instance.definitionId);
-    const castableAnytime = def.types.includes("Instant") || (def.keywords?.includes("Flash") ?? false);
-    if (!castableAnytime && !isMainPhaseWindow) continue;
-
-    if (def.types.includes("Land")) {
-      if (isMainPhaseWindow && player.landsPlayedThisTurn < 1) return true;
-      continue;
-    }
-
-    if (!canPayManaCostFromPool(potentialMana, def.manaCost ?? EMPTY_COST)) continue;
-    if (hasSomethingToTarget(state, playerId, def.castEffect)) return true;
-  }
-
-  if (isMainPhaseWindow) {
-    for (const instance of player.command) {
-      const def = requireDefinition(state, instance.definitionId);
-      const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
-      const cost = applyCommanderTax(def.manaCost ?? EMPTY_COST, timesCast);
-      if (canPayManaCostFromPool(potentialMana, cost)) return true;
-    }
+  for (const instance of [...player.hand, ...player.command]) {
+    if (canPlayCardNow(state, playerId, instance.instanceId)) return true;
   }
 
   for (const instance of player.battlefield) {

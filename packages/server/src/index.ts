@@ -4,8 +4,8 @@ import {
   SALTY_MIKE,
   createDemoGame,
   playLand,
-  castSpell,
-  activateAbility,
+  castSpellWithAutoTap,
+  activateAbilityWithAutoTap,
   declareAttackers,
   declareBlockers,
   passPriority,
@@ -47,12 +47,12 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       playLand(state, playerId, message.instanceId);
       return;
     case "castSpell":
-      castSpell(state, playerId, message.instanceId, message.targets ?? [], {
+      castSpellWithAutoTap(state, playerId, message.instanceId, message.targets ?? [], {
         fromCommandZone: message.fromCommandZone,
       });
       return;
     case "activateAbility":
-      activateAbility(state, playerId, message.instanceId, message.abilityIndex, message.targets ?? []);
+      activateAbilityWithAutoTap(state, playerId, message.instanceId, message.abilityIndex, message.targets ?? []);
       return;
     case "declareAttackers":
       declareAttackers(state, playerId, message.declarations);

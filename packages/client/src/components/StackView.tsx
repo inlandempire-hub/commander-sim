@@ -11,9 +11,17 @@ export interface StackViewProps {
    */
   selectingSpellTarget?: boolean;
   onStackObjectClick?: (stackObjectId: string) => void;
+  /** Reports the card under the cursor so the detail panel can show its full text. */
+  onHover?: (definitionId: string | null) => void;
 }
 
-export function StackView({ state, cardDefinitions, selectingSpellTarget, onStackObjectClick }: StackViewProps) {
+export function StackView({
+  state,
+  cardDefinitions,
+  selectingSpellTarget,
+  onStackObjectClick,
+  onHover,
+}: StackViewProps) {
   return (
     <div className={`zone zone--stack ${selectingSpellTarget ? "zone--targeting" : ""}`}>
       <div className="zone__label">Stack ({state.stack.length})</div>
@@ -34,6 +42,7 @@ export function StackView({ state, cardDefinitions, selectingSpellTarget, onStac
               instance={instance}
               definition={cardDefinitions[instance.definitionId]!}
               selected={selectingSpellTarget}
+              onHover={onHover}
               onClick={selectingSpellTarget ? () => onStackObjectClick?.(obj.id) : undefined}
             />
           );

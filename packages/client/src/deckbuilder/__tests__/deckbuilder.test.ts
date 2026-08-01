@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TEST_CARD_DEFINITIONS, type CardDefinition } from "@mtg-commander-sim/engine";
-import { describeCard, describeEffect, manaValue } from "../cardText.js";
+import { describeCard, describeEffect, manaValue } from "../../cardText.js";
 import { buildPool, filterPool, EMPTY_FILTERS, withinIdentity } from "../cardPool.js";
 import {
   addCard,

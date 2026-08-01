@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import {
-  activateAbility,
-  castSpell,
+  activateAbilityWithAutoTap,
+  castSpellWithAutoTap,
   createDemoGame,
   createGameFromDecks,
   declareAttackers,
@@ -47,10 +47,13 @@ export function useLocalGameController({ decks }: LocalGameOptions = {}): GameCo
     lastError,
     clearError: () => setLastError(null),
     playLand: (playerId, instanceId) => act((s) => playLand(s, playerId, instanceId)),
+    // The auto-tap variants: if the floating mana pool doesn't already cover
+    // the cost, lands are tapped for it first, and put back if the action
+    // turns out to be illegal. Clicking a card you can afford just plays it.
     castSpell: (playerId, instanceId, targets = [], options = {}) =>
-      act((s) => castSpell(s, playerId, instanceId, targets, options)),
+      act((s) => castSpellWithAutoTap(s, playerId, instanceId, targets, options)),
     activateAbility: (playerId, instanceId, abilityIndex, targets = []) =>
-      act((s) => activateAbility(s, playerId, instanceId, abilityIndex, targets)),
+      act((s) => activateAbilityWithAutoTap(s, playerId, instanceId, abilityIndex, targets)),
     declareAttackers: (playerId, declarations) => act((s) => declareAttackers(s, playerId, declarations)),
     declareBlockers: (playerId, declarations) => act((s) => declareBlockers(s, playerId, declarations)),
     passPriority: (playerId) => act((s) => passPriority(s, playerId)),

@@ -40,9 +40,27 @@ export interface CardViewProps {
   selected?: boolean;
   disabled?: boolean;
   small?: boolean;
+  /**
+   * Marks a card in hand or the command zone that can actually be played right
+   * now - correct timing, mana available, something legal to target. Purely a
+   * hint; the engine still validates the click.
+   */
+  playable?: boolean;
+  /** Called with this card's definition id on hover, and null on leave, to drive the detail panel. */
+  onHover?: (definitionId: string | null) => void;
 }
 
-export function CardView({ instance, definition, state, onClick, selected, disabled, small }: CardViewProps) {
+export function CardView({
+  instance,
+  definition,
+  state,
+  onClick,
+  selected,
+  disabled,
+  small,
+  playable,
+  onHover,
+}: CardViewProps) {
   const isCreature = definition.types.includes("Creature");
   const showCost = instance.zone === "hand" || instance.zone === "command" || instance.zone === "stack";
 
@@ -65,10 +83,13 @@ export function CardView({ instance, definition, state, onClick, selected, disab
         disabled ? "card--disabled" : "",
         small ? "card--small" : "",
         instance.isCommander ? "card--commander" : "",
+        playable ? "card--playable" : "",
       ]
         .filter(Boolean)
         .join(" ")}
       onClick={disabled ? undefined : onClick}
+      onMouseEnter={onHover ? () => onHover(definition.id) : undefined}
+      onMouseLeave={onHover ? () => onHover(null) : undefined}
       title={typeLine(definition)}
     >
       <div className="card__header">

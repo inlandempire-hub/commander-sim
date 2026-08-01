@@ -13,6 +13,7 @@ export * from "./priority.js";
 export * from "./commander.js";
 export * from "./targeting.js";
 export * from "./autoPass.js";
+export * from "./autoTap.js";
 export * from "./counters.js";
 // A curated pool of real cards transcribed from Scryfall (see cards/testCards.ts),
 // not the full card database - that arrives with the deck builder in Phase 5.

@@ -21,6 +21,14 @@ export interface PlayerBoardProps {
   selectingGraveyardTarget?: boolean;
   /** Set while a "destroy target land/artifact/enchantment" spell is choosing - highlights that group. */
   selectingPermanentType?: CardType;
+  /**
+   * Whether a card in hand or the command zone can be played right now, for the
+   * highlight. Omitted for seats this client doesn't control - the opponent's
+   * options are none of your business, and their hand is redacted anyway.
+   */
+  canPlay?: (instanceId: string) => boolean;
+  /** Reports the card under the cursor so the detail panel can show its full text. */
+  onHover?: (definitionId: string | null) => void;
   onLifeClick: () => void;
 }
 
@@ -40,6 +48,8 @@ export function PlayerBoard({
   onGraveyardCardClick,
   selectingGraveyardTarget,
   selectingPermanentType,
+  canPlay,
+  onHover,
   onLifeClick,
 }: PlayerBoardProps) {
   const lands = player.battlefield.filter((c) => cardDefinitions[c.definitionId]?.types.includes("Land"));
@@ -84,6 +94,8 @@ export function PlayerBoard({
               key={instance.instanceId}
               instance={instance}
               definition={cardDefinitions[instance.definitionId]!}
+              playable={canPlay?.(instance.instanceId)}
+              onHover={onHover}
               onClick={() => onCommandCardClick(instance.instanceId)}
             />
           ))}
@@ -99,6 +111,7 @@ export function PlayerBoard({
                 key={instance.instanceId}
                 instance={instance}
                 definition={cardDefinitions[instance.definitionId]!}
+                onHover={onHover}
                 onClick={() => onBattlefieldCardClick(instance.instanceId)}
               />
             ))}
@@ -119,6 +132,7 @@ export function PlayerBoard({
                   selectedBlockerSourceId === instance.instanceId ||
                   assignedBlockerIds.has(instance.instanceId)
                 }
+                onHover={onHover}
                 onClick={() => onBattlefieldCardClick(instance.instanceId)}
               />
             ))}
@@ -135,6 +149,7 @@ export function PlayerBoard({
                   key={instance.instanceId}
                   instance={instance}
                   definition={cardDefinitions[instance.definitionId]!}
+                  onHover={onHover}
                   onClick={() => onBattlefieldCardClick(instance.instanceId)}
                 />
               ))}
@@ -151,6 +166,8 @@ export function PlayerBoard({
               key={instance.instanceId}
               instance={instance}
               definition={cardDefinitions[instance.definitionId]!}
+              playable={canPlay?.(instance.instanceId)}
+              onHover={onHover}
               onClick={() => onHandCardClick(instance.instanceId)}
             />
           ))}
@@ -166,6 +183,7 @@ export function PlayerBoard({
               instance={instance}
               definition={cardDefinitions[instance.definitionId]!}
               selected={selectingGraveyardTarget}
+              onHover={onHover}
               onClick={selectingGraveyardTarget ? () => onGraveyardCardClick(instance.instanceId) : undefined}
               small
             />

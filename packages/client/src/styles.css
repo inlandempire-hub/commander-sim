@@ -324,3 +324,118 @@ body {
 .app__link {
   color: var(--accent);
 }
+
+/* --- "you can play this" highlight --- */
+
+/*
+ * Marks a card in hand or the command zone that is castable right now: the
+ * timing is right, the mana is available (counting lands you haven't tapped
+ * yet), and anything it targets exists. Just a hint - the engine still has
+ * the final say on the click.
+ */
+.card--playable {
+  border-color: #6fd08c;
+  box-shadow: 0 0 0 1px #6fd08c, 0 0 10px rgba(111, 208, 140, 0.45);
+}
+
+/* --- card detail panel --- */
+
+.detail {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 264px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 20;
+}
+
+/* Keeps the board clear of the fixed panel rather than sliding under it. */
+@media (min-width: 1200px) {
+  .app {
+    padding-right: 296px;
+  }
+}
+
+/* Too narrow to sit alongside the board - let it flow at the end instead. */
+@media (max-width: 1199px) {
+  .detail {
+    position: static;
+    width: auto;
+    max-height: none;
+  }
+}
+
+.detail--empty {
+  opacity: 0.6;
+}
+
+.detail__badge {
+  align-self: flex-start;
+  background: var(--accent);
+  color: white;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.detail__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.detail__name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.detail__cost {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.detail__type {
+  font-size: 11px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.detail__rules p {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.detail__vanilla,
+.detail__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.detail__pt {
+  font-size: 13px;
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
+.detail__pt-label {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
