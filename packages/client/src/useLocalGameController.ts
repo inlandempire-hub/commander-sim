@@ -1,0 +1,59 @@
+import { useRef, useState } from "react";
+import {
+  activateAbility,
+  castSpell,
+  createDemoGame,
+  createGameFromDecks,
+  declareAttackers,
+  declareBlockers,
+  passPriority,
+  playLand,
+  type DeckList,
+  type GameState,
+} from "@mtg-commander-sim/engine";
+import type { GameController } from "./gameController.js";
+
+/**
+ * Hotseat mode: both seats share one machine, one in-memory GameState. The
+ * engine mutates that state in place rather than returning new immutable
+ * snapshots, so this hook keeps it in a ref and forces a re-render after
+ * each action, surfacing thrown engine errors (illegal actions) as a
+ * dismissable message instead of letting them crash the UI.
+ */
+export interface LocalGameOptions {
+  /** Seat id -> deck. Omitted entirely for the default demo game. */
+  decks?: [{ id: string; deck: DeckList }, { id: string; deck: DeckList }];
+}
+
+export function useLocalGameController({ decks }: LocalGameOptions = {}): GameController {
+  const stateRef = useRef<GameState>();
+  if (!stateRef.current) stateRef.current = decks ? createGameFromDecks(decks) : createDemoGame();
+
+  const [, setTick] = useState(0);
+  const [lastError, setLastError] = useState<string | null>(null);
+
+  function act(fn: (state: GameState) => void) {
+    try {
+      fn(stateRef.current!);
+      setLastError(null);
+    } catch (err) {
+      setLastError(err instanceof Error ? err.message : String(err));
+    }
+    setTick((t) => t + 1);
+  }
+
+  return {
+    state: stateRef.current,
+    lastError,
+    clearError: () => setLastError(null),
+    playLand: (playerId, instanceId) => act((s) => playLand(s, playerId, instanceId)),
+    castSpell: (playerId, instanceId, targets = [], options = {}) =>
+      act((s) => castSpell(s, playerId, instanceId, targets, options)),
+    activateAbility: (playerId, instanceId, abilityIndex, targets = []) =>
+      act((s) => activateAbility(s, playerId, instanceId, abilityIndex, targets)),
+    declareAttackers: (playerId, declarations) => act((s) => declareAttackers(s, playerId, declarations)),
+    declareBlockers: (playerId, declarations) => act((s) => declareBlockers(s, playerId, declarations)),
+    passPriority: (playerId) => act((s) => passPriority(s, playerId)),
+    canControlPlayer: () => true, // hotseat: one tab, both seats
+  };
+}

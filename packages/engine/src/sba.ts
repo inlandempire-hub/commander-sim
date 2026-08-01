@@ -1,0 +1,106 @@
+import type { GameState } from "./types.js";
+import { findInstance, moveCard, requireDefinition } from "./state.js";
+import { pushOntoStack } from "./permanents.js";
+import { effectiveToughness } from "./counters.js";
+
+const COMMANDER_DAMAGE_THRESHOLD = 21;
+
+/**
+ * The commander replacement effect: a commander that would go anywhere other
+ * than the battlefield or command zone instead goes to the command zone.
+ * Phase 1 always takes this replacement (the real rule makes it optional for
+ * the owner - a "may" choice UI hook is future work once a client exists).
+ */
+function moveDyingCreatureToItsZone(state: GameState, instanceId: string, isCommander: boolean): void {
+  const found = findInstance(state, instanceId);
+  const diedFromBattlefield = found?.instance.zone === "battlefield";
+  const controllerId = found?.instance.controllerId;
+  const def = found ? state.cardDefinitions[found.instance.definitionId] : undefined;
+
+  moveCard(state, instanceId, isCommander ? "command" : "graveyard");
+
+  // "Dies" means specifically "was put into a graveyard from the battlefield",
+  // so a commander redirected to the command zone still counts as having died.
+  if (!diedFromBattlefield || !controllerId) return;
+  for (const trigger of def?.triggeredAbilities ?? []) {
+    if (trigger.event === "dies") {
+      pushOntoStack(state, instanceId, controllerId, trigger.effect, [], false);
+    }
+  }
+}
+
+/**
+ * Checks and applies state-based actions until the game state is stable:
+ * lethal damage/toughness<=0 destroys creatures (respecting the commander
+ * replacement effect and indestructible), the legend rule, and loss
+ * conditions (life <= 0, drawing from an empty library, 21+ commander damage).
+ */
+export function checkStateBasedActions(state: GameState): void {
+  let changed = true;
+  while (changed) {
+    changed = false;
+
+    for (const player of state.players) {
+      for (const instance of [...player.battlefield]) {
+        const def = requireDefinition(state, instance.definitionId);
+        if (!def.types.includes("Creature")) continue;
+        const toughness = effectiveToughness(state, instance);
+        const indestructible = def.keywords?.includes("Indestructible") ?? false;
+        const lethalNormalDamage = instance.damageMarked >= toughness && toughness > 0;
+        // Deathtouch: any nonzero damage from a deathtouch source is lethal regardless of amount.
+        const lethalDeathtouchDamage = instance.deathtouchDamage && instance.damageMarked > 0;
+        const lethalDamage = !indestructible && (lethalNormalDamage || lethalDeathtouchDamage);
+        if (toughness <= 0 || lethalDamage) {
+          moveDyingCreatureToItsZone(state, instance.instanceId, instance.isCommander);
+          changed = true;
+        }
+      }
+    }
+
+    // Legend rule: a player controlling 2+ legendary permanents with the same name keeps only one.
+    for (const player of state.players) {
+      const legendaryByName = new Map<string, string[]>();
+      for (const instance of player.battlefield) {
+        const def = requireDefinition(state, instance.definitionId);
+        if (!def.supertypes?.includes("Legendary")) continue;
+        const list = legendaryByName.get(def.name) ?? [];
+        list.push(instance.instanceId);
+        legendaryByName.set(def.name, list);
+      }
+      for (const [, instanceIds] of legendaryByName) {
+        if (instanceIds.length <= 1) continue;
+        const [keep, ...rest] = instanceIds;
+        void keep;
+        for (const id of rest) {
+          const instance = player.battlefield.find((c) => c.instanceId === id);
+          moveDyingCreatureToItsZone(state, id, instance?.isCommander ?? false);
+          changed = true;
+        }
+      }
+    }
+
+    for (const player of state.players) {
+      if (player.hasLost) continue;
+      if (player.life <= 0) {
+        player.hasLost = true;
+        player.lossReason = "life total dropped to 0 or less";
+        changed = true;
+        continue;
+      }
+      if (player.attemptedDrawFromEmptyLibrary) {
+        player.hasLost = true;
+        player.lossReason = "attempted to draw from an empty library";
+        changed = true;
+        continue;
+      }
+      for (const [commanderInstanceId, damage] of Object.entries(player.commanderDamageTaken)) {
+        if (damage >= COMMANDER_DAMAGE_THRESHOLD) {
+          player.hasLost = true;
+          player.lossReason = `took ${damage} combat damage from commander ${commanderInstanceId}`;
+          changed = true;
+          break;
+        }
+      }
+    }
+  }
+}

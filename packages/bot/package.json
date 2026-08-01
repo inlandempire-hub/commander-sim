@@ -1,0 +1,24 @@
+{
+  "name": "@mtg-commander-sim/bot",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run",
+    "play": "tsx src/runner.ts",
+    "watch": "tsx src/watch.ts"
+  },
+  "dependencies": {
+    "@mtg-commander-sim/engine": "*",
+    "@mtg-commander-sim/protocol": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.1",
+    "ws": "^8.18.0"
+  }
+}

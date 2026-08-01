@@ -1,0 +1,275 @@
+import { useEffect, useState } from "react";
+import { AnimatePresence } from "framer-motion";
+import { shouldAutoPass, targetSelectorOf, type Effect } from "@mtg-commander-sim/engine";
+import type { GameController } from "./gameController.js";
+import { PlayerBoard } from "./components/PlayerBoard.js";
+import { StackView } from "./components/StackView.js";
+import { ActionBar } from "./components/ActionBar.js";
+
+interface PendingTarget {
+  ownerId: string;
+  sourceInstanceId: string;
+  cardName: string;
+  /** Any effect that takes a target - damage, destroy, exile. */
+  effect: Effect;
+  /** Whether resolving the chosen target should cast a spell or activate a permanent's ability. */
+  kind: "cast" | "ability";
+  /** Only set when kind is "ability" - which of the source's activatedAbilities to activate. */
+  abilityIndex?: number;
+}
+
+function toggleSet(set: Set<string>, id: string): Set<string> {
+  const next = new Set(set);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  return next;
+}
+
+export interface AppProps {
+  controller: GameController;
+  modeNotice: string;
+}
+
+export function App({ controller, modeNotice }: AppProps) {
+  const { state, lastError, clearError } = controller;
+  const [pendingTarget, setPendingTarget] = useState<PendingTarget | null>(null);
+  const [selectedAttackerIds, setSelectedAttackerIds] = useState<Set<string>>(new Set());
+  const [selectedBlockerSourceId, setSelectedBlockerSourceId] = useState<string | null>(null);
+  const [blockerAssignments, setBlockerAssignments] = useState<Record<string, string>>({});
+
+  // Auto-pass: whenever the priority holder (a seat this client controls) has
+  // nothing productive to do, pass on their behalf instead of making them
+  // click through an empty window. Paused while a target-selection is in
+  // progress so we don't yank the game forward mid-interaction.
+  useEffect(() => {
+    if (!state || pendingTarget) return;
+    if (state.players.some((p) => p.hasLost)) return;
+    const priorityPlayerId = state.players[state.priorityPlayerIndex]?.id;
+    if (!priorityPlayerId || !controller.canControlPlayer(priorityPlayerId)) return;
+    if (shouldAutoPass(state, priorityPlayerId)) {
+      controller.passPriority(priorityPlayerId);
+    }
+  }, [state, controller, pendingTarget]);
+
+  if (!state) {
+    return (
+      <div className="app">
+        <h1 className="app__title">MTG Commander Sim</h1>
+        <p className="app__notice">{modeNotice}</p>
+        <div className="action-bar">
+          <div className="action-bar__status">
+            <span>{lastError ?? "Waiting for the other player to connect..."}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const activePlayer = state.players[state.activePlayerIndex]!;
+  const priorityPlayerId = state.players[state.priorityPlayerIndex]!.id;
+  const defendingPlayerId = state.players.find((p) => p.id !== activePlayer.id)?.id ?? activePlayer.id;
+  const canActForPriorityPlayer = controller.canControlPlayer(priorityPlayerId);
+  const isDeclareAttackersStep = state.phase === "combat" && state.step === "declare-attackers";
+  const isDeclareBlockersStep = state.phase === "combat" && state.step === "declare-blockers";
+  // Which zone the pending spell wants a target from, so only that zone lights up.
+  const pendingSelector = pendingTarget ? targetSelectorOf(pendingTarget.effect) : undefined;
+  const pendingSelectorKind = pendingSelector?.kind;
+  const pendingPermanentType = pendingSelector?.kind === "permanent" ? pendingSelector.cardType : undefined;
+
+  function handleHandCardClick(ownerId: string, instanceId: string) {
+    const owner = state!.players.find((p) => p.id === ownerId)!;
+    const instance = owner.hand.find((c) => c.instanceId === instanceId);
+    if (!instance) return;
+    const def = state!.cardDefinitions[instance.definitionId]!;
+
+    if (def.types.includes("Land")) {
+      controller.playLand(ownerId, instanceId);
+      return;
+    }
+    // Any targeted effect opens the same "choose a target" flow - asking
+    // targetSelectorOf rather than checking for "damage" specifically means a
+    // new targeted effect kind can't quietly end up castable with no target.
+    if (def.castEffect && targetSelectorOf(def.castEffect)) {
+      setPendingTarget({ ownerId, sourceInstanceId: instanceId, cardName: def.name, effect: def.castEffect, kind: "cast" });
+      return;
+    }
+    controller.castSpell(ownerId, instanceId);
+  }
+
+  function handleCommandCardClick(ownerId: string, instanceId: string) {
+    controller.castSpell(ownerId, instanceId, [], { fromCommandZone: true });
+  }
+
+  function handleBattlefieldCardClick(ownerId: string, instanceId: string) {
+    if (pendingTarget) {
+      const { ownerId: casterId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
+      if (kind === "ability") {
+        controller.activateAbility(casterId, sourceInstanceId, abilityIndex ?? 0, [{ kind: "card", instanceId }]);
+      } else {
+        controller.castSpell(casterId, sourceInstanceId, [{ kind: "card", instanceId }]);
+      }
+      setPendingTarget(null);
+      return;
+    }
+
+    if (isDeclareAttackersStep && ownerId === activePlayer.id) {
+      setSelectedAttackerIds((prev) => toggleSet(prev, instanceId));
+      return;
+    }
+
+    if (isDeclareBlockersStep && ownerId !== activePlayer.id) {
+      setSelectedBlockerSourceId((prev) => (prev === instanceId ? null : instanceId));
+      return;
+    }
+
+    if (isDeclareBlockersStep && ownerId === activePlayer.id && selectedBlockerSourceId) {
+      if (!(instanceId in state!.attackers)) return;
+      const blockerId = selectedBlockerSourceId;
+      setBlockerAssignments((prev) => ({ ...prev, [blockerId]: instanceId }));
+      setSelectedBlockerSourceId(null);
+      return;
+    }
+
+    if (isDeclareBlockersStep) return;
+
+    const owner = state!.players.find((p) => p.id === ownerId)!;
+    const instance = owner.battlefield.find((c) => c.instanceId === instanceId);
+    const def = instance ? state!.cardDefinitions[instance.definitionId] : undefined;
+    const ability = def?.activatedAbilities?.[0];
+    if (ability && targetSelectorOf(ability.effect)) {
+      setPendingTarget({
+        ownerId,
+        sourceInstanceId: instanceId,
+        cardName: def!.name,
+        effect: ability!.effect,
+        kind: "ability",
+        abilityIndex: 0,
+      });
+      return;
+    }
+
+    controller.activateAbility(ownerId, instanceId, 0);
+  }
+
+  /** Recursion: the chosen target is a card sitting in a graveyard. */
+  function handleGraveyardCardClick(instanceId: string) {
+    if (!pendingTarget) return;
+    const { ownerId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
+    const target = { kind: "card" as const, instanceId };
+    if (kind === "ability") {
+      controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target]);
+    } else {
+      controller.castSpell(ownerId, sourceInstanceId, [target]);
+    }
+    setPendingTarget(null);
+  }
+
+  /** Countering: the chosen target is a spell already on the stack, not a card in a zone. */
+  function handleStackObjectClick(stackObjectId: string) {
+    if (!pendingTarget) return;
+    const { ownerId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
+    const target = { kind: "spell" as const, stackObjectId };
+    if (kind === "ability") {
+      controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target]);
+    } else {
+      controller.castSpell(ownerId, sourceInstanceId, [target]);
+    }
+    setPendingTarget(null);
+  }
+
+  function handlePlayerTargetClick(playerId: string) {
+    if (!pendingTarget) return;
+    const { ownerId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
+    if (kind === "ability") {
+      controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [{ kind: "player", playerId }]);
+    } else {
+      controller.castSpell(ownerId, sourceInstanceId, [{ kind: "player", playerId }]);
+    }
+    setPendingTarget(null);
+  }
+
+  function handleConfirmAttackers() {
+    const defender = state!.players.find((p) => p.id !== activePlayer.id)!;
+    const declarations = [...selectedAttackerIds].map((attackerInstanceId) => ({
+      attackerInstanceId,
+      defendingPlayerId: defender.id,
+    }));
+    controller.declareAttackers(activePlayer.id, declarations);
+    setSelectedAttackerIds(new Set());
+  }
+
+  function handleConfirmBlockers() {
+    const defendingPlayer = state!.players.find((p) => p.id !== activePlayer.id)!;
+    const declarations = Object.entries(blockerAssignments).map(([blockerInstanceId, attackerInstanceId]) => ({
+      blockerInstanceId,
+      attackerInstanceId,
+    }));
+    controller.declareBlockers(defendingPlayer.id, declarations);
+    setBlockerAssignments({});
+    setSelectedBlockerSourceId(null);
+  }
+
+  function handlePassPriority() {
+    const priorityPlayerId = state!.players[state!.priorityPlayerIndex]!.id;
+    controller.passPriority(priorityPlayerId);
+  }
+
+  return (
+    <div className="app">
+      <h1 className="app__title">MTG Commander Sim</h1>
+      <p className="app__notice">
+        {modeNotice}{" "}
+        <a className="app__link" href="?mode=deck">
+          Deck builder
+        </a>
+      </p>
+
+      <ActionBar
+        state={state}
+        onPassPriority={handlePassPriority}
+        showConfirmAttackers={isDeclareAttackersStep && controller.canControlPlayer(activePlayer.id)}
+        onConfirmAttackers={handleConfirmAttackers}
+        showConfirmBlockers={isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)}
+        onConfirmBlockers={handleConfirmBlockers}
+        canActForPriorityPlayer={canActForPriorityPlayer}
+        pendingTargetPrompt={pendingTarget ? `Choose a target for ${pendingTarget.cardName}` : null}
+        onCancelTargeting={() => setPendingTarget(null)}
+        lastError={lastError}
+        onClearError={clearError}
+      />
+
+      <AnimatePresence>
+        {state.players.map((player) => (
+          <PlayerBoard
+            key={player.id}
+            player={player}
+            state={state}
+            cardDefinitions={state.cardDefinitions}
+            isActivePlayer={player.id === activePlayer.id}
+            hasPriority={player.id === state.players[state.priorityPlayerIndex]!.id}
+            selectedAttackerIds={player.id === activePlayer.id ? selectedAttackerIds : new Set()}
+            attackingIds={new Set(Object.keys(state.attackers))}
+            selectedBlockerSourceId={selectedBlockerSourceId}
+            blockerAssignments={blockerAssignments}
+            onHandCardClick={(instanceId) => handleHandCardClick(player.id, instanceId)}
+            onCommandCardClick={(instanceId) => handleCommandCardClick(player.id, instanceId)}
+            onBattlefieldCardClick={(instanceId) => handleBattlefieldCardClick(player.id, instanceId)}
+            onGraveyardCardClick={handleGraveyardCardClick}
+            selectingGraveyardTarget={
+              pendingSelectorKind === "card-in-your-graveyard" && player.id === pendingTarget?.ownerId
+            }
+            selectingPermanentType={pendingPermanentType}
+            onLifeClick={() => handlePlayerTargetClick(player.id)}
+          />
+        ))}
+      </AnimatePresence>
+
+      <StackView
+        state={state}
+        cardDefinitions={state.cardDefinitions}
+        selectingSpellTarget={pendingSelectorKind === "spell"}
+        onStackObjectClick={handleStackObjectClick}
+      />
+    </div>
+  );
+}

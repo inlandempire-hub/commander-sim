@@ -1,0 +1,84 @@
+import { describe, expect, it } from "vitest";
+import { createDemoGame, DEADLY_DONNY, SALTY_MIKE, type GameState } from "@mtg-commander-sim/engine";
+import { applyBotAction } from "../localHarness.js";
+import { botShouldAct, nextAction } from "../play.js";
+
+/**
+ * Plays a complete bot-vs-bot game and returns what happened.
+ *
+ * This is the test that matters most. Every heuristic can be individually
+ * correct and the bot can still lock the game up - by passing forever, by
+ * proposing an action the engine rejects, or by looping on a decision that
+ * never changes the state. Only a full game catches that, and it exercises
+ * the real 99-card demo decks rather than a hand-built board.
+ */
+function playOut(maxActions = 40000): {
+  state: GameState;
+  actions: number;
+  errors: string[];
+  stalled: boolean;
+} {
+  const state = createDemoGame();
+  const errors: string[] = [];
+  let actions = 0;
+
+  while (actions < maxActions) {
+    if (state.players.some((p) => p.hasLost)) break;
+
+    // A seat can be "eligible" (it owes a blocking decision) and still choose to
+    // do nothing, so fall through to the other seat rather than stalling.
+    let acted = false;
+    for (const seat of [DEADLY_DONNY, SALTY_MIKE]) {
+      if (!botShouldAct(state, seat)) continue;
+      const action = nextAction(state, seat);
+      if (!action) continue;
+      try {
+        applyBotAction(state, seat, action);
+      } catch (error) {
+        errors.push(`${seat} ${action.kind}: ${(error as Error).message}`);
+        return { state, actions, errors, stalled: false };
+      }
+      acted = true;
+      break;
+    }
+    if (!acted) break; // genuinely nobody can move the game forward
+    actions += 1;
+  }
+
+  return { state, actions, errors, stalled: actions >= maxActions };
+}
+
+describe("bot vs bot", () => {
+  it("plays a complete game to a winner without proposing an illegal action", () => {
+    const { state, errors, stalled, actions } = playOut();
+
+    expect(errors).toEqual([]);
+    expect(stalled).toBe(false);
+    expect(actions).toBeGreaterThan(50);
+
+    const losers = state.players.filter((p) => p.hasLost);
+    expect(losers).toHaveLength(1);
+    expect(losers[0]!.lossReason).toBeTruthy();
+  });
+
+  it("actually develops a board rather than passing the whole game", () => {
+    const { state } = playOut();
+
+    for (const player of state.players) {
+      const lands = player.battlefield.filter((c) =>
+        state.cardDefinitions[c.definitionId]?.types.includes("Land"),
+      );
+      expect(lands.length).toBeGreaterThan(2);
+    }
+    // Somebody's life total moved, so combat happened.
+    expect(state.players.some((p) => p.life < 40)).toBe(true);
+  });
+
+  it("is deterministic enough to be debuggable - repeated runs all terminate cleanly", () => {
+    for (let i = 0; i < 5; i++) {
+      const { errors, stalled } = playOut();
+      expect(errors).toEqual([]);
+      expect(stalled).toBe(false);
+    }
+  });
+});

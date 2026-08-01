@@ -1,0 +1,18 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# Python bytecode from tools/scryfall-report
+__pycache__/
+*.pyc
+
+# Scryfall bulk data and the report built from it. Regenerable in one command
+# (see tools/scryfall-report/README.md), ~29MB, and not ours to redistribute -
+# see the "Card data & art" section of CLAUDE.md.
+tools/scryfall-report/data/
+tools/scryfall-report/output/
+
+# Vite dev-server cache
+.vite/
+packages/client/node_modules/.vite/

@@ -1,0 +1,326 @@
+:root {
+  color-scheme: dark;
+  --bg: #12161c;
+  --panel: #1b212b;
+  --panel-active: #232b38;
+  --border: #333c4a;
+  --text: #e7ebf1;
+  --text-dim: #9aa5b3;
+  --accent: #5b8cff;
+  --danger: #ff5b6a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app__title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.app__notice {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.action-bar {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-bar__status {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.action-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.action-bar__actions button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.action-bar__actions button:hover {
+  filter: brightness(1.1);
+}
+
+.action-bar__prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #2a3040;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.action-bar__prompt button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.action-bar__error {
+  background: rgba(255, 91, 106, 0.15);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.action-bar__game-over {
+  background: rgba(255, 91, 106, 0.15);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  padding: 10px;
+  font-weight: 600;
+}
+
+.board {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.board--active {
+  border-color: var(--accent);
+}
+
+.board__header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+}
+
+.board__name {
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.board__life {
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--panel-active);
+}
+
+.board__life:hover {
+  outline: 1px solid var(--accent);
+}
+
+.board__mana {
+  color: #ffd166;
+  font-size: 13px;
+}
+
+.board__commander-damage {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.board__priority-badge {
+  background: var(--accent);
+  color: white;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.board__lost-badge {
+  background: var(--danger);
+  color: white;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+/* Marks the one zone a spell is currently waiting to be pointed at - the stack
+   for a counterspell, a graveyard for a recursion spell. */
+.zone--targeting {
+  outline: 2px dashed #ffd166;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.zone--targeting .zone__label::after {
+  content: " — choose a target";
+  color: #ffd166;
+}
+
+/* One labelled group inside the battlefield - lands, creatures, everything
+   else - so a targeting highlight can pick out just the relevant one. */
+.zone__group {
+  padding: 2px;
+}
+
+.zone__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.zone__cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 84px;
+}
+
+.zone--stack {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.card {
+  width: 120px;
+  min-height: 80px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: #232a35;
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  user-select: none;
+}
+
+.card:hover {
+  outline: 2px solid var(--accent);
+}
+
+.card--small {
+  width: 80px;
+  min-height: 50px;
+  opacity: 0.8;
+}
+
+.card--tapped {
+  transform: rotate(8deg);
+  opacity: 0.75;
+}
+
+.card--selected {
+  outline: 3px solid #ffd166;
+}
+
+.card--disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.card--commander {
+  box-shadow: 0 0 0 2px gold inset;
+}
+
+.card--ability {
+  width: 120px;
+  border-radius: 8px;
+  border: 2px dashed var(--border);
+  padding: 8px;
+  font-size: 12px;
+}
+
+.card--W { border-color: #d8c98f; }
+.card--U { border-color: #5b9bd5; }
+.card--B { border-color: #8b7ec8; }
+.card--R { border-color: #e0654a; }
+.card--G { border-color: #6cb35c; }
+.card--multi { border-color: #d5a537; }
+.card--C { border-color: var(--border); }
+
+.card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.card__cost {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.card__type {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.card__pt {
+  margin-top: auto;
+  font-weight: 700;
+}
+
+.card__damage {
+  color: var(--danger);
+  font-weight: 400;
+}
+
+.card__counters {
+  color: var(--success, #2a8f4d);
+  font-weight: 400;
+}
+
+.card__keywords {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.action-bar__waiting {
+  color: var(--text-dim);
+  font-size: 14px;
+  font-style: italic;
+}
+
+.app__link {
+  color: var(--accent);
+}
