@@ -52,6 +52,7 @@ import {
 import { deckSummary, exportDeckText, importDeckText, type ImportResult } from "./deckText.js";
 import { ScryfallPanel } from "./ScryfallPanel.js";
 import { ArtPicker } from "./ArtPicker.js";
+import { CardArtStrip } from "./CardArtStrip.js";
 
 /** How many pool results to render at once. Beyond this you should be filtering, not scrolling. */
 const MAX_RESULTS = 150;
@@ -676,6 +677,7 @@ interface PoolRowProps {
 function PoolRow({ card, inDeck, isCommander, canAdd, onAdd, onMakeCommander }: PoolRowProps) {
   return (
     <li className={`pool__card ${inDeck > 0 || isCommander ? "pool__card--in-deck" : ""}`}>
+      <CardArtStrip definition={card.def} />
       <div className="pool__head">
         <span className="pool__name">{card.def.name}</span>
         <span className="pool__cost">{formatManaCost(card.def.manaCost)}</span>
