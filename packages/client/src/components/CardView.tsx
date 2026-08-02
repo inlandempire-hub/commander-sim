@@ -108,16 +108,23 @@ export function CardView({
   // flight measure where it is going.
   const flying = useIsFlying(instance.instanceId);
 
-  // Damage landing on a creature is currently just a number changing in the
-  // corner of the card, which is easy to miss in the middle of combat.
-  const [hit, setHit] = useState(false);
+  // Damage landing on a creature would otherwise be a number changing in the
+  // corner of the card, which is easy to miss in the middle of combat. The
+  // card flinches, and the amount floats off it - how much matters as much as
+  // whether, since 1 damage on a 4/4 and 3 on a 3/3 look identical otherwise.
+  const [hit, setHit] = useState<{ amount: number; key: number } | null>(null);
   const lastDamage = useRef(instance.damageMarked);
+  const hitCount = useRef(0);
   useEffect(() => {
-    const took = instance.damageMarked > lastDamage.current;
+    const amount = instance.damageMarked - lastDamage.current;
     lastDamage.current = instance.damageMarked;
-    if (!took) return;
-    setHit(true);
-    const timer = window.setTimeout(() => setHit(false), HIT_MS);
+    if (amount <= 0) return;
+    const key = ++hitCount.current;
+    setHit({ amount, key });
+    const timer = window.setTimeout(
+      () => setHit((current) => (current?.key === key ? null : current)),
+      HIT_MS,
+    );
     return () => window.clearTimeout(timer);
   }, [instance.damageMarked]);
 
@@ -159,6 +166,7 @@ export function CardView({
         attacking ? "card--attacking" : "",
         blocking ? "card--blocking" : "",
         hit ? "card--hit" : "",
+        instance.damageMarked > 0 ? "card--damaged" : "",
         flying ? "card--in-transit" : "",
         showArt ? "card--art" : "card--noart",
       ]
@@ -210,6 +218,11 @@ export function CardView({
         </div>
       </div>
       {badge && <div className="card__badge">{badge}</div>}
+      {hit && (
+        <span className="card__hit-number" key={hit.key}>
+          -{hit.amount}
+        </span>
+      )}
     </div>
   );
 }

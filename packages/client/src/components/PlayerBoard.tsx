@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CardDefinition, CardType, GameState, Player } from "@mtg-commander-sim/engine";
 import { CardView } from "./CardView.js";
 import { ZonePile } from "./ZonePile.js";
+import { CardRow } from "./CardRow.js";
 import { libraryAnchorKey } from "../flight.js";
 
 /** How long a life change stays flagged up before fading. */
@@ -261,7 +262,7 @@ export function PlayerBoard({
       <div className="side__zones">
         <div className="row row--hand">
           <div className="zone__label">Hand ({player.hand.length})</div>
-          <div className="row__cards">
+          <CardRow className="row__cards">
             {player.hand.map((instance) => (
               <CardView
                 key={instance.instanceId}
@@ -272,12 +273,12 @@ export function PlayerBoard({
                 onClick={() => onHandCardClick(instance.instanceId)}
               />
             ))}
-          </div>
+          </CardRow>
         </div>
 
         <div className={`row row--lands ${targetingClass("Land")}`}>
           <div className="zone__label">Lands ({lands.length})</div>
-          <div className="row__cards">
+          <CardRow className="row__cards">
             {lands.map((instance) => (
               <CardView
                 key={instance.instanceId}
@@ -288,7 +289,7 @@ export function PlayerBoard({
                 small
               />
             ))}
-          </div>
+          </CardRow>
         </div>
 
         {otherPermanents.length > 0 && (
@@ -296,7 +297,7 @@ export function PlayerBoard({
             className={`row row--other ${targetingClass("Artifact")} ${targetingClass("Enchantment")}`.trim()}
           >
             <div className="zone__label">Other permanents</div>
-            <div className="row__cards">
+            <CardRow className="row__cards">
               {otherPermanents.map((instance) => (
                 <CardView
                   key={instance.instanceId}
@@ -307,13 +308,13 @@ export function PlayerBoard({
                   small
                 />
               ))}
-            </div>
+            </CardRow>
           </div>
         )}
 
         <div className="row row--creatures">
           <div className="zone__label">Creatures ({creatures.length})</div>
-          <div className="row__cards">
+          <CardRow className="row__cards">
             {creatures.map((instance) => (
               <CardView
                 key={instance.instanceId}
@@ -336,7 +337,7 @@ export function PlayerBoard({
                 onClick={() => onBattlefieldCardClick(instance.instanceId)}
               />
             ))}
-          </div>
+          </CardRow>
         </div>
       </div>
     </section>

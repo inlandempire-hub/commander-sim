@@ -197,17 +197,17 @@ body {
  * off-centre. `safe` keeps a row that overflows scrollable from its start
  * instead of clipping the first cards out of reach.
  *
- * The padding-and-negative-margin pair is what gives cards room to move.
- * A row has to be a horizontal scroll container for a wide board, and a
- * container that scrolls on one axis clips on the other - so a card lifting on
- * hover or lunging into combat was being sliced off at the row's edge. The
- * padding pushes that clipping edge clear of the cards; the matching negative
- * margin means flexbox hands the row exactly that much more height to spend on
- * the padding, so the cards themselves end up the size they always were.
+ * Rows never scroll. When there is not enough width the cards slide over each
+ * other by exactly enough to fit, the way a real hand of cards does - a row
+ * that grows a scrollbar instead is the most spreadsheet-like thing left on
+ * this table, and it hides half the board behind a scroll nobody thinks to use
+ * mid-game. The overlap is measured in CardRow and arrives as --overlap.
  *
- * 26px is the worst case added up rather than a round number: a hovered
- * attacking creature is lunging 14px, lifting another 6, and growing 9% of a
- * 90px card, which puts its top edge a little over 24px above where it sits.
+ * `overflow-x: clip` with `overflow-y: visible` is the one pairing that clips
+ * one axis while leaving the other alone; `auto` on either axis silently forces
+ * the other to `auto` too, which is what used to slice the top off any card
+ * lifting on hover or lunging into combat. Since the overlap makes the content
+ * fit, the horizontal clip should never actually have anything to do.
  */
 .row__cards {
   flex: 1 1 auto;
@@ -216,21 +216,12 @@ body {
   align-items: center;
   justify-content: safe center;
   gap: 4px;
-  padding: 26px 0;
-  margin: -26px 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
-/* A row that overflows scrolls sideways; the page itself never does. */
-.row__cards::-webkit-scrollbar {
-  height: 6px;
-}
-
-.row__cards::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
+.row__cards > * + * {
+  margin-left: calc(-1 * var(--overlap, 0px));
 }
 
 /* --- the outer rail: life, mana, command zone, graveyard ------------------ */
@@ -484,12 +475,19 @@ body {
   white-space: nowrap;
 }
 
+/* A pile, not a row: each spell sits slightly over and below the one under it,
+   so a stack two deep is obvious without reading the count. */
 .stack__cards {
   display: flex;
-  gap: 4px;
-  overflow-x: auto;
+  gap: 0;
   max-width: 46vw;
-  scrollbar-width: thin;
+  overflow-x: clip;
+  overflow-y: visible;
+  padding-left: 2px;
+}
+
+.stack__cards > * + * {
+  margin-left: -38px;
 }
 
 /* Stack cards are shown at a fixed small size - the strip has to stay the same
@@ -1392,12 +1390,125 @@ body {
   100% { opacity: 0; }
 }
 
+/* --- the shape of a journey ----------------------------------------------- */
+
+/* A spell that has resolved leaves the stack lit up; a card on its way to a
+   graveyard is dying and dims as it goes; exile takes it somewhere colder.
+   Without this, a creature dying and a land being played look identical. */
+.flight--resolving {
+  filter: drop-shadow(0 0 16px rgba(120, 175, 255, 0.85)) drop-shadow(0 12px 20px rgba(0, 0, 0, 0.55));
+}
+
+.flight--dying {
+  filter: grayscale(0.75) brightness(0.7) drop-shadow(0 12px 20px rgba(0, 0, 0, 0.6));
+  opacity: 0.85;
+}
+
+.flight--exiled {
+  filter: saturate(0.4) brightness(1.15) drop-shadow(0 0 18px rgba(190, 160, 255, 0.7));
+}
+
+/* --- pressing a card ------------------------------------------------------ */
+
+/* Between the hover pose and no pose at all, so a click reads as the card
+   being pushed down rather than as nothing happening until the board changes. */
+.card:active {
+  --hover: -1px;
+  --zoom: 1.03;
+  transition-duration: 0.05s;
+}
+
+/* --- damage ---------------------------------------------------------------- */
+
+/* How much, not just that something happened - 1 damage on a 4/4 and 3 on a
+   3/3 are the same red flash otherwise. */
+.card__hit-number {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  font-size: 20px;
+  font-weight: 700;
+  color: #ff8b96;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
+  pointer-events: none;
+  animation: hit-number 0.42s ease-out forwards;
+}
+
+@keyframes hit-number {
+  0% { opacity: 0; transform: translate(-50%, 6px) scale(0.8); }
+  22% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -22px) scale(1); }
+}
+
+/* A creature carrying damage stays marked after the flinch has finished - it
+   is going to die to the next point of anything, and that should be visible
+   from the board rather than only from the number in its corner. */
+.card--damaged {
+  border-color: #b4535e;
+}
+
+/* --- targeting arrows ------------------------------------------------------ */
+
+/*
+ * Two moments ask you to click one card and then another - choosing a target,
+ * and pairing a blocker with an attacker - and both were previously mute once
+ * the first click had happened.
+ *
+ * Above the flight layer, because it is live input rather than a report of
+ * something that already happened, but below the modal overlays.
+ */
+.arrow {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 65;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.arrow__line {
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 9 7;
+}
+
+.arrow__from {
+  opacity: 0.9;
+}
+
+.arrow__to {
+  fill: none;
+  stroke-width: 3;
+}
+
+.arrow--target .arrow__line,
+.arrow--target .arrow__to {
+  stroke: var(--gold);
+  filter: drop-shadow(0 0 6px rgba(255, 209, 102, 0.7));
+}
+
+.arrow--target .arrow__from {
+  fill: var(--gold);
+}
+
+.arrow--block .arrow__line,
+.arrow--block .arrow__to {
+  stroke: var(--accent);
+  filter: drop-shadow(0 0 6px rgba(91, 140, 255, 0.7));
+}
+
+.arrow--block .arrow__from {
+  fill: var(--accent);
+}
+
 /* Someone who has asked their system not to animate things gets the state
    changes without the movement. Card flights are skipped in JS as well. */
 @media (prefers-reduced-motion: reduce) {
   .card,
   .flight,
   .beat,
+  .card__hit-number,
   .rail__life-delta,
   .rail__life--up,
   .rail__life--down {

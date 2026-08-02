@@ -58,7 +58,22 @@ export function CardFlightLayer({ state, flights }: CardFlightLayerProps) {
           return (
             <motion.div
               key={flight.key}
-              className="flight"
+              /*
+               * Where a card came from and where it is going carry meaning, so
+               * the journey is coloured by it: a spell leaving the stack has
+               * resolved and glows on the way out, and a card on its way to a
+               * graveyard is dying and dims as it goes. The alternative is
+               * every movement looking identical, which makes a creature dying
+               * and a land being played read the same.
+               */
+              className={[
+                "flight",
+                flight.from.zone === "stack" ? "flight--resolving" : "",
+                flight.to.zone === "graveyard" ? "flight--dying" : "",
+                flight.to.zone === "exile" ? "flight--exiled" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               style={{ width: flight.to.width, height: flight.to.height }}
               // Position and size are both animated as a transform: the card
               // grows from whatever size its old zone drew it at into the size

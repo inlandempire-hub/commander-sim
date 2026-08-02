@@ -25,6 +25,10 @@ export function StackView({
   return (
     <div className={`stack ${selectingSpellTarget ? "zone--targeting" : ""}`}>
       <div className="zone__label">Stack ({state.stack.length})</div>
+      {/* Cards here overlap into a pile rather than sitting in a neat row, so
+          the stack looks like the thing it is named after - and so "two spells
+          are waiting" reads at a glance instead of needing the count. Topmost,
+          which resolves first, is rendered first and sits on top. */}
       <div className="stack__cards">
         {[...state.stack].reverse().map((obj) => {
           const instance = state.stackCards.find((c) => c.instanceId === obj.sourceInstanceId);

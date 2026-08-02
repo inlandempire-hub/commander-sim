@@ -15,6 +15,7 @@ import { CardPicker, ModePicker } from "./components/CardPicker.js";
 import { GameLog } from "./components/GameLog.js";
 import { CardFlightLayer } from "./components/CardFlightLayer.js";
 import { TableBeat } from "./components/TableBeat.js";
+import { TargetArrow } from "./components/TargetArrow.js";
 import { cueForLogLine, play, setSoundEnabled, soundEnabled } from "./sound.js";
 import { ArtOverridesProvider, type ArtOverridesByPlayer } from "./artContext.js";
 import { FlyingProvider } from "./flightContext.js";
@@ -538,6 +539,16 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
         )}
 
         <TableBeat state={state} />
+
+        {/* Both halves of a two-click decision, drawn as a line from the card
+            that is waiting on you to wherever you are pointing. Targeting wins
+            if somehow both are live - it is the one that has a spell on hold. */}
+        {pendingTarget ? (
+          <TargetArrow sourceInstanceId={pendingTarget.sourceInstanceId} intent="target" />
+        ) : selectedBlockerSourceId ? (
+          <TargetArrow sourceInstanceId={selectedBlockerSourceId} intent="block" />
+        ) : null}
+
         {/* Last, and outside every scroll container, so a card crossing the
             table isn't clipped at the edge of the row it left. */}
         <CardFlightLayer state={state} flights={flights} />

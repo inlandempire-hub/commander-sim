@@ -1138,3 +1138,77 @@ Two bugs found and fixed in the browser, both in `TableBeat`:
    unannounced again. Tracked separately per kind now.
 
 288 tests, typecheck clean.
+
+## Motion: the two-click decisions, and rows that close up (2026-08-02)
+
+Second half of the push from 5 to 6 on the polish scale.
+
+### Rows never scroll
+
+`fan.ts` / `CardRow.tsx`. When a row runs out of width the cards slide over
+each other by exactly enough to fit, the way a real hand does. A row that grew
+a scrollbar was the most spreadsheet-like thing left on the table, and it hid
+half the board behind a scroll nobody thinks to use mid-game.
+
+`overflow-x: clip` with `overflow-y: visible` is the one pairing that clips one
+axis and leaves the other alone - `auto` on either axis silently forces the
+other to `auto` too, which is what used to slice the top off a card lifting on
+hover. That also retires the padding/negative-margin trick from earlier today;
+it is no longer needed.
+
+The card width is deliberately measured **one pixel too wide**. Neither obvious
+measurement is both exact and usable: `getBoundingClientRect()` measures after
+the transform, so a tapped card reports the box of a rotated card and the row
+closes up more than it needs to; `offsetWidth` ignores transforms correctly but
+rounds to a whole pixel, and that error is *per card* - eight cards each
+under-measured by a quarter-pixel had the row overshooting its own width by two,
+which `overflow: clip` then shaved off the last card. Rounding up instead means
+the row always closes up very slightly more than strictly needed and can never
+be left clipped. Verified: eight cards wanting 540px closed into 322px inside a
+330px row, with card height unchanged.
+
+### Targeting arrows
+
+`TargetArrow.tsx`. Two moments ask you to click one card and then another -
+choosing a target for a spell, and pairing a blocker with its attacker - and
+both were mute once the first click had landed. The prompt in the action bar
+explained the mechanic but nothing on the board connected the two halves.
+
+A bowed line now runs from the card you picked to the cursor: gold for
+targeting, blue for a block. Both ends are recomputed on every mouse move
+including the source, because the board moves under you while you are choosing
+and an arrow anchored to where a card used to be looks broken in a way that is
+hard to attribute. Deliberately not throttled through requestAnimationFrame - a
+tab that is not compositing issues none, and the arrow would simply never
+appear.
+
+### Smaller things
+
+- Flights are coloured by what the journey *means*: a spell leaving the stack
+  has resolved and glows on the way out, a card heading for a graveyard dims,
+  exile goes pale. Otherwise a creature dying and a land being played look
+  identical. Verified: casting a creature produces a plain hand-to-stack flight
+  followed by a `flight--resolving` stack-to-battlefield one.
+- Damage floats the amount off the creature, not just a red flash - 1 damage on
+  a 4/4 and 3 on a 3/3 were the same flash before. A creature still carrying
+  damage keeps a marked border.
+- Cards respond to being pressed, between the hover pose and no pose at all.
+- The stack overlaps into a pile rather than sitting in a neat row, so "two
+  spells are waiting" reads without checking the count.
+
+### Verified this session
+
+Blocker arrow measured starting exactly at the chosen creature's centre
+(515, 294) and ending at the cursor (640, 260), correctly classed
+`arrow--block`, blue, `pointer-events: none`, and gone the moment the block was
+assigned. The pressed pose composes with the tap rotation (9 degrees kept,
+scale 1.03). Six turns of play with no console errors, no cards left hidden,
+and the page never scrolling.
+
+295 tests, typecheck clean.
+
+**Not attempted, and worth saying so:** cards in hand do not fan in an arc.
+Rotating them would make every card's bounding box wider than the card, and the
+flight animation measures those boxes to work out where a card is travelling
+from - so the arc would quietly degrade card movement to buy a static flourish.
+Worth doing only alongside a transform-independent way to measure a card.
