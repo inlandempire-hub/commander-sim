@@ -18,7 +18,7 @@ export interface GameController {
     playerId: string,
     instanceId: string,
     targets?: StackTarget[],
-    options?: { fromCommandZone?: boolean },
+    options?: { fromCommandZone?: boolean; chosenMode?: number },
   ): void;
   activateAbility(playerId: string, instanceId: string, abilityIndex: number, targets?: StackTarget[]): void;
   declareAttackers(playerId: string, declarations: AttackerDeclaration[]): void;

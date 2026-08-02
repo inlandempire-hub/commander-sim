@@ -1,5 +1,5 @@
 import type { CardInstance, GameState } from "./types.js";
-import { requireDefinition, requirePlayer } from "./state.js";
+import { log, requireDefinition, requirePlayer } from "./state.js";
 import { effectivePower, effectiveToughness } from "./counters.js";
 import { pushOntoStack } from "./permanents.js";
 
@@ -81,6 +81,14 @@ export function declareAttackers(state: GameState, playerId: string, declaration
     }
   }
 
+  if (declarations.length > 0) {
+    log(
+      state,
+      `${playerId} attacks with ${declarations
+        .map((d) => requireDefinition(state, player.battlefield.find((c) => c.instanceId === d.attackerInstanceId)?.definitionId ?? "").name)
+        .join(", ")}`,
+    );
+  }
   state.passesInSuccession = 0;
 }
 
@@ -128,6 +136,13 @@ export function declareBlockers(state: GameState, playerId: string, declarations
 
     state.blockers[blockerInstanceId] = attackerInstanceId;
   }
+  const blockCount = declarations.length;
+  log(
+    state,
+    blockCount === 0
+      ? `${playerId} declares no blockers`
+      : `${playerId} blocks with ${blockCount} creature${blockCount === 1 ? "" : "s"}`,
+  );
   // Declaring is finished even when nothing was declared: "I block with
   // nothing" is a real decision, and the attacker's priority window opens
   // only once it has been made.

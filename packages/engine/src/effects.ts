@@ -1,5 +1,6 @@
 import type { CardDefinition, CardInstance, Effect, GameState, StackTarget } from "./types.js";
 import {
+  cardName,
   createCardInstance,
   drawCard,
   findInstance,
@@ -50,9 +51,14 @@ export function applyEffect(
         }
       }
       if (hasLifelink && totalDealt > 0) controller.life += totalDealt;
+      if (totalDealt > 0) {
+        log(state, `${cardName(state, sourceInstanceId)} deals ${totalDealt} damage`);
+        if (hasLifelink) log(state, `${controllerId} gains ${totalDealt} life (lifelink)`);
+      }
       return;
     }
     case "draw": {
+      log(state, `${controllerId} draws ${effect.amount} card${effect.amount === 1 ? "" : "s"}`);
       drawCard(state, controllerId, effect.amount);
       return;
     }
@@ -67,6 +73,7 @@ export function applyEffect(
         }
       }
       if (targets.length === 0) controller.life += effect.amount;
+      log(state, `${controllerId} gains ${effect.amount} life`);
       return;
     }
     case "addCounter": {
@@ -118,6 +125,7 @@ export function applyEffect(
         // The commander replacement effect applies to both: a commander that
         // would be destroyed or exiled goes to the command zone instead.
         const destination = found.instance.isCommander ? "command" : effect.kind === "destroy" ? "graveyard" : "exile";
+        log(state, `${cardName(state, target.instanceId)} is ${effect.kind === "destroy" ? "destroyed" : "exiled"}`);
         moveCard(state, target.instanceId, destination);
       }
       return;

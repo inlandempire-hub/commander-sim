@@ -180,6 +180,27 @@ export function drawCard(state: GameState, playerId: string, amount = 1): void {
   }
 }
 
+/**
+ * Records something that happened, for the game log.
+ *
+ * Kept to plain sentences a player would say out loud - "Deadly Donny casts
+ * Lightning Bolt", not "STACK_PUSH lightning-bolt-3". The log is the only
+ * place the game explains itself: without it a spell resolves, a life total
+ * quietly moves, and you are left guessing whether the card worked.
+ *
+ * Capped, because a long game otherwise grows this without limit and nothing
+ * reads more than the last screenful.
+ */
+const LOG_LIMIT = 400;
+
 export function log(state: GameState, message: string): void {
   state.log.push(message);
+  if (state.log.length > LOG_LIMIT) state.log.splice(0, state.log.length - LOG_LIMIT);
+}
+
+/** The name of whatever card an instance id refers to, for log lines. */
+export function cardName(state: GameState, instanceId: string): string {
+  const found = findInstance(state, instanceId);
+  if (!found) return "a card";
+  return state.cardDefinitions[found.instance.definitionId]?.name ?? "a card";
 }

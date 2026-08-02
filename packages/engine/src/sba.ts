@@ -1,5 +1,5 @@
 import type { GameState } from "./types.js";
-import { findInstance, moveCard, requireDefinition } from "./state.js";
+import { findInstance, log, moveCard, requireDefinition } from "./state.js";
 import { pushOntoStack } from "./permanents.js";
 import { effectiveToughness } from "./counters.js";
 
@@ -17,6 +17,9 @@ function moveDyingCreatureToItsZone(state: GameState, instanceId: string, isComm
   const controllerId = found?.instance.controllerId;
   const def = found ? state.cardDefinitions[found.instance.definitionId] : undefined;
 
+  if (diedFromBattlefield) {
+    log(state, `${def?.name ?? "A creature"} dies${isCommander ? " (returned to the command zone)" : ""}`);
+  }
   moveCard(state, instanceId, isCommander ? "command" : "graveyard");
 
   // "Dies" means specifically "was put into a graveyard from the battlefield",

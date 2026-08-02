@@ -1,11 +1,19 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { canPlayCardNow, shouldAutoPass, targetSelectorOf, type Effect } from "@mtg-commander-sim/engine";
+import {
+  canPlayCardNow,
+  modesOf,
+  shouldAutoPass,
+  targetSelectorOf,
+  type Effect,
+} from "@mtg-commander-sim/engine";
 import type { GameController } from "./gameController.js";
 import { PlayerBoard } from "./components/PlayerBoard.js";
 import { StackView } from "./components/StackView.js";
 import { ActionBar } from "./components/ActionBar.js";
 import { CardDetail } from "./components/CardDetail.js";
+import { CardPicker, ModePicker } from "./components/CardPicker.js";
+import { GameLog } from "./components/GameLog.js";
 import { ArtOverridesProvider, type ArtOverridesByPlayer } from "./artContext.js";
 
 interface PendingTarget {
@@ -18,6 +26,8 @@ interface PendingTarget {
   kind: "cast" | "ability";
   /** Only set when kind is "ability" - which of the source's activatedAbilities to activate. */
   abilityIndex?: number;
+  /** Set for a modal spell, chosen before targets since the legal targets depend on it. */
+  chosenMode?: number;
 }
 
 /** The card the detail panel is reading out, and whose copy of it. */
@@ -47,35 +57,8 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const [selectedBlockerSourceId, setSelectedBlockerSourceId] = useState<string | null>(null);
   const [blockerAssignments, setBlockerAssignments] = useState<Record<string, string>>({});
   const [hovered, setHovered] = useState<HoveredCard | null>(null);
-
-  /*
-   * INTERIM: answer a pending search automatically.
-   *
-   * A tutor stops mid-resolution and nobody has priority until it is
-   * answered, so with no picker built yet a human casting one would freeze
-   * the game outright. Taking the most expensive match is the same policy the
-   * engine used before the choice became the player's, so this is no worse
-   * than the old behaviour - it just isn't the feature yet.
-   *
-   * Delete this the moment the searchable card picker lands; it is the only
-   * thing standing between the player and the choice they are owed.
-   */
-  useEffect(() => {
-    const pending = state?.pendingSearch;
-    if (!pending || !controller.canControlPlayer(pending.playerId)) return;
-    const player = state!.players.find((p) => p.id === pending.playerId);
-    const best = pending.candidateInstanceIds
-      .map((id) => player?.library.find((c) => c.instanceId === id))
-      .filter((card): card is NonNullable<typeof card> => card !== undefined)
-      .sort((a, b) => {
-        const cost = (c: typeof a) => {
-          const mana = state!.cardDefinitions[c.definitionId]?.manaCost;
-          return (mana?.generic ?? 0) + Object.values(mana?.colors ?? {}).reduce((t, n) => t + (n ?? 0), 0);
-        };
-        return cost(b) - cost(a);
-      })[0];
-    controller.resolveSearch(pending.playerId, best?.instanceId ?? null);
-  }, [state, controller]);
+  /** A modal spell waiting on you to choose which mode you're casting. */
+  const [pendingMode, setPendingMode] = useState<{ ownerId: string; instanceId: string } | null>(null);
 
   // Auto-pass: whenever the priority holder (a seat this client controls) has
   // nothing productive to do, pass on their behalf instead of making them
@@ -138,6 +121,28 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const detailOwnerId = hovered ? hovered.ownerId : topOfStackCard?.ownerId;
   const detailReason = hovered ? "hover" : topOfStackCard ? "stack" : undefined;
 
+  // Only surfaced for a seat this client actually drives; the bot answers its
+  // own searches, and over the network the other player answers theirs.
+  const pendingSearch =
+    state.pendingSearch && controller.canControlPlayer(state.pendingSearch.playerId)
+      ? state.pendingSearch
+      : undefined;
+  const searchCandidates = pendingSearch
+    ? (state.players.find((p) => p.id === pendingSearch.playerId)?.library ?? []).filter((card) =>
+        pendingSearch.candidateInstanceIds.includes(card.instanceId),
+      )
+    : [];
+
+  const modeCardDefinition = pendingMode
+    ? state.cardDefinitions[
+        state.players
+          .find((p) => p.id === pendingMode.ownerId)
+          ?.hand.find((c) => c.instanceId === pendingMode.instanceId)?.definitionId ?? ""
+      ]
+    : undefined;
+  const modeOptions = modeCardDefinition ? modesOf(modeCardDefinition) : undefined;
+  const modeCardName = modeCardDefinition?.name ?? "";
+
   function handleHover(definitionId: string | null, ownerId?: string) {
     setHovered(definitionId ? { definitionId, ownerId } : null);
   }
@@ -150,6 +155,12 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
 
     if (def.types.includes("Land")) {
       controller.playLand(ownerId, instanceId);
+      return;
+    }
+    // A mode is part of casting, so it's asked before targets - the legal
+    // targets depend on which mode you picked.
+    if (modesOf(def)) {
+      setPendingMode({ ownerId, instanceId });
       return;
     }
     // Any targeted effect opens the same "choose a target" flow - asking
@@ -172,7 +183,9 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
       if (kind === "ability") {
         controller.activateAbility(casterId, sourceInstanceId, abilityIndex ?? 0, [{ kind: "card", instanceId }]);
       } else {
-        controller.castSpell(casterId, sourceInstanceId, [{ kind: "card", instanceId }]);
+        controller.castSpell(casterId, sourceInstanceId, [{ kind: "card", instanceId }], {
+          chosenMode: pendingTarget.chosenMode,
+        });
       }
       setPendingTarget(null);
       return;
@@ -236,7 +249,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     if (kind === "ability") {
       controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target]);
     } else {
-      controller.castSpell(ownerId, sourceInstanceId, [target]);
+      controller.castSpell(ownerId, sourceInstanceId, [target], { chosenMode: pendingTarget.chosenMode });
     }
     setPendingTarget(null);
   }
@@ -249,7 +262,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     if (kind === "ability") {
       controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target]);
     } else {
-      controller.castSpell(ownerId, sourceInstanceId, [target]);
+      controller.castSpell(ownerId, sourceInstanceId, [target], { chosenMode: pendingTarget.chosenMode });
     }
     setPendingTarget(null);
   }
@@ -260,9 +273,41 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     if (kind === "ability") {
       controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [{ kind: "player", playerId }]);
     } else {
-      controller.castSpell(ownerId, sourceInstanceId, [{ kind: "player", playerId }]);
+      controller.castSpell(ownerId, sourceInstanceId, [{ kind: "player", playerId }], {
+        chosenMode: pendingTarget.chosenMode,
+      });
     }
     setPendingTarget(null);
+  }
+
+  /**
+   * A mode has been chosen. If that mode targets, fall straight into the
+   * normal target-selection flow carrying the mode with it; if it doesn't,
+   * the spell is fully specified and can be cast.
+   */
+  function handleModeChosen(index: number) {
+    if (!pendingMode) return;
+    const { ownerId, instanceId } = pendingMode;
+    const owner = state!.players.find((p) => p.id === ownerId)!;
+    const instance = owner.hand.find((c) => c.instanceId === instanceId);
+    const def = instance ? state!.cardDefinitions[instance.definitionId] : undefined;
+    const modes = def ? modesOf(def) : undefined;
+    const mode = modes?.[index];
+    setPendingMode(null);
+    if (!def || !mode) return;
+
+    if (targetSelectorOf(mode.effect)) {
+      setPendingTarget({
+        ownerId,
+        sourceInstanceId: instanceId,
+        cardName: def.name,
+        effect: mode.effect,
+        kind: "cast",
+        chosenMode: index,
+      });
+      return;
+    }
+    controller.castSpell(ownerId, instanceId, [], { chosenMode: index });
   }
 
   /**
@@ -392,12 +437,39 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           <PlayerBoard key={bottomPlayer.id} {...boardProps(bottomPlayer)} />
         </AnimatePresence>
 
-        <CardDetail
-          definition={detailDefinitionId ? state.cardDefinitions[detailDefinitionId] : undefined}
-          cardDefinitions={state.cardDefinitions}
-          reason={detailReason}
-          ownerId={detailOwnerId}
-        />
+        <div className="sidebar">
+          <CardDetail
+            definition={detailDefinitionId ? state.cardDefinitions[detailDefinitionId] : undefined}
+            cardDefinitions={state.cardDefinitions}
+            reason={detailReason}
+            ownerId={detailOwnerId}
+          />
+          <GameLog lines={state.log} />
+        </div>
+
+        {/* A tutor has stopped mid-resolution. Only the player it belongs to
+            is asked, and only if this client drives that seat - the bot
+            answers its own through the same engine call. */}
+        {pendingSearch && (
+          <CardPicker
+            title={`${pendingSearch.playerId}'s library`}
+            prompt={pendingSearch.prompt}
+            cards={searchCandidates}
+            cardDefinitions={state.cardDefinitions}
+            onChoose={(instanceId) => controller.resolveSearch(pendingSearch.playerId, instanceId)}
+            onDecline={() => controller.resolveSearch(pendingSearch.playerId, null)}
+            onHover={handleHover}
+          />
+        )}
+
+        {pendingMode && modeOptions && (
+          <ModePicker
+            cardName={modeCardName}
+            modes={modeOptions}
+            onChoose={handleModeChosen}
+            onCancel={() => setPendingMode(null)}
+          />
+        )}
       </div>
     </ArtOverridesProvider>
   );

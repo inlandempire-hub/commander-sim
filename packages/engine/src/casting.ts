@@ -1,5 +1,5 @@
 import type { CardDefinition, Effect, GameState, ManaCost, StackTarget } from "./types.js";
-import { findInstance, moveCard, requireDefinition, requirePlayer } from "./state.js";
+import { findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import { applyCommanderTax, payManaCost, canPayManaCost } from "./mana.js";
 import { pushOntoStack, putOntoBattlefield } from "./permanents.js";
 import { isValidTarget, targetSelectorOf } from "./targeting.js";
@@ -109,6 +109,7 @@ export function castSpell(
   payManaCost(player, cost);
 
   moveCard(state, instanceId, "stack");
+  log(state, `${playerId} casts ${def.name}`);
 
   if (options.fromCommandZone) {
     player.commanderCastCount[instance.instanceId] = (player.commanderCastCount[instance.instanceId] ?? 0) + 1;

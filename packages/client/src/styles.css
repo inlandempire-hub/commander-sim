@@ -106,9 +106,19 @@ body {
   grid-row: 4;
 }
 
-.detail {
+/* The right-hand column: what you're looking at on top, what has happened
+   below it. The log takes whatever height the card detail doesn't. */
+.sidebar {
   grid-column: 2;
   grid-row: 1 / -1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail {
+  flex: 0 1 auto;
 }
 
 /* Before a networked game has state there is no table to lay out. */
@@ -890,7 +900,110 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .detail {
+  .sidebar {
     display: none;
   }
+}
+
+/* --- game log ------------------------------------------------------------- */
+
+.log {
+  flex: 1 1 auto;
+  min-height: 80px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.log__lines {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.log__line {
+  margin: 0 0 3px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-dim);
+  text-transform: capitalize;
+}
+
+/* The newest line is the one you actually want to read. */
+.log__line:last-of-type {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.log__empty {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* --- card picker ---------------------------------------------------------- */
+
+.overlay--picker .overlay__panel {
+  width: min(900px, 100%);
+}
+
+.overlay__panel--narrow {
+  width: min(460px, 100%);
+}
+
+.picker__prompt {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.picker__search {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.picker__search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.picker__none {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* "Choose one -": sentences, not cards. */
+.modes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modes__option {
+  text-align: left;
+  background: var(--panel-active);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.modes__option:hover {
+  border-color: var(--accent);
 }

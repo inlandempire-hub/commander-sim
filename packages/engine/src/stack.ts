@@ -1,5 +1,5 @@
 import type { GameState } from "./types.js";
-import { findInstance, moveCard } from "./state.js";
+import { cardName, findInstance, log, moveCard } from "./state.js";
 import { applyEffect } from "./effects.js";
 import { putOntoBattlefield } from "./permanents.js";
 
@@ -20,10 +20,12 @@ export function resolveTopOfStack(state: GameState): void {
   if (!obj) return;
 
   if (obj.isPermanentSpell) {
+    log(state, `${obj.controllerId} resolves ${cardName(state, obj.sourceInstanceId)}`);
     putOntoBattlefield(state, obj.sourceInstanceId);
     return;
   }
 
+  log(state, `${obj.controllerId} resolves ${cardName(state, obj.sourceInstanceId)}`);
   applyEffect(state, obj.controllerId, obj.sourceInstanceId, obj.effect, obj.targets);
 
   const source = findInstance(state, obj.sourceInstanceId);
