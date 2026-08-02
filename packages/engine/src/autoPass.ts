@@ -119,6 +119,10 @@ export function hasEligibleBlocker(state: GameState, playerId: string): boolean 
  * pile of special cases.
  */
 export function shouldAutoPass(state: GameState, playerId: string): boolean {
+  // The game is mid-spell: a search is waiting on someone to name a card, and
+  // nothing else happens until they do.
+  if (state.pendingSearch) return false;
+
   const activePlayerId = state.players[state.activePlayerIndex]?.id;
 
   if (state.step === "declare-attackers" && playerId === activePlayerId) {

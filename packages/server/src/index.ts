@@ -8,6 +8,7 @@ import {
   activateAbilityWithAutoTap,
   declareAttackers,
   declareBlockers,
+  resolveSearch,
   passPriority,
   type GameState,
 } from "@mtg-commander-sim/engine";
@@ -59,6 +60,9 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       return;
     case "declareBlockers":
       declareBlockers(state, playerId, message.declarations);
+      return;
+    case "resolveSearch":
+      resolveSearch(state, playerId, message.instanceId);
       return;
     case "passPriority":
       passPriority(state, playerId);

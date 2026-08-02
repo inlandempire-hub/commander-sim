@@ -301,11 +301,17 @@ export const GLADECOVER_SCOUT: CardDefinition = {
 };
 
 /**
- * Healing Salve is real and its "gain 3 life" mode is accurately represented
- * here; its other mode ("prevent the next 3 damage") is not implemented -
- * this fixture only exists to exercise deck color-identity validation
- * (it's white, so it's illegal in a non-white commander's deck) and the
- * gainLife effect, not to be a complete implementation of the card.
+ * "Choose one - Target player gains 3 life; or prevent the next 3 damage that
+ * would be dealt to any target this turn."
+ *
+ * Both modes are offered. The first is exact. The second is a documented
+ * approximation: this engine has no damage-prevention shield, so it is
+ * represented as +3 toughness until end of turn on the chosen creature -
+ * which absorbs three damage in combat the way the real mode would, but does
+ * nothing against a damage spell aimed at a player, and leaves the creature
+ * bigger rather than protected. Kept because the mode being *offered and
+ * doing something sensible* beats a modal card with one live option; revisit
+ * when a real prevention-shield effect exists.
  */
 export const HEALING_SALVE: CardDefinition = {
   id: "healing-salve",
@@ -314,7 +320,16 @@ export const HEALING_SALVE: CardDefinition = {
   types: ["Instant"],
   manaCost: { generic: 0, colors: { W: 1 } },
   colorIdentity: ["W"],
-  castEffect: { kind: "gainLife", amount: 3 },
+  castEffect: {
+    kind: "modal",
+    modes: [
+      { label: "Target player gains 3 life", effect: { kind: "gainLife", amount: 3 } },
+      {
+        label: "Prevent the next 3 damage to target creature this turn",
+        effect: { kind: "pump", power: 0, toughness: 3, target: { kind: "creature" } },
+      },
+    ],
+  },
   tier: "scripted",
 };
 

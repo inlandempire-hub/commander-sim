@@ -6,6 +6,7 @@ import {
   createGameFromDecks,
   declareAttackers,
   declareBlockers,
+  resolveSearch,
   passPriority,
   playLand,
   type DeckList,
@@ -56,6 +57,7 @@ export function useLocalGameController({ decks }: LocalGameOptions = {}): GameCo
       act((s) => activateAbilityWithAutoTap(s, playerId, instanceId, abilityIndex, targets)),
     declareAttackers: (playerId, declarations) => act((s) => declareAttackers(s, playerId, declarations)),
     declareBlockers: (playerId, declarations) => act((s) => declareBlockers(s, playerId, declarations)),
+    resolveSearch: (playerId, instanceId) => act((s) => resolveSearch(s, playerId, instanceId)),
     passPriority: (playerId) => act((s) => passPriority(s, playerId)),
     canControlPlayer: () => true, // hotseat: one tab, both seats
   };

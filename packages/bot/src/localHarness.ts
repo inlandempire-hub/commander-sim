@@ -3,6 +3,7 @@ import {
   castSpell,
   declareAttackers,
   declareBlockers,
+  resolveSearch,
   passPriority,
   playLand,
   type GameState,
@@ -37,6 +38,9 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
       return;
     case "declareBlockers":
       declareBlockers(state, playerId, action.declarations);
+      return;
+    case "resolveSearch":
+      resolveSearch(state, playerId, action.instanceId);
       return;
     case "passPriority":
       passPriority(state, playerId);

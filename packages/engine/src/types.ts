@@ -56,7 +56,13 @@ export type TargetSelector =
    * few of them genuinely say. Hexproof is irrelevant here - it only protects
    * permanents on the battlefield.
    */
-  | { kind: "card-in-your-graveyard"; cardType?: CardType };
+  | { kind: "card-in-your-graveyard"; cardType?: CardType }
+  /**
+   * "Target card you own in exile" - the return-from-exile effects. Separate
+   * from the graveyard selector because the two zones are genuinely different
+   * places and a card is only ever in one of them.
+   */
+  | { kind: "card-in-your-exile"; cardType?: CardType };
 
 /**
  * The effect DSL. Deliberately small for Phase 1 - just enough to script the
@@ -121,6 +127,20 @@ export type Effect =
    * fires enters-the-battlefield triggers exactly as casting it would.
    */
   | { kind: "returnFromGraveyard"; destination: "hand" | "battlefield"; target: TargetSelector }
+  /** "Return target card you own from exile to your hand / the battlefield." */
+  | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
+  /**
+   * "Choose one -" and the rest of the modal family.
+   *
+   * The mode is picked as the spell is *cast*, not as it resolves (rule
+   * 601.2b), which is why nothing downstream ever sees this wrapper:
+   * `castSpell` swaps it for the chosen mode's effect before the spell goes on
+   * the stack. Targeting, resolution, the bot and the client all then deal
+   * with an ordinary single effect.
+   *
+   * `label` is the printed wording of that mode, shown when choosing.
+   */
+  | { kind: "modal"; modes: Array<{ label: string; effect: Effect }> }
   /**
    * "Search your library for a [card], put it into your hand / onto the
    * battlefield [tapped], then shuffle."
@@ -262,6 +282,23 @@ export interface StackObject {
   isPermanentSpell: boolean;
 }
 
+/**
+ * A library search that has stopped to ask its controller which card to take.
+ *
+ * The candidate list is computed by the engine from the effect's restrictions,
+ * so a client can only ever offer legal answers - and `resolveSearch` checks
+ * again rather than trusting what comes back.
+ */
+export interface PendingSearch {
+  playerId: string;
+  /** Card instances in that player's library that match the search restriction. */
+  candidateInstanceIds: string[];
+  destination: "hand" | "battlefield";
+  tapped?: boolean;
+  /** Printed wording of what's being searched for, for the picker's heading. */
+  prompt: string;
+}
+
 export type ManaPool = Partial<Record<Color, number>> & { generic?: number };
 
 export interface Player {
@@ -335,6 +372,14 @@ export interface GameState {
    * respond to blocks they hadn't seen yet. Reset at end of combat.
    */
   blockersDeclared: boolean;
+  /**
+   * A library search waiting on the searching player to name a card.
+   *
+   * Unlike a mode, a search genuinely happens *during* resolution, so the
+   * engine has to stop and ask. While this is set nobody receives priority
+   * and no step advances - the game is mid-spell. Cleared by `resolveSearch`.
+   */
+  pendingSearch: PendingSearch | null;
   cardDefinitions: Record<string, CardDefinition>;
   nextInstanceId: number;
   nextStackObjectId: number;

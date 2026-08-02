@@ -13,6 +13,8 @@ export type BotAction =
   | { kind: "activateAbility"; instanceId: string; abilityIndex: number; targets: StackTarget[] }
   | { kind: "declareAttackers"; declarations: AttackerDeclaration[] }
   | { kind: "declareBlockers"; declarations: BlockerDeclaration[] }
+  /** Answering a tutor that stopped mid-resolution. Null takes nothing. */
+  | { kind: "resolveSearch"; instanceId: string | null }
   | { kind: "passPriority" };
 
 export const PASS: BotAction = { kind: "passPriority" };

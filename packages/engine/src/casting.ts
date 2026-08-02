@@ -1,4 +1,4 @@
-import type { CardDefinition, GameState, ManaCost, StackTarget } from "./types.js";
+import type { CardDefinition, Effect, GameState, ManaCost, StackTarget } from "./types.js";
 import { findInstance, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import { applyCommanderTax, payManaCost, canPayManaCost } from "./mana.js";
 import { pushOntoStack, putOntoBattlefield } from "./permanents.js";
@@ -21,6 +21,18 @@ export function canCastAtSorcerySpeed(state: GameState, playerId: string): boole
 export interface CastOptions {
   /** Cast the player's commander from the command zone (applies commander tax) instead of from hand. */
   fromCommandZone?: boolean;
+  /**
+   * Which mode of a "choose one" spell is being cast, as an index into its
+   * `modal` effect's `modes`. Required for a modal spell and meaningless for
+   * anything else. Modes are chosen as part of casting (rule 601.2b), which is
+   * also why the targets passed alongside must be legal for *that* mode.
+   */
+  chosenMode?: number;
+}
+
+/** The modes of a "choose one" card, or undefined if it isn't modal. */
+export function modesOf(def: CardDefinition): Array<{ label: string; effect: Effect }> | undefined {
+  return def.castEffect?.kind === "modal" ? def.castEffect.modes : undefined;
 }
 
 /**
@@ -64,7 +76,18 @@ export function castSpell(
     cost = applyCommanderTax(cost, timesCast);
   }
 
-  const effect = def.castEffect ?? { kind: "draw", amount: 0 };
+  // A mode is chosen as the spell is cast, so the modal wrapper is unwrapped
+  // here and never reaches the stack. Everything downstream - targeting,
+  // resolution, the bot, the client - sees a plain single effect.
+  let effect: Effect = def.castEffect ?? { kind: "draw", amount: 0 };
+  if (effect.kind === "modal") {
+    const modes = effect.modes;
+    const chosen = options.chosenMode;
+    if (chosen === undefined) throw new Error(`${def.name} is modal - a mode must be chosen`);
+    const mode = modes[chosen];
+    if (!mode) throw new Error(`${def.name} has no mode ${chosen}`);
+    effect = mode.effect;
+  }
 
   // Validated before anything is paid or moved. Every throw below this point
   // would otherwise leave the game half-cast - mana spent and the card sitting

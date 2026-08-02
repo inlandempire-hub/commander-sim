@@ -100,6 +100,10 @@ function describe(state: GameState, seat: string, action: BotAction): string | n
       return `${seat} blocks: ${action.declarations
         .map((d) => `${nameOf(state, d.blockerInstanceId)} stops ${nameOf(state, d.attackerInstanceId)}`)
         .join("; ")}.`;
+    case "resolveSearch":
+      return action.instanceId
+        ? `${seat} searches and takes ${nameOf(state, action.instanceId)}.`
+        : `${seat} searches and takes nothing.`;
     case "passPriority":
       return null;
   }

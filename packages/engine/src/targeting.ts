@@ -70,6 +70,15 @@ export function isValidTarget(
       if (!selector.cardType) return true;
       return requireDefinition(state, found.instance.definitionId).types.includes(selector.cardType);
     }
+    case "card-in-your-exile": {
+      if (target.kind !== "card") return false;
+      const found = findInstance(state, target.instanceId);
+      if (!found || found.instance.zone !== "exile") return false;
+      // Exile is a shared zone, so "yours" means the cards you own in it.
+      if (found.instance.ownerId !== controllerId) return false;
+      if (!selector.cardType) return true;
+      return requireDefinition(state, found.instance.definitionId).types.includes(selector.cardType);
+    }
   }
 }
 
@@ -110,6 +119,7 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "exile":
     case "counter":
     case "returnFromGraveyard":
+    case "returnFromExile":
       return effect.target;
     // `pump` is the one optional case: "target creature gets +2/+2" targets,
     // but "{G}: this creature gets +2/+2" is the same effect with no target,

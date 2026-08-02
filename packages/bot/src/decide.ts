@@ -17,7 +17,7 @@ import {
   toughness,
   wouldDie,
 } from "./evaluate.js";
-import { couldAfford, nextSourceToTap } from "./mana.js";
+import { chooseSearchResult, couldAfford, nextSourceToTap } from "./mana.js";
 import {
   castableCommander,
   castableFromHand,
@@ -53,6 +53,14 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
   const me = state.players.find((p) => p.id === botPlayerId);
   if (!me || me.hasLost) return PASS;
   if (state.players.some((p) => p.hasLost)) return PASS; // game's over, stop playing
+
+  // A tutor of the bot's own has stopped to ask which card to take. Nothing
+  // else can happen in the game until it answers, so this comes before
+  // everything - including the priority gate, since mid-resolution nobody has
+  // priority at all.
+  if (state.pendingSearch?.playerId === botPlayerId) {
+    return { kind: "resolveSearch", instanceId: chooseSearchResult(state, botPlayerId) };
+  }
 
   const isMyTurn = state.players[state.activePlayerIndex]?.id === botPlayerId;
 

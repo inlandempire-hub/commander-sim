@@ -56,6 +56,8 @@ function toClientMessage(action: BotAction): ClientMessage | null {
       return { type: "declareAttackers", declarations: action.declarations };
     case "declareBlockers":
       return { type: "declareBlockers", declarations: action.declarations };
+    case "resolveSearch":
+      return { type: "resolveSearch", instanceId: action.instanceId };
     case "passPriority":
       return { type: "passPriority" };
   }

@@ -41,6 +41,10 @@ export function describeTarget(selector: TargetSelector): string {
       return selector.cardType
         ? `target ${selector.cardType.toLowerCase()} card in your graveyard`
         : "target card in your graveyard";
+    case "card-in-your-exile":
+      return selector.cardType
+        ? `target ${selector.cardType.toLowerCase()} card you own in exile`
+        : "target card you own in exile";
   }
 }
 
@@ -100,9 +104,14 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         : "";
       return `Counter ${describeTarget(effect.target)}${unless}.`;
     }
-    case "returnFromGraveyard": {
+    case "returnFromGraveyard":
+    case "returnFromExile": {
       const where = effect.destination === "hand" ? "to your hand" : "to the battlefield";
       return `Return ${describeTarget(effect.target)} ${where}.`;
+    }
+    case "modal": {
+      // The printed wording: "Choose one - A; or B."
+      return `Choose one - ${effect.modes.map((mode) => mode.label).join("; or ")}.`;
     }
     case "searchLibrary": {
       const what = effect.basicLandOnly

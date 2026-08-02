@@ -23,6 +23,12 @@ export interface GameController {
   activateAbility(playerId: string, instanceId: string, abilityIndex: number, targets?: StackTarget[]): void;
   declareAttackers(playerId: string, declarations: AttackerDeclaration[]): void;
   declareBlockers(playerId: string, declarations: BlockerDeclaration[]): void;
+  /**
+   * Answers a tutor that stopped mid-resolution. `null` takes nothing.
+   * Nobody has priority until this is called, so the game cannot continue
+   * while a search is pending.
+   */
+  resolveSearch(playerId: string, instanceId: string | null): void;
   passPriority(playerId: string): void;
   /** Whether this client is allowed to act as `playerId` - true for both seats in local hotseat mode, only your own seat over the network. Used to gate auto-passing. */
   canControlPlayer(playerId: string): boolean;

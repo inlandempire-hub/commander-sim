@@ -12,6 +12,8 @@ export type ClientMessage =
   | { type: "activateAbility"; instanceId: string; abilityIndex: number; targets?: StackTarget[] }
   | { type: "declareAttackers"; declarations: AttackerDeclaration[] }
   | { type: "declareBlockers"; declarations: BlockerDeclaration[] }
+  /** Answering a tutor that stopped mid-resolution. Null takes nothing. */
+  | { type: "resolveSearch"; instanceId: string | null }
   | { type: "passPriority" };
 
 /** Messages the server sends to a client. `state` is always filtered for that specific viewer. */

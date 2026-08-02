@@ -216,55 +216,99 @@ export function applyEffect(
       }
       return;
     }
-    case "searchLibrary": {
-      const found = chooseSearchResult(state, controller.library, effect);
-      if (found) {
+    case "returnFromExile": {
+      for (const target of targets) {
+        if (target.kind !== "card") continue;
+        const found = findInstance(state, target.instanceId);
+        if (!found || found.instance.zone !== "exile") continue;
+
         if (effect.destination === "battlefield") {
-          putOntoBattlefield(state, found.instanceId, { tapped: effect.tapped });
+          putOntoBattlefield(state, target.instanceId);
         } else {
-          moveCard(state, found.instanceId, "hand");
+          moveCard(state, target.instanceId, "hand");
         }
       }
-      // Shuffle whether or not anything was found - "then shuffle" isn't
-      // conditional on the search succeeding, and skipping it would leak the
-      // fact that the library holds no match.
-      shuffleLibrary(state, controllerId);
       return;
+    }
+    case "searchLibrary": {
+      // Searching stops the game and asks: which card you take is the whole
+      // point of a tutor, and the real rules make it the searching player's
+      // choice. `resolveSearch` finishes the job once they've answered.
+      state.pendingSearch = {
+        playerId: controllerId,
+        candidateInstanceIds: controller.library
+          .filter((card) => matchesSearch(state, card, effect))
+          .map((card) => card.instanceId),
+        destination: effect.destination,
+        tapped: effect.tapped,
+        prompt: describeSearch(effect),
+      };
+      return;
+    }
+    case "modal": {
+      // castSpell unwraps the chosen mode before the spell reaches the stack,
+      // so getting here means something built a modal triggered or activated
+      // ability - which nothing chooses a mode for yet. Loud rather than
+      // silently picking one.
+      throw new Error("Modal effects are only supported on cast spells");
     }
   }
 }
 
-/**
- * Which card a library search finds.
- *
- * The real rules make this the searching player's choice and there is no
- * mid-resolution decision flow yet (the same gap Ward and "unless its
- * controller pays" work around). So the engine picks the most expensive legal
- * card, on the grounds that a tutor is nearly always cast to find the best
- * thing available, and mana value is the only proxy for "best" that doesn't
- * require understanding the card. Basic lands are interchangeable, so the ramp
- * spells - which are most of what this covers - are unaffected either way.
- */
-function chooseSearchResult(
-  state: GameState,
-  library: CardInstance[],
-  effect: Extract<Effect, { kind: "searchLibrary" }>,
-): CardInstance | undefined {
-  const matches = (definition: CardDefinition | undefined): definition is CardDefinition => {
-    if (!definition) return false;
-    if (effect.basicLandOnly && !definition.supertypes?.includes("Basic")) return false;
-    if (effect.cardType && !definition.types.includes(effect.cardType)) return false;
-    return true;
-  };
-
-  return [...library]
-    .filter((card) => matches(state.cardDefinitions[card.definitionId]))
-    .sort(
-      (a, b) =>
-        manaValue(state.cardDefinitions[b.definitionId]?.manaCost ?? { generic: 0, colors: {} }) -
-        manaValue(state.cardDefinitions[a.definitionId]?.manaCost ?? { generic: 0, colors: {} }),
-    )[0];
+/** What a search is looking for, in the card's own words, for the picker heading. */
+function describeSearch(effect: Extract<Effect, { kind: "searchLibrary" }>): string {
+  const what = effect.basicLandOnly
+    ? "a basic land card"
+    : effect.cardType
+      ? `a ${effect.cardType.toLowerCase()} card`
+      : "a card";
+  const where = effect.destination === "battlefield" ? "onto the battlefield" : "into your hand";
+  return `Search your library for ${what} and put it ${where}${effect.tapped ? " tapped" : ""}`;
 }
+
+function matchesSearch(
+  state: GameState,
+  card: CardInstance,
+  effect: Extract<Effect, { kind: "searchLibrary" }>,
+): boolean {
+  const definition = state.cardDefinitions[card.definitionId];
+  if (!definition) return false;
+  if (effect.basicLandOnly && !definition.supertypes?.includes("Basic")) return false;
+  if (effect.cardType && !definition.types.includes(effect.cardType)) return false;
+  return true;
+}
+
+/**
+ * Finishes a search once its controller has named a card - or declined, which
+ * is always allowed: the real rules let you search and take nothing.
+ *
+ * The chosen card is re-checked against the pending candidates rather than
+ * trusted, so a client can't reach into the library for something the search
+ * never offered.
+ */
+export function resolveSearch(state: GameState, playerId: string, instanceId: string | null): void {
+  const pending = state.pendingSearch;
+  if (!pending) throw new Error("No search is waiting to be resolved");
+  if (pending.playerId !== playerId) throw new Error(`The search belongs to ${pending.playerId}`);
+
+  if (instanceId !== null) {
+    if (!pending.candidateInstanceIds.includes(instanceId)) {
+      throw new Error("That card was not among the search results");
+    }
+    if (pending.destination === "battlefield") {
+      putOntoBattlefield(state, instanceId, { tapped: pending.tapped });
+    } else {
+      moveCard(state, instanceId, "hand");
+    }
+  }
+
+  // Shuffle whether or not anything was found - "then shuffle" isn't
+  // conditional on the search succeeding, and skipping it would leak the
+  // fact that the library holds no match.
+  state.pendingSearch = null;
+  shuffleLibrary(state, playerId);
+}
+
 
 /** Exported for the bot and UI: the creatures a pumpAll would actually touch. */
 export function creaturesAffectedByPumpAll(

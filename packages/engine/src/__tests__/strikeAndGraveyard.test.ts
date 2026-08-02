@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeTestGame } from "../testHelpers.js";
 import { createCardInstance } from "../state.js";
 import { castSpell } from "../casting.js";
+import { resolveSearch } from "../effects.js";
 import { resolveTopOfStack } from "../stack.js";
 import { checkStateBasedActions } from "../sba.js";
 import { advanceStep } from "../turn.js";
@@ -220,8 +221,44 @@ describe("tutors", () => {
     castSpell(state, alice.id, tutor.instanceId);
     resolveTopOfStack(state);
 
+    // Searching stops and asks - only basics are offered, so the Bears isn't.
+    expect(state.pendingSearch?.candidateInstanceIds).toEqual([forest.instanceId]);
+    resolveSearch(state, alice.id, forest.instanceId);
+
+    expect(state.pendingSearch).toBeNull();
     expect(alice.hand.some((c) => c.instanceId === forest.instanceId)).toBe(true);
     expect(alice.library).toHaveLength(1); // the Bears is still in there
+  });
+
+  it("lets the searching player decline and take nothing", () => {
+    const state = mainPhase();
+    const alice = state.players[0]!;
+    createCardInstance(state, "forest", alice.id, "library");
+    const tutor = createCardInstance(state, "lay-of-the-land", alice.id, "hand");
+    alice.manaPool = { G: 1 };
+
+    castSpell(state, alice.id, tutor.instanceId);
+    resolveTopOfStack(state);
+    resolveSearch(state, alice.id, null);
+
+    expect(state.pendingSearch).toBeNull();
+    expect(alice.hand).toHaveLength(0);
+    expect(alice.library).toHaveLength(1);
+  });
+
+  it("refuses a card the search never offered", () => {
+    const state = mainPhase();
+    const alice = state.players[0]!;
+    const bears = createCardInstance(state, "grizzly-bears", alice.id, "library");
+    createCardInstance(state, "forest", alice.id, "library");
+    const tutor = createCardInstance(state, "lay-of-the-land", alice.id, "hand");
+    alice.manaPool = { G: 1 };
+
+    castSpell(state, alice.id, tutor.instanceId);
+    resolveTopOfStack(state);
+
+    // A basic-land search can't reach into the library for a creature.
+    expect(() => resolveSearch(state, alice.id, bears.instanceId)).toThrow(/not among the search results/i);
   });
 
   it("Natural Connection puts the land onto the battlefield tapped", () => {
@@ -233,21 +270,29 @@ describe("tutors", () => {
 
     castSpell(state, alice.id, tutor.instanceId);
     resolveTopOfStack(state);
+    resolveSearch(state, alice.id, forest.instanceId);
 
     expect(alice.battlefield.some((c) => c.instanceId === forest.instanceId)).toBe(true);
     expect(forest.tapped).toBe(true);
   });
 
-  it("an unrestricted tutor takes the most expensive card available", () => {
+  it("an unrestricted tutor offers the whole library and takes what you name", () => {
     const state = mainPhase();
     const alice = state.players[0]!;
-    createCardInstance(state, "grizzly-bears", alice.id, "library"); // {1}{G}
+    const bears = createCardInstance(state, "grizzly-bears", alice.id, "library"); // {1}{G}
     const wurm = createCardInstance(state, "craw-wurm", alice.id, "library"); // {4}{G}{G}
     const tutor = createCardInstance(state, "demonic-tutor", alice.id, "hand");
     alice.manaPool = { B: 1, generic: 1 };
 
     castSpell(state, alice.id, tutor.instanceId);
     resolveTopOfStack(state);
+
+    // Picking the card is the entire point of a tutor, so both are on offer
+    // and the engine no longer decides for you.
+    expect(state.pendingSearch?.candidateInstanceIds.sort()).toEqual(
+      [bears.instanceId, wurm.instanceId].sort(),
+    );
+    resolveSearch(state, alice.id, wurm.instanceId);
 
     expect(alice.hand.some((c) => c.instanceId === wurm.instanceId)).toBe(true);
   });

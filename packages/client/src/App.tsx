@@ -48,6 +48,35 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const [blockerAssignments, setBlockerAssignments] = useState<Record<string, string>>({});
   const [hovered, setHovered] = useState<HoveredCard | null>(null);
 
+  /*
+   * INTERIM: answer a pending search automatically.
+   *
+   * A tutor stops mid-resolution and nobody has priority until it is
+   * answered, so with no picker built yet a human casting one would freeze
+   * the game outright. Taking the most expensive match is the same policy the
+   * engine used before the choice became the player's, so this is no worse
+   * than the old behaviour - it just isn't the feature yet.
+   *
+   * Delete this the moment the searchable card picker lands; it is the only
+   * thing standing between the player and the choice they are owed.
+   */
+  useEffect(() => {
+    const pending = state?.pendingSearch;
+    if (!pending || !controller.canControlPlayer(pending.playerId)) return;
+    const player = state!.players.find((p) => p.id === pending.playerId);
+    const best = pending.candidateInstanceIds
+      .map((id) => player?.library.find((c) => c.instanceId === id))
+      .filter((card): card is NonNullable<typeof card> => card !== undefined)
+      .sort((a, b) => {
+        const cost = (c: typeof a) => {
+          const mana = state!.cardDefinitions[c.definitionId]?.manaCost;
+          return (mana?.generic ?? 0) + Object.values(mana?.colors ?? {}).reduce((t, n) => t + (n ?? 0), 0);
+        };
+        return cost(b) - cost(a);
+      })[0];
+    controller.resolveSearch(pending.playerId, best?.instanceId ?? null);
+  }, [state, controller]);
+
   // Auto-pass: whenever the priority holder (a seat this client controls) has
   // nothing productive to do, pass on their behalf instead of making them
   // click through an empty window. Paused while a target-selection is in

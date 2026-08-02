@@ -25,6 +25,11 @@ function advancePriorityPlayer(state: GameState): void {
  * player and state-based actions are checked, per the real rules.
  */
 export function passPriority(state: GameState, playerId: string): void {
+  // A spell is still resolving - it stopped to ask its controller which card
+  // to take. Nobody has priority until that's answered.
+  if (state.pendingSearch) {
+    throw new Error(`${state.pendingSearch.playerId} must finish searching first`);
+  }
   if (state.players[state.priorityPlayerIndex]?.id !== playerId) {
     throw new Error(`${playerId} does not have priority`);
   }

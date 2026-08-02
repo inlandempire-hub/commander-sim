@@ -40,6 +40,7 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     attackers: {},
     blockers: {},
     blockersDeclared: false,
+    pendingSearch: null,
     cardDefinitions,
     nextInstanceId: 1,
     nextStackObjectId: 1,
