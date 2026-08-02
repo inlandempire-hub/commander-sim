@@ -335,10 +335,27 @@ describe("blocking", () => {
     const wurm = createCardInstance(state, "craw-wurm", HUMAN, "battlefield");
     const elves = createCardInstance(state, "llanowar-elves", BOT, "battlefield");
     state.attackers[wurm.instanceId] = BOT;
-    state.blockers[elves.instanceId] = wurm.instanceId; // already declared
+    state.blockers[elves.instanceId] = wurm.instanceId;
+    // The flag, not the map, is what says "declaring is over" - an empty map
+    // also means "declined to block".
+    state.blockersDeclared = true;
     state.players[1]!.life = 5;
 
     expect(decideAction(state, BOT).kind).toBe("passPriority");
+  });
+
+  it("declares an empty block rather than staying silent", () => {
+    const state = combatAgainstBot();
+    const wurm = createCardInstance(state, "craw-wurm", HUMAN, "battlefield"); // 6/4
+    createCardInstance(state, "llanowar-elves", BOT, "battlefield"); // 1/1 - chump-blocking is pointless
+    state.attackers[wurm.instanceId] = BOT;
+    state.players[1]!.life = 40; // not under threat, so no reason to chump
+
+    // Declining has to be *said*. While it isn't, the attacker's priority
+    // window can't open, and the step would wait forever.
+    const action = decideAction(state, BOT);
+    expect(action.kind).toBe("declareBlockers");
+    expect(action.kind === "declareBlockers" && action.declarations).toEqual([]);
   });
 });
 

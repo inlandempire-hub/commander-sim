@@ -128,5 +128,25 @@ export function shouldAutoPass(state: GameState, playerId: string): boolean {
     if (hasEligibleBlocker(state, playerId)) return false;
   }
 
+  /*
+   * Nobody may be auto-passed out of the declare-blockers step before blocks
+   * are actually on the table.
+   *
+   * Declaring blockers is a turn-based action at the *start* of the step
+   * (rule 509.1) and priority happens after it - but this engine advances
+   * into the step and hands the attacker priority straight away. Auto-passing
+   * there spends the attacker's only chance to respond to blocks they have
+   * not seen yet, which is precisely when a combat trick gets played.
+   *
+   * It only bit in bot mode: a human declares blocks by hand before anyone
+   * passes, so hotseat happened to order it correctly by accident.
+   */
+  if (state.step === "declare-blockers" && !state.blockersDeclared) {
+    const defenderStillToDecide = state.players.some(
+      (p) => p.id !== activePlayerId && hasEligibleBlocker(state, p.id),
+    );
+    if (defenderStillToDecide) return false;
+  }
+
   return !hasAnyLegalAction(state, playerId);
 }

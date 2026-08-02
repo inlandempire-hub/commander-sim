@@ -323,6 +323,18 @@ export interface GameState {
   attackers: Record<string, string>;
   /** blocker instanceId -> attacker instanceId */
   blockers: Record<string, string>;
+  /**
+   * Whether the defending player has finished declaring blocks this combat.
+   *
+   * An empty `blockers` map is ambiguous - it means both "hasn't decided yet"
+   * and "decided to block with nothing" - and the difference matters, because
+   * declaring blockers is a turn-based action at the *start* of the
+   * declare-blockers step (rule 509.1) and priority only happens afterwards.
+   * Without this flag the attacker was handed priority the instant the step
+   * began, before any blocks existed, so auto-pass spent their one window to
+   * respond to blocks they hadn't seen yet. Reset at end of combat.
+   */
+  blockersDeclared: boolean;
   cardDefinitions: Record<string, CardDefinition>;
   nextInstanceId: number;
   nextStackObjectId: number;

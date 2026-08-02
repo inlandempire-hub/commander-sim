@@ -67,9 +67,11 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
     }
   }
   if (state.phase === "combat" && state.step === "declare-blockers" && !isMyTurn) {
-    if (Object.keys(state.blockers).length === 0) {
-      const declarations = chooseBlockers(state, botPlayerId);
-      if (declarations.length > 0) return { kind: "declareBlockers", declarations };
+    // Always declare, even with nothing: "I block with nothing" is a real
+    // decision, and the attacker's priority window doesn't open until it has
+    // been made. Staying silent used to leave the step waiting forever.
+    if (!state.blockersDeclared) {
+      return { kind: "declareBlockers", declarations: chooseBlockers(state, botPlayerId) };
     }
   }
 

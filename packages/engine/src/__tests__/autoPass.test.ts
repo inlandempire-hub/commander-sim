@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeTestGame } from "../testHelpers.js";
 import { createCardInstance } from "../state.js";
 import { hasAnyLegalAction, hasEligibleAttacker, hasEligibleBlocker, shouldAutoPass } from "../autoPass.js";
+import { declareBlockers } from "../combat.js";
 
 describe("hasAnyLegalAction", () => {
   it("is false with an empty hand and no battlefield presence", () => {
@@ -138,5 +139,63 @@ describe("shouldAutoPass", () => {
     state.step = "declare-blockers";
 
     expect(shouldAutoPass(state, bob.id)).toBe(true);
+  });
+});
+
+/**
+ * Regression: the attacker's combat-trick window.
+ *
+ * Declaring blockers is a turn-based action at the start of the step (rule
+ * 509.1), but this engine advances into the step and gives the attacker
+ * priority immediately. Auto-passing there spent their only chance to respond
+ * to blocks they hadn't seen yet - so a combat trick was impossible against
+ * the bot, which is the only mode where auto-pass gets there first.
+ */
+describe("declare-blockers is not auto-passed before blocks exist", () => {
+  function combatWithAnUndecidedBlocker() {
+    const state = makeTestGame();
+    const alice = state.players[0]!; // attacker, active player
+    const bob = state.players[1]!; // defender
+
+    const attacker = createCardInstance(state, "grizzly-bears", alice.id, "battlefield");
+    attacker.summoningSickness = false;
+    const blocker = createCardInstance(state, "elite-vanguard", bob.id, "battlefield");
+    blocker.summoningSickness = false;
+
+    state.phase = "combat";
+    state.step = "declare-blockers";
+    state.activePlayerIndex = 0;
+    state.priorityPlayerIndex = 0;
+    state.attackers[attacker.instanceId] = bob.id;
+    return { state, alice, bob, attacker, blocker };
+  }
+
+  it("holds the attacker's priority until the defender has declared", () => {
+    const { state, alice } = combatWithAnUndecidedBlocker();
+    expect(state.blockersDeclared).toBe(false);
+    expect(shouldAutoPass(state, alice.id)).toBe(false);
+  });
+
+  it("releases it once blocks are declared", () => {
+    const { state, alice, bob, attacker, blocker } = combatWithAnUndecidedBlocker();
+    declareBlockers(state, bob.id, [
+      { blockerInstanceId: blocker.instanceId, attackerInstanceId: attacker.instanceId },
+    ]);
+    expect(state.blockersDeclared).toBe(true);
+    // Alice has an empty hand and no mana, so now there is genuinely nothing to do.
+    expect(shouldAutoPass(state, alice.id)).toBe(true);
+  });
+
+  it("counts declaring nothing as having declared", () => {
+    const { state, alice, bob } = combatWithAnUndecidedBlocker();
+    declareBlockers(state, bob.id, []);
+    expect(state.blockersDeclared).toBe(true);
+    expect(shouldAutoPass(state, alice.id)).toBe(true);
+  });
+
+  it("does not hold when the defender has nothing that could block", () => {
+    const { state, alice, blocker } = combatWithAnUndecidedBlocker();
+    blocker.tapped = true; // a tapped creature can't block, so there's no decision to wait for
+    expect(shouldAutoPass(state, alice.id)).toBe(true);
   });
 });

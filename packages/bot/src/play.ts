@@ -49,7 +49,9 @@ export function botShouldAct(state: GameState, botPlayerId: string): boolean {
   const isMyTurn = state.players[state.activePlayerIndex]?.id === botPlayerId;
   if (state.phase !== "combat") return false;
   if (state.step === "declare-attackers" && isMyTurn) return Object.keys(state.attackers).length === 0;
-  if (state.step === "declare-blockers" && !isMyTurn) return Object.keys(state.blockers).length === 0;
+  // Not "are there no blockers yet" - an empty map also means "declined to
+  // block", which would have the bot re-declaring forever.
+  if (state.step === "declare-blockers" && !isMyTurn) return !state.blockersDeclared;
   return false;
 }
 

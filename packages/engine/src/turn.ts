@@ -112,6 +112,7 @@ function runAutomaticStepActions(state: GameState): void {
     case "end-combat": {
       state.attackers = {};
       state.blockers = {};
+      state.blockersDeclared = false;
       break;
     }
     case "cleanup": {

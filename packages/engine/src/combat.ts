@@ -128,6 +128,10 @@ export function declareBlockers(state: GameState, playerId: string, declarations
 
     state.blockers[blockerInstanceId] = attackerInstanceId;
   }
+  // Declaring is finished even when nothing was declared: "I block with
+  // nothing" is a real decision, and the attacker's priority window opens
+  // only once it has been made.
+  state.blockersDeclared = true;
   state.passesInSuccession = 0;
 }
 
