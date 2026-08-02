@@ -1,5 +1,6 @@
 import type { CardDefinition, CardType, GameState, Player } from "@mtg-commander-sim/engine";
 import { CardView } from "./CardView.js";
+import { ZonePile } from "./ZonePile.js";
 
 /**
  * One player's half of the table.
@@ -8,8 +9,8 @@ import { CardView } from "./CardView.js";
  * rendered upside-down in the sense that matters, with their hand at the far
  * edge of the screen and their creatures nearest the middle, so the two
  * creature rows meet in the centre where combat happens. That is one `flipped`
- * prop and two CSS direction flips, not a second component - the zones and
- * their behaviour are identical, only their order on screen differs.
+ * prop and a CSS direction flip, not a second component - the zones and their
+ * behaviour are identical, only their order on screen differs.
  *
  * Layout, screen top to bottom:
  *
@@ -17,9 +18,10 @@ import { CardView } from "./CardView.js";
  *     ------------------- centre: stack, actions -------------------
  *     your creatures / other permanents / lands / hand
  *
- * Life, mana, command zone and graveyard live in a narrow rail down the outer
- * edge - the opponent's on the right, yours on the left - which keeps the
- * middle of the screen for the cards that are actually in play.
+ * Life, mana, command zone, graveyard and exile live in a narrow rail down the
+ * left for *both* players. Mirroring the rail as well as the rows was tried
+ * and reverted: it pushed each player's cards to a different side of the
+ * screen, so the two boards no longer lined up with each other.
  */
 
 export interface PlayerBoardProps {
@@ -161,23 +163,27 @@ export function PlayerBoard({
           </div>
         </div>
 
-        <div className={`rail__zone ${selectingGraveyardTarget ? "zone--targeting" : ""}`}>
-          <div className="zone__label">Graveyard ({player.graveyard.length})</div>
-          <div className="rail__cards">
-            {player.graveyard.map((instance) => (
-              <CardView
-                key={instance.instanceId}
-                instance={instance}
-                definition={cardDefinitions[instance.definitionId]!}
-                selected={selectingGraveyardTarget}
-                onHover={onHover}
-                onClick={
-                  selectingGraveyardTarget ? () => onGraveyardCardClick(instance.instanceId) : undefined
-                }
-                small
-              />
-            ))}
-          </div>
+        <div className="rail__piles">
+          <ZonePile
+            label="Graveyard"
+            ownerLabel={player.id}
+            cards={player.graveyard}
+            cardDefinitions={cardDefinitions}
+            selecting={selectingGraveyardTarget}
+            onCardClick={selectingGraveyardTarget ? onGraveyardCardClick : undefined}
+            onHover={onHover}
+          />
+          {/* Exile only appears once something is in it - an always-empty box
+              in a narrow rail is just clutter. */}
+          {player.exile.length > 0 && (
+            <ZonePile
+              label="Exile"
+              ownerLabel={player.id}
+              cards={player.exile}
+              cardDefinitions={cardDefinitions}
+              onHover={onHover}
+            />
+          )}
         </div>
       </div>
 

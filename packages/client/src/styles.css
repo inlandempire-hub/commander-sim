@@ -17,6 +17,7 @@
   --card-min-h: 62px;
   --card-small-w: 46px;
   --detail-w: 250px;
+  --rail-w: 132px;
 }
 
 * {
@@ -132,11 +133,10 @@ body {
   padding: 6px;
 }
 
-/* Your rail sits on the left, the opponent's on the right - a mirror, so the
-   middle of the screen belongs entirely to the cards in play. */
-.side--flipped {
-  flex-direction: row-reverse;
-}
+/* Both rails sit on the left. Mirroring the rail as well as the rows was
+   tried and reverted: it put each player's cards at a different horizontal
+   offset, so the two boards stopped lining up with each other. Only the
+   vertical order is mirrored - that's what makes the boards face each other. */
 
 .side--active {
   border-color: var(--accent);
@@ -150,10 +150,14 @@ body {
 /* Zones are always written hand, lands, others, creatures. Reversing your own
    side puts creatures nearest the centre line for both players, so the two
    creature rows meet where combat happens. */
+/* The right padding balances the rail on the left, so "centred" means centred
+   in the board rather than centred in the space the rail happens to leave -
+   otherwise every row sits noticeably right of the middle. */
 .side__zones {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  padding-right: var(--rail-w);
   display: flex;
   flex-direction: column-reverse;
   gap: 4px;
@@ -177,11 +181,16 @@ body {
   flex: 0.78 1 0;
 }
 
+/* Cards sit in the middle of the table rather than piling up against the left
+   edge, which left a large dead area on the right and made the board read as
+   off-centre. `safe` keeps a row that overflows scrollable from its start
+   instead of clipping the first cards out of reach. */
 .row__cards {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   align-items: center;
+  justify-content: safe center;
   gap: 4px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -201,7 +210,7 @@ body {
 /* --- the outer rail: life, mana, command zone, graveyard ------------------ */
 
 .rail {
-  flex: 0 0 132px;
+  flex: 0 0 var(--rail-w);
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -291,9 +300,114 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 3px;
-  max-height: 118px;
+}
+
+/* Graveyard and exile sit side by side at the bottom of the rail as small
+   piles, so the rail stays short whether they hold one card or thirty. */
+.rail__piles {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.pile__top {
+  position: relative;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: block;
+}
+
+/* How many cards are underneath the one on top. */
+.pile__count {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  background: var(--panel-active);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pile__empty {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* --- looking through a pile ----------------------------------------------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 9, 14, 0.8);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.overlay__panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  max-width: 900px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.overlay__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.overlay__head strong {
+  text-transform: capitalize;
+}
+
+.overlay__count {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.overlay__close {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.overlay__close:hover {
+  border-color: var(--accent);
+}
+
+/* Cards here are laid out rather than stretched to a row's height, so the
+   height cap has to come back as a fixed size. */
+.overlay__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   overflow-y: auto;
   scrollbar-width: thin;
+}
+
+.overlay__grid .card {
+  height: 150px;
+  max-height: none;
 }
 
 .zone__label {
