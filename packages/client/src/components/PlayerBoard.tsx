@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { CardDefinition, CardType, GameState, Player } from "@mtg-commander-sim/engine";
 import { CardView } from "./CardView.js";
 import { ZonePile } from "./ZonePile.js";
@@ -112,6 +113,12 @@ export function PlayerBoard({
     if (selectedBlockerSourceId === instanceId) return "Pick an attacker to block";
     return undefined;
   };
+  // Remembered across renders so the flash knows which way the total moved.
+  const lastLife = useRef(player.life);
+  useEffect(() => {
+    lastLife.current = player.life;
+  }, [player.life]);
+
   const manaPoolSummary = Object.entries(player.manaPool)
     .filter(([, amount]) => (amount ?? 0) > 0)
     .map(([color, amount]) => `${amount}${color === "generic" ? "" : color}`)
@@ -134,7 +141,15 @@ export function PlayerBoard({
           {hasPriority && <span className="rail__priority">Priority</span>}
           {isActivePlayer && <span className="rail__turn">Their turn</span>}
         </div>
-        <button className="rail__life" onClick={onLifeClick} title="Click to target this player">
+        {/* Keyed on the life total so a change remounts it, replaying the flash -
+            green when it goes up, red when it comes down. A number quietly
+            changing in the corner is the easiest thing on the board to miss. */}
+        <button
+          key={player.life}
+          className={`rail__life ${player.life > lastLife.current ? "rail__life--up" : player.life < lastLife.current ? "rail__life--down" : ""}`}
+          onClick={onLifeClick}
+          title="Click to target this player"
+        >
           {player.life}
           <span className="rail__life-label">life</span>
         </button>

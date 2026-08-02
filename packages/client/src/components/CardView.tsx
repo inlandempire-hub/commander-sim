@@ -95,8 +95,33 @@ export function CardView({
 
   return (
     <motion.div
-      layout
-      layoutId={instance.instanceId}
+      /*
+       * No `layout`/`layoutId` here, deliberately.
+       *
+       * Framer Motion's layout projection owns the element's transform, and it
+       * cannot animate `rotate` at the same time - which is why tapped cards
+       * have never actually turned, in any version of this UI: the stylesheet
+       * said `rotate(9deg)` and the inline transform silently won.
+       *
+       * The layout animation it bought us was cross-zone morphing, which the
+       * rows' own scroll containers were clipping anyway (see .row__cards), so
+       * it was paying for something largely invisible. Tapping is visible every
+       * single turn. Enter, exit and hover are all still animated below.
+       */
+      /*
+       * Tapping, hovering and the played-card pop are all CSS (see .card in
+       * styles.css), not motion values, and that is deliberate.
+       *
+       * A JS animation only advances while the browser is issuing animation
+       * frames. Driving a card's *visibility* through one - fading in from
+       * `initial: { opacity: 0 }` - means a tab that isn't compositing renders
+       * a board of invisible cards. That was not hypothetical: it is exactly
+       * what happened here the first time, with every card at opacity 0.
+       *
+       * CSS transitions degrade to an instant state change instead, so the
+       * worst case is "no animation" rather than "no game".
+       */
+      whileHover={{ y: -6 }}
       transition={{ type: "spring", stiffness: 500, damping: 34 }}
       className={[
         "card",

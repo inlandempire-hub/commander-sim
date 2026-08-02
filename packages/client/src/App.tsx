@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import {
   canPlayCardNow,
@@ -14,6 +14,7 @@ import { ActionBar } from "./components/ActionBar.js";
 import { CardDetail } from "./components/CardDetail.js";
 import { CardPicker, ModePicker } from "./components/CardPicker.js";
 import { GameLog } from "./components/GameLog.js";
+import { cueForLogLine, play, setSoundEnabled, soundEnabled } from "./sound.js";
 import { ArtOverridesProvider, type ArtOverridesByPlayer } from "./artContext.js";
 
 interface PendingTarget {
@@ -59,6 +60,26 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const [hovered, setHovered] = useState<HoveredCard | null>(null);
   /** A modal spell waiting on you to choose which mode you're casting. */
   const [pendingMode, setPendingMode] = useState<{ ownerId: string; instanceId: string } | null>(null);
+  const [sound, setSound] = useState(soundEnabled);
+  /** How far through the log we've already made a noise about. */
+  const soundedTo = useRef(0);
+
+  /*
+   * Sound is driven off the log rather than off each action, so anything the
+   * engine learns to describe gets a cue for free. Only new lines fire, and
+   * only the last few, so catching up after a bot's fast turn doesn't play a
+   * chord.
+   */
+  useEffect(() => {
+    const lines = state?.log ?? [];
+    if (lines.length < soundedTo.current) soundedTo.current = 0; // log was trimmed
+    const fresh = lines.slice(Math.max(soundedTo.current, lines.length - 3));
+    soundedTo.current = lines.length;
+    for (const line of fresh) {
+      const cue = cueForLogLine(line);
+      if (cue) play(cue);
+    }
+  }, [state?.log.length, state]);
 
   // Auto-pass: whenever the priority holder (a seat this client controls) has
   // nothing productive to do, pass on their behalf instead of making them
@@ -389,6 +410,19 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             {state.phase} / {state.step}
           </span>
           <span className="table__notice">{modeNotice}</span>
+          <button
+            type="button"
+            className="table__sound"
+            title={sound ? "Sound on - click to mute" : "Sound off - click to unmute"}
+            onClick={() => {
+              const next = !sound;
+              setSound(next);
+              setSoundEnabled(next);
+              if (next) play("card");
+            }}
+          >
+            {sound ? "Sound on" : "Sound off"}
+          </button>
           <a className="table__link" href="?mode=deck">
             Deck builder
           </a>
