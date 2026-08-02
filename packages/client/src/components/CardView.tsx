@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 import {
   effectivePower,
   effectiveToughness,
@@ -10,6 +9,7 @@ import {
 import { formatManaCost, typeLine } from "../format.js";
 import { cardArtUrl } from "../cardArt.js";
 import { useArtOverrides } from "../artContext.js";
+import { useIsFlying } from "../flightContext.js";
 
 const COLOR_CLASS: Record<string, string> = {
   W: "card--W",
@@ -18,6 +18,9 @@ const COLOR_CLASS: Record<string, string> = {
   R: "card--R",
   G: "card--G",
 };
+
+/** How long the flinch lasts when a creature is dealt damage. */
+const HIT_MS = 420;
 
 function dominantColorClass(def: CardDefinition): string {
   const colors = Object.entries(def.manaCost?.colors ?? {})
@@ -49,6 +52,10 @@ export interface CardViewProps {
    * hint; the engine still validates the click.
    */
   playable?: boolean;
+  /** Leans this creature towards the centre line - it is attacking. */
+  attacking?: boolean;
+  /** A smaller lean: this creature has stepped up to block. */
+  blocking?: boolean;
   /**
    * Called with this card's definition id on hover, and null on leave, to
    * drive the detail panel. The owner comes along so the panel can show that
@@ -72,6 +79,8 @@ export function CardView({
   disabled,
   small,
   playable,
+  attacking,
+  blocking,
   onHover,
   badge,
 }: CardViewProps) {
@@ -93,36 +102,51 @@ export function CardView({
   const [artFailed, setArtFailed] = useState(false);
   const showArt = artUrl !== undefined && !artFailed;
 
+  // Hidden while a copy of this card is flying towards this zone, so the card
+  // arrives when the animation lands rather than the instant the game state
+  // says it moved. It keeps its space in the layout, which is what lets the
+  // flight measure where it is going.
+  const flying = useIsFlying(instance.instanceId);
+
+  // Damage landing on a creature is currently just a number changing in the
+  // corner of the card, which is easy to miss in the middle of combat.
+  const [hit, setHit] = useState(false);
+  const lastDamage = useRef(instance.damageMarked);
+  useEffect(() => {
+    const took = instance.damageMarked > lastDamage.current;
+    lastDamage.current = instance.damageMarked;
+    if (!took) return;
+    setHit(true);
+    const timer = window.setTimeout(() => setHit(false), HIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [instance.damageMarked]);
+
   return (
-    <motion.div
+    <div
       /*
-       * No `layout`/`layoutId` here, deliberately.
+       * No Framer Motion on the card itself, deliberately, in either direction.
        *
-       * Framer Motion's layout projection owns the element's transform, and it
-       * cannot animate `rotate` at the same time - which is why tapped cards
-       * have never actually turned, in any version of this UI: the stylesheet
-       * said `rotate(9deg)` and the inline transform silently won.
+       * Motion's `layout` prop used to be here and owned the element's inline
+       * transform, which silently beat the stylesheet's `rotate(9deg)` - which
+       * is why tapped cards never actually turned, in any version of this UI.
+       * Layout projection cannot animate `rotate` at all, so there was no
+       * arrangement in which both worked.
        *
-       * The layout animation it bought us was cross-zone morphing, which the
-       * rows' own scroll containers were clipping anyway (see .row__cards), so
-       * it was paying for something largely invisible. Tapping is visible every
-       * single turn. Enter, exit and hover are all still animated below.
+       * The second reason is more important. A JS animation only advances
+       * while the browser is issuing animation frames, so driving a card's
+       * *visibility* through one means a tab that isn't compositing renders a
+       * board of invisible cards. That is not hypothetical - it happened here.
+       * Everything visible about a card is CSS, which degrades to an instant
+       * state change rather than to nothing. Cards do still fly between zones,
+       * but that is a separate throwaway copy in an overlay (CardFlightLayer),
+       * and the real card is restored on a timer that runs either way.
+       *
+       * The data attributes are how the flight finds this card and works out
+       * where it has moved from and to.
        */
-      /*
-       * Tapping, hovering and the played-card pop are all CSS (see .card in
-       * styles.css), not motion values, and that is deliberate.
-       *
-       * A JS animation only advances while the browser is issuing animation
-       * frames. Driving a card's *visibility* through one - fading in from
-       * `initial: { opacity: 0 }` - means a tab that isn't compositing renders
-       * a board of invisible cards. That was not hypothetical: it is exactly
-       * what happened here the first time, with every card at opacity 0.
-       *
-       * CSS transitions degrade to an instant state change instead, so the
-       * worst case is "no animation" rather than "no game".
-       */
-      whileHover={{ y: -6 }}
-      transition={{ type: "spring", stiffness: 500, damping: 34 }}
+      data-card-instance={instance.instanceId}
+      data-card-zone={instance.zone}
+      data-card-owner={instance.ownerId}
       className={[
         "card",
         dominantColorClass(definition),
@@ -132,6 +156,10 @@ export function CardView({
         small ? "card--small" : "",
         instance.isCommander ? "card--commander" : "",
         playable ? "card--playable" : "",
+        attacking ? "card--attacking" : "",
+        blocking ? "card--blocking" : "",
+        hit ? "card--hit" : "",
+        flying ? "card--in-transit" : "",
         showArt ? "card--art" : "card--noart",
       ]
         .filter(Boolean)
@@ -182,6 +210,6 @@ export function CardView({
         </div>
       </div>
       {badge && <div className="card__badge">{badge}</div>}
-    </motion.div>
+    </div>
   );
 }

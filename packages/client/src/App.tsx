@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence } from "framer-motion";
 import {
   canPlayCardNow,
   modesOf,
@@ -14,8 +13,12 @@ import { ActionBar } from "./components/ActionBar.js";
 import { CardDetail } from "./components/CardDetail.js";
 import { CardPicker, ModePicker } from "./components/CardPicker.js";
 import { GameLog } from "./components/GameLog.js";
+import { CardFlightLayer } from "./components/CardFlightLayer.js";
+import { TableBeat } from "./components/TableBeat.js";
 import { cueForLogLine, play, setSoundEnabled, soundEnabled } from "./sound.js";
 import { ArtOverridesProvider, type ArtOverridesByPlayer } from "./artContext.js";
+import { FlyingProvider } from "./flightContext.js";
+import { useCardFlight } from "./useCardFlight.js";
 
 interface PendingTarget {
   ownerId: string;
@@ -44,6 +47,29 @@ function toggleSet(set: Set<string>, id: string): Set<string> {
   return next;
 }
 
+/**
+ * The two things every card on the table needs to know that aren't in the game
+ * state: which printing's art this seat chose, and whether this card is
+ * currently mid-flight between zones and should stay hidden. Combined into one
+ * wrapper purely so the table below doesn't gain a level of nesting per
+ * context.
+ */
+function TableContext({
+  art,
+  flying,
+  children,
+}: {
+  art: ArtOverridesByPlayer;
+  flying: ReadonlySet<string>;
+  children: React.ReactNode;
+}) {
+  return (
+    <ArtOverridesProvider value={art}>
+      <FlyingProvider value={flying}>{children}</FlyingProvider>
+    </ArtOverridesProvider>
+  );
+}
+
 export interface AppProps {
   controller: GameController;
   modeNotice: string;
@@ -63,6 +89,14 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const [sound, setSound] = useState(soundEnabled);
   /** How far through the log we've already made a noise about. */
   const soundedTo = useRef(0);
+  /*
+   * Cards physically travelling between zones. This has to be called here,
+   * above the "no state yet" return, because hooks can't be conditional - and
+   * it wants to be at the top of the tree anyway, since React runs layout
+   * effects from the inside out and this one has to measure a fully committed
+   * board.
+   */
+  const { flights, flying } = useCardFlight();
 
   /*
    * Sound is driven off the log rather than off each action, so anything the
@@ -399,7 +433,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   });
 
   return (
-    <ArtOverridesProvider value={artOverrides ?? {}}>
+    <TableContext art={artOverrides ?? {}} flying={flying}>
       <div className="table">
         <header className="table__top">
           <span className="table__title">MTG Commander Sim</span>
@@ -428,12 +462,11 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           </a>
         </header>
 
-        <AnimatePresence>
-          {topPlayers.map((player) => (
-            <PlayerBoard key={player.id} flipped {...boardProps(player)} />
-          ))}
+        {topPlayers.map((player) => (
+          <PlayerBoard key={player.id} flipped {...boardProps(player)} />
+        ))}
 
-          <div className="table__centre" key="centre">
+        <div className="table__centre">
             <StackView
               state={state}
               cardDefinitions={state.cardDefinitions}
@@ -466,10 +499,9 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
               lastError={lastError}
               onClearError={clearError}
             />
-          </div>
+        </div>
 
-          <PlayerBoard key={bottomPlayer.id} {...boardProps(bottomPlayer)} />
-        </AnimatePresence>
+        <PlayerBoard key={bottomPlayer.id} {...boardProps(bottomPlayer)} />
 
         <div className="sidebar">
           <CardDetail
@@ -504,7 +536,12 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             onCancel={() => setPendingMode(null)}
           />
         )}
+
+        <TableBeat state={state} />
+        {/* Last, and outside every scroll container, so a card crossing the
+            table isn't clipped at the edge of the row it left. */}
+        <CardFlightLayer state={state} flights={flights} />
       </div>
-    </ArtOverridesProvider>
+    </TableContext>
   );
 }

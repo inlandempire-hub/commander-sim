@@ -191,10 +191,24 @@ body {
   flex: 0.78 1 0;
 }
 
-/* Cards sit in the middle of the table rather than piling up against the left
-   edge, which left a large dead area on the right and made the board read as
-   off-centre. `safe` keeps a row that overflows scrollable from its start
-   instead of clipping the first cards out of reach. */
+/*
+ * Cards sit in the middle of the table rather than piling up against the left
+ * edge, which left a large dead area on the right and made the board read as
+ * off-centre. `safe` keeps a row that overflows scrollable from its start
+ * instead of clipping the first cards out of reach.
+ *
+ * The padding-and-negative-margin pair is what gives cards room to move.
+ * A row has to be a horizontal scroll container for a wide board, and a
+ * container that scrolls on one axis clips on the other - so a card lifting on
+ * hover or lunging into combat was being sliced off at the row's edge. The
+ * padding pushes that clipping edge clear of the cards; the matching negative
+ * margin means flexbox hands the row exactly that much more height to spend on
+ * the padding, so the cards themselves end up the size they always were.
+ *
+ * 26px is the worst case added up rather than a round number: a hovered
+ * attacking creature is lunging 14px, lifting another 6, and growing 9% of a
+ * 90px card, which puts its top edge a little over 24px above where it sits.
+ */
 .row__cards {
   flex: 1 1 auto;
   min-height: 0;
@@ -202,6 +216,8 @@ body {
   align-items: center;
   justify-content: safe center;
   gap: 4px;
+  padding: 26px 0;
+  margin: -26px 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
@@ -578,7 +594,24 @@ body {
  * Height comes from the row, width from the 5:7 card ratio, so a full board and
  * an empty one both fit the same space.
  */
+/*
+ * Every way a card can be posed goes through one of these four variables, and
+ * the transform is composed from all four in one place.
+ *
+ * This is not tidiness for its own sake. A card can be tapped and attacking
+ * and hovered and taking damage at the same time, and each of those wants to
+ * move it. Written as four separate `transform:` rules the last one to match
+ * wins and the other three silently vanish - which is exactly the class of bug
+ * that stopped tapped cards from turning for the entire life of this project.
+ * As variables they compose instead of competing.
+ */
 .card {
+  --tilt: 0deg;
+  --lunge: 0px;
+  --hover: 0px;
+  --zoom: 1;
+  --nudge: 0px;
+
   position: relative;
   flex: 0 0 auto;
   height: 100%;
@@ -593,12 +626,21 @@ body {
   cursor: pointer;
   user-select: none;
   font-size: 11px;
+  transform: translate(var(--nudge), calc(var(--lunge) + var(--hover))) rotate(var(--tilt))
+    scale(var(--zoom));
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
   transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
 }
 
+/* Hover-to-zoom. The card grows in place rather than opening a preview
+   somewhere else, because the sidebar already reads the card out in full - this
+   is for picking one out of a crowded row, not for reading it. */
 .card:hover {
+  --hover: -6px;
+  --zoom: 1.09;
   outline: 2px solid var(--accent);
-  z-index: 2;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.55);
+  z-index: 3;
 }
 
 .card__image {
@@ -725,8 +767,64 @@ body {
  * the transform back to CSS.
  */
 .card--tapped {
-  transform: rotate(9deg);
+  --tilt: 9deg;
   filter: brightness(0.62) saturate(0.8);
+}
+
+/* Creatures in combat step towards the centre line - towards the opponent for
+   an attacker, a shorter step for a blocker moving to meet one. The flipped
+   side leans the other way, since "towards the middle" is downwards for the
+   board at the top of the screen. */
+.card--attacking {
+  --lunge: -14px;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.5);
+}
+
+.card--blocking {
+  --lunge: -7px;
+}
+
+.side--flipped .card--attacking {
+  --lunge: 14px;
+}
+
+.side--flipped .card--blocking {
+  --lunge: 7px;
+}
+
+/*
+ * A creature taking damage flinches.
+ *
+ * --nudge is registered below so it can be interpolated; a browser without
+ * @property support simply won't animate it, which is why .card declares its
+ * own `--nudge: 0px` as well. Without that fallback an unsupported browser
+ * would leave the variable empty, make the whole composed transform invalid,
+ * and take the tap rotation down with it.
+ */
+@property --nudge {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes card-hit {
+  0% { --nudge: 0px; }
+  22% { --nudge: -5px; }
+  55% { --nudge: 5px; }
+  80% { --nudge: -2px; }
+  100% { --nudge: 0px; }
+}
+
+.card--hit {
+  animation: card-hit 0.4s ease-in-out;
+  box-shadow: 0 0 0 2px var(--danger), 0 0 18px rgba(255, 91, 106, 0.55);
+}
+
+/* A copy of this card is currently flying towards this zone. It keeps its
+   place in the layout - that is what the flight measured to know where it was
+   going - but stays out of sight until the copy lands on top of it. */
+.card--in-transit {
+  visibility: hidden;
 }
 
 .card--selected {
@@ -1103,4 +1201,207 @@ body {
 /* Newest log line, already bolder, now also tinted so the eye lands on it. */
 .log__line:last-of-type {
   color: var(--gold);
+}
+
+/* ---------------------------------------------------------------------------
+   The table as a surface
+   ---------------------------------------------------------------------------
+   Flat dark panels read as a form, not a game. What makes a card game look
+   like one is that the cards sit *on* something: a lit surface with the light
+   falling off towards the edges, and cards casting a shadow onto it.
+
+   All of it is gradients - no images, nothing fetched, nothing to go missing,
+   and nothing anyone else owns. */
+
+body {
+  background: radial-gradient(ellipse 130% 90% at 50% 45%, #1a2431 0%, #0d1117 58%, #07090d 100%);
+  background-attachment: fixed;
+}
+
+.side {
+  position: relative;
+  background:
+    radial-gradient(ellipse 85% 130% at 50% 50%, rgba(63, 104, 82, 0.2), rgba(20, 28, 24, 0) 72%),
+    linear-gradient(#181f28, #12171f);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    inset 0 0 40px rgba(0, 0, 0, 0.3),
+    0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+/* Restated after the surface above, because both are plain single-class
+   selectors and whichever is written last wins - the earlier active-player
+   glow was being overwritten by the new .side shadow. */
+.side--active {
+  box-shadow:
+    inset 0 0 0 1px rgba(91, 140, 255, 0.4),
+    inset 0 0 40px rgba(0, 0, 0, 0.3),
+    0 0 22px rgba(91, 140, 255, 0.14),
+    0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+/* The weave. Two very faint crosshatches, well under the threshold where you
+   would call it a texture - it stops the felt reading as flat paint. */
+.side::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.03) 0 1px, transparent 1px 4px);
+}
+
+.table__centre {
+  background:
+    linear-gradient(rgba(91, 140, 255, 0.05), rgba(0, 0, 0, 0.2)),
+    linear-gradient(#1a212c, #151b24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* --- cards in flight between zones ---------------------------------------- */
+
+/*
+ * Above the board and outside every scroll container, so a card can cross from
+ * one player's hand to the other side of the table without being clipped at
+ * the edge of the row it left. Below the modal overlays (z-index 100), which
+ * should never have a card sailing over them.
+ */
+.flight-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.flight {
+  position: fixed;
+  left: 0;
+  top: 0;
+  transform-origin: top left;
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.55));
+}
+
+/* The travelling copy fills the wrapper, whose size is measured from wherever
+   the card is going - so the row's height cap doesn't apply. */
+.flight .card {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  transition: none;
+}
+
+/* --- the library pile ----------------------------------------------------- */
+
+/* Face-down, so a card back rather than a card. Drawn rather than an image:
+   the real one is Wizards' artwork, and this only has to read as "the deck". */
+.pile__back {
+  position: relative;
+  width: var(--card-small-w);
+  aspect-ratio: 5 / 7;
+  border-radius: 6px;
+  border: 2px solid #2b3547;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(120, 160, 220, 0.35), rgba(24, 32, 48, 0) 62%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 5px),
+    linear-gradient(#20293a, #161d2a);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pile__back-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+/* --- life totals ---------------------------------------------------------- */
+
+.rail__life {
+  position: relative;
+}
+
+/* The amount, not just the direction: "-7" tells you an attack got through,
+   where a red flash only tells you something happened. */
+.rail__life-delta {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  font-size: 15px;
+  font-weight: 700;
+  pointer-events: none;
+  animation: life-delta 1s ease-out forwards;
+}
+
+.rail__life-delta--up {
+  color: #7ee2a8;
+}
+
+.rail__life-delta--down {
+  color: #ff8b96;
+}
+
+@keyframes life-delta {
+  0% { opacity: 0; transform: translate(-50%, 4px); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -26px); }
+}
+
+/* --- phase beats ---------------------------------------------------------- */
+
+/*
+ * Base opacity is 0 and the animation brings it in and out again. That order
+ * matters: if the animation never runs - a tab that isn't compositing - the
+ * banner simply never appears, rather than sitting permanently across the
+ * middle of the board.
+ */
+.beat {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 70;
+  opacity: 0;
+  animation: beat 1.15s ease-out;
+}
+
+.beat__text {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text);
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.95), 0 0 40px rgba(91, 140, 255, 0.35);
+  padding: 10px 40px;
+  border-top: 1px solid rgba(255, 209, 102, 0.35);
+  border-bottom: 1px solid rgba(255, 209, 102, 0.35);
+  background: linear-gradient(90deg, transparent, rgba(10, 14, 20, 0.72) 20%, rgba(10, 14, 20, 0.72) 80%, transparent);
+}
+
+@keyframes beat {
+  0% { opacity: 0; }
+  14% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Someone who has asked their system not to animate things gets the state
+   changes without the movement. Card flights are skipped in JS as well. */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .flight,
+  .beat,
+  .rail__life-delta,
+  .rail__life--up,
+  .rail__life--down {
+    animation: none !important;
+    transition: none !important;
+  }
 }

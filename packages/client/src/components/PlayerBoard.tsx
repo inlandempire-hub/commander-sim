@@ -1,7 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CardDefinition, CardType, GameState, Player } from "@mtg-commander-sim/engine";
 import { CardView } from "./CardView.js";
 import { ZonePile } from "./ZonePile.js";
+import { libraryAnchorKey } from "../flight.js";
+
+/** How long a life change stays flagged up before fading. */
+const LIFE_FLASH_MS = 1000;
 
 /**
  * One player's half of the table.
@@ -113,10 +117,30 @@ export function PlayerBoard({
     if (selectedBlockerSourceId === instanceId) return "Pick an attacker to block";
     return undefined;
   };
-  // Remembered across renders so the flash knows which way the total moved.
+  /*
+   * A life total changing is the single easiest thing on the board to miss -
+   * it is a small number in a corner, and it is also the number the whole game
+   * is about. So the change is announced twice: the box flashes green or red,
+   * and the amount floats up out of it.
+   *
+   * The size of the change has to be worked out here rather than during
+   * render, because by the time React re-renders after the effect the old
+   * total is gone.
+   */
   const lastLife = useRef(player.life);
+  const flashCount = useRef(0);
+  const [lifeFlash, setLifeFlash] = useState<{ delta: number; key: number } | null>(null);
   useEffect(() => {
+    const delta = player.life - lastLife.current;
     lastLife.current = player.life;
+    if (delta === 0) return;
+    const key = ++flashCount.current;
+    setLifeFlash({ delta, key });
+    const timer = window.setTimeout(
+      () => setLifeFlash((current) => (current?.key === key ? null : current)),
+      LIFE_FLASH_MS,
+    );
+    return () => window.clearTimeout(timer);
   }, [player.life]);
 
   const manaPoolSummary = Object.entries(player.manaPool)
@@ -141,17 +165,30 @@ export function PlayerBoard({
           {hasPriority && <span className="rail__priority">Priority</span>}
           {isActivePlayer && <span className="rail__turn">Their turn</span>}
         </div>
-        {/* Keyed on the life total so a change remounts it, replaying the flash -
-            green when it goes up, red when it comes down. A number quietly
-            changing in the corner is the easiest thing on the board to miss. */}
+        {/* Keyed on the life total so a change remounts the element, which is
+            what makes a CSS animation play again rather than only the first
+            time the class appears. */}
         <button
           key={player.life}
-          className={`rail__life ${player.life > lastLife.current ? "rail__life--up" : player.life < lastLife.current ? "rail__life--down" : ""}`}
+          className={[
+            "rail__life",
+            lifeFlash && lifeFlash.delta > 0 ? "rail__life--up" : "",
+            lifeFlash && lifeFlash.delta < 0 ? "rail__life--down" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           onClick={onLifeClick}
           title="Click to target this player"
         >
           {player.life}
           <span className="rail__life-label">life</span>
+          {lifeFlash && (
+            <span
+              className={`rail__life-delta ${lifeFlash.delta > 0 ? "rail__life-delta--up" : "rail__life-delta--down"}`}
+            >
+              {lifeFlash.delta > 0 ? `+${lifeFlash.delta}` : lifeFlash.delta}
+            </span>
+          )}
         </button>
         {manaPoolSummary && <div className="rail__mana">Mana: {manaPoolSummary}</div>}
         {Object.entries(player.commanderDamageTaken).map(([cmdId, dmg]) => (
@@ -179,6 +216,22 @@ export function PlayerBoard({
         </div>
 
         <div className="rail__piles">
+          {/* The library is face-down and can't be looked through, so it is a
+              card back and a count rather than a ZonePile. It earns its place
+              twice over: how many cards are left is real information in a long
+              game, and it gives drawn cards somewhere to fly from - without a
+              library on screen, a draw has no honest starting point and the
+              card would have to appear in hand out of nowhere. */}
+          <div className="pile">
+            <div className="zone__label">Library</div>
+            <div
+              className="pile__back"
+              data-flight-anchor={libraryAnchorKey(player.id)}
+              title={`${player.library.length} cards left`}
+            >
+              <span className="pile__back-count">{player.library.length}</span>
+            </div>
+          </div>
           <ZonePile
             label="Graveyard"
             ownerLabel={player.id}
@@ -273,6 +326,11 @@ export function PlayerBoard({
                   selectedBlockerSourceId === instance.instanceId ||
                   assignedBlockerIds.has(instance.instanceId)
                 }
+                // Creatures in combat lean towards the centre line, so who is
+                // committed to the fight reads from the board itself rather
+                // than only from the outline colour.
+                attacking={attackingIds.has(instance.instanceId)}
+                blocking={assignedBlockerIds.has(instance.instanceId)}
                 badge={combatBadge(instance.instanceId)}
                 onHover={onHover}
                 onClick={() => onBattlefieldCardClick(instance.instanceId)}

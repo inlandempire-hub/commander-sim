@@ -83,9 +83,9 @@ Client changes: `App.tsx` no longer talks to the engine directly - it depends on
 See "Deck builder" below.
 
 ## Phase 6 — Polish
-- [ ] Smoother animations (Framer Motion or equivalent)
-- [ ] Card art via Scryfall images
-- [ ] UI pass so it reads as a real digital card game
+- [x] Smoother animations - DONE (2026-08-02). Cards travel between zones, tap, lunge into combat and flinch when damaged; see "Motion: cards that travel" below.
+- [x] Card art via Scryfall images - DONE (2026-08-01), see "Card art" below.
+- [ ] UI pass so it reads as a real digital card game - **in progress, roughly 5/10** against the agreed scale (0 = where this started, 10 = MTG Arena). Still to come for 5-7: cards fanning/overlapping instead of a scrollbar when a row is crowded, spells resolving with a flourish, and a real damage-prevention shield so Healing Salve's second mode stops being an approximation.
 - [x] Auto-skip priority passes when there's nothing meaningful to do - DONE (2026-07-30). See "Auto-pass + turn-sequence rules fixes" below.
 
 ## Ongoing (never "done")
@@ -1043,3 +1043,98 @@ picker listed 63 printings of Lightning Bolt and persisted the LEA one; and a
 hotseat game where one deck chose the Alpha Mountain showed `eace2c85...` on
 Deadly Donny's side against the default `c49d378e...` on Salty Mike's, same
 card, same game. 270 tests, typecheck clean.
+
+## Motion: cards that travel (2026-08-02)
+
+Aiming at the 5 mark on the polish scale (0 = where this started, 10 = MTG
+Arena). The gap left after sound and colour was that **cards teleported**: the
+game state said a card had moved and it simply appeared somewhere else.
+
+### Cards fly between zones
+
+`flight.ts` / `useCardFlight.ts` / `CardFlightLayer.tsx`.
+
+Measurement, not instrumentation. Every card publishes `data-card-instance`,
+`data-card-zone` and `data-card-owner`; after each render every card on screen
+is measured, and any card now reporting a different zone from last time is known
+to have moved and - crucially - where from and where to. A copy is flown between
+those two points in a fixed overlay while the real card stays hidden underneath.
+
+The engine therefore never has to tell the UI that a card moved. Anything that
+changes a card's zone animates for free, including effects nobody has written
+yet. Three deliberate choices in the diffing (`planFlights`, 11 tests):
+
+- Same-zone moves are ignored, or the whole hand would slide sideways every
+  time one card left it.
+- A card appearing in **hand** with no previous position came off the top of the
+  library, so it flies from the library pile - which is why the rail now draws
+  one (a card back and a count; the count is real information anyway).
+- A card appearing anywhere else has no honest starting point (a token being
+  made, something put onto the battlefield from a library) and just appears.
+
+**The overlay is not decoration.** Rows are horizontal scroll containers, so a
+card animating out of one is clipped at its edge the moment it leaves.
+
+The real card is restored by a `setTimeout`, deliberately not by the animation's
+completion callback. A tab that isn't compositing issues no animation frames, so
+an animation there never finishes and never fires its callback - hanging the
+"put the card back" step off it would leave cards permanently invisible in
+exactly the case where the animation was invisible anyway. It degrades to "the
+card appears without travelling".
+
+### One composed transform per card
+
+Cards can now be tapped, attacking, hovered and flinching at once, and each
+wants to move them. Written as separate `transform:` rules the last match wins
+and the rest silently vanish - the same class of bug that stopped tapped cards
+turning for the project's entire life. They are now four CSS custom properties
+(`--tilt`, `--lunge`, `--hover`, `--nudge` plus `--zoom`) composed in one place.
+
+- Attackers lunge 14px towards the centre line, blockers 7px, mirrored for the
+  flipped side.
+- Hovering lifts 6px and scales 1.09 - reading a card is still the detail
+  panel's job, this is for picking one out of a crowded row.
+- A creature taking damage flinches. `--nudge` is registered via `@property` so
+  it can interpolate; `.card` also declares its own `--nudge: 0px`, because
+  without that fallback a browser lacking `@property` support would leave the
+  variable empty, invalidate the whole composed transform, and take the tap
+  rotation down with it.
+
+Rows gained `padding: 26px 0; margin: -26px 0`. A container that scrolls on one
+axis clips on the other, so the padding pushes the clipping edge clear of the
+cards while the matching negative margin gives flexbox exactly that much more
+height to spend on it - cards stay the size they were. 26px is the worst case
+added up: a hovered attacking creature rises just over 24px.
+
+### Table surface, phase beats, life numbers
+
+- The board is a lit surface - radial falloff, inner shadow, a faint crosshatch
+  weave, and cards casting a shadow onto it. All gradients: no images, nothing
+  fetched, nothing anyone else owns.
+- `TableBeat` announces the two moments where control comes back to a player and
+  what they should be thinking about changes: the turn, and combat. Not every
+  step - with auto-pass the step can change four times in a second.
+- A life change floats the amount (`-7`) out of the total, not just a colour.
+
+### Verified this session (both modes, per the standing rule)
+
+Bot mode: flights captured for all four journeys - library to hand (from the
+library anchor, scale 0.696), hand to lands, command zone to stack, stack to
+battlefield - each with its destination card hidden mid-flight and none left
+hidden afterwards.
+
+Hotseat: Isamaru attacking **and** tapped measured at 9 degrees rotation *and*
+a -14px lunge simultaneously, which is the composition that was impossible
+before; Tifa blocking at +7px on the flipped side; the flinch fired on Isamaru
+taking 1 damage; the life total floated `-2`; and Tifa dying flew to the command
+zone. Deck builder unaffected (150 art strips, correct 279x46 band).
+
+Two bugs found and fixed in the browser, both in `TableBeat`:
+1. "Combat" came up and never left. React runs the previous effect's cleanup
+   before the next effect body, so the early-return path was cancelling the
+   pending hide without scheduling a replacement. The timer now lives in a ref.
+2. The turn banner replayed after every combat, because a single "last
+   announced" value meant combat overwrote the turn and the turn then looked
+   unannounced again. Tracked separately per kind now.
+
+288 tests, typecheck clean.
