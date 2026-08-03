@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CardDefinition, CardInstance, GameState } from "@mtg-commander-sim/engine";
 import { CardView } from "./CardView.js";
+import { CardFace } from "./CardFace.js";
 
 export interface StackViewProps {
   state: GameState;
@@ -66,14 +67,15 @@ export function StackView({
       {/* Deliberately outside the flight system's view: the card this shows is
           already somewhere else, and letting two elements claim one instance
           would have card movement measuring the wrong one. */}
+      {/* The printed face, matching the hover panel above it. This one can
+          afford it where the live stack below cannot: it is already outside
+          the flight system, so it has no measured position to lose. */}
       {showingLastPlayed && (
         <div className="stack__cards stack__cards--resolved" data-flight-ignore="">
-          <CardView
+          <CardFace
             instance={lastPlayed!}
             definition={cardDefinitions[lastPlayed!.definitionId]!}
-            onHover={onHover}
           />
-          <span className="stack__resolved-tag">Resolved</span>
         </div>
       )}
 

@@ -18,6 +18,10 @@
   --card-small-w: 46px;
   --detail-w: 250px;
   --rail-w: 132px;
+  /* The log's fixed slice of the sidebar. Fixed on purpose: it is the one of
+     the three boxes whose contents grow without limit, so it is the one that
+     must never be allowed to ask for room. Three turns of log fits. */
+  --log-h: 178px;
 }
 
 * {
@@ -48,7 +52,10 @@ body {
   padding: 6px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--detail-w);
-  grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  /* Top bar, then one row per player. There used to be a fourth row between
+     them for the action bar; the buttons moved into the rail and the row went,
+     which is 64px of height handed back to the two boards. */
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
   gap: 6px;
 }
 
@@ -96,28 +103,25 @@ body {
   grid-row: 2;
 }
 
-.table__centre {
+.side:not(.side--flipped) {
   grid-column: 1;
   grid-row: 3;
 }
 
-.side:not(.side--flipped) {
-  grid-column: 1;
-  grid-row: 4;
-}
-
-/* The right-hand column: what you're looking at on top, what has happened
-   below it. The log takes whatever height the card detail doesn't. */
 /*
- * The right-hand column: what you are looking at, what is on the stack, then
- * what has happened.
+ * The right-hand column: three boxes that never move.
  *
- * The card detail must never be squeezed. It used to be, and the cause was
- * subtle: the log was `flex: 1 1 auto`, and `auto` means its basis is its own
- * content - so every line added made it ask for more room, and the detail
- * (which could shrink) gave it up. After forty turns the card you were
- * hovering was a sliver. Basing the log at 0 makes it take only the space
- * left over, however much it contains.
+ * Top, the card under your cursor. Middle, the last card played, which stays
+ * put until another replaces it. Bottom, the log.
+ *
+ * Static is the whole point, and it took two goes to get there. Sizing any of
+ * them by their contents means the column reshuffles itself as the game plays:
+ * the log was once `flex: 1 1 auto`, whose basis is its own content, so every
+ * line added made it demand more room and the card panel above - which could
+ * shrink - gave it up, until after forty turns the card you were hovering was
+ * a sliver. So nothing here is sized by what is in it. The two card boxes
+ * split the space evenly, the log takes a fixed slice, and a card that does
+ * not fit scales down inside its box rather than pushing on the box.
  */
 .sidebar {
   grid-column: 2;
@@ -128,19 +132,32 @@ body {
   gap: 6px;
 }
 
-.detail {
-  flex: 0 0 auto;
-  max-height: 54%;
+/*
+ * Both card boxes get exactly half of what the log leaves, stated outright.
+ *
+ * `flex: 1 1 0` ought to say the same thing and does not. The card inside is
+ * sized `max-height: 100%`, so its height depends on the box while the box's
+ * intrinsic height depends on it; Chrome resolves that circle during flex
+ * negotiation and the two boxes settled 252/266 instead of 259/259, with the
+ * boundary shifting as the contents changed - which is precisely the moving
+ * column this was meant to stop. Naming the size removes the negotiation, and
+ * with it the feedback loop.
+ */
+.detail,
+.stack {
+  flex: 0 0 calc((100% - var(--log-h) - 12px) / 2);
+  min-height: 0;
+}
+
+.log {
+  flex: 0 0 var(--log-h);
+  min-height: 0;
 }
 
 /* Before a networked game has state there is no table to lay out. */
 .table--waiting {
   display: block;
   padding: 24px;
-}
-
-.table__notice + .action-bar {
-  max-width: 600px;
 }
 
 /* --- one player's half ---------------------------------------------------- */
@@ -585,30 +602,61 @@ body {
   color: var(--gold);
 }
 
-/* --- the centre strip: stack and controls --------------------------------- */
+/* --- what the game needs to tell you -------------------------------------- */
 
 /*
- * Fixed height, not min-height.
+ * The strip between the two boards is gone.
  *
- * This strip sits between the two halves of the table, so anything that
- * changes its height moves both boards. It used to hold the stack, and every
- * spell cast or resolved therefore nudged the whole game up or down - a
- * constant flicker through the busy parts of a turn. The stack now lives in
- * the sidebar, and this is pinned so the prompt appearing and disappearing
- * cannot move the board either.
+ * It went through three jobs and outlived all of them. It held the stack, and
+ * every spell cast or resolved changed its height and nudged both boards - so
+ * the stack moved to the sidebar. It then held the buttons, which fit in the
+ * rail. What was left was 58px of full-width table reserved for a sentence
+ * that is absent most of the game.
+ *
+ * So the sentence floats instead. Fixed to the viewport, centred on the line
+ * where the strip used to be: no layout, nothing to reserve, and the board
+ * cannot move when it appears because it was never part of the board.
  */
-.table__centre {
-  height: 58px;
+.table-prompt {
+  position: fixed;
+  top: 50%;
+  left: calc((100% - var(--detail-w)) / 2);
+  transform: translate(-50%, -50%);
+  z-index: 40;
+  max-width: min(620px, 60vw);
   display: flex;
   align-items: center;
   gap: 10px;
-  background:
-    linear-gradient(rgba(91, 140, 255, 0.05), rgba(0, 0, 0, 0.2)),
-    linear-gradient(#1a212c, #151b24);
+  background: rgba(26, 33, 44, 0.96);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 6px 10px;
-  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.table-prompt--error {
+  background: rgba(62, 26, 32, 0.97);
+  border-color: var(--danger);
+  color: var(--danger);
+  cursor: pointer;
+}
+
+.table-prompt__dismiss {
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.table-prompt__cancel {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 /*
@@ -621,11 +669,9 @@ body {
  * boards.
  */
 .stack {
-  /* Grows into whatever the detail above and the log below don't want - the
-     gap between them is exactly where the last card played belongs. */
-  flex: 1 1 auto;
+  /* Height comes from the sidebar rule: an even split with the card panel
+     above, so the two card-sized boxes match each other. */
   min-width: 0;
-  min-height: 116px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -673,88 +719,80 @@ body {
   max-height: none;
 }
 
+/* The last-played face, bounded on both axes like the hover panel above it,
+   so the two card boxes render a card the same way and to the same size. */
+.stack__cards--resolved .face {
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  margin: 0 auto;
+}
+
+/* In the rail now, so: a stack of full-width buttons rather than a row of
+   them, and text that fits in 132px without being cut. */
 .action-bar {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 5px;
 }
 
-.action-bar__actions {
+.action-bar__go {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.action-bar__actions button {
+  gap: 1px;
+  width: 100%;
   background: var(--accent);
   color: white;
   border: none;
   border-radius: 6px;
-  padding: 7px 12px;
-  font-size: 13px;
+  padding: 7px 6px;
+  font-size: 12px;
   font-family: inherit;
+  line-height: 1.2;
   cursor: pointer;
 }
 
-.action-bar__actions button:hover {
+.action-bar__go:hover {
   filter: brightness(1.1);
 }
 
-.action-bar__prompt {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #2a3040;
-  border-radius: 6px;
-  padding: 5px 9px;
-  font-size: 12px;
-}
-
-.action-bar__prompt button {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 4px;
-  padding: 3px 7px;
-  cursor: pointer;
-}
-
-.action-bar__error {
-  background: rgba(255, 91, 106, 0.15);
-  border: 1px solid var(--danger);
-  color: var(--danger);
-  border-radius: 6px;
-  padding: 5px 8px;
-  cursor: pointer;
-  font-size: 12px;
+/* Whose priority it is, under the verb rather than in brackets after it -
+   two short lines fit the rail where one long one did not. */
+.action-bar__who {
+  font-size: 10px;
+  opacity: 0.85;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .action-bar__game-over {
   background: rgba(255, 91, 106, 0.15);
   border: 1px solid var(--danger);
   border-radius: 6px;
-  padding: 7px 10px;
+  padding: 6px 8px;
   font-weight: 600;
-  font-size: 13px;
-}
-
-.action-bar__status {
-  display: flex;
-  gap: 14px;
-  font-size: 13px;
-  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.3;
 }
 
 .action-bar__waiting {
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: 11px;
   font-style: italic;
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* Before a networked game has state, there is no rail to sit in. */
+.table__waiting {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
 }
 
 /* --- cards ---------------------------------------------------------------- */
@@ -1071,42 +1109,56 @@ body {
 
 /* --- card detail panel ---------------------------------------------------- */
 
+/*
+ * A box the size of a card, holding a card and nothing else.
+ *
+ * No panel chrome, no padding, no scrollbar: the printed image already has a
+ * border, a background and a frame, and wrapping it in a second one only made
+ * the card smaller. The box keeps its size whether or not anything is in it,
+ * which is what stops the column shifting as you move the cursor around.
+ */
 .detail {
   min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Contained, not cropped, and bounded on *both* axes - height so it fits the
+   third of the column it was given, width so a short wide box can't stretch
+   it past the sidebar. Whichever bites first wins, and the ratio holds. */
+.detail__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4.6% / 3.3%;
+  display: block;
+}
+
+/* The fallback, for a card with no printing to show. This one does want the
+   panel chrome, because there is no card frame to supply it. */
+.detail--text {
+  align-items: stretch;
+  justify-content: flex-start;
+  flex-direction: column;
+  gap: 5px;
   overflow-y: auto;
   scrollbar-width: thin;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
 }
 
-/* The whole printed card, frame and text included. This is the one place a
-   full-size image is worth fetching, because reading it is the entire point. */
-.detail__image {
-  width: 100%;
-  max-height: 40vh;
-  object-fit: contain;
-  border-radius: 8px;
-  display: block;
-}
-
+/* Said, rather than left blank, so the reserved space reads as "hover
+   something" instead of as a panel that failed to load. */
 .detail--empty {
   opacity: 0.6;
-}
-
-.detail__badge {
-  align-self: flex-start;
-  background: var(--accent);
-  color: white;
-  border-radius: 999px;
-  padding: 1px 8px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  text-align: center;
+  padding: 8px 10px;
 }
 
 .detail__head {
@@ -1155,12 +1207,6 @@ body {
   padding-top: 5px;
 }
 
-.detail__pt-label {
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--text-dim);
-}
-
 /* --- standalone notice screens (bad deck id, missing seat) ---------------- */
 
 .app {
@@ -1203,10 +1249,9 @@ body {
 
 /* Pinned to the bottom of the column and no longer allowed to grow: it only
    shows three turns now, so it needs a corner rather than a panel. */
+/* Height comes from --log-h in the sidebar rule above, not from here - this is
+   only how it looks. */
 .log {
-  flex: 0 0 auto;
-  height: 30%;
-  min-height: 96px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1923,32 +1968,25 @@ body {
  * for a beat afterwards instead, dimmed and labelled, so it reads as a record
  * of what just happened rather than as a spell you could still respond to.
  */
+/*
+ * Dimmed, and that is all.
+ *
+ * There used to be an `animation: resolved-fade ... forwards` here, from when
+ * this panel showed a resolved spell for a moment and then went blank. When
+ * the panel became permanent the React side was changed to keep the card and
+ * this was left behind, so the card was still being animated to opacity zero
+ * a second and a bit after it appeared - present in the DOM, invisible on
+ * screen, and invisible to a structural check that only asks whether the
+ * element is there.
+ *
+ * Held at a steady dim instead: enough to read as a record of what happened
+ * rather than a spell you could still respond to, and no less readable the
+ * longer you look at it.
+ */
 .stack__cards--resolved {
   position: relative;
-  opacity: 0.6;
-  filter: saturate(0.65);
-  animation: resolved-fade 1.3s ease-in forwards;
-}
-
-.stack__resolved-tag {
-  position: absolute;
-  left: 50%;
-  bottom: 4px;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.82);
-  color: var(--text-dim);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 1px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-@keyframes resolved-fade {
-  0% { opacity: 0.72; }
-  70% { opacity: 0.55; }
-  100% { opacity: 0; }
+  opacity: 0.82;
+  filter: saturate(0.8);
 }
 
 /* Quiet, and last in the bar, because it ends the game. */

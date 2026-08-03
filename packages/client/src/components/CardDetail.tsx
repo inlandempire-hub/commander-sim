@@ -6,29 +6,28 @@ import { cardArtUrl } from "../cardArt.js";
 import { useArtOverrides } from "../artContext.js";
 
 /**
- * The full text of whichever card you're currently looking at, pinned to the
- * side of the board.
+ * Whichever card you are currently looking at, printed face and all.
  *
  * The cards on the table only have room for a name, and a name is not enough:
  * knowing that "Mana Leak" is on the stack is useless if you don't already
  * know what Mana Leak does. This is the read-the-card panel that a physical
  * game gets for free by having the text printed on the card.
  *
- * Rules text is rendered from the engine's own effect data by `describeCard`,
- * the same renderer the deck builder uses - so what it says is what the engine
- * will actually do, not a separate description that could drift from it.
+ * And that is all it is. It used to print the name, type line, rules text and
+ * power/toughness underneath the image, which is the same information twice -
+ * the image already *is* the card, in the typesetting the reader knows, and
+ * the panel restating it in a different wording only invited the question of
+ * which one to believe.
  */
 
 export interface CardDetailProps {
   definition?: CardDefinition;
   cardDefinitions: Record<string, CardDefinition>;
-  /** Why this card is being shown, so the panel can say whether it's resolving or just hovered. */
-  reason?: "stack" | "hover";
   /** Whose copy this is, so the panel shows the printing their deck chose. */
   ownerId?: string;
 }
 
-export function CardDetail({ definition, cardDefinitions, reason, ownerId }: CardDetailProps) {
+export function CardDetail({ definition, cardDefinitions, ownerId }: CardDetailProps) {
   const overrides = useArtOverrides(ownerId);
   // Keyed by card id so moving to a different card retries the image rather
   // than inheriting the previous one's failure.
@@ -42,17 +41,13 @@ export function CardDetail({ definition, cardDefinitions, reason, ownerId }: Car
     );
   }
 
-  const rules = describeCard(definition, cardDefinitions);
-  const isCreature = definition.types.includes("Creature");
   // The whole card, frame and printed text included - this is the one place
   // worth spending the larger image on, because reading it is the point.
   const imageUrl = cardArtUrl(definition, "normal", overrides);
-  const showImage = imageUrl !== undefined && failedFor !== definition.id;
 
-  return (
-    <aside className="detail">
-      {reason === "stack" && <div className="detail__badge">On the stack</div>}
-      {showImage && (
+  if (imageUrl !== undefined && failedFor !== definition.id) {
+    return (
+      <aside className="detail">
         <img
           className="detail__image"
           src={imageUrl}
@@ -60,7 +55,22 @@ export function CardDetail({ definition, cardDefinitions, reason, ownerId }: Car
           draggable={false}
           onError={() => setFailedFor(definition.id)}
         />
-      )}
+      </aside>
+    );
+  }
+
+  /*
+   * No image to be had - offline, or a token that was never printed.
+   *
+   * The text is a fallback rather than a companion. Dropping it along with the
+   * rest would make this panel silently useless in exactly the situation where
+   * you cannot read the card any other way, so it stays for the one case that
+   * needs it. Rendered from the engine's own effect data by `describeCard`, so
+   * what it says is what the engine will actually do.
+   */
+  const rules = describeCard(definition, cardDefinitions);
+  return (
+    <aside className="detail detail--text">
       <div className="detail__head">
         <span className="detail__name">{definition.name}</span>
         <span className="detail__cost">{formatManaCost(definition.manaCost)}</span>
@@ -73,14 +83,11 @@ export function CardDetail({ definition, cardDefinitions, reason, ownerId }: Car
           ))}
         </div>
       ) : (
-        // Genuinely blank cards exist - a vanilla creature has no rules text at
-        // all - and saying so beats an empty gap that looks like a bug.
         <p className="detail__vanilla">No rules text.</p>
       )}
-      {isCreature && (
+      {definition.types.includes("Creature") && (
         <div className="detail__pt">
           {definition.power}/{definition.toughness}
-          <span className="detail__pt-label"> printed power/toughness</span>
         </div>
       )}
     </aside>

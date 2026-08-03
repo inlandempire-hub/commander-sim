@@ -18,6 +18,7 @@ import { CardPicker, ModePicker } from "./components/CardPicker.js";
 import { GameLog } from "./components/GameLog.js";
 import { CardFlightLayer } from "./components/CardFlightLayer.js";
 import { TableBeat } from "./components/TableBeat.js";
+import { TablePrompt } from "./components/TablePrompt.js";
 import { TargetArrow } from "./components/TargetArrow.js";
 import { MulliganOverlay } from "./components/MulliganOverlay.js";
 import { cueForLogLine, play, setSoundEnabled, soundEnabled } from "./sound.js";
@@ -144,11 +145,9 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     return (
       <div className="table table--waiting">
         <p className="table__notice">{modeNotice}</p>
-        <div className="action-bar">
-          <div className="action-bar__status">
-            <span>{lastError ?? "Waiting for the other player to connect..."}</span>
-          </div>
-        </div>
+        <p className="table__waiting">
+          {lastError ?? "Waiting for the other player to connect..."}
+        </p>
       </div>
     );
   }
@@ -185,7 +184,6 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     : undefined;
   const detailDefinitionId = hovered?.definitionId ?? topOfStackCard?.definitionId;
   const detailOwnerId = hovered ? hovered.ownerId : topOfStackCard?.ownerId;
-  const detailReason = hovered ? "hover" : topOfStackCard ? "stack" : undefined;
 
   // Only surfaced for a seat this client actually drives; the bot answers its
   // own searches, and over the network the other player answers theirs.
@@ -529,7 +527,14 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           <PlayerBoard key={player.id} flipped {...boardProps(player)} />
         ))}
 
-        <div className="table__centre">
+        {/* The controls ride in the bottom seat's rail now - see ActionBar.
+            The strip that used to hold them was 58px of full-width table for
+            one row of buttons, and once the stack moved to the sidebar it had
+            nothing else left in it. */}
+        <PlayerBoard
+          key={bottomPlayer.id}
+          {...boardProps(bottomPlayer)}
+          actions={
             <ActionBar
               state={state}
               onPassPriority={handlePassPriority}
@@ -538,30 +543,32 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
               showConfirmBlockers={isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)}
               onConfirmBlockers={handleConfirmBlockers}
               canActForPriorityPlayer={canActForPriorityPlayer}
-              pendingTargetPrompt={
-                pendingTarget
-                  ? `Choose a target for ${pendingTarget.cardName}`
-                  : // Blocking is two clicks and neither is guessable, so say so.
-                    isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)
-                    ? selectedBlockerSourceId
-                      ? "Now click the attacker it should block. Click the blocker again to cancel."
-                      : `Click one of your creatures, then the attacker it blocks. ${
-                          Object.keys(blockerAssignments).length
-                        } block(s) set - several creatures can gang up on one attacker.`
-                    : null
-              }
-              showCancel={pendingTarget !== null}
-              onCancelTargeting={() => setPendingTarget(null)}
-              lastError={lastError ?? notice}
-              onClearError={() => {
-                clearError();
-                setNotice(null);
-              }}
               onConcede={handleConcede}
             />
-        </div>
+          }
+        />
 
-        <PlayerBoard key={bottomPlayer.id} {...boardProps(bottomPlayer)} />
+        <TablePrompt
+          prompt={
+            pendingTarget
+              ? `Choose a target for ${pendingTarget.cardName}`
+              : // Blocking is two clicks and neither is guessable, so say so.
+                isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)
+                ? selectedBlockerSourceId
+                  ? "Now click the attacker it should block. Click the blocker again to cancel."
+                  : `Click one of your creatures, then the attacker it blocks. ${
+                      Object.keys(blockerAssignments).length
+                    } block(s) set - several creatures can gang up on one attacker.`
+                : null
+          }
+          error={lastError ?? notice}
+          onClearError={() => {
+            clearError();
+            setNotice(null);
+          }}
+          showCancel={pendingTarget !== null}
+          onCancel={() => setPendingTarget(null)}
+        />
 
         {/* What you're looking at, what is resolving, what has happened. The
             stack sits here rather than between the two boards because it kept
@@ -570,7 +577,6 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           <CardDetail
             definition={detailDefinitionId ? state.cardDefinitions[detailDefinitionId] : undefined}
             cardDefinitions={state.cardDefinitions}
-            reason={detailReason}
             ownerId={detailOwnerId}
           />
           <StackView

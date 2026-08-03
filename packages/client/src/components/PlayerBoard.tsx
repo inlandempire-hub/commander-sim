@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { CardDefinition, CardType, GameState, Player } from "@mtg-commander-sim/engine";
 import { CardView } from "./CardView.js";
 import { ZonePile } from "./ZonePile.js";
@@ -62,6 +62,12 @@ export interface PlayerBoardProps {
   /** Reports the card under the cursor so the detail panel can show its full text. */
   onHover?: (definitionId: string | null, ownerId?: string) => void;
   onLifeClick: () => void;
+  /**
+   * The game's controls, slotted into this board's rail under the life total.
+   * Only the bottom seat is given any - see ActionBar for why they live in one
+   * fixed place rather than following whoever is being asked.
+   */
+  actions?: ReactNode;
 }
 
 export function PlayerBoard({
@@ -84,6 +90,7 @@ export function PlayerBoard({
   canPlay,
   onHover,
   onLifeClick,
+  actions,
 }: PlayerBoardProps) {
   const lands = player.battlefield.filter((c) => cardDefinitions[c.definitionId]?.types.includes("Land"));
   const creatures = player.battlefield.filter((c) => cardDefinitions[c.definitionId]?.types.includes("Creature"));
@@ -199,6 +206,11 @@ export function PlayerBoard({
           </div>
         ))}
         {player.hasLost && <div className="rail__lost">LOST: {player.lossReason}</div>}
+
+        {/* The controls, directly under the life total. Passed in rather than
+            built here because they act on the game rather than on this seat -
+            and because only one board gets them. */}
+        {actions}
 
         <div className="rail__piles">
           {/* The library is face-down and can't be looked through, so it is a
