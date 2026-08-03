@@ -299,6 +299,25 @@ export interface PendingSearch {
   prompt: string;
 }
 
+/**
+ * Whose opening hand is being decided, and how far into it they are.
+ *
+ * Players are taken one at a time. The real rule has everyone decide together
+ * each round and put cards back afterwards, which matters in a pod where you
+ * might read the table before committing; in a two-player game it deals
+ * identical hands and is far easier to put on one screen. See mulligan.ts.
+ */
+export interface MulliganState {
+  /** Whose decision it is right now. */
+  playerId: string;
+  /** Every player, in the order they are asked. */
+  order: string[];
+  /** How many times this player has shuffled back so far - also how many cards they will owe. */
+  mulligansTaken: number;
+  /** True once they have kept and are choosing which cards go to the bottom. */
+  bottoming: boolean;
+}
+
 export type ManaPool = Partial<Record<Color, number>> & { generic?: number };
 
 export interface Player {
@@ -380,6 +399,16 @@ export interface GameState {
    * and no step advances - the game is mid-spell. Cleared by `resolveSearch`.
    */
   pendingSearch: PendingSearch | null;
+  /**
+   * Opening hands still being decided. Null for the whole of a normal game -
+   * it is only ever set between dealing and the first untap step, and clearing
+   * it leaves the state exactly as if every player had simply been dealt a
+   * hand, so nothing downstream has to know this happened.
+   *
+   * Games created without mulligans (every headless test, bot-vs-bot runs)
+   * never set it at all.
+   */
+  mulligan: MulliganState | null;
   cardDefinitions: Record<string, CardDefinition>;
   nextInstanceId: number;
   nextStackObjectId: number;

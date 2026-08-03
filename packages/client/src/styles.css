@@ -108,6 +108,17 @@ body {
 
 /* The right-hand column: what you're looking at on top, what has happened
    below it. The log takes whatever height the card detail doesn't. */
+/*
+ * The right-hand column: what you are looking at, what is on the stack, then
+ * what has happened.
+ *
+ * The card detail must never be squeezed. It used to be, and the cause was
+ * subtle: the log was `flex: 1 1 auto`, and `auto` means its basis is its own
+ * content - so every line added made it ask for more room, and the detail
+ * (which could shrink) gave it up. After forty turns the card you were
+ * hovering was a sliver. Basing the log at 0 makes it take only the space
+ * left over, however much it contains.
+ */
 .sidebar {
   grid-column: 2;
   grid-row: 1 / -1;
@@ -118,7 +129,8 @@ body {
 }
 
 .detail {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  max-height: 62%;
 }
 
 /* Before a networked game has state there is no table to lay out. */
@@ -181,14 +193,74 @@ body {
   flex: 1 1 0;
   min-height: 0;
   display: flex;
+  min-width: 0;
+}
+
+/* The hand takes the width it needs; lands and other permanents share what is
+   left, off to one side. They were each getting a full-width row of their own
+   and standing nearly empty in it, which squeezed the creatures - the row you
+   actually have to read during combat - into a third of the half. */
+.row--base {
+  flex-direction: row;
+  gap: 6px;
+}
+
+.row--creatures {
+  flex: 1.25 1 0;
   flex-direction: column;
 }
 
-/* Lands and non-creature permanents get less of the height than the rows you
-   actually have to read. */
-.row--lands,
-.row--other {
-  flex: 0.78 1 0;
+.row__aside {
+  flex: 0 0 42%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/*
+ * A zone is a coloured patch of the mat, not a caption.
+ *
+ * The rows used to be labelled CREATURES, LANDS, HAND down the left. Nobody
+ * playing Magic needs to be told which of their cards are creatures, and the
+ * labels took horizontal space on every row to say it. The colour is enough:
+ * it marks out where each kind of card lives without claiming any of the
+ * board, and it is what a printed playmat does.
+ */
+.zone {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 2px 6px;
+}
+
+.zone--hand {
+  background: linear-gradient(rgba(96, 128, 178, 0.11), rgba(96, 128, 178, 0.04));
+  border-color: rgba(120, 156, 210, 0.18);
+}
+
+.zone--lands {
+  background: linear-gradient(rgba(120, 150, 96, 0.12), rgba(120, 150, 96, 0.04));
+  border-color: rgba(140, 174, 110, 0.2);
+}
+
+.zone--other {
+  background: linear-gradient(rgba(150, 116, 190, 0.12), rgba(150, 116, 190, 0.04));
+  border-color: rgba(168, 134, 208, 0.2);
+}
+
+.zone--creatures {
+  background: linear-gradient(rgba(190, 122, 96, 0.12), rgba(190, 122, 96, 0.04));
+  border-color: rgba(206, 140, 112, 0.2);
+}
+
+/* Lands and other permanents are reference material once they are down - you
+   need to see how many and which, not read them. */
+.row__aside .card {
+  max-height: 58px;
 }
 
 /*
@@ -451,23 +523,57 @@ body {
 
 /* --- the centre strip: stack and controls --------------------------------- */
 
+/*
+ * Fixed height, not min-height.
+ *
+ * This strip sits between the two halves of the table, so anything that
+ * changes its height moves both boards. It used to hold the stack, and every
+ * spell cast or resolved therefore nudged the whole game up or down - a
+ * constant flicker through the busy parts of a turn. The stack now lives in
+ * the sidebar, and this is pinned so the prompt appearing and disappearing
+ * cannot move the board either.
+ */
 .table__centre {
+  height: 58px;
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--panel);
+  background:
+    linear-gradient(rgba(91, 140, 255, 0.05), rgba(0, 0, 0, 0.2)),
+    linear-gradient(#1a212c, #151b24);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 10px;
-  min-height: 0;
+  overflow: hidden;
 }
 
+/*
+ * The stack, in the sidebar, always present whether or not anything is on it.
+ *
+ * Reserving the space is the point: a panel that appears and disappears is
+ * exactly the flicker this was moved out of the centre to avoid. It is also
+ * simply the right place for it - what is resolving is something you want to
+ * read properly, and there was never room for that in a strip between the
+ * boards.
+ */
 .stack {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
+  height: 132px;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.stack__empty {
+  margin: auto;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-dim);
 }
 
 .stack .zone__label {
@@ -478,23 +584,27 @@ body {
 /* A pile, not a row: each spell sits slightly over and below the one under it,
    so a stack two deep is obvious without reading the count. */
 .stack__cards {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
+  align-items: center;
   gap: 0;
-  max-width: 46vw;
   overflow-x: clip;
   overflow-y: visible;
   padding-left: 2px;
 }
 
+/* A pile, not a row - a stack two deep should read as one without checking
+   the count. */
 .stack__cards > * + * {
-  margin-left: -38px;
+  margin-left: -46px;
 }
 
-/* Stack cards are shown at a fixed small size - the strip has to stay the same
-   height whether the stack is empty or four spells deep, or the two boards
-   would jump every time something was cast. */
+/* Big enough to actually read what is resolving, which is the whole reason
+   this panel moved out of the centre strip. */
 .stack__cards .card {
-  height: 76px;
+  height: 100%;
+  max-height: none;
 }
 
 .action-bar {
@@ -903,6 +1013,8 @@ body {
    full-size image is worth fetching, because reading it is the entire point. */
 .detail__image {
   width: 100%;
+  max-height: 40vh;
+  object-fit: contain;
   border-radius: 8px;
   display: block;
 }
@@ -1015,8 +1127,8 @@ body {
 /* --- game log ------------------------------------------------------------- */
 
 .log {
-  flex: 1 1 auto;
-  min-height: 80px;
+  flex: 1 1 0;
+  min-height: 74px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1247,8 +1359,8 @@ body {
   border-radius: inherit;
   pointer-events: none;
   background-image:
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.016) 0 1px, transparent 1px 4px),
-    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.03) 0 1px, transparent 1px 4px);
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.1) 0 1px, transparent 1px 5px);
 }
 
 .table__centre {
@@ -1515,4 +1627,129 @@ body {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* --- deciding an opening hand --------------------------------------------- */
+
+/*
+ * Deliberately the largest thing in this application.
+ *
+ * Every other prompt sits in a corner because the board is what you are
+ * looking at. Here there is no board yet: the seven cards are the entire
+ * decision, it is the one moment you have to read all of them before choosing,
+ * and two people sharing a screen have to manage it from a normal sitting
+ * distance.
+ */
+.overlay--mulligan {
+  background: rgba(4, 7, 11, 0.94);
+  z-index: 120;
+}
+
+.mulligan {
+  width: min(1180px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: center;
+}
+
+.mulligan__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.mulligan__who {
+  font-size: 22px;
+  text-transform: capitalize;
+  letter-spacing: 0.04em;
+}
+
+.mulligan__prompt {
+  font-size: 14px;
+  color: var(--text-dim);
+  max-width: 60ch;
+  line-height: 1.5;
+}
+
+.mulligan__cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 6px;
+}
+
+.mulligan__slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Big enough to read the rules text, which is the whole point of stopping
+   here. Overrides the row-driven sizing every other card uses. */
+.mulligan__slot .card {
+  height: 250px;
+  max-height: none;
+  min-height: 0;
+}
+
+/* Chosen cards sink and grey out - they are the ones you are giving up, so
+   they should look like it rather than looking selected. */
+.mulligan__slot--chosen .card {
+  filter: grayscale(0.7) brightness(0.55);
+  outline: 2px solid var(--danger);
+}
+
+.mulligan__marker {
+  position: absolute;
+  bottom: 8px;
+  background: var(--danger);
+  color: white;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.mulligan__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.mulligan__actions button {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 12px 26px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.mulligan__keep {
+  background: #3f8f5c;
+  color: white;
+}
+
+.mulligan__mull {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.mulligan__actions button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.mulligan__actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }

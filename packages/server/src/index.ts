@@ -9,6 +9,9 @@ import {
   declareAttackers,
   declareBlockers,
   resolveSearch,
+  takeMulligan,
+  keepHand,
+  putOnBottom,
   passPriority,
   type GameState,
 } from "@mtg-commander-sim/engine";
@@ -61,6 +64,15 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
     case "declareBlockers":
       declareBlockers(state, playerId, message.declarations);
       return;
+    case "takeMulligan":
+      takeMulligan(state, playerId);
+      return;
+    case "keepHand":
+      keepHand(state, playerId);
+      return;
+    case "putOnBottom":
+      putOnBottom(state, playerId, message.instanceIds);
+      return;
     case "resolveSearch":
       resolveSearch(state, playerId, message.instanceId);
       return;
@@ -97,7 +109,7 @@ wss.on("connection", (ws, req) => {
   if (seatConnections.size < 2) {
     send(ws, { type: "waitingForOpponent" });
   } else {
-    if (!gameState) gameState = createDemoGame();
+    if (!gameState) gameState = createDemoGame({ mulligan: true });
     broadcastState(gameState);
   }
 

@@ -63,6 +63,9 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
     declareAttackers: (_playerId, declarations) => send({ type: "declareAttackers", declarations }),
     declareBlockers: (_playerId, declarations) => send({ type: "declareBlockers", declarations }),
     resolveSearch: (_playerId, instanceId) => send({ type: "resolveSearch", instanceId }),
+    takeMulligan: () => send({ type: "takeMulligan" }),
+    keepHand: () => send({ type: "keepHand" }),
+    putOnBottom: (_playerId, instanceIds) => send({ type: "putOnBottom", instanceIds }),
     passPriority: () => send({ type: "passPriority" }),
     canControlPlayer: (playerId) => playerId === myPlayerId,
   };

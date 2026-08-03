@@ -1212,3 +1212,87 @@ Rotating them would make every card's bounding box wider than the card, and the
 flight animation measures those boxes to work out where a card is travelling
 from - so the arc would quietly degrade card movement to buy a static flourish.
 Worth doing only alongside a transform-independent way to measure a card.
+
+## Opening hands, and a board that stops moving (2026-08-03)
+
+Six things from a real play session.
+
+### The London mulligan
+
+`packages/engine/src/mulligan.ts`, 17 tests. You always draw seven; if you
+don't like them you shuffle all seven back and draw seven more, but each time
+you do you owe one card from the hand you finally keep to the bottom of your
+library. **This is the current rule and not the older one people remember**,
+where each mulligan drew one card fewer - the difference is that you now see
+seven and then decide which to lose, which is why there is a second "choose
+what goes back" step at all.
+
+Players are taken one at a time. The real rule has everyone decide together
+each round, which matters in a four-player pod where you might read the table;
+in a two-player game it deals identical hands and is far easier to put on one
+screen.
+
+It is **opt-in at game creation**. Every headless test and bot-vs-bot run
+wants a game already under way, and all of them would otherwise have to answer
+a prompt before asserting anything. The client and server turn it on.
+
+The overlay is deliberately the largest thing in the application: there is no
+board yet, the seven cards are the whole decision, and two people sharing a
+screen have to read them from a normal sitting distance.
+
+The bot decides its own, on land count - below two or above five it ships the
+hand back, with the window widening as the hand shrinks, and it stops being
+fussy by the time it would be keeping four. Bottoming sheds surplus lands
+first, then the most expensive spells.
+
+### Rule 103.7a, uncovered by the above
+
+The player going first now skips their draw on turn one. This was a documented
+simplification that had never mattered, because a hand of eight looks much like
+a hand of seven when nobody has counted. The mulligan made it glaring: keeping
+six and then finding seven cards in hand reads as the mulligan being broken.
+
+### A bot action that nothing performed
+
+`useBotOpponent`'s `perform` switch had no case for `resolveSearch`, and when
+the mulligan actions were added it had none for those either. A switch that
+just ends drops the action silently, so the bot decided to keep, nothing
+carried it out, and the game stopped dead at the first untap step. The same was
+already true of tutors: a bot that drew one would have hung identically.
+
+The switch now assigns to `never` in its default branch, so the build fails the
+next time a bot action is added without being wired up.
+
+### The board stops moving
+
+- **The centre strip is a fixed 58px.** It used to hold the stack, so every
+  spell cast or resolved changed its height and moved both boards - a constant
+  flicker through the busy part of a turn. Measured across six turns of play:
+  one height, 58, and the lower board's top never moved off 410.
+- **The stack moved to the sidebar**, always present, showing "Nothing waiting
+  to resolve" when empty. Reserving the space is the point - a panel that comes
+  and goes is the same flicker. Cards in it are 110px rather than 76px, because
+  reading what is resolving is why it exists.
+- **The card detail can no longer be squeezed by the log.** The log was
+  `flex: 1 1 auto`, and `auto` bases a flex item on its own content - so every
+  line added made it ask for more room and the detail gave it up, until the
+  card you were hovering was a sliver. Basing the log at 0 makes it take only
+  what is left. Verified by piling 250 lines into the log: the detail held at
+  exactly 383px with the card image at 288px.
+
+### The mat
+
+- **Lands and other permanents moved beside the hand**, at 58px, in the space
+  that was standing empty there. They each had a full-width row before, which
+  squeezed the creature row - the one you actually read during combat - into a
+  third of the half. Creatures now get the larger share.
+- **Row labels are gone.** Nobody playing Magic needs to be told which of their
+  cards are creatures, and CREATURES / LANDS / HAND took horizontal space on
+  every row to say it. Each zone is a tinted patch of the mat instead - blue
+  for hand, green for lands, purple for other permanents, warm red for
+  creatures - which is what a printed playmat does.
+- **The weave is roughly three times as visible** (0.055 from 0.016).
+
+314 tests, typecheck clean. Verified in both bot mode and hotseat: a two-card
+mulligan left Donny on five with 94 in his library, Mike on seven with 92, and
+the starting player correctly did not draw.

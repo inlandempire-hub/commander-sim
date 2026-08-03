@@ -14,6 +14,9 @@ export type ClientMessage =
   | { type: "declareBlockers"; declarations: BlockerDeclaration[] }
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */
   | { type: "resolveSearch"; instanceId: string | null }
+  | { type: "takeMulligan" }
+  | { type: "keepHand" }
+  | { type: "putOnBottom"; instanceIds: string[] }
   | { type: "passPriority" };
 
 /** Messages the server sends to a client. `state` is always filtered for that specific viewer. */

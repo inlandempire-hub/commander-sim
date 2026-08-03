@@ -104,6 +104,12 @@ function describe(state: GameState, seat: string, action: BotAction): string | n
       return action.instanceId
         ? `${seat} searches and takes ${nameOf(state, action.instanceId)}.`
         : `${seat} searches and takes nothing.`;
+    case "takeMulligan":
+      return `${seat} mulligans.`;
+    case "keepHand":
+      return `${seat} keeps.`;
+    case "putOnBottom":
+      return `${seat} puts ${action.instanceIds.length} card(s) on the bottom.`;
     case "passPriority":
       return null;
   }

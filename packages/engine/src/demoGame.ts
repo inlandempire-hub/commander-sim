@@ -1,4 +1,5 @@
 import { createGameState, drawCard } from "./state.js";
+import { OPENING_HAND_SIZE, createMulliganState } from "./mulligan.js";
 import { setUpCommanderDeck, type DeckList } from "./commander.js";
 import { TEST_CARD_DEFINITIONS } from "./cards/testCards.js";
 import type { GameState } from "./types.js";
@@ -172,7 +173,22 @@ export const MIKE_DECK: DeckList = {
   libraryIds: [...MONO_GREEN_NONLAND_CARDS, ...repeat("forest", 99 - MONO_GREEN_NONLAND_CARDS.length)],
 };
 
-const OPENING_HAND_SIZE = 7;
+/**
+ * Whether players get to look at their opening hand and send it back.
+ *
+ * Off by default, and that is deliberate rather than lazy: a headless test or
+ * a bot-vs-bot run wants a game that is already under way, and every one of
+ * them would otherwise have to answer a mulligan prompt before it could assert
+ * anything. The client turns it on, because a real game of Magic starts here.
+ */
+export interface GameOptions {
+  mulligan?: boolean;
+}
+
+function dealOpeningHands(state: GameState, playerIds: string[], options: GameOptions): void {
+  for (const id of playerIds) drawCard(state, id, OPENING_HAND_SIZE);
+  if (options.mulligan) state.mulligan = createMulliganState(playerIds);
+}
 
 /**
  * Builds a two-player game from any pair of decks - the general form that
@@ -181,6 +197,7 @@ const OPENING_HAND_SIZE = 7;
  */
 export function createGameFromDecks(
   players: [{ id: string; deck: DeckList }, { id: string; deck: DeckList }],
+  options: GameOptions = {},
 ): GameState {
   const state = createGameState(
     players.map((p) => p.id),
@@ -188,19 +205,22 @@ export function createGameFromDecks(
   );
   for (const { id, deck } of players) {
     setUpCommanderDeck(state, id, { ...deck, libraryIds: shuffled(deck.libraryIds) });
-    drawCard(state, id, OPENING_HAND_SIZE);
   }
+  dealOpeningHands(
+    state,
+    players.map((p) => p.id),
+    options,
+  );
   return state;
 }
 
-export function createDemoGame(): GameState {
+export function createDemoGame(options: GameOptions = {}): GameState {
   const state = createGameState([DEADLY_DONNY, SALTY_MIKE], TEST_CARD_DEFINITIONS);
 
   setUpCommanderDeck(state, DEADLY_DONNY, { ...DONNY_DECK, libraryIds: shuffled(DONNY_DECK.libraryIds) });
   setUpCommanderDeck(state, SALTY_MIKE, { ...MIKE_DECK, libraryIds: shuffled(MIKE_DECK.libraryIds) });
 
-  drawCard(state, DEADLY_DONNY, OPENING_HAND_SIZE);
-  drawCard(state, SALTY_MIKE, OPENING_HAND_SIZE);
+  dealOpeningHands(state, [DEADLY_DONNY, SALTY_MIKE], options);
 
   return state;
 }

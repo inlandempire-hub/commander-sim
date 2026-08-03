@@ -27,6 +27,9 @@ function advancePriorityPlayer(state: GameState): void {
 export function passPriority(state: GameState, playerId: string): void {
   // A spell is still resolving - it stopped to ask its controller which card
   // to take. Nobody has priority until that's answered.
+  if (state.mulligan) {
+    throw new Error(`${state.mulligan.playerId} must settle their opening hand first`);
+  }
   if (state.pendingSearch) {
     throw new Error(`${state.pendingSearch.playerId} must finish searching first`);
   }

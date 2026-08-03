@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  canMulliganAgain,
   canPlayCardNow,
   modesOf,
   shouldAutoPass,
@@ -16,6 +17,7 @@ import { GameLog } from "./components/GameLog.js";
 import { CardFlightLayer } from "./components/CardFlightLayer.js";
 import { TableBeat } from "./components/TableBeat.js";
 import { TargetArrow } from "./components/TargetArrow.js";
+import { MulliganOverlay } from "./components/MulliganOverlay.js";
 import { cueForLogLine, play, setSoundEnabled, soundEnabled } from "./sound.js";
 import { ArtOverridesProvider, type ArtOverridesByPlayer } from "./artContext.js";
 import { FlyingProvider } from "./flightContext.js";
@@ -187,6 +189,17 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     ? (state.players.find((p) => p.id === pendingSearch.playerId)?.library ?? []).filter((card) =>
         pendingSearch.candidateInstanceIds.includes(card.instanceId),
       )
+    : [];
+
+  /*
+   * An opening hand waiting on this client. Same rule as a pending search: the
+   * bot answers its own through the engine, and over the network each player
+   * answers theirs, so a seat this client doesn't drive shows nothing.
+   */
+  const mulligan =
+    state.mulligan && controller.canControlPlayer(state.mulligan.playerId) ? state.mulligan : undefined;
+  const mulliganHand = mulligan
+    ? (state.players.find((p) => p.id === mulligan.playerId)?.hand ?? [])
     : [];
 
   const modeCardDefinition = pendingMode
@@ -468,13 +481,6 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
         ))}
 
         <div className="table__centre">
-            <StackView
-              state={state}
-              cardDefinitions={state.cardDefinitions}
-              selectingSpellTarget={pendingSelectorKind === "spell"}
-              onStackObjectClick={handleStackObjectClick}
-              onHover={handleHover}
-            />
             <ActionBar
               state={state}
               onPassPriority={handlePassPriority}
@@ -504,12 +510,22 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
 
         <PlayerBoard key={bottomPlayer.id} {...boardProps(bottomPlayer)} />
 
+        {/* What you're looking at, what is resolving, what has happened. The
+            stack sits here rather than between the two boards because it kept
+            changing the height of that strip and moving the whole game. */}
         <div className="sidebar">
           <CardDetail
             definition={detailDefinitionId ? state.cardDefinitions[detailDefinitionId] : undefined}
             cardDefinitions={state.cardDefinitions}
             reason={detailReason}
             ownerId={detailOwnerId}
+          />
+          <StackView
+            state={state}
+            cardDefinitions={state.cardDefinitions}
+            selectingSpellTarget={pendingSelectorKind === "spell"}
+            onStackObjectClick={handleStackObjectClick}
+            onHover={handleHover}
           />
           <GameLog lines={state.log} />
         </div>
@@ -535,6 +551,21 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             modes={modeOptions}
             onChoose={handleModeChosen}
             onCancel={() => setPendingMode(null)}
+          />
+        )}
+
+        {mulligan && (
+          <MulliganOverlay
+            playerId={mulligan.playerId}
+            hand={mulliganHand}
+            cardDefinitions={state.cardDefinitions}
+            mulligansTaken={mulligan.mulligansTaken}
+            bottoming={mulligan.bottoming}
+            canMulligan={canMulliganAgain(state)}
+            onKeep={() => controller.keepHand(mulligan.playerId)}
+            onMulligan={() => controller.takeMulligan(mulligan.playerId)}
+            onPutOnBottom={(ids) => controller.putOnBottom(mulligan.playerId, ids)}
+            onHover={handleHover}
           />
         )}
 

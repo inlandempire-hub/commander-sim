@@ -43,6 +43,9 @@ export function nextAction(state: GameState, botPlayerId: string): BotAction | n
  */
 export function botShouldAct(state: GameState, botPlayerId: string): boolean {
   if (state.players.some((p) => p.hasLost)) return false;
+  // Opening hands come before anything else and nobody holds priority during
+  // them, so the priority check below would never wake the bot up.
+  if (state.mulligan?.playerId === botPlayerId) return true;
   const holdsPriority = state.players[state.priorityPlayerIndex]?.id === botPlayerId;
   if (holdsPriority) return true;
 

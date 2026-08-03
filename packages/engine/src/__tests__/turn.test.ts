@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { makeTestGame } from "../testHelpers.js";
 import { createCardInstance } from "../state.js";
 import { passPriority } from "../priority.js";
+import { advanceStep } from "../turn.js";
+import { createDemoGame } from "../demoGame.js";
 
 describe("turn structure", () => {
   it("advances through a full attacker-less turn to the next turn's upkeep in 8 pass-pairs", () => {
@@ -53,6 +55,9 @@ describe("turn structure", () => {
     const state = makeTestGame();
     const active = state.players[0]!;
     createCardInstance(state, "mountain", active.id, "library");
+    // Any turn but the first: rule 103.7a has the player going first skip
+    // their opening draw, which is covered by its own test below.
+    state.turnNumber = 2;
 
     // untap -> upkeep (1 pair), upkeep -> draw (1 pair)
     passPriority(state, state.players[state.priorityPlayerIndex]!.id);
@@ -69,5 +74,34 @@ describe("turn structure", () => {
     const state = makeTestGame();
     const nonPriorityPlayer = state.players[1]!.id;
     expect(() => passPriority(state, nonPriorityPlayer)).toThrow();
+  });
+});
+
+describe("the opening turn", () => {
+  it("the player going first does not draw on turn one", () => {
+    // Rule 103.7a. Without this, a player who mulligans to six finds seven
+    // cards in hand and reasonably concludes the mulligan is broken.
+    const state = createDemoGame();
+    const donny = state.players[0]!;
+    const startingHand = donny.hand.length;
+    const startingLibrary = donny.library.length;
+
+    while (!(state.phase === "precombat-main" && state.step === "main")) advanceStep(state);
+
+    expect(donny.hand).toHaveLength(startingHand);
+    expect(donny.library).toHaveLength(startingLibrary);
+  });
+
+  it("but everyone draws on every turn after that", () => {
+    const state = createDemoGame();
+    const mike = state.players[1]!;
+    const before = mike.hand.length;
+
+    // Round the turn over to Mike's first turn.
+    while (state.turnNumber === 1) advanceStep(state);
+    while (!(state.phase === "precombat-main" && state.step === "main")) advanceStep(state);
+
+    expect(state.players[state.activePlayerIndex]!.id).toBe(mike.id);
+    expect(mike.hand).toHaveLength(before + 1);
   });
 });

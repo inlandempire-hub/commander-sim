@@ -53,9 +53,9 @@ function shouldSkipCurrentStep(state: GameState): boolean {
  * actions within a step (declaring attackers/blockers, casting spells) are
  * handled by their own functions, not here.
  *
- * Simplifications noted for future phases: no "skip first draw step" rule,
- * no discard-to-hand-size in cleanup, mana pools empty once per turn
- * (cleanup) rather than after every step/phase as the full rules require.
+ * Simplifications noted for future phases: no discard-to-hand-size in
+ * cleanup, mana pools empty once per turn (cleanup) rather than after every
+ * step/phase as the full rules require.
  */
 export function advanceStep(state: GameState): void {
   do {
@@ -98,7 +98,16 @@ function runAutomaticStepActions(state: GameState): void {
       break;
     }
     case "draw": {
-      drawCard(state, activePlayer.id, 1);
+      // Rule 103.7a: in a two-player game the player going first skips the
+      // draw step of their first turn, since they already have the advantage
+      // of acting first.
+      //
+      // This went unimplemented for a long time because it was invisible - a
+      // hand of eight looks much like a hand of seven when you have never
+      // counted them. The mulligan made it obvious: keeping six and then
+      // finding seven cards in hand reads as the mulligan being broken.
+      const isOpeningTurn = state.turnNumber === 1 && state.players.length === 2;
+      if (!isOpeningTurn) drawCard(state, activePlayer.id, 1);
       break;
     }
     case "first-strike-damage": {

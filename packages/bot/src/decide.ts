@@ -18,6 +18,7 @@ import {
   wouldDie,
 } from "./evaluate.js";
 import { chooseSearchResult, couldAfford, nextSourceToTap } from "./mana.js";
+import { chooseCardsToBottom, shouldKeepHand } from "./mulligan.js";
 import {
   castableCommander,
   castableFromHand,
@@ -60,6 +61,15 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
   // priority at all.
   if (state.pendingSearch?.playerId === botPlayerId) {
     return { kind: "resolveSearch", instanceId: chooseSearchResult(state, botPlayerId) };
+  }
+
+  // Opening hands come before even that: the game has not started, nobody has
+  // priority, and nothing at all can happen until this is settled.
+  if (state.mulligan?.playerId === botPlayerId) {
+    if (state.mulligan.bottoming) {
+      return { kind: "putOnBottom", instanceIds: chooseCardsToBottom(state, botPlayerId) };
+    }
+    return shouldKeepHand(state, botPlayerId) ? { kind: "keepHand" } : { kind: "takeMulligan" };
   }
 
   const isMyTurn = state.players[state.activePlayerIndex]?.id === botPlayerId;

@@ -68,6 +68,21 @@ export function useBotOpponent(
   }, [botPlayerId, delayMs, maxConsecutiveActions]);
 }
 
+/**
+ * Hands one bot decision to the controller.
+ *
+ * The `never` at the end is load-bearing. This switch previously just ended,
+ * so an action kind with no case here was silently dropped - and the bot would
+ * sit doing nothing forever while the game waited on it. That is exactly what
+ * happened when opening hands were added: the bot decided to keep, nothing
+ * performed the keep, and the game stopped at the first untap step. It had
+ * already been true of `resolveSearch` for some time, meaning a bot that drew
+ * a tutor would have hung the same way.
+ *
+ * Assigning to `never` makes TypeScript fail the build the next time a bot
+ * action is added without being wired up, instead of producing a game that
+ * quietly stops.
+ */
 function perform(controller: GameController, playerId: string, action: BotAction): void {
   switch (action.kind) {
     case "playLand":
@@ -87,8 +102,24 @@ function perform(controller: GameController, playerId: string, action: BotAction
     case "declareBlockers":
       controller.declareBlockers(playerId, action.declarations);
       return;
+    case "resolveSearch":
+      controller.resolveSearch(playerId, action.instanceId);
+      return;
+    case "takeMulligan":
+      controller.takeMulligan(playerId);
+      return;
+    case "keepHand":
+      controller.keepHand(playerId);
+      return;
+    case "putOnBottom":
+      controller.putOnBottom(playerId, action.instanceIds);
+      return;
     case "passPriority":
       controller.passPriority(playerId);
       return;
+    default: {
+      const unhandled: never = action;
+      throw new Error(`The bot produced an action nothing knows how to perform: ${JSON.stringify(unhandled)}`);
+    }
   }
 }

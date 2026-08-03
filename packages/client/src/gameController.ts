@@ -29,6 +29,10 @@ export interface GameController {
    * while a search is pending.
    */
   resolveSearch(playerId: string, instanceId: string | null): void;
+  /** Opening hands, before the game starts. See the engine's mulligan.ts. */
+  takeMulligan(playerId: string): void;
+  keepHand(playerId: string): void;
+  putOnBottom(playerId: string, instanceIds: string[]): void;
   passPriority(playerId: string): void;
   /** Whether this client is allowed to act as `playerId` - true for both seats in local hotseat mode, only your own seat over the network. Used to gate auto-passing. */
   canControlPlayer(playerId: string): boolean;

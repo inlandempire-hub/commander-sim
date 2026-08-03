@@ -256,88 +256,100 @@ export function PlayerBoard({
         </div>
       </div>
 
-      {/* DOM order is always hand, lands, others, creatures. The CSS reverses
-          it for your own side so creatures end up nearest the centre line for
-          both players - see .side__zones in styles.css. */}
+      {/*
+          Two bands, not four rows. Lands and non-creature permanents used to
+          have a full-width row each and stood almost empty in it, which pushed
+          the creatures - the row you actually read during combat - into a
+          third of the space. They now sit beside the hand, smaller, in the
+          room that was going spare there.
+
+          DOM order is always base-then-creatures; the CSS reverses it for your
+          own side so both players' creatures end up nearest the centre line.
+          Zones are told apart by the colour of the band they sit in rather
+          than by a label - see .zone--* in styles.css. Anyone playing can see
+          what a creature is.
+      */}
       <div className="side__zones">
-        <div className="row row--hand">
-          <div className="zone__label">Hand ({player.hand.length})</div>
-          <CardRow className="row__cards">
-            {player.hand.map((instance) => (
-              <CardView
-                key={instance.instanceId}
-                instance={instance}
-                definition={cardDefinitions[instance.definitionId]!}
-                playable={canPlay?.(instance.instanceId)}
-                onHover={onHover}
-                onClick={() => onHandCardClick(instance.instanceId)}
-              />
-            ))}
-          </CardRow>
-        </div>
-
-        <div className={`row row--lands ${targetingClass("Land")}`}>
-          <div className="zone__label">Lands ({lands.length})</div>
-          <CardRow className="row__cards">
-            {lands.map((instance) => (
-              <CardView
-                key={instance.instanceId}
-                instance={instance}
-                definition={cardDefinitions[instance.definitionId]!}
-                onHover={onHover}
-                onClick={() => onBattlefieldCardClick(instance.instanceId)}
-                small
-              />
-            ))}
-          </CardRow>
-        </div>
-
-        {otherPermanents.length > 0 && (
-          <div
-            className={`row row--other ${targetingClass("Artifact")} ${targetingClass("Enchantment")}`.trim()}
-          >
-            <div className="zone__label">Other permanents</div>
+        <div className="row row--base">
+          <div className="zone zone--hand">
             <CardRow className="row__cards">
-              {otherPermanents.map((instance) => (
+              {player.hand.map((instance) => (
                 <CardView
                   key={instance.instanceId}
                   instance={instance}
                   definition={cardDefinitions[instance.definitionId]!}
+                  playable={canPlay?.(instance.instanceId)}
                   onHover={onHover}
-                  onClick={() => onBattlefieldCardClick(instance.instanceId)}
-                  small
+                  onClick={() => onHandCardClick(instance.instanceId)}
                 />
               ))}
             </CardRow>
           </div>
-        )}
+
+          <div className="row__aside">
+            <div className={`zone zone--lands ${targetingClass("Land")}`}>
+              <CardRow className="row__cards">
+                {lands.map((instance) => (
+                  <CardView
+                    key={instance.instanceId}
+                    instance={instance}
+                    definition={cardDefinitions[instance.definitionId]!}
+                    onHover={onHover}
+                    onClick={() => onBattlefieldCardClick(instance.instanceId)}
+                    small
+                  />
+                ))}
+              </CardRow>
+            </div>
+
+            {otherPermanents.length > 0 && (
+              <div
+                className={`zone zone--other ${targetingClass("Artifact")} ${targetingClass("Enchantment")}`.trim()}
+              >
+                <CardRow className="row__cards">
+                  {otherPermanents.map((instance) => (
+                    <CardView
+                      key={instance.instanceId}
+                      instance={instance}
+                      definition={cardDefinitions[instance.definitionId]!}
+                      onHover={onHover}
+                      onClick={() => onBattlefieldCardClick(instance.instanceId)}
+                      small
+                    />
+                  ))}
+                </CardRow>
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="row row--creatures">
-          <div className="zone__label">Creatures ({creatures.length})</div>
-          <CardRow className="row__cards">
-            {creatures.map((instance) => (
-              <CardView
-                key={instance.instanceId}
-                instance={instance}
-                state={state}
-                definition={cardDefinitions[instance.definitionId]!}
-                selected={
-                  selectedAttackerIds.has(instance.instanceId) ||
-                  attackingIds.has(instance.instanceId) ||
-                  selectedBlockerSourceId === instance.instanceId ||
-                  assignedBlockerIds.has(instance.instanceId)
-                }
-                // Creatures in combat lean towards the centre line, so who is
-                // committed to the fight reads from the board itself rather
-                // than only from the outline colour.
-                attacking={attackingIds.has(instance.instanceId)}
-                blocking={assignedBlockerIds.has(instance.instanceId)}
-                badge={combatBadge(instance.instanceId)}
-                onHover={onHover}
-                onClick={() => onBattlefieldCardClick(instance.instanceId)}
-              />
-            ))}
-          </CardRow>
+          <div className="zone zone--creatures">
+            <CardRow className="row__cards">
+              {creatures.map((instance) => (
+                <CardView
+                  key={instance.instanceId}
+                  instance={instance}
+                  state={state}
+                  definition={cardDefinitions[instance.definitionId]!}
+                  selected={
+                    selectedAttackerIds.has(instance.instanceId) ||
+                    attackingIds.has(instance.instanceId) ||
+                    selectedBlockerSourceId === instance.instanceId ||
+                    assignedBlockerIds.has(instance.instanceId)
+                  }
+                  // Creatures in combat lean towards the centre line, so who is
+                  // committed to the fight reads from the board itself rather
+                  // than only from the outline colour.
+                  attacking={attackingIds.has(instance.instanceId)}
+                  blocking={assignedBlockerIds.has(instance.instanceId)}
+                  badge={combatBadge(instance.instanceId)}
+                  onHover={onHover}
+                  onClick={() => onBattlefieldCardClick(instance.instanceId)}
+                />
+              ))}
+            </CardRow>
+          </div>
         </div>
       </div>
     </section>

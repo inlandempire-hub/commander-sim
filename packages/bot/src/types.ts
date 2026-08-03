@@ -15,6 +15,10 @@ export type BotAction =
   | { kind: "declareBlockers"; declarations: BlockerDeclaration[] }
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */
   | { kind: "resolveSearch"; instanceId: string | null }
+  /** Settling an opening hand, before the game has begun. */
+  | { kind: "takeMulligan" }
+  | { kind: "keepHand" }
+  | { kind: "putOnBottom"; instanceIds: string[] }
   | { kind: "passPriority" };
 
 export const PASS: BotAction = { kind: "passPriority" };

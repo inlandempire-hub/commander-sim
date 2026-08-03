@@ -25,6 +25,7 @@ export function StackView({
   return (
     <div className={`stack ${selectingSpellTarget ? "zone--targeting" : ""}`}>
       <div className="zone__label">Stack ({state.stack.length})</div>
+      {state.stack.length === 0 && <p className="stack__empty">Nothing waiting to resolve</p>}
       {/* Cards here overlap into a pile rather than sitting in a neat row, so
           the stack looks like the thing it is named after - and so "two spells
           are waiting" reads at a glance instead of needing the count. Topmost,

@@ -7,6 +7,9 @@ import {
   declareAttackers,
   declareBlockers,
   resolveSearch,
+  takeMulligan,
+  keepHand,
+  putOnBottom,
   passPriority,
   playLand,
   type DeckList,
@@ -24,11 +27,19 @@ import type { GameController } from "./gameController.js";
 export interface LocalGameOptions {
   /** Seat id -> deck. Omitted entirely for the default demo game. */
   decks?: [{ id: string; deck: DeckList }, { id: string; deck: DeckList }];
+  /**
+   * Whether the game opens on the mulligan. On for real play - a game of Magic
+   * starts by deciding whether to keep - and left off by anything that just
+   * wants a board to poke at.
+   */
+  mulligan?: boolean;
 }
 
-export function useLocalGameController({ decks }: LocalGameOptions = {}): GameController {
+export function useLocalGameController({ decks, mulligan = true }: LocalGameOptions = {}): GameController {
   const stateRef = useRef<GameState>();
-  if (!stateRef.current) stateRef.current = decks ? createGameFromDecks(decks) : createDemoGame();
+  if (!stateRef.current) {
+    stateRef.current = decks ? createGameFromDecks(decks, { mulligan }) : createDemoGame({ mulligan });
+  }
 
   const [, setTick] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -58,6 +69,9 @@ export function useLocalGameController({ decks }: LocalGameOptions = {}): GameCo
     declareAttackers: (playerId, declarations) => act((s) => declareAttackers(s, playerId, declarations)),
     declareBlockers: (playerId, declarations) => act((s) => declareBlockers(s, playerId, declarations)),
     resolveSearch: (playerId, instanceId) => act((s) => resolveSearch(s, playerId, instanceId)),
+    takeMulligan: (playerId) => act((s) => takeMulligan(s, playerId)),
+    keepHand: (playerId) => act((s) => keepHand(s, playerId)),
+    putOnBottom: (playerId, instanceIds) => act((s) => putOnBottom(s, playerId, instanceIds)),
     passPriority: (playerId) => act((s) => passPriority(s, playerId)),
     canControlPlayer: () => true, // hotseat: one tab, both seats
   };

@@ -121,6 +121,8 @@ export function hasEligibleBlocker(state: GameState, playerId: string): boolean 
 export function shouldAutoPass(state: GameState, playerId: string): boolean {
   // The game is mid-spell: a search is waiting on someone to name a card, and
   // nothing else happens until they do.
+  // Nobody has priority at all until every opening hand is settled.
+  if (state.mulligan) return false;
   if (state.pendingSearch) return false;
 
   const activePlayerId = state.players[state.activePlayerIndex]?.id;
