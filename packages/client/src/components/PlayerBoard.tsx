@@ -200,23 +200,6 @@ export function PlayerBoard({
         ))}
         {player.hasLost && <div className="rail__lost">LOST: {player.lossReason}</div>}
 
-        <div className="rail__zone">
-          <div className="zone__label">Command</div>
-          <div className="rail__cards">
-            {player.command.map((instance) => (
-              <CardView
-                key={instance.instanceId}
-                instance={instance}
-                definition={cardDefinitions[instance.definitionId]!}
-                playable={canPlay?.(instance.instanceId)}
-                onHover={onHover}
-                onClick={() => onCommandCardClick(instance.instanceId)}
-                small
-              />
-            ))}
-          </div>
-        </div>
-
         <div className="rail__piles">
           {/* The library is face-down and can't be looked through, so it is a
               card back and a count rather than a ZonePile. It earns its place
@@ -357,6 +340,36 @@ export function PlayerBoard({
               ))}
             </CardRow>
           </div>
+        </div>
+      </div>
+
+      {/*
+        The command zone, in the column on the right.
+
+        That column already existed: .side__zones was padded by the width of
+        the rail so that "centred" meant centred on the board rather than in
+        whatever the rail left over. It was empty space kept purely for
+        symmetry, and the commander is exactly the thing that wants a permanent
+        home of its own - it is not in any other zone, it comes back here when
+        it dies, and it is castable from here all game.
+      */}
+      <div className="command">
+        <div className="zone__label">Command</div>
+        <div className="command__cards">
+          {player.command.length === 0 ? (
+            <p className="command__empty">In play</p>
+          ) : (
+            player.command.map((instance) => (
+              <CardView
+                key={instance.instanceId}
+                instance={instance}
+                definition={cardDefinitions[instance.definitionId]!}
+                playable={canPlay?.(instance.instanceId)}
+                onHover={onHover}
+                onClick={() => onCommandCardClick(instance.instanceId)}
+              />
+            ))
+          )}
         </div>
       </div>
     </section>

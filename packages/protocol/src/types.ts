@@ -17,6 +17,7 @@ export type ClientMessage =
   | { type: "takeMulligan" }
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }
+  | { type: "concede" }
   | { type: "passPriority" };
 
 /** Messages the server sends to a client. `state` is always filtered for that specific viewer. */

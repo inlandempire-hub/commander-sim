@@ -173,7 +173,7 @@ export function drawCard(state: GameState, playerId: string, amount = 1): void {
     const top = player.library.shift();
     if (!top) {
       player.attemptedDrawFromEmptyLibrary = true;
-      state.log.push(`${playerId} attempted to draw from an empty library`);
+      log(state, `${playerId} attempted to draw from an empty library`);
       continue;
     }
     top.zone = "hand";
@@ -195,7 +195,7 @@ export function drawCard(state: GameState, playerId: string, amount = 1): void {
 const LOG_LIMIT = 400;
 
 export function log(state: GameState, message: string): void {
-  state.log.push(message);
+  state.log.push({ turn: state.turnNumber, text: message });
   if (state.log.length > LOG_LIMIT) state.log.splice(0, state.log.length - LOG_LIMIT);
 }
 

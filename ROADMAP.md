@@ -1354,3 +1354,63 @@ whichever the browser happened to return last. Verified across a full game:
 zero duplicate claims.
 
 319 tests, typecheck clean.
+
+## Combat that explains itself, a log worth reading, and a way out (2026-08-03)
+
+### Three combat bugs, one cause
+
+All three were the same shape: the engine knew the rule, the interface never
+asked, and the answer arrived too late to be shown.
+
+`attackProblem` and `blockProblem` (combat.ts) now hold those checks, and
+`declareAttackers`/`declareBlockers` call them rather than repeating them - so
+a click is judged by exactly the rule the declaration would apply, in the same
+words.
+
+- **Selecting an illegal attacker** silently did nothing, then the creature
+  quietly failed to attack. It now refuses and says why: "Knight Errant came
+  into play this turn and cannot attack yet."
+- **Blocking a flier with a ground creature** was accepted by the interface and
+  rejected by the engine at confirm time, so the block just never happened.
+  Now: "Nessian Courser cannot block Kitesail Scout - it has flying, and this
+  has neither flying nor reach." Reach still blocks fliers.
+- **No instant-speed window after blockers.** `handleConfirmBlockers` passed
+  priority immediately after declaring - and since one client drives both seats
+  in hotseat, it skipped the attacker's combat-trick window silently. Removed.
+  Auto-pass already moves on when nothing is castable, so nothing is lost when
+  nobody has a play.
+
+Menace is deliberately *not* checked per click: it restricts the whole
+declaration ("not by only one creature"), so rejecting the first blocker would
+make a legal double-block impossible to build.
+
+### Conceding
+
+Rule 104.3a - legal at any time, no priority needed. A simulator has no way to
+say "this is over, let's shuffle up", so without it a lost position has to be
+played to the last point of damage or the tab closed. Confirms first, and
+clears anything the game was waiting on that player for.
+
+### The log, and the gap it was filling
+
+Log entries are now `{ turn, text }` rather than bare strings. The turn is
+carried rather than inferred from marker lines, so the wording and the
+filtering are not the same thing.
+
+Only the last three turns are shown, with the oldest dimmed as it ages out.
+That let the log shrink to a corner at the bottom right - and the space it
+freed is where the **last card played** now lives permanently. The 1.3-second
+"resolved" linger added earlier is gone, replaced by simply keeping the card
+until another replaces it: the panel is reserved either way and an empty box
+helps nobody.
+
+### The command zone has a home
+
+Moved out of the left rail into the column on the right - which already
+existed, as padding the width of the rail so "centred" meant centred on the
+board. The commander is the one card that always has somewhere to be: it
+starts there, it is castable from there all game, and it returns there when it
+dies. Shown as a card rather than a rail thumbnail, with "In play" when it is
+on the battlefield.
+
+338 tests, typecheck clean. Every item above verified in the browser.

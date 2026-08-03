@@ -147,7 +147,7 @@ describe("this spell can't be countered", () => {
     resolveTopOfStack(state); // Terra Stomper
 
     expect(alice.battlefield.some((c) => c.instanceId === stomper.instanceId)).toBe(true);
-    expect(state.log.some((line) => line.includes("can't be countered"))).toBe(true);
+    expect(state.log.some((entry) => entry.text.includes("can't be countered"))).toBe(true);
   });
 
   it("is still a legal target - the restriction is on the effect, not the targeting", () => {

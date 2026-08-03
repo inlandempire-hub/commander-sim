@@ -12,6 +12,7 @@ import {
   takeMulligan,
   keepHand,
   putOnBottom,
+  concede,
   passPriority,
   type GameState,
 } from "@mtg-commander-sim/engine";
@@ -72,6 +73,9 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       return;
     case "putOnBottom":
       putOnBottom(state, playerId, message.instanceIds);
+      return;
+    case "concede":
+      concede(state, playerId);
       return;
     case "resolveSearch":
       resolveSearch(state, playerId, message.instanceId);

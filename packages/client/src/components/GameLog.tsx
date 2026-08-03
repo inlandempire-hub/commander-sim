@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import type { LogEntry } from "@mtg-commander-sim/engine";
+import { TURNS_KEPT, recentLog } from "../gameLog.js";
 
 /**
  * What just happened, in words.
@@ -9,29 +11,34 @@ import { useEffect, useRef } from "react";
  * worked - which is exactly how a correctly-resolving Healing Salve got
  * reported as doing nothing.
  *
- * The engine writes the lines (`GameState.log`); this only shows them, newest
- * at the bottom, scrolled to follow.
+ * Only the last few turns are shown. A log that keeps everything is a log
+ * nobody reads: by turn twenty the thing you need is one line at the bottom of
+ * hundreds, and the panel had grown tall enough to squeeze everything else in
+ * the sidebar. The engine still keeps its full history - this is a view of it.
  */
-export function GameLog({ lines }: { lines: string[] }) {
+export function GameLog({ entries, currentTurn }: { entries: LogEntry[]; currentTurn: number }) {
   const endRef = useRef<HTMLDivElement>(null);
+  const shown = recentLog(entries, currentTurn);
 
   // Follow the tail, so the newest line is the one you're looking at.
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [lines.length]);
+  }, [shown.length]);
 
   return (
     <div className="log">
-      <div className="zone__label">Game log</div>
+      <div className="zone__label">
+        Game log <span className="log__scope">last {TURNS_KEPT} turns</span>
+      </div>
       <div className="log__lines">
-        {lines.length === 0 ? (
+        {shown.length === 0 ? (
           <p className="log__empty">Nothing has happened yet.</p>
         ) : (
-          lines.map((line, i) => (
+          shown.map((entry, i) => (
             // Index keys are correct here: the log is append-only and lines are
             // never reordered, only trimmed from the front.
-            <p key={i} className="log__line">
-              {line}
+            <p key={i} className={`log__line ${entry.fading ? "log__line--fading" : ""}`}>
+              {entry.text}
             </p>
           ))
         )}

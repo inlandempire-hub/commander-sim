@@ -10,6 +10,7 @@ import {
   takeMulligan,
   keepHand,
   putOnBottom,
+  concede,
   passPriority,
   playLand,
   type DeckList,
@@ -72,6 +73,7 @@ export function useLocalGameController({ decks, mulligan = true }: LocalGameOpti
     takeMulligan: (playerId) => act((s) => takeMulligan(s, playerId)),
     keepHand: (playerId) => act((s) => keepHand(s, playerId)),
     putOnBottom: (playerId, instanceIds) => act((s) => putOnBottom(s, playerId, instanceIds)),
+    concede: (playerId) => act((s) => concede(s, playerId)),
     passPriority: (playerId) => act((s) => passPriority(s, playerId)),
     canControlPlayer: () => true, // hotseat: one tab, both seats
   };

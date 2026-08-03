@@ -2,9 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { CardDefinition, CardInstance, GameState } from "@mtg-commander-sim/engine";
 import { CardView } from "./CardView.js";
 
-/** How long a spell stays on show after it has finished resolving. */
-const LINGER_MS = 1300;
-
 export interface StackViewProps {
   state: GameState;
   cardDefinitions: Record<string, CardDefinition>;
@@ -27,18 +24,19 @@ export function StackView({
   onHover,
 }: StackViewProps) {
   /*
-   * What just finished resolving, kept on screen for a moment afterwards.
+   * The last card played, held here for good.
    *
    * Most spells in this game resolve the instant nobody responds, so the stack
-   * would show a card for a single frame and then be empty again - a flicker
-   * that tells you something happened without giving you any chance to see
-   * what. Holding the last card for a beat turns that into something you can
-   * actually read, and is the only way to catch what a bot did on its turn.
+   * showed a card for a single frame and was empty again - a flicker that told
+   * you something had happened without any chance to see what. Rather than
+   * holding it for a second and then going blank, the panel simply keeps the
+   * last card until a new one replaces it: the space is reserved either way,
+   * and an empty box helps nobody.
    *
    * Shown dimmed and labelled rather than as if it were still waiting, because
    * it is a record of what happened, not a spell you could still respond to.
    */
-  const [lingering, setLingering] = useState<CardInstance | null>(null);
+  const [lastPlayed, setLastPlayed] = useState<CardInstance | null>(null);
   const previousTop = useRef<CardInstance | null>(null);
 
   const topCard = state.stack.length
@@ -48,33 +46,31 @@ export function StackView({
     : null;
 
   useEffect(() => {
-    const justEmptied = previousTop.current !== null && topCard === null;
-    const leaving = previousTop.current;
+    // Remember whatever was on top as it leaves, so an empty stack still has
+    // something to show.
+    if (topCard) setLastPlayed(topCard);
     previousTop.current = topCard;
-    if (!justEmptied || !leaving) return;
-
-    setLingering(leaving);
-    const timer = window.setTimeout(() => setLingering(null), LINGER_MS);
-    return () => window.clearTimeout(timer);
   }, [topCard]);
 
-  const showingLinger = state.stack.length === 0 && lingering !== null;
+  const showingLastPlayed = state.stack.length === 0 && lastPlayed !== null;
 
   return (
     <div className={`stack ${selectingSpellTarget ? "zone--targeting" : ""}`}>
-      <div className="zone__label">Stack ({state.stack.length})</div>
-      {state.stack.length === 0 && !showingLinger && (
-        <p className="stack__empty">Nothing waiting to resolve</p>
+      <div className="zone__label">
+        {state.stack.length > 0 ? `Stack (${state.stack.length})` : "Last played"}
+      </div>
+      {state.stack.length === 0 && !showingLastPlayed && (
+        <p className="stack__empty">Nothing played yet</p>
       )}
 
       {/* Deliberately outside the flight system's view: the card this shows is
           already somewhere else, and letting two elements claim one instance
           would have card movement measuring the wrong one. */}
-      {showingLinger && (
+      {showingLastPlayed && (
         <div className="stack__cards stack__cards--resolved" data-flight-ignore="">
           <CardView
-            instance={lingering!}
-            definition={cardDefinitions[lingering!.definitionId]!}
+            instance={lastPlayed!}
+            definition={cardDefinitions[lastPlayed!.definitionId]!}
             onHover={onHover}
           />
           <span className="stack__resolved-tag">Resolved</span>

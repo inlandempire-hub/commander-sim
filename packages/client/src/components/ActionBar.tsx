@@ -21,6 +21,8 @@ export interface ActionBarProps {
   onCancelTargeting: () => void;
   lastError: string | null;
   onClearError: () => void;
+  /** Give up. Asks first - it ends the game and cannot be taken back. */
+  onConcede: () => void;
 }
 
 export function ActionBar({
@@ -36,6 +38,7 @@ export function ActionBar({
   onCancelTargeting,
   lastError,
   onClearError,
+  onConcede,
 }: ActionBarProps) {
   const priorityPlayerId = state.players[state.priorityPlayerIndex]?.id ?? "?";
   const gameOver = state.players.find((p) => p.hasLost);
@@ -74,6 +77,20 @@ export function ActionBar({
           {lastError} (click to dismiss)
         </div>
       )}
+
+      {/* Last, and visually quiet, because it ends the game. It confirms first
+          for the same reason. Without it a lost position has to be played out
+          to the last point of damage, or the tab closed. */}
+      <button
+        type="button"
+        className="action-bar__concede"
+        title="Give up and end the game"
+        onClick={() => {
+          if (window.confirm("Concede the game? This cannot be undone.")) onConcede();
+        }}
+      >
+        Concede
+      </button>
     </div>
   );
 }

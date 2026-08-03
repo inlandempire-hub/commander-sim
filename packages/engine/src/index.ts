@@ -16,6 +16,7 @@ export * from "./autoPass.js";
 export * from "./autoTap.js";
 export * from "./counters.js";
 export * from "./mulligan.js";
+export * from "./concede.js";
 // A curated pool of real cards transcribed from Scryfall (see cards/testCards.ts),
 // not the full card database - that arrives with the deck builder in Phase 5.
 // Exported so the client, server and bot all build games from one source.

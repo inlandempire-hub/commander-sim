@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  attackProblem,
+  blockProblem,
   canMulliganAgain,
   canPlayCardNow,
   modesOf,
@@ -90,6 +92,12 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   /** A modal spell waiting on you to choose which mode you're casting. */
   const [pendingMode, setPendingMode] = useState<{ ownerId: string; instanceId: string } | null>(null);
   const [sound, setSound] = useState(soundEnabled);
+  /**
+   * Something the interface itself wants to say - almost always "you cannot do
+   * that, and here is why". Separate from the controller's lastError, which
+   * only ever carries what the engine threw.
+   */
+  const [notice, setNotice] = useState<string | null>(null);
   /** How far through the log we've already made a noise about. */
   const soundedTo = useRef(0);
   /*
@@ -112,8 +120,8 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     if (lines.length < soundedTo.current) soundedTo.current = 0; // log was trimmed
     const fresh = lines.slice(Math.max(soundedTo.current, lines.length - 3));
     soundedTo.current = lines.length;
-    for (const line of fresh) {
-      const cue = cueForLogLine(line);
+    for (const entry of fresh) {
+      const cue = cueForLogLine(entry.text);
       if (cue) play(cue);
     }
   }, [state?.log.length, state]);
@@ -261,6 +269,17 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     }
 
     if (isDeclareAttackersStep && ownerId === activePlayer.id) {
+      // Deselecting is always allowed; selecting has to be legal. Asking the
+      // engine rather than re-deriving the rule here means the answer is the
+      // same one declareAttackers would give, in the same words.
+      if (!selectedAttackerIds.has(instanceId)) {
+        const problem = attackProblem(state!, ownerId, instanceId);
+        if (problem) {
+          setNotice(problem);
+          return;
+        }
+      }
+      setNotice(null);
       setSelectedAttackerIds((prev) => toggleSet(prev, instanceId));
       return;
     }
@@ -282,8 +301,20 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     }
 
     if (isDeclareBlockersStep && ownerId === activePlayer.id && selectedBlockerSourceId) {
-      if (!(instanceId in state!.attackers)) return;
+      if (!(instanceId in state!.attackers)) {
+        setNotice("That creature is not attacking");
+        return;
+      }
       const blockerId = selectedBlockerSourceId;
+      const defenderId = state!.players.find((p) => p.id !== activePlayer.id)!.id;
+      // Flying is the one that bites: a ground creature can be pointed at a
+      // flier all day and the block simply would not happen.
+      const problem = blockProblem(state!, defenderId, blockerId, instanceId);
+      if (problem) {
+        setNotice(problem);
+        return;
+      }
+      setNotice(null);
       setBlockerAssignments((prev) => ({ ...prev, [blockerId]: instanceId }));
       setSelectedBlockerSourceId(null);
       return;
@@ -406,10 +437,28 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     controller.declareBlockers(defendingPlayer.id, declarations);
     setBlockerAssignments({});
     setSelectedBlockerSourceId(null);
-    // The attacker holds priority during declare-blockers, so it's their pass
-    // that moves combat on - not the defender's.
-    const priorityHolder = state!.players[state!.priorityPlayerIndex]!.id;
-    if (controller.canControlPlayer(priorityHolder)) controller.passPriority(priorityHolder);
+    /*
+     * Deliberately does NOT pass priority afterwards.
+     *
+     * Blocks having been declared is exactly when the attacker gets to respond
+     * - the combat trick, the pump spell, the removal on a blocker. Passing
+     *   here on their behalf skipped that window entirely, and since this
+     *   client drives both seats in hotseat it skipped it silently. Auto-pass
+     *   already moves things on when there is genuinely nothing castable, so
+     *   leaving priority alone costs nothing when nobody has a play.
+     */
+  }
+
+  /**
+   * Whose seat concedes. In hotseat this client drives both, so it is whoever
+   * currently holds priority - the person actually sitting at the keyboard.
+   */
+  function handleConcede() {
+    const holder = state!.players[state!.priorityPlayerIndex]!.id;
+    const mine = controller.canControlPlayer(holder)
+      ? holder
+      : (state!.players.find((p) => controller.canControlPlayer(p.id))?.id ?? holder);
+    controller.concede(mine);
   }
 
   function handlePassPriority() {
@@ -503,8 +552,12 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
               }
               showCancel={pendingTarget !== null}
               onCancelTargeting={() => setPendingTarget(null)}
-              lastError={lastError}
-              onClearError={clearError}
+              lastError={lastError ?? notice}
+              onClearError={() => {
+                clearError();
+                setNotice(null);
+              }}
+              onConcede={handleConcede}
             />
         </div>
 
@@ -527,7 +580,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             onStackObjectClick={handleStackObjectClick}
             onHover={handleHover}
           />
-          <GameLog lines={state.log} />
+          <GameLog entries={state.log} currentTurn={state.turnNumber} />
         </div>
 
         {/* A tutor has stopped mid-resolution. Only the player it belongs to

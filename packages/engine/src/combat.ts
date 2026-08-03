@@ -45,6 +45,68 @@ export interface BlockerDeclaration {
   attackerInstanceId: string;
 }
 
+/**
+ * Why this creature cannot attack, or null if it can.
+ *
+ * Split out of declareAttackers so the interface can ask the same question
+ * *before* committing, and answer it in the same words. Previously the check
+ * only existed inside the declaration, which meant a player could select a
+ * tapped or summoning-sick creature, press confirm, and watch it simply not
+ * attack with nothing said. A rule the player cannot see is indistinguishable
+ * from a bug.
+ */
+export function attackProblem(state: GameState, playerId: string, attackerInstanceId: string): string | null {
+  const player = requirePlayer(state, playerId);
+  const instance = player.battlefield.find((c) => c.instanceId === attackerInstanceId);
+  if (!instance) return "That creature is not on your battlefield";
+  const def = requireDefinition(state, instance.definitionId);
+  if (!def.types.includes("Creature")) return `${def.name} is not a creature`;
+  if (def.keywords?.includes("Defender")) return `${def.name} has defender and cannot attack`;
+  if (instance.tapped) return `${def.name} is tapped and cannot attack`;
+  const hasHaste = def.keywords?.includes("Haste") ?? false;
+  if (instance.summoningSickness && !hasHaste) {
+    return `${def.name} came into play this turn and cannot attack yet`;
+  }
+  return null;
+}
+
+/**
+ * Why this creature cannot block that attacker, or null if it can.
+ *
+ * Menace is deliberately not checked here: it is a restriction on the whole
+ * declaration ("cannot be blocked by *only one* creature"), not on any single
+ * pairing, so a first blocker being assigned to a Menace attacker is perfectly
+ * legal right up until the declaration ends with only that one. declareBlockers
+ * still enforces it across the batch.
+ */
+export function blockProblem(
+  state: GameState,
+  playerId: string,
+  blockerInstanceId: string,
+  attackerInstanceId: string,
+): string | null {
+  const player = requirePlayer(state, playerId);
+  const blocker = player.battlefield.find((c) => c.instanceId === blockerInstanceId);
+  if (!blocker) return "That creature is not on your battlefield";
+  const blockerDef = requireDefinition(state, blocker.definitionId);
+  if (!blockerDef.types.includes("Creature")) return `${blockerDef.name} is not a creature`;
+  if (blocker.tapped) return `${blockerDef.name} is tapped and cannot block`;
+  if (!(attackerInstanceId in state.attackers)) return "That creature is not attacking";
+
+  const attackerFound = findOnAnyBattlefield(state, attackerInstanceId);
+  if (attackerFound) {
+    const attackerDef = requireDefinition(state, attackerFound.instance.definitionId);
+    if (attackerDef.keywords?.includes("Flying")) {
+      const canReachIt =
+        (blockerDef.keywords?.includes("Flying") ?? false) || (blockerDef.keywords?.includes("Reach") ?? false);
+      if (!canReachIt) {
+        return `${blockerDef.name} cannot block ${attackerDef.name} - it has flying, and this has neither flying nor reach`;
+      }
+    }
+  }
+  return null;
+}
+
 export function declareAttackers(state: GameState, playerId: string, declarations: AttackerDeclaration[]): void {
   if (state.phase !== "combat" || state.step !== "declare-attackers") {
     throw new Error("Attackers can only be declared during the declare-attackers step");
@@ -55,14 +117,10 @@ export function declareAttackers(state: GameState, playerId: string, declaration
   const player = requirePlayer(state, playerId);
 
   for (const { attackerInstanceId, defendingPlayerId } of declarations) {
-    const instance = player.battlefield.find((c) => c.instanceId === attackerInstanceId);
-    if (!instance) throw new Error(`${attackerInstanceId} is not on ${playerId}'s battlefield`);
+    const problem = attackProblem(state, playerId, attackerInstanceId);
+    if (problem) throw new Error(problem);
+    const instance = player.battlefield.find((c) => c.instanceId === attackerInstanceId)!;
     const def = requireDefinition(state, instance.definitionId);
-    if (!def.types.includes("Creature")) throw new Error(`${def.name} is not a creature`);
-    if (def.keywords?.includes("Defender")) throw new Error(`${def.name} has defender and cannot attack`);
-    if (instance.tapped) throw new Error(`${def.name} is tapped and cannot attack`);
-    const hasHaste = def.keywords?.includes("Haste") ?? false;
-    if (instance.summoningSickness && !hasHaste) throw new Error(`${def.name} has summoning sickness`);
     const hasVigilance = def.keywords?.includes("Vigilance") ?? false;
     if (!hasVigilance) instance.tapped = true;
     state.attackers[attackerInstanceId] = defendingPlayerId;
@@ -115,25 +173,8 @@ export function declareBlockers(state: GameState, playerId: string, declarations
   }
 
   for (const { blockerInstanceId, attackerInstanceId } of declarations) {
-    const blocker = player.battlefield.find((c) => c.instanceId === blockerInstanceId);
-    if (!blocker) throw new Error(`${blockerInstanceId} is not on ${playerId}'s battlefield`);
-    if (blocker.tapped) throw new Error(`${blockerInstanceId} is tapped and cannot block`);
-    if (!(attackerInstanceId in state.attackers)) throw new Error(`${attackerInstanceId} is not attacking`);
-
-    const blockerDef = requireDefinition(state, blocker.definitionId);
-    const attackerFound = findOnAnyBattlefield(state, attackerInstanceId);
-    if (attackerFound) {
-      const attackerDef = requireDefinition(state, attackerFound.instance.definitionId);
-      const attackerHasFlying = attackerDef.keywords?.includes("Flying") ?? false;
-      if (attackerHasFlying) {
-        const blockerCanBlockFlying =
-          (blockerDef.keywords?.includes("Flying") ?? false) || (blockerDef.keywords?.includes("Reach") ?? false);
-        if (!blockerCanBlockFlying) {
-          throw new Error(`${blockerDef.name} can't block ${attackerDef.name} (Flying) without Flying or Reach`);
-        }
-      }
-    }
-
+    const problem = blockProblem(state, playerId, blockerInstanceId, attackerInstanceId);
+    if (problem) throw new Error(problem);
     state.blockers[blockerInstanceId] = attackerInstanceId;
   }
   const blockCount = declarations.length;

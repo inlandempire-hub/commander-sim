@@ -66,6 +66,7 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
     takeMulligan: () => send({ type: "takeMulligan" }),
     keepHand: () => send({ type: "keepHand" }),
     putOnBottom: (_playerId, instanceIds) => send({ type: "putOnBottom", instanceIds }),
+    concede: () => send({ type: "concede" }),
     passPriority: () => send({ type: "passPriority" }),
     canControlPlayer: (playerId) => playerId === myPlayerId,
   };

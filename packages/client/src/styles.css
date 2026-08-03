@@ -130,7 +130,7 @@ body {
 
 .detail {
   flex: 0 0 auto;
-  max-height: 62%;
+  max-height: 54%;
 }
 
 /* Before a networked game has state there is no table to lay out. */
@@ -172,17 +172,56 @@ body {
 /* Zones are always written hand, lands, others, creatures. Reversing your own
    side puts creatures nearest the centre line for both players, so the two
    creature rows meet where combat happens. */
-/* The right padding balances the rail on the left, so "centred" means centred
-   in the board rather than centred in the space the rail happens to leave -
-   otherwise every row sits noticeably right of the middle. */
+/* No right padding any more: the command zone occupies that column, and it
+   balances the rail on the left just as the padding used to. */
 .side__zones {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  padding-right: var(--rail-w);
   display: flex;
   flex-direction: column-reverse;
   gap: 4px;
+}
+
+/*
+ * The commander's own place, on the right of each board.
+ *
+ * It is the one card in Magic that always has somewhere to be: it starts here,
+ * it can be cast from here every turn of the game, and it comes back here when
+ * it dies. Everything else in the left rail is a pile you occasionally look
+ * through; this is a card you play off, so it gets shown as a card.
+ */
+.command {
+  flex: 0 0 var(--rail-w);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-radius: 8px;
+  padding: 3px 5px;
+  background: linear-gradient(rgba(190, 168, 96, 0.11), rgba(190, 168, 96, 0.03));
+  border: 1px solid rgba(206, 184, 120, 0.22);
+}
+
+.command__cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.command__cards .card {
+  max-height: 100%;
+}
+
+/* Said rather than left blank, so an empty box reads as "it is on the
+   battlefield" instead of as something missing. */
+.command__empty {
+  margin: auto;
+  font-size: 10px;
+  font-style: italic;
+  color: var(--text-dim);
 }
 
 .side--flipped .side__zones {
@@ -557,9 +596,11 @@ body {
  * boards.
  */
 .stack {
-  flex: 0 0 auto;
+  /* Grows into whatever the detail above and the log below don't want - the
+     gap between them is exactly where the last card played belongs. */
+  flex: 1 1 auto;
   min-width: 0;
-  height: 132px;
+  min-height: 116px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1135,9 +1176,12 @@ body {
 
 /* --- game log ------------------------------------------------------------- */
 
+/* Pinned to the bottom of the column and no longer allowed to grow: it only
+   shows three turns now, so it needs a corner rather than a panel. */
 .log {
-  flex: 1 1 0;
-  min-height: 74px;
+  flex: 0 0 auto;
+  height: 30%;
+  min-height: 96px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1320,6 +1364,18 @@ body {
 /* Newest log line, already bolder, now also tinted so the eye lands on it. */
 .log__line:last-of-type {
   color: var(--gold);
+}
+
+/* The oldest turn still shown, on its way out. Dimming rather than cutting
+   means lines age off gradually instead of vanishing between glances. */
+.log__line--fading {
+  opacity: 0.42;
+}
+
+.log__scope {
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.65;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1868,4 +1924,22 @@ body {
   0% { opacity: 0.72; }
   70% { opacity: 0.55; }
   100% { opacity: 0; }
+}
+
+/* Quiet, and last in the bar, because it ends the game. */
+.action-bar__concede {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 4px;
+}
+
+.action-bar__concede:hover {
+  border-color: var(--danger);
+  color: var(--danger);
 }

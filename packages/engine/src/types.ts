@@ -318,6 +318,20 @@ export interface MulliganState {
   bottoming: boolean;
 }
 
+/**
+ * One thing that happened, and when.
+ *
+ * The turn number is here rather than being inferred from marker lines because
+ * the interface only ever wants to show the last few turns - working that out
+ * by scanning for "Turn 4" headers would mean the log's format and its
+ * filtering were the same thing, and changing the wording would silently
+ * change what is shown.
+ */
+export interface LogEntry {
+  turn: number;
+  text: string;
+}
+
 export type ManaPool = Partial<Record<Color, number>> & { generic?: number };
 
 export interface Player {
@@ -412,5 +426,5 @@ export interface GameState {
   cardDefinitions: Record<string, CardDefinition>;
   nextInstanceId: number;
   nextStackObjectId: number;
-  log: string[];
+  log: LogEntry[];
 }
