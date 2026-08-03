@@ -565,7 +565,6 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             onKeep={() => controller.keepHand(mulligan.playerId)}
             onMulligan={() => controller.takeMulligan(mulligan.playerId)}
             onPutOnBottom={(ids) => controller.putOnBottom(mulligan.playerId, ids)}
-            onHover={handleHover}
           />
         )}
 

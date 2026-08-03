@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { CardDefinition, CardType, GameState, Player } from "@mtg-commander-sim/engine";
 import { CardView } from "./CardView.js";
 import { ZonePile } from "./ZonePile.js";
 import { CardRow } from "./CardRow.js";
 import { libraryAnchorKey } from "../flight.js";
+import { landCardHeight } from "../landSize.js";
 
 /** How long a life change stays flagged up before fading. */
 const LIFE_FLASH_MS = 1000;
@@ -271,22 +272,13 @@ export function PlayerBoard({
       */}
       <div className="side__zones">
         <div className="row row--base">
-          <div className="zone zone--hand">
-            <CardRow className="row__cards">
-              {player.hand.map((instance) => (
-                <CardView
-                  key={instance.instanceId}
-                  instance={instance}
-                  definition={cardDefinitions[instance.definitionId]!}
-                  playable={canPlay?.(instance.instanceId)}
-                  onHover={onHover}
-                  onClick={() => onHandCardClick(instance.instanceId)}
-                />
-              ))}
-            </CardRow>
-          </div>
-
-          <div className="row__aside">
+          {/* Lands on the left. They are the thing you count and tap most
+              often, and reading left-to-right they come before the hand you
+              are spending them from. */}
+          <div
+            className="row__aside"
+            style={{ "--land-h": `${landCardHeight(lands.length + otherPermanents.length)}px` } as CSSProperties}
+          >
             <div className={`zone zone--lands ${targetingClass("Land")}`}>
               <CardRow className="row__cards">
                 {lands.map((instance) => (
@@ -321,6 +313,21 @@ export function PlayerBoard({
               </div>
             )}
           </div>
+          <div className="zone zone--hand">
+            <CardRow className="row__cards">
+              {player.hand.map((instance) => (
+                <CardView
+                  key={instance.instanceId}
+                  instance={instance}
+                  definition={cardDefinitions[instance.definitionId]!}
+                  playable={canPlay?.(instance.instanceId)}
+                  onHover={onHover}
+                  onClick={() => onHandCardClick(instance.instanceId)}
+                />
+              ))}
+            </CardRow>
+          </div>
+
         </div>
 
         <div className="row row--creatures">

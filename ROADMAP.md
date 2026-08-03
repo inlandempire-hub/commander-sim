@@ -1296,3 +1296,61 @@ next time a bot action is added without being wired up.
 314 tests, typecheck clean. Verified in both bot mode and hotseat: a two-card
 mulligan left Donny on five with 94 in his library, Mike on seven with 92, and
 the starting player correctly did not draw.
+
+## Six fixes from the second play session (2026-08-03)
+
+### The mulligan, rebuilt
+
+- **Seven cards, one row, never wrapped.** The size is now derived from the
+  space available rather than fixed: cards tall enough to read at 250px are
+  178px wide, and seven of those plus gaps came to more than the panel was.
+  Taking the width, dividing by seven and letting the height follow the 5:7
+  ratio cannot overflow by construction. One subtlety cost a round trip -
+  `min(1560px, 100%)` looks equivalent to the viewport-based version and is
+  not: the percentage resolves against the containing block, the card width is
+  derived from it, and the row is sized by the cards, so the width depended on
+  itself. The browser resolved the loop by growing the row to 3476px on a
+  1280px screen. `vw` cannot be circular.
+- **Real printed faces** (`CardFace`), not the board's cropped-art frame. On
+  the table a card must show live power/toughness, damage and counters, which
+  is why the board draws its own frame; away from the table the opposite is
+  true and what you need is to *read* it. That also retires the hover-to-see-
+  text problem entirely - the panel that explained a card was behind the
+  overlay, which made it useless exactly when it was most needed.
+- **The hover pop is no longer clipped** by the heading. The card area was a
+  scroll container, which is the same one-axis-scrolls-so-both-clip trap the
+  board rows fell into; nothing scrolls now, so nothing clips.
+- **Lighter backdrop** (0.88 from 0.94, and warmer). The cards are the point;
+  the backdrop should get out of their way rather than compete.
+
+### The mat
+
+- **Lands moved to the left of the hand.** They are what you count and tap most
+  often, and reading left to right they come before the hand you spend them on.
+- **Lands are much bigger** - 92px rather than 64px, stepping down through 78,
+  64, 54 and 46 as the board fills (`landSize.ts`, 5 tests). Stepped rather
+  than continuous on purpose: a size that slid a pixel smaller with every land
+  played would have the whole area twitching constantly.
+
+  Worth recording *why* they were 64px: renaming the board rows to zones left
+  `.row--lands .card--small { height: 100% }` behind, matching nothing. Lands
+  silently fell back to the fixed 46px small-card width and stayed there
+  regardless of the height they were given. Nothing broke visibly - they just
+  never grew - which is exactly the sort of thing a rename leaves behind.
+
+### A spell you can actually see resolve
+
+Most spells here resolve the instant nobody responds, so the stack showed a
+card for a single frame and was empty again: a flicker that told you something
+had happened without giving you any chance to see what. The last card is now
+held for 1.3 seconds afterwards, dimmed and labelled "Resolved" so it reads as
+a record rather than as something you could still respond to. In one six-turn
+run seven spells were caught this way that would otherwise have been invisible.
+
+That needed a new escape hatch: `data-flight-ignore`, which keeps an element
+out of the card-movement system's measurements. Without it the lingering card
+and the real one both claim the same instance id, and a flight would measure
+whichever the browser happened to return last. Verified across a full game:
+zero duplicate claims.
+
+319 tests, typecheck clean.

@@ -30,9 +30,17 @@ function measure(): Measurements {
   if (typeof document === "undefined") return { cards, anchors };
 
   for (const element of document.querySelectorAll<HTMLElement>("[data-card-instance]")) {
-    // The flying copies are cards too, and measuring them would have each
-    // card chasing its own ghost.
-    if (element.closest(".flight-layer")) continue;
+    /*
+     * The flying copies are cards too, and measuring them would have each card
+     * chasing its own ghost.
+     *
+     * `data-flight-ignore` is the same escape hatch for anywhere else a card
+     * appears that is not where the card actually is: the stack panel holding
+     * a spell on screen for a moment after it resolved, an overlay showing a
+     * hand. Without it two elements would claim the same instance and the
+     * flight would measure whichever the browser returned last.
+     */
+    if (element.closest(".flight-layer, [data-flight-ignore]")) continue;
     const instanceId = element.dataset.cardInstance;
     if (!instanceId) continue;
     cards.set(instanceId, {

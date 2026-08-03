@@ -258,10 +258,10 @@ body {
 }
 
 /* Lands and other permanents are reference material once they are down - you
-   need to see how many and which, not read them. */
-.row__aside .card {
-  max-height: 58px;
-}
+   need to see how many and which, not read them. The height comes from
+   landSize.ts, stepping down as the board fills rather than sliding smaller
+   with every land played, which would have the whole area twitching. The rule
+   that consumes it is with the other small-card sizing further down. */
 
 /*
  * Cards sit in the middle of the table rather than piling up against the left
@@ -852,15 +852,24 @@ body {
 }
 
 .rail .card--small .card__name,
-.row--lands .card--small .card__name,
-.row--other .card--small .card__name {
+.row__aside .card--small .card__name {
   font-size: 8px;
 }
 
-.row--lands .card--small,
-.row--other .card--small {
-  height: 100%;
+/*
+ * Lands and other permanents take their size from --land-h (see landSize.ts),
+ * capped by the space their zone actually has.
+ *
+ * These selectors used to name `.row--lands` and `.row--other`, which stopped
+ * existing when the rows became zones - so lands quietly fell back to the
+ * fixed 46px small-card width and stayed there no matter what height they were
+ * given. Worth noting because nothing broke visibly: they just never grew.
+ */
+.row__aside .card--small {
+  height: min(var(--land-h, 92px), 100%);
   width: auto;
+  max-height: none;
+  min-height: 0;
 }
 
 /*
@@ -1640,17 +1649,50 @@ body {
  * and two people sharing a screen have to manage it from a normal sitting
  * distance.
  */
+/*
+ * Dark enough to take the board out of play, light enough to read against.
+ * The first version was nearly opaque black and everything on it looked
+ * murky - the cards are the point here, so the backdrop gets out of their way
+ * rather than competing with them.
+ */
 .overlay--mulligan {
-  background: rgba(4, 7, 11, 0.94);
+  background: rgba(10, 14, 20, 0.88);
   z-index: 120;
+  padding: 16px;
 }
 
+/*
+ * Seven cards, one row, never wrapped.
+ *
+ * The size is derived from the space available rather than fixed, because a
+ * fixed size is exactly what wrapped: cards tall enough to read at 250px are
+ * 178px wide, and seven of those plus gaps came to more than the panel was
+ * wide. Working the other way round - take the width, divide by seven, and let
+ * the height follow the 5:7 card ratio - cannot overflow by construction.
+ */
 .mulligan {
-  width: min(1180px, 100%);
+  --mull-gap: 10px;
+  /*
+   * Viewport units, not a percentage.
+   *
+   * `min(1560px, 100%)` looks equivalent and is not: the percentage resolves
+   * against this element's containing block, the card width is derived from
+   * it, and the row is sized by the cards - so the width depended on itself.
+   * The browser resolved the loop by letting the row grow to 3476px on a
+   * 1280px screen. `vw` cannot be circular because nothing on the page can
+   * change it.
+   */
+  --mull-w: min(1560px, calc(100vw - 48px));
+  --mull-card-w: calc((var(--mull-w) - 6 * var(--mull-gap)) / 7);
+  /* 1.4 is 7/5, the card ratio. Capped so a very wide screen doesn't produce
+     cards taller than the screen is. */
+  --mull-card-h: min(calc(var(--mull-card-w) * 1.4), 58vh);
+
+  width: var(--mull-w);
   max-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   align-items: center;
 }
 
@@ -1675,14 +1717,22 @@ body {
   line-height: 1.5;
 }
 
+/*
+ * `overflow: visible` and no wrapping.
+ *
+ * The scroll container this used to be clipped the hover pop against the
+ * heading above it - the same one-axis-scrolls-so-both-clip trap the board
+ * rows fell into. Since the cards are now sized to fit, there is nothing to
+ * scroll and nothing to clip.
+ */
 .mulligan__cards {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
-  gap: 12px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  padding: 6px;
+  align-items: flex-start;
+  gap: var(--mull-gap);
+  overflow: visible;
+  padding: 14px 0;
 }
 
 .mulligan__slot {
@@ -1692,19 +1742,48 @@ body {
   align-items: center;
 }
 
-/* Big enough to read the rules text, which is the whole point of stopping
-   here. Overrides the row-driven sizing every other card uses. */
+.mulligan__slot {
+  flex: 0 0 var(--mull-card-w);
+  transition: transform 0.14s ease;
+}
+
+/* The real printed face. No frame of our own around it - the card already has
+   one, and it is a better one. */
+.face {
+  display: block;
+  width: 100%;
+  border-radius: 4.6% / 3.3%;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+/* Height drives the size; max-width is the backstop so a card can never grow
+   wider than the slot it was measured into and push the row past the edge. */
+.mulligan__slot .face,
 .mulligan__slot .card {
-  height: 250px;
+  height: var(--mull-card-h);
   max-height: none;
   min-height: 0;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* Lifting the hovered card is the only reason this area has vertical padding.
+   Nothing clips it now, so it can be generous. */
+.mulligan__slot:hover {
+  transform: translateY(-10px) scale(1.04);
+  z-index: 2;
 }
 
 /* Chosen cards sink and grey out - they are the ones you are giving up, so
    they should look like it rather than looking selected. */
+.mulligan__slot--chosen .face,
 .mulligan__slot--chosen .card {
-  filter: grayscale(0.7) brightness(0.55);
-  outline: 2px solid var(--danger);
+  filter: grayscale(0.75) brightness(0.5);
+  outline: 3px solid var(--danger);
+  outline-offset: -3px;
 }
 
 .mulligan__marker {
@@ -1752,4 +1831,41 @@ body {
 .mulligan__actions button:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* --- a spell that has just resolved ---------------------------------------- */
+
+/*
+ * Most spells here resolve the instant nobody responds, so the stack showed a
+ * card for a single frame and was empty again - a flicker that told you
+ * something had happened without giving you any chance to see what. It is held
+ * for a beat afterwards instead, dimmed and labelled, so it reads as a record
+ * of what just happened rather than as a spell you could still respond to.
+ */
+.stack__cards--resolved {
+  position: relative;
+  opacity: 0.6;
+  filter: saturate(0.65);
+  animation: resolved-fade 1.3s ease-in forwards;
+}
+
+.stack__resolved-tag {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.82);
+  color: var(--text-dim);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+@keyframes resolved-fade {
+  0% { opacity: 0.72; }
+  70% { opacity: 0.55; }
+  100% { opacity: 0; }
 }

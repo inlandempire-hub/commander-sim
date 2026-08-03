@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CardDefinition, CardInstance } from "@mtg-commander-sim/engine";
-import { CardView } from "./CardView.js";
-import { NotFlyingProvider } from "../flightContext.js";
+import { CardFace } from "./CardFace.js";
 
 /**
  * Deciding an opening hand.
@@ -32,7 +31,6 @@ export interface MulliganOverlayProps {
   onKeep: () => void;
   onMulligan: () => void;
   onPutOnBottom: (instanceIds: string[]) => void;
-  onHover?: (definitionId: string | null, ownerId?: string) => void;
 }
 
 export function MulliganOverlay({
@@ -45,7 +43,6 @@ export function MulliganOverlay({
   onKeep,
   onMulligan,
   onPutOnBottom,
-  onHover,
 }: MulliganOverlayProps) {
   const [chosen, setChosen] = useState<string[]>([]);
 
@@ -89,31 +86,30 @@ export function MulliganOverlay({
           )}
         </div>
 
-        {/* Not affected by the flight layer: these cards are being dealt and
-            redealt, and a hand that vanished mid-decision because a copy of it
-            was animating somewhere would be alarming. */}
-        <NotFlyingProvider>
-          <div className="mulligan__cards">
-            {hand.map((instance) => {
-              const order = chosen.indexOf(instance.instanceId);
-              return (
-                <div
-                  key={instance.instanceId}
-                  className={`mulligan__slot ${order >= 0 ? "mulligan__slot--chosen" : ""}`}
-                >
-                  <CardView
-                    instance={instance}
-                    definition={cardDefinitions[instance.definitionId]!}
-                    onHover={onHover}
-                    onClick={bottoming ? () => toggle(instance.instanceId) : undefined}
-                    disabled={!bottoming}
-                  />
-                  {order >= 0 && <span className="mulligan__marker">To bottom</span>}
-                </div>
-              );
-            })}
-          </div>
-        </NotFlyingProvider>
+        {/* Real printed faces, not the board's cropped-art frame. There is no
+            board to read live stats against yet, and a card you can read is
+            worth more here than one you have to hover to understand - which
+            was doubly true while the detail panel that explained it was behind
+            this overlay. */}
+        <div className="mulligan__cards" data-flight-ignore="">
+          {hand.map((instance) => {
+            const marked = chosen.includes(instance.instanceId);
+            return (
+              <div
+                key={instance.instanceId}
+                className={`mulligan__slot ${marked ? "mulligan__slot--chosen" : ""}`}
+              >
+                <CardFace
+                  instance={instance}
+                  definition={cardDefinitions[instance.definitionId]!}
+                  onClick={bottoming ? () => toggle(instance.instanceId) : undefined}
+                  marked={marked}
+                />
+                {marked && <span className="mulligan__marker">To bottom</span>}
+              </div>
+            );
+          })}
+        </div>
 
         <div className="mulligan__actions">
           {bottoming ? (
