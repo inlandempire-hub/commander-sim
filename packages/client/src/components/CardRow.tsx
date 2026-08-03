@@ -59,9 +59,16 @@ export function CardRow({ className, children }: CardRowProps) {
       gap,
     });
 
-    // Only write when it has actually moved. The row's own width comes from
-    // its parent rather than from its contents, so this cannot feed back into
-    // the observer - but a no-op write every render would still be churn.
+    // Only write when it has actually moved. The row's own width comes from its
+    // parent rather than from its contents, so this cannot feed back into the
+    // observer - but a no-op write every render would still be churn.
+    //
+    // That first claim is only true because `.row__cards` sets `min-width: 0`.
+    // Without it a flex item's minimum size is its content size, the row grows
+    // to whatever the cards currently need, and `available` below is measured
+    // from the very thing it is supposed to be constraining. The row then sits
+    // at a happy fixed point that is wider than the zone holding it, and the
+    // overflow clip quietly eats the last card. Don't remove it.
     if (Math.abs(overlap - applied.current) < 0.5) return;
     applied.current = overlap;
     row.style.setProperty("--overlap", `${overlap}px`);

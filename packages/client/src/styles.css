@@ -207,12 +207,30 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  /* Stacked, not side by side: two commanders sharing one narrow column would
+     each be half a card wide. Rare, but the column is 132px and cannot afford
+     to find out at runtime. */
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 3px;
 }
 
+/*
+ * The commander is sized by the width of its column, not the height of it.
+ *
+ * Everywhere else a card is height-driven: it fills its row and `--card-max-h`
+ * stops it growing. That is wrong here, because this column is tall and narrow
+ * - a card that fills its height is 250px wide in a 132px column, and spills
+ * out over the log, the action bar and both boards. Which is exactly what it
+ * did. So width leads and `aspect-ratio` supplies the height, and every part
+ * of the global rule that would drive it from the other direction is undone.
+ */
 .command__cards .card {
-  max-height: 100%;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
 }
 
 /* Said rather than left blank, so an empty box reads as "it is on the
@@ -323,6 +341,13 @@ body {
 .row__cards {
   flex: 1 1 auto;
   min-height: 0;
+  /* Not optional, and not the same thing as the `min-width: 0` on .zone above.
+     A flex item's automatic minimum size is its *content* size, so without this
+     the row refuses to shrink below the cards it holds - and since how wide
+     those cards sit is what the fan is computing, the row ends up sized by the
+     answer instead of by the question. Seven cards in a 413px hand measured
+     themselves against 472px and let the last one run off the edge. */
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: safe center;
