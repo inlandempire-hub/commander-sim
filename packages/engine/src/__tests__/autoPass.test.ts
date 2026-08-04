@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { makeTestGame } from "../testHelpers.js";
 import { createCardInstance } from "../state.js";
-import { hasAnyLegalAction, hasEligibleAttacker, hasEligibleBlocker, shouldAutoPass } from "../autoPass.js";
+import {
+  hasAnyLegalAction,
+  hasEligibleAttacker,
+  hasEligibleBlocker,
+  mustNotAutoPass,
+  shouldAutoPass,
+} from "../autoPass.js";
 import { declareBlockers } from "../combat.js";
 
 describe("hasAnyLegalAction", () => {
@@ -197,5 +203,89 @@ describe("declare-blockers is not auto-passed before blocks exist", () => {
     const { state, alice, blocker } = combatWithAnUndecidedBlocker();
     blocker.tapped = true; // a tapped creature can't block, so there's no decision to wait for
     expect(shouldAutoPass(state, alice.id)).toBe(true);
+  });
+});
+
+/**
+ * The stops a preference cannot switch off.
+ *
+ * The client lets you choose which steps to stop at. These are the ones where
+ * passing would take a decision away from you rather than save you a click, so
+ * they are reported separately and the client's own logic checks them first.
+ */
+describe("mustNotAutoPass", () => {
+  it("holds the active player at declare-attackers while they have an attacker", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!;
+    const bears = createCardInstance(state, "grizzly-bears", alice.id, "battlefield");
+    bears.summoningSickness = false;
+    state.phase = "combat";
+    state.step = "declare-attackers";
+    state.activePlayerIndex = 0;
+
+    expect(mustNotAutoPass(state, alice.id)).toBe(true);
+  });
+
+  it("lets them through when nothing of theirs could attack", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!;
+    const bears = createCardInstance(state, "grizzly-bears", alice.id, "battlefield");
+    bears.summoningSickness = true; // just arrived, so it cannot attack
+    state.phase = "combat";
+    state.step = "declare-attackers";
+    state.activePlayerIndex = 0;
+
+    expect(mustNotAutoPass(state, alice.id)).toBe(false);
+  });
+
+  it("holds the defender at declare-blockers while they have a blocker", () => {
+    const state = makeTestGame();
+    const bob = state.players[1]!;
+    const vanguard = createCardInstance(state, "elite-vanguard", bob.id, "battlefield");
+    vanguard.summoningSickness = false;
+    state.phase = "combat";
+    state.step = "declare-blockers";
+    state.activePlayerIndex = 0;
+
+    expect(mustNotAutoPass(state, bob.id)).toBe(true);
+  });
+
+  it("holds everyone while an opening hand is still being decided", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!;
+    state.mulligan = {
+      playerId: alice.id,
+      order: state.players.map((p) => p.id),
+      mulligansTaken: 0,
+      bottoming: false,
+    };
+
+    expect(mustNotAutoPass(state, alice.id)).toBe(true);
+    expect(mustNotAutoPass(state, state.players[1]!.id)).toBe(true);
+  });
+
+  it("is false in an ordinary main phase with nothing to do", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!;
+    state.phase = "precombat-main";
+    state.step = "main";
+
+    expect(mustNotAutoPass(state, alice.id)).toBe(false);
+    // Which is the whole point of the split: nothing forces a stop here, so a
+    // preference is free to ask for one.
+    expect(shouldAutoPass(state, alice.id)).toBe(true);
+  });
+
+  it("is the floor under shouldAutoPass - a forced stop is never auto-passed", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!;
+    const bears = createCardInstance(state, "grizzly-bears", alice.id, "battlefield");
+    bears.summoningSickness = false;
+    state.phase = "combat";
+    state.step = "declare-attackers";
+    state.activePlayerIndex = 0;
+
+    expect(mustNotAutoPass(state, alice.id)).toBe(true);
+    expect(shouldAutoPass(state, alice.id)).toBe(false);
   });
 });

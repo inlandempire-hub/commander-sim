@@ -10,6 +10,7 @@ import { formatManaCost, typeLine } from "../format.js";
 import { cardArtUrl } from "../cardArt.js";
 import { useArtOverrides } from "../artContext.js";
 import { useIsFlying } from "../flightContext.js";
+import { useInspect } from "../inspectContext.js";
 
 const COLOR_CLASS: Record<string, string> = {
   W: "card--W",
@@ -52,6 +53,12 @@ export interface CardViewProps {
    * hint; the engine still validates the click.
    */
   playable?: boolean;
+  /**
+   * This permanent is about to be tapped to pay for whatever is under the
+   * cursor. Shown before the click, because the engine taps for you and a tap
+   * cannot be taken back.
+   */
+  willTap?: boolean;
   /** Leans this creature towards the centre line - it is attacking. */
   attacking?: boolean;
   /** A smaller lean: this creature has stepped up to block. */
@@ -61,7 +68,7 @@ export interface CardViewProps {
    * drive the detail panel. The owner comes along so the panel can show that
    * player's chosen printing rather than the default one.
    */
-  onHover?: (definitionId: string | null, ownerId?: string) => void;
+  onHover?: (definitionId: string | null, ownerId?: string, instanceId?: string) => void;
   /**
    * A short line under the card - "Blocks Craw Wurm", "Blocked by 2". Combat
    * assignments are invisible otherwise: a highlight tells you a creature is
@@ -79,6 +86,7 @@ export function CardView({
   disabled,
   small,
   playable,
+  willTap,
   attacking,
   blocking,
   onHover,
@@ -107,6 +115,11 @@ export function CardView({
   // says it moved. It keeps its space in the layout, which is what lets the
   // flight measure where it is going.
   const flying = useIsFlying(instance.instanceId);
+
+  // Right-click opens the card large. Available on every card including a
+  // disabled one - "you cannot play this" is a reason to want to read it, not
+  // a reason to be stopped from doing so.
+  const inspect = useInspect();
 
   // Damage landing on a creature would otherwise be a number changing in the
   // corner of the card, which is easy to miss in the middle of combat. The
@@ -163,6 +176,7 @@ export function CardView({
         small ? "card--small" : "",
         instance.isCommander ? "card--commander" : "",
         playable ? "card--playable" : "",
+        willTap ? "card--will-tap" : "",
         attacking ? "card--attacking" : "",
         blocking ? "card--blocking" : "",
         hit ? "card--hit" : "",
@@ -173,9 +187,17 @@ export function CardView({
         .filter(Boolean)
         .join(" ")}
       onClick={disabled ? undefined : onClick}
-      onMouseEnter={onHover ? () => onHover(definition.id, instance.ownerId) : undefined}
+      onContextMenu={(event) => {
+        // The browser's own menu has nothing useful on a card, and leaving it
+        // to open would make this gesture unusable rather than merely unbound.
+        event.preventDefault();
+        inspect(definition, instance.ownerId);
+      }}
+      onMouseEnter={
+        onHover ? () => onHover(definition.id, instance.ownerId, instance.instanceId) : undefined
+      }
       onMouseLeave={onHover ? () => onHover(null) : undefined}
-      title={`${definition.name} - ${typeLine(definition)}`}
+      title={`${definition.name} - ${typeLine(definition)} (right-click to enlarge)`}
     >
       {showArt && (
         <img

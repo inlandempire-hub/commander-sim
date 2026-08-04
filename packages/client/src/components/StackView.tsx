@@ -14,7 +14,7 @@ export interface StackViewProps {
   selectingSpellTarget?: boolean;
   onStackObjectClick?: (stackObjectId: string) => void;
   /** Reports the card under the cursor so the detail panel can show its full text. */
-  onHover?: (definitionId: string | null, ownerId?: string) => void;
+  onHover?: (definitionId: string | null, ownerId?: string, instanceId?: string) => void;
 }
 
 export function StackView({

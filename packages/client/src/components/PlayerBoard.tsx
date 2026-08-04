@@ -60,8 +60,14 @@ export interface PlayerBoardProps {
    */
   canPlay?: (instanceId: string) => boolean;
   /** Reports the card under the cursor so the detail panel can show its full text. */
-  onHover?: (definitionId: string | null, ownerId?: string) => void;
+  onHover?: (definitionId: string | null, ownerId?: string, instanceId?: string) => void;
   onLifeClick: () => void;
+  /**
+   * Permanents that would be tapped to pay for whatever card is currently
+   * under the cursor. Shown before you commit, because the engine taps for you
+   * and tapping cannot be taken back - see planManaPayment.
+   */
+  willTapIds?: Set<string>;
   /**
    * The game's controls, slotted into this board's rail under the life total.
    * Only the bottom seat is given any - see ActionBar for why they live in one
@@ -91,6 +97,7 @@ export function PlayerBoard({
   onHover,
   onLifeClick,
   actions,
+  willTapIds,
 }: PlayerBoardProps) {
   const lands = player.battlefield.filter((c) => cardDefinitions[c.definitionId]?.types.includes("Land"));
   const creatures = player.battlefield.filter((c) => cardDefinitions[c.definitionId]?.types.includes("Creature"));
@@ -199,7 +206,13 @@ export function PlayerBoard({
             </span>
           )}
         </button>
-        {manaPoolSummary && <div className="rail__mana">Mana: {manaPoolSummary}</div>}
+        {/* Always rendered, even with an empty pool. It is where the mana pips
+            fly to, and an anchor that only exists once you already have mana
+            is no use for showing mana arriving. The dash is also a steadier
+            thing to read than a line that appears and vanishes. */}
+        <div className="rail__mana" data-mana-anchor={player.id}>
+          Mana: {manaPoolSummary || "-"}
+        </div>
         {Object.entries(player.commanderDamageTaken).map(([cmdId, dmg]) => (
           <div key={cmdId} className="rail__cmd-damage">
             Cmd dmg {dmg}/21
@@ -281,6 +294,7 @@ export function PlayerBoard({
                     key={instance.instanceId}
                     instance={instance}
                     definition={cardDefinitions[instance.definitionId]!}
+                    willTap={willTapIds?.has(instance.instanceId)}
                     onHover={onHover}
                     onClick={() => onBattlefieldCardClick(instance.instanceId)}
                     small
@@ -299,6 +313,7 @@ export function PlayerBoard({
                       key={instance.instanceId}
                       instance={instance}
                       definition={cardDefinitions[instance.definitionId]!}
+                      willTap={willTapIds?.has(instance.instanceId)}
                       onHover={onHover}
                       onClick={() => onBattlefieldCardClick(instance.instanceId)}
                       small
@@ -345,6 +360,9 @@ export function PlayerBoard({
                   // than only from the outline colour.
                   attacking={attackingIds.has(instance.instanceId)}
                   blocking={assignedBlockerIds.has(instance.instanceId)}
+                  // A creature can be a mana source too, so it gets the same
+                  // "this is about to be tapped" mark as a land.
+                  willTap={willTapIds?.has(instance.instanceId)}
                   badge={combatBadge(instance.instanceId)}
                   onHover={onHover}
                   onClick={() => onBattlefieldCardClick(instance.instanceId)}

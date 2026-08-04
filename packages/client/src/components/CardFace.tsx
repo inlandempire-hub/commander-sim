@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { CardDefinition, CardInstance } from "@mtg-commander-sim/engine";
 import { cardArtUrl } from "../cardArt.js";
 import { useArtOverrides } from "../artContext.js";
+import { useInspect } from "../inspectContext.js";
 import { CardView } from "./CardView.js";
 
 /**
@@ -29,6 +30,9 @@ export function CardFace({ instance, definition, onClick, marked }: CardFaceProp
   const overrides = useArtOverrides(instance.ownerId);
   const imageUrl = cardArtUrl(definition, "normal", overrides);
   const [failed, setFailed] = useState(false);
+  // Right-click enlarges, the same as on the board. It matters most during the
+  // mulligan, where seven cards share one row and each is at its smallest.
+  const inspect = useInspect();
 
   // Offline, or a token with no printing at all. The board's own frame is a
   // worse way to read a card but an entirely working one, so falling back to
@@ -49,9 +53,13 @@ export function CardFace({ instance, definition, onClick, marked }: CardFaceProp
       className={`face ${marked ? "face--marked" : ""}`}
       src={imageUrl}
       alt={definition.name}
-      title={definition.name}
+      title={`${definition.name} (right-click to enlarge)`}
       draggable={false}
       onClick={onClick}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        inspect(definition, instance.ownerId);
+      }}
       onError={() => setFailed(true)}
     />
   );

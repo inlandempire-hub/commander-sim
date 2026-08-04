@@ -1,6 +1,6 @@
-import { ALL_COLORS, type CardInstance, type Color, type GameState, type ManaCost, type Player, type StackTarget } from "./types.js";
+import { ALL_COLORS, type CardInstance, type Color, type GameState, type ManaCost, type ManaPool, type Player, type StackTarget } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
-import { applyCommanderTax, canPayManaCostFromPool, potentialAvailableMana } from "./mana.js";
+import { addMana, applyCommanderTax, canPayManaCostFromPool, potentialAvailableMana } from "./mana.js";
 import { activateAbility } from "./abilities.js";
 import { castSpell, type CastOptions } from "./casting.js";
 
@@ -55,29 +55,26 @@ export function couldAfford(state: GameState, playerId: string, cost: ManaCost):
 }
 
 /**
- * Picks the next land (or mana creature) to tap toward paying `cost`.
- * Colour requirements are satisfied first, since a source producing a colour
- * the cost actually needs is strictly more useful than one that only helps
- * with the generic portion. Returns null when the pool already covers the
- * cost or nothing left can help.
+ * The choice itself, made against an explicit pool and list of sources.
  *
- * This is deliberately greedy rather than a real cost solver. With the
- * current mono-coloured pools every source produces the deck's one colour,
- * so greedy is optimal; a card with hybrid or multi-colour requirements
- * would need proper solving (see the limitations note in ROADMAP.md).
+ * Kept separate from the state so that both the real tapping and the preview
+ * of it can call the same function. A preview that reimplemented this - even
+ * carefully - would eventually disagree with what actually happens, and a
+ * preview you cannot trust is worse than no preview.
+ *
+ * Deliberately greedy rather than a real cost solver: colour requirements
+ * first, since a source producing a colour the cost actually needs is strictly
+ * more useful than one that only helps with the generic portion. With the
+ * current mono-coloured pools every source produces the deck's one colour, so
+ * greedy is optimal; hybrid or multi-colour requirements would need proper
+ * solving (see the limitations note in ROADMAP.md).
  */
-export function nextSourceToTap(
-  state: GameState,
-  player: Player,
-  cost: ManaCost,
-): { instanceId: string; abilityIndex: number } | null {
-  if (canPayManaCostFromPool(player.manaPool, cost)) return null;
-
-  const sources = manaSources(state, player);
+function chooseSource(sources: ManaSource[], pool: ManaPool, cost: ManaCost): ManaSource | null {
+  if (canPayManaCostFromPool(pool, cost)) return null;
   if (sources.length === 0) return null;
 
   const shortfallColors = ALL_COLORS.filter(
-    (color) => (player.manaPool[color] ?? 0) < (cost.colors[color] ?? 0),
+    (color) => (pool[color] ?? 0) < (cost.colors[color] ?? 0),
   );
 
   const preferred =
@@ -86,9 +83,75 @@ export function nextSourceToTap(
       : // Colour requirements are met; anything untapped now helps with the generic part.
         sources[0];
 
-  const chosen = preferred ?? sources[0];
+  return preferred ?? sources[0] ?? null;
+}
+
+/**
+ * Picks the next land (or mana creature) to tap toward paying `cost`. Returns
+ * null when the pool already covers the cost or nothing left can help.
+ */
+export function nextSourceToTap(
+  state: GameState,
+  player: Player,
+  cost: ManaCost,
+): { instanceId: string; abilityIndex: number } | null {
+  const chosen = chooseSource(manaSources(state, player), player.manaPool, cost);
   if (!chosen) return null;
   return { instanceId: chosen.instance.instanceId, abilityIndex: chosen.abilityIndex };
+}
+
+/** One permanent the payment would tap, and what it would produce. */
+export interface PlannedTap {
+  instanceId: string;
+  abilityIndex: number;
+  color: Color;
+  amount: number;
+}
+
+export interface ManaPlan {
+  /** False when the cost cannot be met at all - in which case nothing would be tapped. */
+  paid: boolean;
+  /** In the order they would be tapped. Empty when the floating pool already covers it. */
+  taps: PlannedTap[];
+}
+
+/**
+ * What `autoTapForCost` *would* do, worked out without touching anything.
+ *
+ * This exists so the interface can show you which of your lands a spell is
+ * about to turn before you commit to it. Tapping is irreversible and the
+ * engine does it on your behalf, which is a fine trade only as long as you can
+ * see what you are agreeing to.
+ *
+ * It walks the same greedy choice in the same order as the real thing, against
+ * a copy of the pool. The one subtlety is that a permanent with two mana
+ * abilities appears twice in `manaSources`, and tapping it once uses up both -
+ * so every entry for a chosen permanent is dropped, matching the real loop,
+ * which recomputes its sources each pass and skips anything already tapped.
+ */
+export function planManaPayment(state: GameState, playerId: string, cost: ManaCost): ManaPlan {
+  const player = requirePlayer(state, playerId);
+  const pool: ManaPool = { ...player.manaPool };
+  let available = manaSources(state, player);
+  const taps: PlannedTap[] = [];
+
+  for (let guard = available.length; guard > 0; guard--) {
+    const chosen = chooseSource(available, pool, cost);
+    if (!chosen) break;
+    available = available.filter((s) => s.instance.instanceId !== chosen.instance.instanceId);
+    addMana(pool, chosen.color, chosen.amount);
+    taps.push({
+      instanceId: chosen.instance.instanceId,
+      abilityIndex: chosen.abilityIndex,
+      color: chosen.color,
+      amount: chosen.amount,
+    });
+  }
+
+  const paid = canPayManaCostFromPool(pool, cost);
+  // Nothing is tapped for a cost that cannot be met, so an unaffordable spell
+  // must not light up half your board as if it were about to be paid.
+  return paid ? { paid, taps } : { paid: false, taps: [] };
 }
 
 /**

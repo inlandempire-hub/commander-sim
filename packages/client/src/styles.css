@@ -2006,3 +2006,338 @@ body {
   border-color: var(--danger);
   color: var(--danger);
 }
+
+/* ---------------------------------------------------------------------------
+   Reading a card properly
+   --------------------------------------------------------------------------- */
+
+/*
+ * Right-click anything. The sidebar panel follows your cursor, which is right
+ * for glancing and useless for reading - you cannot hold it still, compare two
+ * cards, or see it at all on a narrow window.
+ */
+/*
+ * Above every other overlay, deliberately and by a wide margin.
+ *
+ * Inspect is the one panel that is opened *from inside* the others - reading a
+ * card during the mulligan, or while a tutor is asking you to choose one, is
+ * exactly when you most need to. It inherited the base overlay's z-index of
+ * 100 at first, which put it under the mulligan's 120: the enlarged card was
+ * in the page, the right size, with its image loaded, and painted behind the
+ * seven small cards it had been opened from.
+ */
+.overlay--inspect {
+  z-index: 200;
+  cursor: zoom-out;
+}
+
+.inspect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-height: 100%;
+}
+
+/* Bounded on both axes so the card keeps its shape whatever the window is,
+   and capped in width so it doesn't become a mural on an ultrawide. */
+.inspect__image {
+  max-width: min(430px, 90vw);
+  max-height: 82vh;
+  object-fit: contain;
+  border-radius: 4.6% / 3.3%;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+}
+
+/* The fallback for a card with no printing - a token, or being offline. */
+.inspect__text {
+  width: min(430px, 90vw);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inspect__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.inspect__name {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.inspect__cost {
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.inspect__type {
+  color: var(--text-dim);
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.inspect__rule {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.inspect__rule--none {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.inspect__pt {
+  font-size: 16px;
+  font-weight: 700;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.inspect__hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------------------------
+   Paying for something, visibly
+   --------------------------------------------------------------------------- */
+
+/*
+ * The lands a spell is about to tap, marked while you hover it.
+ *
+ * The engine taps for you, and tapping cannot be taken back - so the one thing
+ * you are owed is sight of what you are agreeing to before you click. What
+ * lights up here is computed by the same function that does the tapping (see
+ * planManaPayment), not by a second guess at the same rules.
+ */
+.card--will-tap {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(214, 178, 90, 0.55), 0 0 14px rgba(214, 178, 90, 0.4);
+}
+
+/*
+ * Turning one after another rather than all at once.
+ *
+ * --tap-delay is written onto the element by useManaTaps and removed once the
+ * sequence has played. It defaults to 0s here so that a card which was never
+ * part of a payment - or one re-rendering long afterwards - never sits waiting
+ * before it draws.
+ */
+.card {
+  --tap-delay: 0s;
+}
+
+.card--tapped {
+  transition-delay: var(--tap-delay);
+}
+
+/* The mana itself, leaving each land for its owner's pool. Fixed and inert:
+   it must never affect what is underneath it or swallow a click. */
+.pip-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+}
+
+.pip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border-radius: 50%;
+  background: var(--pip-color, #d8d2c4);
+  box-shadow: 0 0 8px 2px var(--pip-glow, rgba(216, 210, 196, 0.7));
+  transform: translate(var(--from-x), var(--from-y));
+  animation: pip-fly var(--pip-ms, 520ms) ease-in var(--pip-delay, 0ms) forwards;
+}
+
+/*
+ * Ends at the pool rather than fading in place, and ends *small* - mana being
+ * absorbed rather than a spark going out. Note this never runs at all in a tab
+ * that isn't compositing, which is fine: the pip simply sits at the land for a
+ * moment and is then removed on the timer, and the mana total was already
+ * correct before it appeared.
+ */
+@keyframes pip-fly {
+  0% {
+    transform: translate(var(--from-x), var(--from-y)) scale(0.4);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(var(--from-x), var(--from-y)) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--to-x), var(--to-y)) scale(0.5);
+    opacity: 0;
+  }
+}
+
+.pip--W { --pip-color: #f4efd8; --pip-glow: rgba(244, 239, 216, 0.75); }
+.pip--U { --pip-color: #79b4ea; --pip-glow: rgba(121, 180, 234, 0.75); }
+.pip--B { --pip-color: #a99ad8; --pip-glow: rgba(169, 154, 216, 0.75); }
+.pip--R { --pip-color: #ef7a5e; --pip-glow: rgba(239, 122, 94, 0.75); }
+.pip--G { --pip-color: #7fce6c; --pip-glow: rgba(127, 206, 108, 0.75); }
+
+/* ---------------------------------------------------------------------------
+   Where the game stops and asks you
+   --------------------------------------------------------------------------- */
+
+.table__stops,
+.table__full-control {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.table__stops:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* Loud on purpose: full control stops the game at every step, which reads as
+   something being broken if you have forgotten you switched it on. */
+.table__full-control {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.overlay__panel--stops {
+  width: min(620px, 100%);
+  max-height: 86vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.stops__title {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.stops__intro {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.stops__full-control {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  background: rgba(214, 178, 90, 0.09);
+  border: 1px solid rgba(214, 178, 90, 0.3);
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.stops__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.stops__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 7px;
+  border-radius: 6px;
+}
+
+.stops__row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.stops__label {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+/* Said out loud rather than left to be discovered: a setting that silently
+   does nothing is worse than one that isn't offered. */
+.stops__note {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.stops__choices {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 3px;
+}
+
+.stops__choice {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.stops__choice:hover {
+  color: var(--text);
+}
+
+.stops__choice--on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.stops__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.stops__reset,
+.stops__done {
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.stops__reset {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.stops__done {
+  background: var(--accent);
+  border: none;
+  color: white;
+}

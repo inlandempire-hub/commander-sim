@@ -26,7 +26,7 @@ export interface ZonePileProps {
   selecting?: boolean;
   /** Only provided when a card in here can legally be chosen right now. */
   onCardClick?: (instanceId: string) => void;
-  onHover?: (definitionId: string | null, ownerId?: string) => void;
+  onHover?: (definitionId: string | null, ownerId?: string, instanceId?: string) => void;
   /** Whose pile this is, so the overlay can say so. */
   ownerLabel: string;
 }

@@ -112,26 +112,30 @@ export function hasEligibleBlocker(state: GameState, playerId: string): boolean 
 }
 
 /**
- * Should `playerId`'s priority be auto-passed instead of asked for? True
- * whenever they have nothing productive to do in the current step - this is
- * what lets an empty main phase fast-forward into combat, an attacker-less
- * turn skip straight through, and so on, as one general rule rather than a
- * pile of special cases.
+ * Stops that are not a matter of taste.
+ *
+ * These are the points where passing would take a decision away from the
+ * player rather than save them a click - a declaration the rules require of
+ * them, or a window that cannot be reopened. They are separated out because
+ * the client lets you configure which steps to stop at, and no preference
+ * should be able to switch off the step where you declare your blockers. A
+ * setting that quietly stops you blocking is not a setting, it is a bug you
+ * chose.
  */
-export function shouldAutoPass(state: GameState, playerId: string): boolean {
+export function mustNotAutoPass(state: GameState, playerId: string): boolean {
   // The game is mid-spell: a search is waiting on someone to name a card, and
   // nothing else happens until they do.
   // Nobody has priority at all until every opening hand is settled.
-  if (state.mulligan) return false;
-  if (state.pendingSearch) return false;
+  if (state.mulligan) return true;
+  if (state.pendingSearch) return true;
 
   const activePlayerId = state.players[state.activePlayerIndex]?.id;
 
   if (state.step === "declare-attackers" && playerId === activePlayerId) {
-    if (hasEligibleAttacker(state, playerId)) return false;
+    if (hasEligibleAttacker(state, playerId)) return true;
   }
   if (state.step === "declare-blockers" && playerId !== activePlayerId) {
-    if (hasEligibleBlocker(state, playerId)) return false;
+    if (hasEligibleBlocker(state, playerId)) return true;
   }
 
   /*
@@ -151,8 +155,24 @@ export function shouldAutoPass(state: GameState, playerId: string): boolean {
     const defenderStillToDecide = state.players.some(
       (p) => p.id !== activePlayerId && hasEligibleBlocker(state, p.id),
     );
-    if (defenderStillToDecide) return false;
+    if (defenderStillToDecide) return true;
   }
 
+  return false;
+}
+
+/**
+ * Should `playerId`'s priority be auto-passed instead of asked for? True
+ * whenever they have nothing productive to do in the current step - this is
+ * what lets an empty main phase fast-forward into combat, an attacker-less
+ * turn skip straight through, and so on, as one general rule rather than a
+ * pile of special cases.
+ *
+ * This is the engine's own answer, and the floor the client builds on: see
+ * the client's stops.ts, which may ask for *more* stops than this but never
+ * fewer than `mustNotAutoPass` allows.
+ */
+export function shouldAutoPass(state: GameState, playerId: string): boolean {
+  if (mustNotAutoPass(state, playerId)) return false;
   return !hasAnyLegalAction(state, playerId);
 }

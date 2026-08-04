@@ -4,9 +4,13 @@ import {
   blockProblem,
   canMulliganAgain,
   canPlayCardNow,
+  castingCostOf,
   modesOf,
+  mustNotAutoPass,
+  planManaPayment,
   shouldAutoPass,
   targetSelectorOf,
+  type CardDefinition,
   type Effect,
 } from "@mtg-commander-sim/engine";
 import type { GameController } from "./gameController.js";
@@ -22,9 +26,22 @@ import { TablePrompt } from "./components/TablePrompt.js";
 import { TargetArrow } from "./components/TargetArrow.js";
 import { MulliganOverlay } from "./components/MulliganOverlay.js";
 import { cueForLogLine, play, setSoundEnabled, soundEnabled } from "./sound.js";
+import { CardInspect } from "./components/CardInspect.js";
+import { ManaPipLayer } from "./components/ManaPipLayer.js";
+import { StopSettings } from "./components/StopSettings.js";
 import { ArtOverridesProvider, type ArtOverridesByPlayer } from "./artContext.js";
 import { FlyingProvider } from "./flightContext.js";
+import { InspectProvider } from "./inspectContext.js";
 import { useCardFlight } from "./useCardFlight.js";
+import { useManaTaps } from "./useManaTaps.js";
+import {
+  defaultStops,
+  loadStops,
+  resolveAutoPass,
+  saveStops,
+  stopKeyFor,
+  type StopPreferences,
+} from "./stops.js";
 
 interface PendingTarget {
   ownerId: string;
@@ -44,6 +61,12 @@ interface PendingTarget {
 interface HoveredCard {
   definitionId: string;
   ownerId?: string;
+  /**
+   * Which copy. The detail panel only needs the definition, but working out
+   * what a card would cost to cast does not: commander tax is counted per
+   * instance, and a hand can hold two of the same card.
+   */
+  instanceId?: string;
 }
 
 function toggleSet(set: Set<string>, id: string): Set<string> {
@@ -54,24 +77,28 @@ function toggleSet(set: Set<string>, id: string): Set<string> {
 }
 
 /**
- * The two things every card on the table needs to know that aren't in the game
- * state: which printing's art this seat chose, and whether this card is
- * currently mid-flight between zones and should stay hidden. Combined into one
- * wrapper purely so the table below doesn't gain a level of nesting per
- * context.
+ * The three things every card on the table needs that aren't in the game
+ * state: which printing's art this seat chose, whether this card is currently
+ * mid-flight between zones and should stay hidden, and how to ask for itself
+ * to be shown large. Combined into one wrapper purely so the table below
+ * doesn't gain a level of nesting per context.
  */
 function TableContext({
   art,
   flying,
+  onInspect,
   children,
 }: {
   art: ArtOverridesByPlayer;
   flying: ReadonlySet<string>;
+  onInspect: (definition: CardDefinition, ownerId?: string) => void;
   children: React.ReactNode;
 }) {
   return (
     <ArtOverridesProvider value={art}>
-      <FlyingProvider value={flying}>{children}</FlyingProvider>
+      <FlyingProvider value={flying}>
+        <InspectProvider onInspect={onInspect}>{children}</InspectProvider>
+      </FlyingProvider>
     </ArtOverridesProvider>
   );
 }
@@ -99,6 +126,20 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
    * only ever carries what the engine threw.
    */
   const [notice, setNotice] = useState<string | null>(null);
+  /** The card being read at full size, from a right-click anywhere. */
+  const [inspecting, setInspecting] = useState<{ definition: CardDefinition; ownerId?: string } | null>(
+    null,
+  );
+  const [showStops, setShowStops] = useState(false);
+  /**
+   * Where the game should stop and ask. Read from storage once, on the first
+   * render, rather than in an effect - an effect would play the first step of
+   * the game under the defaults before the real settings arrived.
+   */
+  const [stops, setStops] = useState<StopPreferences>(() =>
+    loadStops(typeof window === "undefined" ? undefined : window.localStorage),
+  );
+  const [fullControl, setFullControl] = useState(false);
   /** How far through the log we've already made a noise about. */
   const soundedTo = useRef(0);
   /*
@@ -109,6 +150,17 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
    * board.
    */
   const { flights, flying } = useCardFlight();
+  /*
+   * Lands turning one at a time, and a pip of mana leaving each for the pool.
+   * Same reason as above for living up here: it measures a committed board,
+   * and hooks cannot be conditional.
+   */
+  const manaPips = useManaTaps(state);
+
+  const changeStops = (next: StopPreferences) => {
+    setStops(next);
+    saveStops(typeof window === "undefined" ? undefined : window.localStorage, next);
+  };
 
   /*
    * Sound is driven off the log rather than off each action, so anything the
@@ -127,19 +179,35 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     }
   }, [state?.log.length, state]);
 
-  // Auto-pass: whenever the priority holder (a seat this client controls) has
-  // nothing productive to do, pass on their behalf instead of making them
-  // click through an empty window. Paused while a target-selection is in
-  // progress so we don't yank the game forward mid-interaction.
+  /*
+   * Auto-pass: whenever the priority holder (a seat this client controls) has
+   * nothing productive to do, pass on their behalf instead of making them
+   * click through an empty window. Paused while a target-selection is in
+   * progress so we don't yank the game forward mid-interaction.
+   *
+   * The engine's answer is now the default rather than the verdict - see
+   * stops.ts. `resolveAutoPass` folds in the player's per-step settings and
+   * the full-control toggle, but checks `mustNotAutoPass` first, so no
+   * combination of preferences can pass on a declaration the rules require.
+   *
+   * Also paused while the settings panel is open: changing a stop should not
+   * fast-forward the game underneath the dialog you are changing it in.
+   */
   useEffect(() => {
-    if (!state || pendingTarget) return;
+    if (!state || pendingTarget || showStops) return;
     if (state.players.some((p) => p.hasLost)) return;
     const priorityPlayerId = state.players[state.priorityPlayerIndex]?.id;
     if (!priorityPlayerId || !controller.canControlPlayer(priorityPlayerId)) return;
-    if (shouldAutoPass(state, priorityPlayerId)) {
-      controller.passPriority(priorityPlayerId);
-    }
-  }, [state, controller, pendingTarget]);
+
+    const key = stopKeyFor(state.phase, state.step);
+    const pass = resolveAutoPass({
+      mustNotAutoPass: mustNotAutoPass(state, priorityPlayerId),
+      engineWouldAutoPass: shouldAutoPass(state, priorityPlayerId),
+      setting: key ? stops[key] : null,
+      fullControl,
+    });
+    if (pass) controller.passPriority(priorityPlayerId);
+  }, [state, controller, pendingTarget, stops, fullControl, showStops]);
 
   if (!state) {
     return (
@@ -218,9 +286,32 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const modeOptions = modeCardDefinition ? modesOf(modeCardDefinition) : undefined;
   const modeCardName = modeCardDefinition?.name ?? "";
 
-  function handleHover(definitionId: string | null, ownerId?: string) {
-    setHovered(definitionId ? { definitionId, ownerId } : null);
+  function handleHover(definitionId: string | null, ownerId?: string, instanceId?: string) {
+    setHovered(definitionId ? { definitionId, ownerId, instanceId } : null);
   }
+
+  /**
+   * Which of your permanents the hovered card is about to tap.
+   *
+   * Only for a card you could actually play right now: a spell you cannot
+   * afford taps nothing, and a card in someone's graveyard is not being cast
+   * at all. `planManaPayment` walks the same greedy choice the real payment
+   * does, so the lands that light up are the lands that turn.
+   */
+  const willTapIds = ((): Set<string> => {
+    const owner = hovered?.ownerId;
+    if (!owner || !hovered?.instanceId) return new Set();
+    const player = state.players.find((p) => p.id === owner);
+    if (!player) return new Set();
+    const instance =
+      player.hand.find((c) => c.instanceId === hovered.instanceId) ??
+      player.command.find((c) => c.instanceId === hovered.instanceId);
+    if (!instance) return new Set();
+    if (!canPlayCardNow(state, owner, instance.instanceId)) return new Set();
+    const fromCommandZone = instance.zone === "command";
+    const cost = castingCostOf(state, owner, instance.instanceId, fromCommandZone);
+    return new Set(planManaPayment(state, owner, cost).taps.map((t) => t.instanceId));
+  })();
 
   function handleHandCardClick(ownerId: string, instanceId: string) {
     const owner = state!.players.find((p) => p.id === ownerId)!;
@@ -491,10 +582,15 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
         : undefined,
     onHover: handleHover,
     onLifeClick: () => handlePlayerTargetClick(player.id),
+    willTapIds,
   });
 
   return (
-    <TableContext art={artOverrides ?? {}} flying={flying}>
+    <TableContext
+      art={artOverrides ?? {}}
+      flying={flying}
+      onInspect={(definition, ownerId) => setInspecting({ definition, ownerId })}
+    >
       <div className="table">
         <header className="table__top">
           <span className="table__title">MTG Commander Sim</span>
@@ -505,6 +601,27 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             {state.phase} / {state.step}
           </span>
           <span className="table__notice">{modeNotice}</span>
+          {fullControl && (
+            // Said in the top bar as well as in the panel: it stops the game
+            // at every step, which looks like something being broken if you
+            // have forgotten it is on.
+            <button
+              type="button"
+              className="table__full-control"
+              title="Full control is on - the game stops at every step. Click to turn it off."
+              onClick={() => setFullControl(false)}
+            >
+              Full control
+            </button>
+          )}
+          <button
+            type="button"
+            className="table__stops"
+            title="Choose which steps the game stops at"
+            onClick={() => setShowStops(true)}
+          >
+            Stops
+          </button>
           <button
             type="button"
             className="table__sound"
@@ -627,7 +744,35 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           />
         )}
 
+        {showStops && (
+          <StopSettings
+            stops={stops}
+            onChange={changeStops}
+            fullControl={fullControl}
+            onFullControlChange={setFullControl}
+            onClose={() => setShowStops(false)}
+            onReset={() => changeStops(defaultStops())}
+          />
+        )}
+
+        {/* Above every other overlay, because it can be opened from inside one
+            - reading a card during the mulligan is exactly when you most need
+            to. */}
+        {inspecting && (
+          <CardInspect
+            definition={inspecting.definition}
+            cardDefinitions={state.cardDefinitions}
+            ownerId={inspecting.ownerId}
+            onClose={() => setInspecting(null)}
+          />
+        )}
+
         <TableBeat state={state} />
+
+        {/* Mana leaving the lands that were just tapped. Purely decorative:
+            the pool in the rail is already correct before the first one
+            arrives. */}
+        <ManaPipLayer pips={manaPips} />
 
         {/* Both halves of a two-click decision, drawn as a line from the card
             that is waiting on you to wherever you are pointing. Targeting wins

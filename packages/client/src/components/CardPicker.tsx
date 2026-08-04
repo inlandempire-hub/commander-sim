@@ -28,7 +28,7 @@ export interface CardPickerProps {
   onChoose: (instanceId: string) => void;
   /** Provided when declining is legal - a tutor may always find nothing. */
   onDecline?: () => void;
-  onHover?: (definitionId: string | null, ownerId?: string) => void;
+  onHover?: (definitionId: string | null, ownerId?: string, instanceId?: string) => void;
 }
 
 /** Everything about a card that a search should look at. */

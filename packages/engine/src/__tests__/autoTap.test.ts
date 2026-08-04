@@ -9,6 +9,7 @@ import {
   castSpellWithAutoTap,
   couldAfford,
   manaSources,
+  planManaPayment,
 } from "../autoTap.js";
 
 /** A main phase with `playerIndex` active and holding priority. */
@@ -175,6 +176,102 @@ describe("auto-tapping for a spell", () => {
     giveLands(state, alice.id, "forest", 5); // green mana only
     expect(couldAfford(state, alice.id, { generic: 0, colors: { U: 1 } })).toBe(false);
     expect(autoTapForCost(state, alice.id, { generic: 0, colors: { U: 1 } })).toBe(false);
+  });
+});
+
+describe("planManaPayment", () => {
+  it("names exactly the lands the real tapping goes on to tap, in the same order", () => {
+    // The point of the whole function: the preview shown before you commit has
+    // to be what actually happens, or it is worse than showing nothing.
+    const state = mainPhase();
+    const alice = state.players[0]!;
+    giveLands(state, alice.id, "island", 5);
+    const cost = { generic: 2, colors: { U: 1 } };
+
+    const plan = planManaPayment(state, alice.id, cost);
+    expect(plan.paid).toBe(true);
+    expect(plan.taps).toHaveLength(3);
+
+    autoTapForCost(state, alice.id, cost);
+    const actuallyTapped = alice.battlefield.filter((l) => l.tapped).map((l) => l.instanceId);
+    expect(plan.taps.map((t) => t.instanceId)).toEqual(actuallyTapped);
+  });
+
+  it("plans nothing when the floating pool already covers the cost", () => {
+    const state = mainPhase();
+    const alice = state.players[0]!;
+    giveLands(state, alice.id, "island", 3);
+    alice.manaPool = { U: 3 };
+
+    const plan = planManaPayment(state, alice.id, { generic: 2, colors: { U: 1 } });
+    expect(plan).toEqual({ paid: true, taps: [] });
+  });
+
+  it("plans nothing at all for a cost that cannot be met", () => {
+    // Not a partial plan: nothing is tapped for an unaffordable spell, so
+    // lighting up half the board would promise something that won't happen.
+    const state = mainPhase();
+    const alice = state.players[0]!;
+    giveLands(state, alice.id, "island", 2);
+
+    const plan = planManaPayment(state, alice.id, { generic: 4, colors: { U: 2 } });
+    expect(plan).toEqual({ paid: false, taps: [] });
+  });
+
+  it("changes nothing - not the lands, not the pool", () => {
+    const state = mainPhase();
+    const alice = state.players[0]!;
+    const islands = giveLands(state, alice.id, "island", 4);
+
+    planManaPayment(state, alice.id, { generic: 1, colors: { U: 1 } });
+
+    expect(islands.every((l) => !l.tapped)).toBe(true);
+    expect(alice.manaPool).toEqual({});
+  });
+
+  it("reaches for the colour the cost actually needs", () => {
+    const state = mainPhase();
+    const alice = state.players[0]!;
+    const forests = giveLands(state, alice.id, "forest", 3);
+    const islands = giveLands(state, alice.id, "island", 1);
+
+    const plan = planManaPayment(state, alice.id, { generic: 1, colors: { U: 1 } });
+
+    expect(plan.paid).toBe(true);
+    const planned = plan.taps.map((t) => t.instanceId);
+    expect(planned).toContain(islands[0]!.instanceId);
+    expect(planned).toHaveLength(2);
+    // The generic pip is covered by whichever forest came first.
+    expect(forests.some((f) => planned.includes(f.instanceId))).toBe(true);
+  });
+
+  it("reports what each land produces, so the colour can be shown", () => {
+    const state = mainPhase();
+    const alice = state.players[0]!;
+    giveLands(state, alice.id, "forest", 2);
+
+    const plan = planManaPayment(state, alice.id, { generic: 0, colors: { G: 2 } });
+
+    expect(plan.taps.map((t) => ({ color: t.color, amount: t.amount }))).toEqual([
+      { color: "G", amount: 1 },
+      { color: "G", amount: 1 },
+    ]);
+  });
+
+  it("ignores lands that are already tapped", () => {
+    const state = mainPhase();
+    const alice = state.players[0]!;
+    const islands = giveLands(state, alice.id, "island", 4);
+    islands[0]!.tapped = true;
+    islands[1]!.tapped = true;
+
+    const plan = planManaPayment(state, alice.id, { generic: 0, colors: { U: 2 } });
+
+    expect(plan.paid).toBe(true);
+    expect(plan.taps.map((t) => t.instanceId)).toEqual([
+      islands[2]!.instanceId,
+      islands[3]!.instanceId,
+    ]);
   });
 });
 
