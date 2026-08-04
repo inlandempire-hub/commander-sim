@@ -28,11 +28,19 @@ import { MulliganOverlay } from "./components/MulliganOverlay.js";
 import { cueForLogLine, play, setSoundEnabled, soundEnabled } from "./sound.js";
 import { CardInspect } from "./components/CardInspect.js";
 import { ManaPipLayer } from "./components/ManaPipLayer.js";
+import { ParticleLayer } from "./components/ParticleLayer.js";
 import { StopSettings } from "./components/StopSettings.js";
+import { burstForFlight } from "./particles.js";
+import {
+  emitParticles,
+  particlesEnabled,
+  particlesSuppressedByMotionPreference,
+  setParticlesEnabled,
+} from "./particleBus.js";
 import { ArtOverridesProvider, type ArtOverridesByPlayer } from "./artContext.js";
 import { FlyingProvider } from "./flightContext.js";
 import { InspectProvider } from "./inspectContext.js";
-import { useCardFlight } from "./useCardFlight.js";
+import { FLIGHT_MS, useCardFlight } from "./useCardFlight.js";
 import { useManaTaps } from "./useManaTaps.js";
 import {
   defaultStops,
@@ -120,6 +128,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   /** A modal spell waiting on you to choose which mode you're casting. */
   const [pendingMode, setPendingMode] = useState<{ ownerId: string; instanceId: string } | null>(null);
   const [sound, setSound] = useState(soundEnabled);
+  const [particles, setParticles] = useState(particlesEnabled);
   /**
    * Something the interface itself wants to say - almost always "you cannot do
    * that, and here is why". Separate from the controller's lastError, which
@@ -156,6 +165,47 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
    * and hooks cannot be conditional.
    */
   const manaPips = useManaTaps(state);
+  /*
+   * Which card journeys have already thrown a burst. Rebuilt from the live
+   * flights each time rather than accumulated, so it stays the size of what is
+   * currently in the air instead of growing by one string per card moved for
+   * the whole game. A flight key carries a sequence number, so a key that has
+   * dropped out of the set can never legitimately come back.
+   */
+  const bursted = useRef<Set<string>>(new Set());
+  const burstTimers = useRef<number[]>([]);
+
+  /*
+   * Ash when a permanent reaches the graveyard, motes when a spell leaves the
+   * stack - both worked out from the same measurements that decide which cards
+   * physically travel (see flight.ts), rather than from the engine. The client
+   * is never told a creature died; it notices one moved.
+   */
+  useEffect(() => {
+    for (const flight of flights) {
+      if (bursted.current.has(flight.key)) continue;
+      const scheduled = burstForFlight(flight, FLIGHT_MS);
+      if (!scheduled) continue;
+      if (scheduled.delayMs <= 0) {
+        emitParticles(scheduled.burst);
+        continue;
+      }
+      const timer = window.setTimeout(() => {
+        burstTimers.current = burstTimers.current.filter((id) => id !== timer);
+        emitParticles(scheduled.burst);
+      }, scheduled.delayMs);
+      burstTimers.current.push(timer);
+    }
+    bursted.current = new Set(flights.map((flight) => flight.key));
+  }, [flights]);
+
+  useEffect(
+    () => () => {
+      for (const timer of burstTimers.current) window.clearTimeout(timer);
+      burstTimers.current = [];
+    },
+    [],
+  );
 
   const changeStops = (next: StopPreferences) => {
     setStops(next);
@@ -208,6 +258,20 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     });
     if (pass) controller.passPriority(priorityPlayerId);
   }, [state, controller, pendingTarget, stops, fullControl, showStops]);
+
+  /*
+   * A noise when the game refuses something.
+   *
+   * The sound module has had an "error" cue since sound was added and nothing
+   * ever played it - every other cue is picked off a log line, and a refusal
+   * never reaches the log, because nothing happened. Being told no is exactly
+   * the moment a cue earns its place: the message appears in the middle of the
+   * table and it is easy to click straight past it.
+   */
+  const refusal = lastError ?? notice;
+  useEffect(() => {
+    if (refusal) play("error");
+  }, [refusal]);
 
   if (!state) {
     return (
@@ -635,6 +699,39 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           >
             {sound ? "Sound on" : "Sound off"}
           </button>
+          <button
+            type="button"
+            className="table__sound"
+            disabled={particlesSuppressedByMotionPreference()}
+            title={
+              particlesSuppressedByMotionPreference()
+                ? "Your system is set to reduce motion, so particles stay off"
+                : particles
+                  ? "Particle effects on - click to turn them off"
+                  : "Particle effects off - click to turn them on"
+            }
+            onClick={() => {
+              const next = !particles;
+              setParticles(next);
+              setParticlesEnabled(next);
+              // Fires a burst as the confirmation, since the whole point of the
+              // setting is something you have to see to judge.
+              if (next) {
+                emitParticles({
+                  kind: "mana-absorb",
+                  x: window.innerWidth / 2,
+                  y: window.innerHeight / 2,
+                  color: "#7fce6c",
+                });
+              }
+            }}
+          >
+            {particlesSuppressedByMotionPreference()
+              ? "Effects off (system)"
+              : particles
+                ? "Effects on"
+                : "Effects off"}
+          </button>
           <a className="table__link" href="?mode=deck">
             Deck builder
           </a>
@@ -773,6 +870,12 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             the pool in the rail is already correct before the first one
             arrives. */}
         <ManaPipLayer pips={manaPips} />
+
+        {/* Mana landing in the pool, sparks off a creature taking damage, ash
+            where a permanent hit the graveyard. One canvas for all of it, and
+            nothing here is ever the only thing reporting an event - see the
+            note at the top of particles.ts. */}
+        <ParticleLayer />
 
         {/* Both halves of a two-click decision, drawn as a line from the card
             that is waiting on you to wherever you are pointing. Targeting wins

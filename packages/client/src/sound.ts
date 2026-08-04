@@ -41,6 +41,14 @@ const CUES: Record<Cue, Note[]> = {
   error: [{ from: 200, to: 160, length: 0.18, type: "square", gain: 0.05 }],
 };
 
+/**
+ * Every cue that exists, so a test can check each one has something that plays
+ * it. That is not busywork: the "land" cue sat here unheard for weeks because
+ * the engine logged no line for a land drop, and nothing anywhere would have
+ * told us. A sound that is never played looks exactly like a sound that works.
+ */
+export const CUE_NAMES = Object.keys(CUES) as Cue[];
+
 const STORAGE_KEY = "mtg-commander-sim.sound";
 
 let context: AudioContext | undefined;
@@ -120,6 +128,10 @@ export function cueForLogLine(line: string): Cue | undefined {
   if (text.includes("damage")) return "damage";
   if (text.includes("attacks with")) return "attack";
   if (text.includes("draws")) return "draw";
+  // Only lands are "played" rather than cast, so this cannot catch a spell.
+  // The engine had no line for a land drop at all until 2026-08-04, which is
+  // why the land cue below existed for weeks without ever being heard.
+  if (text.includes(" plays ")) return "land";
   if (text.includes("resolves")) return "card";
   return undefined;
 }

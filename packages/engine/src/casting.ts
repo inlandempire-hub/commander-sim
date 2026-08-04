@@ -150,6 +150,19 @@ export function playLand(state: GameState, playerId: string, instanceId: string)
   // enters-the-battlefield trigger fires it like any other permanent would.
   putOntoBattlefield(state, instanceId);
   player.landsPlayedThisTurn += 1;
+  /*
+   * Logged like every other action, which it was not until now.
+   *
+   * Playing a land was the one thing a player could do that left no trace: the
+   * log jumped from one spell to the next with the land drop invisible, and
+   * "did I already play a land this turn?" is a question the log is the natural
+   * place to answer. The client also drives its sound cues off log lines, so a
+   * land going down was silent purely because there was no line to read.
+   *
+   * Before the landfall triggers below, so the log reads in the order things
+   * happened rather than reporting the consequence ahead of the cause.
+   */
+  log(state, `${playerId} plays ${def.name}`);
 
   // Landfall: any permanent this player controls declaring it triggers whenever a land
   // enters the battlefield under their control - not just the land itself.

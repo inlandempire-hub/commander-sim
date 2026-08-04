@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { GameState } from "@mtg-commander-sim/engine";
 import { TAP_SETTLE_MS, diffTapped, tapDelayMs } from "./tapOrder.js";
+import { emitParticles } from "./particleBus.js";
+import { manaColor } from "./particles.js";
 
 /**
  * Making a payment visible.
@@ -17,6 +19,13 @@ import { TAP_SETTLE_MS, diffTapped, tapDelayMs } from "./tapOrder.js";
  *  - a pip of mana leaves each land for its owner's mana readout, so the
  *    payment has a direction and a destination rather than just being a state
  *    the board arrives in.
+ *
+ * The pip also throws a small puff of particles as it leaves the land and a
+ * larger one, in the colour of the mana actually produced, as it arrives at the
+ * pool. Those are timed off the same delays rather than off the animation
+ * finishing, for the reason below: an animation that never runs never reports
+ * itself finished, and a callback that never fires would leave a burst that
+ * never happens rather than one that happens instantly.
  *
  * Neither touches the game. If nothing here ran at all the board would still
  * be correct, just abrupt - which is the standard everything visual in this
@@ -84,6 +93,13 @@ export function useManaTaps(state: GameState | null): ManaPip[] {
   const [pips, setPips] = useState<ManaPip[]>([]);
   const cleared = useRef<number | undefined>(undefined);
   const batch = useRef(0);
+  /**
+   * Timers for the bursts that go off when a pip lands. Held so they can all be
+   * cancelled on unmount - a burst fired into a torn-down page is harmless but
+   * a timer holding a closure over a dead component is not something to leave
+   * lying around, and conceding mid-payment is a real way to get here.
+   */
+  const bursts = useRef<number[]>([]);
 
   useLayoutEffect(() => {
     if (!state) return;
@@ -128,6 +144,31 @@ export function useManaTaps(state: GameState | null): ManaPip[] {
         toY: to.y,
         delay,
       });
+
+      /*
+       * Both ends of the journey, in the colour of the mana this land actually
+       * makes. The puff at the land is deliberately much smaller than the
+       * burst at the pool: a land giving something up should read as quieter
+       * than the pool receiving it.
+       *
+       * The arrival is measured now rather than when it fires. The pool sits in
+       * a rail that does not move during a payment, and a burst that has to
+       * re-find its own destination on a timer is a burst that lands in the
+       * wrong place the one time the layout shifts underneath it.
+       */
+      const tint = manaColor(color);
+      const burstAfter = (ms: number, spec: Parameters<typeof emitParticles>[0]) => {
+        const timer = window.setTimeout(() => {
+          // Forgets itself as it fires, so the list only ever holds bursts that
+          // have not gone off yet rather than growing for the whole game.
+          bursts.current = bursts.current.filter((id) => id !== timer);
+          emitParticles(spec);
+        }, ms);
+        bursts.current.push(timer);
+      };
+
+      burstAfter(delay, { kind: "mana-spark", x: from.x, y: from.y, color: tint });
+      burstAfter(delay + PIP_MS, { kind: "mana-absorb", x: to.x, y: to.y, color: tint });
     }
 
     if (born.length > 0) setPips(born);
@@ -155,7 +196,14 @@ export function useManaTaps(state: GameState | null): ManaPip[] {
     );
   });
 
-  useLayoutEffect(() => () => window.clearTimeout(cleared.current), []);
+  useLayoutEffect(
+    () => () => {
+      window.clearTimeout(cleared.current);
+      for (const timer of bursts.current) window.clearTimeout(timer);
+      bursts.current = [];
+    },
+    [],
+  );
 
   return pips;
 }

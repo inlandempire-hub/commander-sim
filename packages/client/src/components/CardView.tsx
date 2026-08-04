@@ -11,6 +11,7 @@ import { cardArtUrl } from "../cardArt.js";
 import { useArtOverrides } from "../artContext.js";
 import { useIsFlying } from "../flightContext.js";
 import { useInspect } from "../inspectContext.js";
+import { emitParticles } from "../particleBus.js";
 
 const COLOR_CLASS: Record<string, string> = {
   W: "card--W",
@@ -128,12 +129,27 @@ export function CardView({
   const [hit, setHit] = useState<{ amount: number; key: number } | null>(null);
   const lastDamage = useRef(instance.damageMarked);
   const hitCount = useRef(0);
+  const element = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const amount = instance.damageMarked - lastDamage.current;
     lastDamage.current = instance.damageMarked;
     if (amount <= 0) return;
     const key = ++hitCount.current;
     setHit({ amount, key });
+
+    // Sparks off the card, scaled by how hard it was hit. The third and
+    // smallest of the three things saying the same thing here - the flinch and
+    // the floating number both still work with this switched off entirely.
+    const rect = element.current?.getBoundingClientRect();
+    if (rect && rect.width > 0) {
+      emitParticles({
+        kind: "impact",
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        strength: amount,
+      });
+    }
+
     const timer = window.setTimeout(
       () => setHit((current) => (current?.key === key ? null : current)),
       HIT_MS,
@@ -143,6 +159,7 @@ export function CardView({
 
   return (
     <div
+      ref={element}
       /*
        * No Framer Motion on the card itself, deliberately, in either direction.
        *

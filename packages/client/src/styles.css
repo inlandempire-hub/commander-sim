@@ -2187,11 +2187,28 @@ body {
   }
 }
 
-.pip--W { --pip-color: #f4efd8; --pip-glow: rgba(244, 239, 216, 0.75); }
-.pip--U { --pip-color: #79b4ea; --pip-glow: rgba(121, 180, 234, 0.75); }
-.pip--B { --pip-color: #a99ad8; --pip-glow: rgba(169, 154, 216, 0.75); }
-.pip--R { --pip-color: #ef7a5e; --pip-glow: rgba(239, 122, 94, 0.75); }
-.pip--G { --pip-color: #7fce6c; --pip-glow: rgba(127, 206, 108, 0.75); }
+/* The five mana colours used to live here, one rule each. They are set inline
+   from MANA_COLORS in particles.ts now, because the burst of motes a pip turns
+   into when it lands is drawn on a canvas and has to read its colour from
+   JavaScript regardless - and two copies of "what colour is black mana" would
+   eventually have been two different colours. */
+
+/* ---------------------------------------------------------------------------
+   Particles
+   ---------------------------------------------------------------------------
+   One canvas over the whole viewport, sitting just above the flying pips and
+   well below every overlay: a burst should never be drawn on top of a dialog
+   asking you a question. Inert in every sense - no pointer events, no layout,
+   nothing under it can be affected by it. */
+
+.particle-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 65;
+}
 
 /* ---------------------------------------------------------------------------
    Where the game stops and asks you
