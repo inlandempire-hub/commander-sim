@@ -891,10 +891,16 @@ export const TOMAKUL_HONOR_GUARD: CardDefinition = {
 };
 
 /**
- * Real card, but only its Menace keyword is implemented here - it isn't
- * green or white, so it isn't part of either demo deck (color identity
- * would make it illegal in both). Kept purely as an engine test fixture,
- * same rationale as HEALING_SALVE only implementing one of its two modes.
+ * A vanilla 2/3 with Menace, fully represented. It isn't green or white, so it
+ * isn't in either demo deck - colour identity would make it illegal in both -
+ * and it is kept purely as an engine test fixture for Menace.
+ *
+ * This comment used to claim only part of the card was implemented, and
+ * compared it to HEALING_SALVE "only implementing one of its two modes".
+ * Both halves of that were wrong: Alley Strangler's entire Oracle text is the
+ * single word "Menace", and Healing Salve implements both of its modes (the
+ * second approximately - see its own note). Checked against the Scryfall data
+ * 2026-08-05 after the comment misled a reader into repeating it.
  */
 export const ALLEY_STRANGLER: CardDefinition = {
   id: "alley-strangler",
