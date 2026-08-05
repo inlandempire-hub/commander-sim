@@ -58,7 +58,7 @@ export function applyEffect(
       return;
     }
     case "draw": {
-      log(state, `${controllerId} draws ${effect.amount} card${effect.amount === 1 ? "" : "s"}`);
+      // drawCard logs this itself now, so that the draw step logs too.
       drawCard(state, controllerId, effect.amount);
       return;
     }

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { makeTestGame } from "../testHelpers.js";
-import { createCardInstance } from "../state.js";
-import { putOntoBattlefield } from "../permanents.js";
+import { createCardInstance, createGameState } from "../state.js";
+import { matchesWatchFor, putOntoBattlefield } from "../permanents.js";
 import { resolveTopOfStack } from "../stack.js";
 import { applyEffect } from "../effects.js";
-import type { GameState } from "../types.js";
+import { TEST_CARD_DEFINITIONS } from "../cards/testCards.js";
+import type { CardDefinition, GameState } from "../types.js";
 
 /**
  * "Whenever another creature enters, you gain 1 life" and its relatives.
@@ -182,5 +183,93 @@ describe("creatures watching other creatures enter", () => {
     enters(state, "kor-celebrant", alice.id);
 
     expect(alice.life).toBe(before + 2);
+  });
+});
+
+/**
+ * Not every card of this shape watches creatures. Tanglespan Lookout is
+ * "whenever an Aura you control enters, draw a card", and was written as an
+ * enters-the-battlefield draw - so it drew on its own arrival, which the real
+ * card does not do, and never once drew for an Aura.
+ */
+describe("watchers that look for something other than a creature", () => {
+  it("draws nothing when Tanglespan Lookout itself arrives", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!;
+    const before = alice.hand.length;
+
+    enters(state, "tanglespan-lookout", alice.id);
+
+    expect(alice.hand.length).toBe(before);
+  });
+
+  it("ignores a creature arriving, because it watches Auras", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!;
+    enters(state, "tanglespan-lookout", alice.id);
+    const before = alice.hand.length;
+
+    enters(state, "eager-cadet", alice.id);
+
+    expect(alice.hand.length).toBe(before);
+  });
+
+  it("draws when an Aura enters", () => {
+    // There is no Aura in the pool yet, so one is defined here - which is the
+    // point of the filter: the card is dormant today and works the day an Aura
+    // is added, rather than needing to be found and fixed again then.
+    const state = createGameState(["alice", "bob"], {
+      ...TEST_CARD_DEFINITIONS,
+      "test-aura": {
+        id: "test-aura",
+        name: "Test Aura",
+        types: ["Enchantment"],
+        subtypes: ["Aura"],
+        manaCost: { generic: 1, colors: {} },
+        colorIdentity: ["W"],
+        tier: "vanilla",
+      },
+    });
+    const alice = state.players[0]!;
+    // A test game starts with an empty library, and drawing from an empty
+    // library is a no-op - so without this the assertion passes or fails for
+    // reasons that have nothing to do with the trigger.
+    createCardInstance(state, "eager-cadet", alice.id, "library");
+    enters(state, "tanglespan-lookout", alice.id);
+    const before = alice.hand.length;
+
+    enters(state, "test-aura", alice.id);
+
+    expect(alice.hand.length).toBe(before + 1);
+  });
+});
+
+describe("matchesWatchFor", () => {
+  const creature: CardDefinition = {
+    id: "c",
+    name: "C",
+    types: ["Creature"],
+    subtypes: ["Soldier"],
+    colorIdentity: [],
+    tier: "vanilla",
+  };
+
+  it("matches everything when no filter is given", () => {
+    expect(matchesWatchFor(undefined, creature)).toBe(true);
+  });
+
+  it("matches on card type", () => {
+    expect(matchesWatchFor({ type: "Creature" }, creature)).toBe(true);
+    expect(matchesWatchFor({ type: "Enchantment" }, creature)).toBe(false);
+  });
+
+  it("matches on subtype", () => {
+    expect(matchesWatchFor({ subtype: "Soldier" }, creature)).toBe(true);
+    expect(matchesWatchFor({ subtype: "Aura" }, creature)).toBe(false);
+  });
+
+  it("requires both when both are given", () => {
+    expect(matchesWatchFor({ type: "Creature", subtype: "Soldier" }, creature)).toBe(true);
+    expect(matchesWatchFor({ type: "Enchantment", subtype: "Soldier" }, creature)).toBe(false);
   });
 });

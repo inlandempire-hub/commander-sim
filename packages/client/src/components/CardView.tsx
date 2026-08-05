@@ -64,6 +64,17 @@ export interface CardViewProps {
   attacking?: boolean;
   /** A smaller lean: this creature has stepped up to block. */
   blocking?: boolean;
+  /** Combat damage is being dealt and this creature is in the fight - it drives forward and recoils. */
+  clashing?: boolean;
+  /**
+   * Where this creature stands in the attack you are declaring: "eligible" for
+   * one you could still send (blue), "chosen" for one that is going (orange).
+   *
+   * Separate from `selected` on purpose. Both sides of a combat used to share
+   * the one gold outline, so at the moment you most need to tell your attackers
+   * from their blockers, the board drew them identically.
+   */
+  attackChoice?: "eligible" | "chosen";
   /**
    * Called with this card's definition id on hover, and null on leave, to
    * drive the detail panel. The owner comes along so the panel can show that
@@ -90,6 +101,8 @@ export function CardView({
   willTap,
   attacking,
   blocking,
+  clashing,
+  attackChoice,
   onHover,
   badge,
 }: CardViewProps) {
@@ -196,6 +209,8 @@ export function CardView({
         willTap ? "card--will-tap" : "",
         attacking ? "card--attacking" : "",
         blocking ? "card--blocking" : "",
+        clashing ? "card--clash" : "",
+        attackChoice ? `card--attack-${attackChoice}` : "",
         hit ? "card--hit" : "",
         instance.damageMarked > 0 ? "card--damaged" : "",
         flying ? "card--in-transit" : "",

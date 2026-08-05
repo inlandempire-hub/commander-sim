@@ -201,15 +201,48 @@ body {
 }
 
 /*
- * The commander's own place, on the right of each board.
+ * The right-hand column of a board: the command zone, and the gap under it.
+ *
+ * The direction and the two flex ratios are copied from .side__zones and its
+ * rows on purpose. That is what makes the command zone exactly as tall as the
+ * creature row and the controls exactly as tall as the hand row, on both seats,
+ * at every window size - rather than two columns that merely look aligned until
+ * something changes height.
+ */
+.side__right {
+  flex: 0 0 var(--rail-w);
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 4px;
+}
+
+.side--flipped .side__right {
+  flex-direction: column;
+}
+
+/* Matches .row--base. */
+.side__controls {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/*
+ * The commander's own place.
  *
  * It is the one card in Magic that always has somewhere to be: it starts here,
  * it can be cast from here every turn of the game, and it comes back here when
  * it dies. Everything else in the left rail is a pile you occasionally look
  * through; this is a card you play off, so it gets shown as a card.
+ *
+ * Matches .row--creatures.
  */
 .command {
-  flex: 0 0 var(--rail-w);
+  flex: 1.25 1 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -480,6 +513,14 @@ body {
   margin-top: auto;
 }
 
+/* When there is a concede button, it is the thing pinned to the bottom and the
+   piles simply follow it. Otherwise the rail's variable middle - commander
+   damage rows appear as the game goes on - would slide the concede button down
+   over the course of a game, which is the one thing it must not do. */
+.concede + .rail__piles {
+  margin-top: 0;
+}
+
 .pile__top {
   position: relative;
   background: transparent;
@@ -719,6 +760,95 @@ body {
   max-height: none;
 }
 
+/*
+ * The live stack: one readable row per waiting spell, topmost first.
+ *
+ * The overlapping pile above is kept for the resolved card, where the picture
+ * is the point. Here it is not - you are deciding whether to respond, and that
+ * needs the text. Scrolls rather than shrinking, because three spells deep
+ * should not make all three illegible.
+ */
+.stack__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.stack-entry {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--border);
+}
+
+/* Only while a counterspell is looking for something to point at. */
+.stack-entry--selectable {
+  cursor: pointer;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.stack-entry__art {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.stack-entry__art--none {
+  border: 1px dashed var(--border);
+}
+
+.stack-entry__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.stack-entry__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.stack-entry__name {
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.stack-entry__cost {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.stack-entry__type {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+
+.stack-entry__rules {
+  margin: 2px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.stack-entry__rules--none {
+  font-style: italic;
+  color: var(--text-dim);
+}
+
 /* The last-played face, bounded on both axes like the hover panel above it,
    so the two card boxes render a card the same way and to the same size. */
 .stack__cards--resolved .face {
@@ -729,10 +859,10 @@ body {
   margin: 0 auto;
 }
 
-/* In the rail now, so: a stack of full-width buttons rather than a row of
-   them, and text that fits in 132px without being cut. */
+/* A stack of full-width buttons rather than a row of them, and text that fits
+   in the column's 132px without being cut. */
 .action-bar {
-  flex: 0 0 auto;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -757,6 +887,12 @@ body {
 
 .action-bar__go:hover {
   filter: brightness(1.1);
+}
+
+/* The one pass a turn that gives up everything you had left to do. Warmer than
+   the ordinary pass so the change of label is not the only thing marking it. */
+.action-bar__go--end-turn {
+  background: var(--attack, #c9743f);
 }
 
 /* Whose priority it is, under the verb rather than in brackets after it -
@@ -823,6 +959,10 @@ body {
   --hover: 0px;
   --zoom: 1;
   --nudge: 0px;
+  /* The clash: a one-shot drive into the opponent when combat damage lands.
+     Its own variable rather than borrowing --lunge, so a creature can hold its
+     combat stance and still throw a punch out of it. */
+  --clash: 0px;
 
   position: relative;
   flex: 0 0 auto;
@@ -838,8 +978,8 @@ body {
   cursor: pointer;
   user-select: none;
   font-size: 11px;
-  transform: translate(var(--nudge), calc(var(--lunge) + var(--hover))) rotate(var(--tilt))
-    scale(var(--zoom));
+  transform: translate(var(--nudge), calc(var(--lunge) + var(--clash) + var(--hover)))
+    rotate(var(--tilt)) scale(var(--zoom));
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
   transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
 }
@@ -1041,6 +1181,61 @@ body {
   box-shadow: 0 0 0 2px var(--danger), 0 0 18px rgba(255, 91, 106, 0.55);
 }
 
+/*
+ * The clash: combat damage being dealt, shown as the fight it is.
+ *
+ * Attackers and blockers already hold a stance leaning towards the centre
+ * line, but the moment damage was actually dealt had no motion of its own -
+ * numbers changed on the cards and that was all. Everything in combat now
+ * drives forward together and recoils, so the exchange reads as one event
+ * rather than as several separate arithmetic updates.
+ *
+ * Both boards drive towards the middle, which is opposite directions on screen.
+ */
+@property --clash {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes card-clash {
+  0% { --clash: 0px; }
+  32% { --clash: -24px; }
+  58% { --clash: 7px; }
+  100% { --clash: 0px; }
+}
+
+@keyframes card-clash-flipped {
+  0% { --clash: 0px; }
+  32% { --clash: 24px; }
+  58% { --clash: -7px; }
+  100% { --clash: 0px; }
+}
+
+.card--clash {
+  animation: card-clash 0.42s cubic-bezier(0.3, 0.85, 0.35, 1);
+}
+
+.side--flipped .card--clash {
+  animation: card-clash-flipped 0.42s cubic-bezier(0.3, 0.85, 0.35, 1);
+}
+
+/* A creature that both clashed and took damage wants both animations. The
+   `animation` shorthand in either rule alone would silently discard the other,
+   so the combination is spelled out - which is also the common case, since
+   most creatures in a fight are hit by it. */
+.card--hit.card--clash {
+  animation:
+    card-hit 0.4s ease-in-out,
+    card-clash 0.42s cubic-bezier(0.3, 0.85, 0.35, 1);
+}
+
+.side--flipped .card--hit.card--clash {
+  animation:
+    card-hit 0.4s ease-in-out,
+    card-clash-flipped 0.42s cubic-bezier(0.3, 0.85, 0.35, 1);
+}
+
 /* A copy of this card is currently flying towards this zone. It keeps its
    place in the layout - that is what the flight measured to know where it was
    going - but stays out of sight until the copy lands on top of it. */
@@ -1050,6 +1245,27 @@ body {
 
 .card--selected {
   outline: 3px solid var(--gold);
+  z-index: 2;
+}
+
+/*
+ * Declaring attackers, in two colours.
+ *
+ * Blue is an offer - every creature that could legally be sent, which is not
+ * the same as every untapped creature: summoning sickness, Defender and a
+ * creature already tapped all take one out, and previously the only way to find
+ * that out was to click and be told no. Orange is a commitment. The pair also
+ * says how many you have left to choose from without counting anything.
+ */
+.card--attack-eligible {
+  outline: 3px solid #4f9ae0;
+  box-shadow: 0 0 12px rgba(79, 154, 224, 0.45);
+  z-index: 2;
+}
+
+.card--attack-chosen {
+  outline: 3px solid #ef8a3c;
+  box-shadow: 0 0 14px rgba(239, 138, 60, 0.55);
   z-index: 2;
 }
 
@@ -1749,6 +1965,29 @@ body {
   fill: var(--accent);
 }
 
+/*
+ * A block that has been declared, rather than one being chosen.
+ *
+ * Solid instead of dashed, and one layer down, so it reads as settled: the
+ * dashes belong to the line that is still following your cursor. Quieter too -
+ * these stay on screen for the whole of combat, and at full strength several
+ * of them across the table would drown out the cards underneath.
+ */
+.arrow--held {
+  z-index: 64;
+}
+
+.arrow--held .arrow__line {
+  stroke-dasharray: none;
+  stroke-width: 2.5;
+  opacity: 0.72;
+}
+
+.arrow--held .arrow__from,
+.arrow--held .arrow__to {
+  opacity: 0.72;
+}
+
 /* Someone who has asked their system not to animate things gets the state
    changes without the movement. Card flights are skipped in JS as well. */
 @media (prefers-reduced-motion: reduce) {
@@ -1998,22 +2237,35 @@ body {
   filter: saturate(0.8);
 }
 
-/* Quiet, and last in the bar, because it ends the game. */
-.action-bar__concede {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-dim);
+/*
+ * Concede: red, filled, and in the same place from the first turn to the last.
+ *
+ * It used to be a quiet outline at the end of the action bar, which put it
+ * directly under whichever confirm button happened to be showing - so the
+ * button that ends the game moved around, and moved *to* where your cursor had
+ * just been. It is now pinned above the piles in the rail, where nothing else
+ * ever appears, and it looks like what it does.
+ */
+.concede {
+  flex: 0 0 auto;
+  /* Anchored to the bottom of the rail, directly above the piles - see the
+     .concede + .rail__piles rule. */
+  margin-top: auto;
+  width: 100%;
+  background: var(--danger);
+  border: none;
+  color: #fff;
   border-radius: 6px;
-  padding: 5px 12px;
+  padding: 6px 8px;
   font-family: inherit;
   font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  margin-left: 4px;
 }
 
-.action-bar__concede:hover {
-  border-color: var(--danger);
-  color: var(--danger);
+.concede:hover {
+  filter: brightness(1.12);
 }
 
 /* ---------------------------------------------------------------------------

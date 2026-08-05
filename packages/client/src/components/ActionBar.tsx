@@ -1,23 +1,23 @@
-import type { GameState } from "@mtg-commander-sim/engine";
+import { passWouldEndTurn, type GameState } from "@mtg-commander-sim/engine";
 
 /**
- * The buttons, in the left rail under the life total.
+ * The buttons that act on the game, in the column under the command zone.
  *
- * They used to sit in a strip between the two boards, which cost 58px of
- * height across the full width of the table for one row of buttons - and once
- * the stack moved to the sidebar that strip had nothing else in it. The rail
- * already exists on both halves and already holds the things that are true of
- * a player rather than of a card, so the controls moved into it and the strip
- * went away.
+ * They have moved twice. First from a full-width strip between the two boards,
+ * which cost 58px of table height for one row of buttons; then into the left
+ * rail; and now into the gap beside the hand, which the command zone left
+ * behind when it stopped spanning the whole height of the board. That gap is
+ * the best of the three: it is level with your hand, which is where your eyes
+ * already are when it is your turn to act.
  *
  * Only the bottom seat gets one. In bot mode that is the only seat you drive;
  * in hotseat you drive both from one screen, and a button that jumped between
- * the top and bottom rail depending on whose decision it was would be worse
- * than one that is always in the same place.
+ * the top and bottom of the table depending on whose decision it was would be
+ * worse than one that is always in the same place.
  *
- * Anything wordy - a prompt explaining a two-click choice, an error - is not
- * here. See TablePrompt: those need room to be read, and reserving that room
- * permanently in a 132px column is exactly the trade this change undid.
+ * Concede is deliberately not here - see ConcedeButton. Anything wordy - a
+ * prompt explaining a two-click choice, an error - is not here either; see
+ * TablePrompt, because those need room to be read.
  */
 
 export interface ActionBarProps {
@@ -29,8 +29,6 @@ export interface ActionBarProps {
   onConfirmBlockers: () => void;
   /** False when priority belongs to a seat this client doesn't drive (the bot, or the opponent over the network). */
   canActForPriorityPlayer: boolean;
-  /** Give up. Asks first - it ends the game and cannot be taken back. */
-  onConcede: () => void;
 }
 
 export function ActionBar({
@@ -41,7 +39,6 @@ export function ActionBar({
   showConfirmBlockers,
   onConfirmBlockers,
   canActForPriorityPlayer,
-  onConcede,
 }: ActionBarProps) {
   const priorityPlayerId = state.players[state.priorityPlayerIndex]?.id ?? "?";
   const gameOver = state.players.find((p) => p.hasLost);
@@ -55,6 +52,15 @@ export function ActionBar({
       </div>
     );
   }
+
+  /*
+   * "Pass" almost always, "End Turn" when this click is the one that hands the
+   * turn over. Passing priority is the most-clicked button in the game and it
+   * is also the one whose consequences vary most: usually it moves you on a
+   * step, and once a turn it gives up everything you had left to do. Saying so
+   * on the button is the cheapest possible warning.
+   */
+  const endsTurn = passWouldEndTurn(state, priorityPlayerId);
 
   return (
     <div className="action-bar">
@@ -76,8 +82,16 @@ export function ActionBar({
         </button>
       )}
       {canActForPriorityPlayer ? (
-        <button className="action-bar__go" onClick={onPassPriority}>
-          Pass priority
+        <button
+          className={`action-bar__go ${endsTurn ? "action-bar__go--end-turn" : ""}`.trim()}
+          title={
+            endsTurn
+              ? "Pass here and your turn is over"
+              : "Pass priority - the game moves on to the next step"
+          }
+          onClick={onPassPriority}
+        >
+          {endsTurn ? "End Turn" : "Pass"}
           <span className="action-bar__who">{priorityPlayerId}</span>
         </button>
       ) : (
@@ -85,20 +99,32 @@ export function ActionBar({
         // silently stole the bot's turn before it could act.
         <span className="action-bar__waiting">Waiting for {priorityPlayerId}...</span>
       )}
-
-      {/* Last, and visually quiet, because it ends the game. It confirms first
-          for the same reason. Without it a lost position has to be played out
-          to the last point of damage, or the tab closed. */}
-      <button
-        type="button"
-        className="action-bar__concede"
-        title="Give up and end the game"
-        onClick={() => {
-          if (window.confirm("Concede the game? This cannot be undone.")) onConcede();
-        }}
-      >
-        Concede
-      </button>
     </div>
+  );
+}
+
+/**
+ * Give up.
+ *
+ * Its own component in its own fixed place - directly above the library and
+ * graveyard, in the same spot from the first turn to the last. It used to sit
+ * at the end of the action bar, which meant it moved every time a confirm
+ * button appeared or disappeared beside it: a button that ends the game
+ * outright should never be somewhere your cursor might arrive by accident.
+ *
+ * Red and filled rather than quiet, for the same reason. It confirms first.
+ */
+export function ConcedeButton({ onConcede }: { onConcede: () => void }) {
+  return (
+    <button
+      type="button"
+      className="concede"
+      title="Give up and end the game"
+      onClick={() => {
+        if (window.confirm("Concede the game? This cannot be undone.")) onConcede();
+      }}
+    >
+      Concede
+    </button>
   );
 }

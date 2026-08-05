@@ -63,6 +63,28 @@ export function advanceStep(state: GameState): void {
   } while (shouldSkipCurrentStep(state));
 }
 
+/**
+ * Whether this player passing priority right now gives up the rest of their
+ * turn - which is what the pass button says when it reads "End Turn".
+ *
+ * Deliberately *not* "this pass advances the step". Priority starts with the
+ * active player, so on your own end step your pass is never the one that moves
+ * the game on; your opponent's is. Labelling by that rule would mean the button
+ * never said "End Turn" on your own turn at all, which is the only turn you
+ * would ever want to be warned about.
+ *
+ * What it does say is the thing a player actually cares about: the end step is
+ * the last step of your turn that stops for priority (cleanup is always
+ * skipped), so once you pass here you will take no further action this turn.
+ * An opponent may still respond - and if they put something on the stack the
+ * label goes back to "Pass", because then the click resolves that instead.
+ */
+export function passWouldEndTurn(state: GameState, playerId: string): boolean {
+  if (state.players[state.activePlayerIndex]?.id !== playerId) return false;
+  if (state.stack.length > 0) return false;
+  return state.phase === "ending" && state.step === "end";
+}
+
 function advanceStepOnce(state: GameState): void {
   const idx = currentIndex(state);
   const isLastStep = idx === TURN_SEQUENCE.length - 1;

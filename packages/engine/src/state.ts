@@ -167,8 +167,28 @@ export function shuffleLibrary(state: GameState, playerId: string): void {
   }
 }
 
-export function drawCard(state: GameState, playerId: string, amount = 1): void {
+/**
+ * Draws cards, and says so.
+ *
+ * The log line lives here rather than at each call site because the client
+ * drives its sound cues off the log, and the draw step - by far the most
+ * common draw in a game - was the one call site that logged nothing. The cue
+ * existed, the code to play it existed, and it never once fired for a normal
+ * turn's draw. Anything that draws now gets both the line and the sound
+ * without having to remember to ask.
+ *
+ * `silent` is for the draws that are setup rather than events: the opening
+ * hand and a mulligan's redraw, which would otherwise open every game with
+ * "Deadly Donny draws 7 cards" before the log has anything to say.
+ */
+export function drawCard(
+  state: GameState,
+  playerId: string,
+  amount = 1,
+  options: { silent?: boolean } = {},
+): void {
   const player = requirePlayer(state, playerId);
+  let drawn = 0;
   for (let i = 0; i < amount; i++) {
     const top = player.library.shift();
     if (!top) {
@@ -178,6 +198,10 @@ export function drawCard(state: GameState, playerId: string, amount = 1): void {
     }
     top.zone = "hand";
     player.hand.push(top);
+    drawn += 1;
+  }
+  if (drawn > 0 && !options.silent) {
+    log(state, `${playerId} draws ${drawn} card${drawn === 1 ? "" : "s"}`);
   }
 }
 

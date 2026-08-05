@@ -16,7 +16,7 @@ import {
 import type { GameController } from "./gameController.js";
 import { PlayerBoard } from "./components/PlayerBoard.js";
 import { StackView } from "./components/StackView.js";
-import { ActionBar } from "./components/ActionBar.js";
+import { ActionBar, ConcedeButton } from "./components/ActionBar.js";
 import { CardDetail } from "./components/CardDetail.js";
 import { CardPicker, ModePicker } from "./components/CardPicker.js";
 import { GameLog } from "./components/GameLog.js";
@@ -24,6 +24,7 @@ import { CardFlightLayer } from "./components/CardFlightLayer.js";
 import { TableBeat } from "./components/TableBeat.js";
 import { TablePrompt } from "./components/TablePrompt.js";
 import { TargetArrow } from "./components/TargetArrow.js";
+import { BlockLines } from "./components/BlockLines.js";
 import { MulliganOverlay } from "./components/MulliganOverlay.js";
 import { cueForLogLine, play, setSoundEnabled, soundEnabled } from "./sound.js";
 import { CardInspect } from "./components/CardInspect.js";
@@ -623,6 +624,37 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     controller.passPriority(priorityPlayerId);
   }
 
+  /*
+   * Who is blocking what, from both halves of the story.
+   *
+   * `blockerAssignments` is what this client has picked and not yet confirmed;
+   * `state.blockers` is what the engine has actually recorded. Reading only the
+   * first meant every sign of a block vanished the instant it was declared -
+   * the badges, the highlights and the lines - because confirming clears the
+   * client's copy. And declaring blockers deliberately does not pass priority,
+   * so the very next thing that happens is an instant window in which the board
+   * showed no evidence that a block had been set up at all.
+   *
+   * The engine clears its own map at end of combat, so nothing here has to
+   * remember to stop drawing them.
+   */
+  const declaredBlocks: Record<string, string> = { ...state.blockers, ...blockerAssignments };
+
+  /**
+   * Every creature that could legally be declared as an attacker right now.
+   *
+   * Asked of the engine rather than re-derived, so the blue highlight and the
+   * refusal you get for clicking the wrong card can never disagree.
+   */
+  const eligibleAttackerIds =
+    isDeclareAttackersStep && controller.canControlPlayer(activePlayer.id)
+      ? new Set(
+          activePlayer.battlefield
+            .filter((c) => attackProblem(state, activePlayer.id, c.instanceId) === null)
+            .map((c) => c.instanceId),
+        )
+      : new Set<string>();
+
   /** Shared by both sides, so the only difference between them is `flipped`. */
   const boardProps = (player: (typeof state.players)[number]) => ({
     player,
@@ -631,9 +663,10 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     isActivePlayer: player.id === activePlayer.id,
     hasPriority: player.id === priorityPlayerId,
     selectedAttackerIds: player.id === activePlayer.id ? selectedAttackerIds : new Set<string>(),
+    eligibleAttackerIds: player.id === activePlayer.id ? eligibleAttackerIds : new Set<string>(),
     attackingIds: new Set(Object.keys(state!.attackers)),
     selectedBlockerSourceId,
-    blockerAssignments,
+    blockerAssignments: declaredBlocks,
     onHandCardClick: (instanceId: string) => handleHandCardClick(player.id, instanceId),
     onCommandCardClick: (instanceId: string) => handleCommandCardClick(player.id, instanceId),
     onBattlefieldCardClick: (instanceId: string) => handleBattlefieldCardClick(player.id, instanceId),
@@ -745,10 +778,9 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           <PlayerBoard key={player.id} flipped {...boardProps(player)} />
         ))}
 
-        {/* The controls ride in the bottom seat's rail now - see ActionBar.
-            The strip that used to hold them was 58px of full-width table for
-            one row of buttons, and once the stack moved to the sidebar it had
-            nothing else left in it. */}
+        {/* The controls ride in the gap under the bottom seat's command zone -
+            see ActionBar. Concede goes in the rail instead, above the piles,
+            because it must never move. */}
         <PlayerBoard
           key={bottomPlayer.id}
           {...boardProps(bottomPlayer)}
@@ -761,9 +793,9 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
               showConfirmBlockers={isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)}
               onConfirmBlockers={handleConfirmBlockers}
               canActForPriorityPlayer={canActForPriorityPlayer}
-              onConcede={handleConcede}
             />
           }
+          concede={<ConcedeButton onConcede={handleConcede} />}
         />
 
         <TablePrompt
@@ -880,6 +912,11 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             nothing here is ever the only thing reporting an event - see the
             note at the top of particles.ts. */}
         <ParticleLayer />
+
+        {/* Every block that has been declared, held on screen until combat
+            damage clears them. Under the live arrow, so a block being chosen
+            still reads as the thing in progress. */}
+        <BlockLines assignments={declaredBlocks} />
 
         {/* Both halves of a two-click decision, drawn as a line from the card
             that is waiting on you to wherever you are pointing. Targeting wins

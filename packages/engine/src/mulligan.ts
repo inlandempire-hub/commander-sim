@@ -81,7 +81,7 @@ export function takeMulligan(state: GameState, playerId: string): void {
     player.library.push(card);
   }
   shuffleLibrary(state, playerId);
-  drawCard(state, playerId, OPENING_HAND_SIZE);
+  drawCard(state, playerId, OPENING_HAND_SIZE, { silent: true });
 
   mulligan.mulligansTaken += 1;
   log(state, `${playerId} takes a mulligan to ${OPENING_HAND_SIZE - mulligan.mulligansTaken}`);

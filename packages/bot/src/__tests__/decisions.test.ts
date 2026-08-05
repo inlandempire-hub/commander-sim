@@ -47,18 +47,35 @@ describe("main phase: land drops", () => {
 });
 
 describe("main phase: casting", () => {
-  it("taps a land toward a spell it cannot yet pay for", () => {
+  it("casts straight away with an empty pool and lets the engine tap for it", () => {
+    // It used to return one tap-a-land action per decision and only cast on the
+    // third, which on a 450ms timer meant three visible pauses before anything
+    // happened. Every path that applies a bot action now auto-taps, the same as
+    // a human's click, so the tapping step is gone.
     const state = game();
-    const forest = createCardInstance(state, "forest", BOT, "battlefield");
-    createCardInstance(state, "grizzly-bears", BOT, "hand"); // {1}{G}
     createCardInstance(state, "forest", BOT, "battlefield");
+    createCardInstance(state, "forest", BOT, "battlefield");
+    const bears = createCardInstance(state, "grizzly-bears", BOT, "hand"); // {1}{G}
+    state.players[0]!.landsPlayedThisTurn = 1;
+    expect(state.players[0]!.manaPool).toEqual({});
+
+    expect(decideAction(state, BOT)).toEqual({
+      kind: "castSpell",
+      instanceId: bears.instanceId,
+      targets: [],
+      fromCommandZone: false,
+    });
+  });
+
+  it("still will not try to cast what it has no sources for", () => {
+    // The tapping step is gone, so `couldAfford` is now the only thing standing
+    // between the bot and an illegal cast the engine would throw on.
+    const state = game();
+    createCardInstance(state, "forest", BOT, "battlefield"); // one source, needs two
+    createCardInstance(state, "grizzly-bears", BOT, "hand"); // {1}{G}
     state.players[0]!.landsPlayedThisTurn = 1;
 
-    const action = decideAction(state, BOT);
-    expect(action.kind).toBe("activateAbility");
-    if (action.kind === "activateAbility") {
-      expect([forest.instanceId, state.players[0]!.battlefield[1]!.instanceId]).toContain(action.instanceId);
-    }
+    expect(decideAction(state, BOT).kind).not.toBe("castSpell");
   });
 
   it("casts once the mana is floating", () => {

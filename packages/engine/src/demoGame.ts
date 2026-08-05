@@ -186,7 +186,7 @@ export interface GameOptions {
 }
 
 function dealOpeningHands(state: GameState, playerIds: string[], options: GameOptions): void {
-  for (const id of playerIds) drawCard(state, id, OPENING_HAND_SIZE);
+  for (const id of playerIds) drawCard(state, id, OPENING_HAND_SIZE, { silent: true });
   if (options.mulligan) state.mulligan = createMulliganState(playerIds);
 }
 

@@ -163,7 +163,7 @@ export type Effect =
 export interface TriggeredAbility {
   /**
    * `enters-battlefield`, `attacks` and `dies` all watch the card the ability
-   * is printed on. `landfall` and `creature-enters` watch the battlefield.
+   * is printed on. `landfall` and `permanent-enters` watch the battlefield.
    *
    * The distinction matters and was got wrong: eight lifegain creatures
    * ("Whenever another creature you control enters, you gain 1 life") were
@@ -171,23 +171,33 @@ export interface TriggeredAbility {
    * arrives - so they gained life exactly once, at the one moment their own
    * text excludes, and never again.
    */
-  event: "enters-battlefield" | "attacks" | "dies" | "landfall" | "creature-enters";
+  event: "enters-battlefield" | "attacks" | "dies" | "landfall" | "permanent-enters";
   effect: Effect;
   /**
-   * `creature-enters` only. Whose creatures this watches: "controller" for
+   * `permanent-enters` only. Whose permanents this watches: "controller" for
    * "another creature *you control* enters", which is the common case, or
    * "any" for "another creature enters" (Soul Warden, Essence Warden), which
    * watches every player's side of the table.
    */
   watches?: "controller" | "any";
   /**
-   * `creature-enters` only. Whether the watcher's own arrival counts.
+   * `permanent-enters` only. Whether the watcher's own arrival counts.
    *
    * Almost every card of this shape says "*another* creature", so this
    * defaults to false. Kor Celebrant is the one that says "this creature or
    * another creature you control", and needs it true.
    */
   includesSelf?: boolean;
+  /**
+   * `permanent-enters` only. Which permanents set it off.
+   *
+   * Most of this family watch creatures, but not all: Tanglespan Lookout is
+   * "whenever an Aura you control enters, draw a card", and was written as an
+   * `enters-battlefield` draw - so it drew a card on arrival, which the real
+   * card does not do, and never drew one for an Aura. Omitting this watches
+   * every permanent, which no card in the pool currently wants; write it out.
+   */
+  watchFor?: { type?: CardType; subtype?: string };
 }
 
 export interface ActivatedAbilityCost {

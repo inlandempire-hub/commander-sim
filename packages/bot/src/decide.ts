@@ -17,7 +17,7 @@ import {
   toughness,
   wouldDie,
 } from "./evaluate.js";
-import { chooseSearchResult, couldAfford, nextSourceToTap } from "./mana.js";
+import { chooseSearchResult, couldAfford } from "./mana.js";
 import { chooseCardsToBottom, shouldKeepHand } from "./mulligan.js";
 import {
   castableCommander,
@@ -344,10 +344,8 @@ function useValueAbility(state: GameState, me: Player): BotAction | null {
       if (ability.cost.tap && beneficiaries.length < power(state, instance)) continue;
     }
 
-    const source = nextSourceToTap(state, me, cost);
-    if (source) {
-      return { kind: "activateAbility", instanceId: source.instanceId, abilityIndex: source.abilityIndex, targets: [] };
-    }
+    // No tapping step: activateAbilityWithAutoTap pays the mana part of the
+    // cost, the same way the human's click does. See castOrTapToward.
     return { kind: "activateAbility", instanceId: instance.instanceId, abilityIndex, targets: [] };
   }
   return null;

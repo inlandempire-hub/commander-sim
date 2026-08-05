@@ -1,6 +1,6 @@
 import {
-  activateAbility,
-  castSpell,
+  activateAbilityWithAutoTap,
+  castSpellWithAutoTap,
   declareAttackers,
   declareBlockers,
   resolveSearch,
@@ -28,13 +28,17 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
     case "playLand":
       playLand(state, playerId, action.instanceId);
       return;
+    // The auto-tap variants, matching the client's controller and the server.
+    // This harness used the raw ones, which made it the only path where the
+    // bot had to tap its own lands - so the tests could have gone on passing
+    // after a change that left the bot unable to cast anything in a browser.
     case "castSpell":
-      castSpell(state, playerId, action.instanceId, action.targets, {
+      castSpellWithAutoTap(state, playerId, action.instanceId, action.targets, {
         fromCommandZone: action.fromCommandZone,
       });
       return;
     case "activateAbility":
-      activateAbility(state, playerId, action.instanceId, action.abilityIndex, action.targets);
+      activateAbilityWithAutoTap(state, playerId, action.instanceId, action.abilityIndex, action.targets);
       return;
     case "declareAttackers":
       declareAttackers(state, playerId, action.declarations);

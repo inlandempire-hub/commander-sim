@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import type { CardDefinition, CardInstance, GameState } from "@mtg-commander-sim/engine";
-import { CardView } from "./CardView.js";
+import type {
+  CardDefinition,
+  CardInstance,
+  GameState,
+  StackObject,
+} from "@mtg-commander-sim/engine";
 import { CardFace } from "./CardFace.js";
+import { cardArtUrl } from "../cardArt.js";
+import { useArtOverrides } from "../artContext.js";
+import { describeCard, describeEffect } from "../cardText.js";
+import { formatManaCost, typeLine } from "../format.js";
 
 export interface StackViewProps {
   state: GameState;
@@ -79,35 +87,114 @@ export function StackView({
         </div>
       )}
 
-      {/* Cards here overlap into a pile rather than sitting in a neat row, so
-          the stack looks like the thing it is named after - and so "two spells
-          are waiting" reads at a glance instead of needing the count. Topmost,
-          which resolves first, is rendered first and sits on top. */}
+      {/*
+          One row per thing waiting, topmost first - which is also the order
+          they will resolve in, so the list reads top to bottom as "this, then
+          this".
+
+          They used to be art crops overlapping into a pile, which looked like
+          a stack of cards and told you nothing: deciding whether to respond
+          means knowing what the spell does, and a cropped illustration with a
+          name on it does not say. Each row now carries its own rules text.
+      */}
       {state.stack.length > 0 && (
-        <div className="stack__cards">
-          {[...state.stack].reverse().map((obj) => {
-            const instance = state.stackCards.find((c) => c.instanceId === obj.sourceInstanceId);
-            if (!instance) {
-              // A triggered/activated ability with no card of its own on the stack.
-              return (
-                <div key={obj.id} className="card card--ability">
-                  <div className="card__name">Ability ({obj.effect.kind})</div>
-                </div>
-              );
-            }
-            return (
-              <CardView
-                key={obj.id}
-                instance={instance}
-                definition={cardDefinitions[instance.definitionId]!}
-                selected={selectingSpellTarget}
-                onHover={onHover}
-                onClick={selectingSpellTarget ? () => onStackObjectClick?.(obj.id) : undefined}
-              />
-            );
-          })}
+        <div className="stack__list">
+          {[...state.stack].reverse().map((obj) => (
+            <StackEntry
+              key={obj.id}
+              obj={obj}
+              instance={state.stackCards.find((c) => c.instanceId === obj.sourceInstanceId)}
+              cardDefinitions={cardDefinitions}
+              selectable={selectingSpellTarget}
+              onHover={onHover}
+              onClick={selectingSpellTarget ? () => onStackObjectClick?.(obj.id) : undefined}
+            />
+          ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * One thing on the stack: a thumbnail of its art, and what it will do.
+ *
+ * The text comes from `describeCard`/`describeEffect` rather than from the
+ * printed face, for two reasons. The printed face's own text would be about
+ * four pixels tall in this column and unreadable, and - more importantly - what
+ * you want to know here is what *this engine* is about to do, which is exactly
+ * what those renderers describe.
+ */
+function StackEntry({
+  obj,
+  instance,
+  cardDefinitions,
+  selectable,
+  onHover,
+  onClick,
+}: {
+  obj: StackObject;
+  instance?: CardInstance;
+  cardDefinitions: Record<string, CardDefinition>;
+  selectable?: boolean;
+  onHover?: (definitionId: string | null, ownerId?: string, instanceId?: string) => void;
+  onClick?: () => void;
+}) {
+  const overrides = useArtOverrides(instance?.ownerId);
+  const definition = instance ? cardDefinitions[instance.definitionId] : undefined;
+  const [failed, setFailed] = useState(false);
+  const artUrl = definition ? cardArtUrl(definition, "art_crop", overrides) : undefined;
+
+  /*
+   * A triggered or activated ability has no card of its own on the stack, so
+   * there is no definition to describe - only the effect it is carrying. It
+   * used to render as "Ability (gainLife)", the name of an internal effect
+   * kind, which is no help at all when the question is whether to respond.
+   */
+  const lines = definition
+    ? describeCard(definition, cardDefinitions)
+    : [describeEffect(obj.effect, cardDefinitions)];
+
+  return (
+    <div
+      className={`stack-entry ${selectable ? "stack-entry--selectable" : ""}`.trim()}
+      onClick={onClick}
+      onMouseEnter={() =>
+        definition && onHover?.(definition.id, instance?.ownerId, obj.sourceInstanceId)
+      }
+      onMouseLeave={() => onHover?.(null)}
+    >
+      {artUrl && !failed ? (
+        <img
+          className="stack-entry__art"
+          src={artUrl}
+          alt=""
+          draggable={false}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <div className="stack-entry__art stack-entry__art--none" />
+      )}
+      <div className="stack-entry__body">
+        <div className="stack-entry__head">
+          <span className="stack-entry__name">{definition?.name ?? "Ability"}</span>
+          {definition?.manaCost && (
+            <span className="stack-entry__cost">{formatManaCost(definition.manaCost)}</span>
+          )}
+        </div>
+        <div className="stack-entry__type">
+          {definition ? typeLine(definition) : `Ability - ${obj.controllerId}`}
+        </div>
+        {lines.length > 0 ? (
+          lines.map((line, i) => (
+            <p key={i} className="stack-entry__rules">
+              {line}
+            </p>
+          ))
+        ) : (
+          <p className="stack-entry__rules stack-entry__rules--none">No rules text.</p>
+        )}
+      </div>
     </div>
   );
 }

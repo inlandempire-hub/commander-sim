@@ -5,6 +5,7 @@ import { ZonePile } from "./ZonePile.js";
 import { CardRow } from "./CardRow.js";
 import { libraryAnchorKey } from "../flight.js";
 import { landCardHeight } from "../landSize.js";
+import { emitParticles } from "../particleBus.js";
 
 /** How long a life change stays flagged up before fading. */
 const LIFE_FLASH_MS = 1000;
@@ -41,6 +42,12 @@ export interface PlayerBoardProps {
   isActivePlayer: boolean;
   hasPriority: boolean;
   selectedAttackerIds: Set<string>;
+  /**
+   * Creatures that *could* be declared as attackers right now, for the blue
+   * "you may pick this" outline. Choosing one turns it orange - see
+   * `attackChoice` on CardView.
+   */
+  eligibleAttackerIds: Set<string>;
   attackingIds: Set<string>;
   selectedBlockerSourceId: string | null;
   blockerAssignments: Record<string, string>;
@@ -69,11 +76,13 @@ export interface PlayerBoardProps {
    */
   willTapIds?: Set<string>;
   /**
-   * The game's controls, slotted into this board's rail under the life total.
+   * The game's controls, slotted into the gap under this board's command zone.
    * Only the bottom seat is given any - see ActionBar for why they live in one
    * fixed place rather than following whoever is being asked.
    */
   actions?: ReactNode;
+  /** Concede, pinned above the piles in the rail. Bottom seat only, like `actions`. */
+  concede?: ReactNode;
 }
 
 export function PlayerBoard({
@@ -84,6 +93,7 @@ export function PlayerBoard({
   isActivePlayer,
   hasPriority,
   selectedAttackerIds,
+  eligibleAttackerIds,
   attackingIds,
   selectedBlockerSourceId,
   blockerAssignments,
@@ -97,6 +107,7 @@ export function PlayerBoard({
   onHover,
   onLifeClick,
   actions,
+  concede,
   willTapIds,
 }: PlayerBoardProps) {
   const lands = player.battlefield.filter((c) => cardDefinitions[c.definitionId]?.types.includes("Land"));
@@ -111,6 +122,7 @@ export function PlayerBoard({
   const targetingClass = (group: CardType): string =>
     selectingPermanentType === group ? "zone--targeting" : "";
   const assignedBlockerIds = new Set(Object.keys(blockerAssignments));
+  const inDamageStep = state.step === "combat-damage" || state.step === "first-strike-damage";
 
   /**
    * What this creature is doing in combat, in words. Without it an attacker,
@@ -145,6 +157,7 @@ export function PlayerBoard({
    */
   const lastLife = useRef(player.life);
   const flashCount = useRef(0);
+  const lifeElement = useRef<HTMLButtonElement | null>(null);
   const [lifeFlash, setLifeFlash] = useState<{ delta: number; key: number } | null>(null);
   useEffect(() => {
     const delta = player.life - lastLife.current;
@@ -152,6 +165,31 @@ export function PlayerBoard({
     if (delta === 0) return;
     const key = ++flashCount.current;
     setLifeFlash({ delta, key });
+
+    /*
+     * A burst off the life total when it goes down.
+     *
+     * Creatures taking damage already spark (see CardView), but the damage that
+     * actually decides the game - the damage that gets through to a player -
+     * had nothing but a number changing quietly in the corner. Scaled by the
+     * size of the hit, so a 12-point swing does not look like a 1-point one.
+     *
+     * Gaining life is deliberately left alone: it is already announced by the
+     * green flash and the floating number, and lifegain is common enough in
+     * this pool that sparking for it would be constant.
+     */
+    if (delta < 0) {
+      const rect = lifeElement.current?.getBoundingClientRect();
+      if (rect && rect.width > 0) {
+        emitParticles({
+          kind: "impact",
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+          strength: Math.abs(delta),
+        });
+      }
+    }
+
     const timer = window.setTimeout(
       () => setLifeFlash((current) => (current?.key === key ? null : current)),
       LIFE_FLASH_MS,
@@ -186,6 +224,7 @@ export function PlayerBoard({
             time the class appears. */}
         <button
           key={player.life}
+          ref={lifeElement}
           className={[
             "rail__life",
             lifeFlash && lifeFlash.delta > 0 ? "rail__life--up" : "",
@@ -220,10 +259,10 @@ export function PlayerBoard({
         ))}
         {player.hasLost && <div className="rail__lost">LOST: {player.lossReason}</div>}
 
-        {/* The controls, directly under the life total. Passed in rather than
-            built here because they act on the game rather than on this seat -
-            and because only one board gets them. */}
-        {actions}
+        {/* Concede sits here, immediately above the piles, and nowhere else all
+            game. See ConcedeButton: it ends the game outright, so its position
+            must not depend on which buttons happen to be showing. */}
+        {concede}
 
         <div className="rail__piles">
           {/* The library is face-down and can't be looked through, so it is a
@@ -350,16 +389,34 @@ export function PlayerBoard({
                   state={state}
                   definition={cardDefinitions[instance.definitionId]!}
                   selected={
-                    selectedAttackerIds.has(instance.instanceId) ||
-                    attackingIds.has(instance.instanceId) ||
                     selectedBlockerSourceId === instance.instanceId ||
                     assignedBlockerIds.has(instance.instanceId)
+                  }
+                  // Blue for "you could send this one", orange once it is
+                  // going. Attackers no longer share the blockers' gold
+                  // outline: during a combat you are reading both at once,
+                  // and one colour for both sides said nothing.
+                  attackChoice={
+                    selectedAttackerIds.has(instance.instanceId) ||
+                    attackingIds.has(instance.instanceId)
+                      ? "chosen"
+                      : eligibleAttackerIds.has(instance.instanceId)
+                        ? "eligible"
+                        : undefined
                   }
                   // Creatures in combat lean towards the centre line, so who is
                   // committed to the fight reads from the board itself rather
                   // than only from the outline colour.
                   attacking={attackingIds.has(instance.instanceId)}
                   blocking={assignedBlockerIds.has(instance.instanceId)}
+                  // Only the creatures in the fight, and only while damage is
+                  // being dealt. The step lasts for a priority round, so the
+                  // class appears once and the animation plays once.
+                  clashing={
+                    inDamageStep &&
+                    (attackingIds.has(instance.instanceId) ||
+                      assignedBlockerIds.has(instance.instanceId))
+                  }
                   // A creature can be a mana source too, so it gets the same
                   // "this is about to be tapped" mark as a land.
                   willTap={willTapIds?.has(instance.instanceId)}
@@ -374,32 +431,42 @@ export function PlayerBoard({
       </div>
 
       {/*
-        The command zone, in the column on the right.
+        The right-hand column: command zone, and the gap under it.
 
-        That column already existed: .side__zones was padded by the width of
+        The column already existed - .side__zones was padded by the width of
         the rail so that "centred" meant centred on the board rather than in
-        whatever the rail left over. It was empty space kept purely for
-        symmetry, and the commander is exactly the thing that wants a permanent
-        home of its own - it is not in any other zone, it comes back here when
-        it dies, and it is castable from here all game.
+        whatever the rail left over - and the commander is exactly the thing
+        that wants a permanent home of its own: it is not in any other zone, it
+        comes back here when it dies, and it is castable from here all game.
+
+        It used to span the whole height of the board, which made the commander
+        the tallest card on screen for no reason and left nothing beside the
+        hand. Now the two children mirror the two rows on the left exactly -
+        same flex ratios, same reversal for the flipped seat - so the command
+        zone lines up with the creature row, and whatever is passed in as
+        `actions` gets the gap beside the hand.
       */}
-      <div className="command">
-        <div className="zone__label">Command</div>
-        <div className="command__cards">
-          {player.command.length === 0 ? (
-            <p className="command__empty">In play</p>
-          ) : (
-            player.command.map((instance) => (
-              <CardView
-                key={instance.instanceId}
-                instance={instance}
-                definition={cardDefinitions[instance.definitionId]!}
-                playable={canPlay?.(instance.instanceId)}
-                onHover={onHover}
-                onClick={() => onCommandCardClick(instance.instanceId)}
-              />
-            ))
-          )}
+      <div className="side__right">
+        <div className="side__controls">{actions}</div>
+
+        <div className="command">
+          <div className="zone__label">Command</div>
+          <div className="command__cards">
+            {player.command.length === 0 ? (
+              <p className="command__empty">In play</p>
+            ) : (
+              player.command.map((instance) => (
+                <CardView
+                  key={instance.instanceId}
+                  instance={instance}
+                  definition={cardDefinitions[instance.definitionId]!}
+                  playable={canPlay?.(instance.instanceId)}
+                  onHover={onHover}
+                  onClick={() => onCommandCardClick(instance.instanceId)}
+                />
+              ))
+            )}
+          </div>
         </div>
       </div>
     </section>

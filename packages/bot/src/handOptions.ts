@@ -8,7 +8,7 @@ import {
   type StackTarget,
 } from "@mtg-commander-sim/engine";
 import { definitionOf } from "./evaluate.js";
-import { couldAfford, nextSourceToTap } from "./mana.js";
+import { couldAfford } from "./mana.js";
 import type { BotAction } from "./types.js";
 
 export const NO_COST: ManaCost = { generic: 0, colors: {} };
@@ -67,8 +67,20 @@ export function castableCommander(state: GameState, me: Player, reserve: ManaCos
 }
 
 /**
- * Turns "I want to cast this" into the next concrete action: tap another
- * source if the pool is short, otherwise actually cast it.
+ * Turns "I want to cast this" into the action that casts it.
+ *
+ * It used to return one tap-a-land action at a time and only cast once the
+ * pool covered the cost. That was right when it was written - the bot was the
+ * only thing that had to pay for its own spells - but the engine gained
+ * auto-tap (`castSpellWithAutoTap`) and every path the bot's actions travel
+ * now taps for it: the client's controller, the server, and the test harness.
+ * So the tapping loop had become pure ceremony, and an expensive kind: the bot
+ * acts on a timer, so a four-mana spell meant four visible pauses tapping
+ * lands one at a time before anything happened - while a human casting the
+ * same card just clicks it.
+ *
+ * `couldAfford` already checks untapped sources rather than the floating pool,
+ * so this only ever returns a cast the bot can actually pay for.
  */
 export function castOrTapToward(
   state: GameState,
@@ -76,10 +88,6 @@ export function castOrTapToward(
   target: Castable,
   targets: StackTarget[] = [],
 ): BotAction {
-  const source = nextSourceToTap(state, me, target.cost);
-  if (source) {
-    return { kind: "activateAbility", instanceId: source.instanceId, abilityIndex: source.abilityIndex, targets: [] };
-  }
   return {
     kind: "castSpell",
     instanceId: target.instance.instanceId,

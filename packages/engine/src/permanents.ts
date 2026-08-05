@@ -1,4 +1,12 @@
-import type { CardInstance, Effect, GameState, StackObject, StackTarget } from "./types.js";
+import type {
+  CardDefinition,
+  CardInstance,
+  Effect,
+  GameState,
+  StackObject,
+  StackTarget,
+  TriggeredAbility,
+} from "./types.js";
 import { moveCard, requireDefinition } from "./state.js";
 
 /**
@@ -75,22 +83,22 @@ export function enteredBattlefield(
   }
 
   /*
-   * Triggers printed on permanents that were already here, watching for a
-   * creature to arrive - the "Whenever another creature you control enters"
+   * Triggers printed on permanents that were already here, watching for
+   * something to arrive - the "Whenever another creature you control enters"
    * family. The same shape as landfall, which scans the battlefield rather
    * than the card that moved.
    *
-   * The new creature is already in its controller's battlefield array by this
+   * The new permanent is already in its controller's battlefield array by this
    * point, so it is in this scan too: `includesSelf` is what decides whether
    * its own arrival sets its own ability off. Every card of this shape says
    * "another" except Kor Celebrant, which says "this creature or another".
    */
-  if (!def.types.includes("Creature")) return;
   for (const player of state.players) {
     for (const watcher of player.battlefield) {
       const watcherDef = requireDefinition(state, watcher.definitionId);
       for (const trigger of watcherDef.triggeredAbilities ?? []) {
-        if (trigger.event !== "creature-enters") continue;
+        if (trigger.event !== "permanent-enters") continue;
+        if (!matchesWatchFor(trigger.watchFor, def)) continue;
         if (watcher.instanceId === instance.instanceId && !trigger.includesSelf) continue;
         if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== instance.controllerId) {
           continue;
@@ -99,4 +107,20 @@ export function enteredBattlefield(
       }
     }
   }
+}
+
+/**
+ * Whether an arriving permanent is the kind a watcher is looking for.
+ *
+ * This used to be a single hard-coded "is it a creature?" gate above the loop,
+ * which quietly meant no card could ever watch anything else.
+ */
+export function matchesWatchFor(
+  watchFor: TriggeredAbility["watchFor"],
+  def: CardDefinition,
+): boolean {
+  if (!watchFor) return true;
+  if (watchFor.type && !def.types.includes(watchFor.type)) return false;
+  if (watchFor.subtype && !(def.subtypes ?? []).includes(watchFor.subtype)) return false;
+  return true;
 }

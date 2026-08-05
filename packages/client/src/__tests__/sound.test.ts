@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { advanceStep, createDemoGame } from "@mtg-commander-sim/engine";
 import { CUE_NAMES, cueForLogLine, type Cue } from "../sound.js";
 
 /**
@@ -16,7 +17,7 @@ const EXAMPLES: Record<Cue, string> = {
   attack: "Salty Mike attacks with Axebane Beast",
   damage: "Silvercoat Lion is dealt 3 damage",
   death: "Silvercoat Lion dies",
-  draw: "Salty Mike draws a card",
+  draw: "Salty Mike draws 1 card",
   // Deliberately not log-driven: a refusal never reaches the log, because
   // nothing happened. App plays this one directly when the prompt shows.
   error: "",
@@ -53,5 +54,41 @@ describe("cueForLogLine", () => {
   it("prefers the more specific cue when a line could match two", () => {
     // A creature dying to damage is a death, not another damage thump.
     expect(cueForLogLine("Silvercoat Lion is dealt 3 damage and dies")).toBe("death");
+  });
+});
+
+/**
+ * The examples above are written by hand, which is exactly how the draw cue
+ * went missing: the engine's draw step logged nothing at all, and the hand
+ * written example ("draws a card") happened to contain the word the matcher
+ * looks for, so the table above stayed green while a real game was silent.
+ *
+ * This runs a real game instead and reads the real log, so the two can no
+ * longer drift apart without something failing.
+ */
+describe("the log a real game actually writes", () => {
+  function logUpTo(steps: number): string[] {
+    const state = createDemoGame();
+    const seen: string[] = [];
+    for (let i = 0; i < steps; i++) {
+      advanceStep(state);
+      // Not state.log.slice(): the log is capped and spliced, so read it whole
+      // each time and take what is new.
+      for (const entry of state.log.slice(seen.length)) seen.push(entry.text);
+    }
+    return seen;
+  }
+
+  it("gives the draw step a line that maps to the draw cue", () => {
+    const lines = logUpTo(40);
+    const drawLines = lines.filter((line) => cueForLogLine(line) === "draw");
+    expect(drawLines.length).toBeGreaterThan(0);
+  });
+
+  it("does not announce the opening hand as a seven-card draw", () => {
+    // Setup draws are silent; the first draw line should be a single card.
+    const lines = logUpTo(40);
+    const first = lines.find((line) => cueForLogLine(line) === "draw");
+    expect(first).toMatch(/draws 1 card$/);
   });
 });

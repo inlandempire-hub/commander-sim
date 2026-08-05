@@ -5,6 +5,7 @@ import type {
   TargetSelector,
   TriggeredAbility,
 } from "@mtg-commander-sim/engine";
+import { matchesWatchFor } from "@mtg-commander-sim/engine";
 import { formatManaCost } from "./format.js";
 
 /**
@@ -134,7 +135,19 @@ function tokenName(token: CardDefinition): string {
   return `${stats}${token.name}`;
 }
 
-function describeTrigger(ability: TriggeredAbility, definitions: Definitions): string {
+/** "creature", "Aura", "permanent" - what a watcher is looking out for. */
+function watchedNoun(watchFor: TriggeredAbility["watchFor"]): string {
+  if (!watchFor) return "permanent";
+  if (watchFor.subtype) return watchFor.subtype;
+  if (watchFor.type) return watchFor.type.toLowerCase();
+  return "permanent";
+}
+
+function describeTrigger(
+  ability: TriggeredAbility,
+  definitions: Definitions,
+  self: CardDefinition,
+): string {
   const body = describeEffect(ability.effect, definitions);
   switch (ability.event) {
     case "enters-battlefield":
@@ -145,12 +158,21 @@ function describeTrigger(ability: TriggeredAbility, definitions: Definitions): s
       return `When this creature dies, ${lowerFirst(body)}`;
     case "landfall":
       return `Landfall - whenever a land enters the battlefield under your control, ${lowerFirst(body)}`;
-    case "creature-enters": {
-      // Worded to match the printed card, because the three variants really do
-      // play differently and the panel is where you find that out: whose
-      // creatures are watched, and whether this one counts itself.
-      const whose = (ability.watches ?? "controller") === "any" ? "creature" : "creature you control";
-      const subject = ability.includesSelf ? `this creature or another ${whose}` : `another ${whose}`;
+    case "permanent-enters": {
+      // Worded to match the printed card, because these variants really do
+      // play differently and the panel is where you find that out: what is
+      // watched, whose it has to be, and whether this card counts itself.
+      const noun = watchedNoun(ability.watchFor);
+      const whose = (ability.watches ?? "controller") === "any" ? noun : `${noun} you control`;
+      // "another" only if this card is itself the kind of thing it watches.
+      // Tanglespan Lookout is a Satyr watching Auras, so it reads "an Aura you
+      // control"; Soul Warden is a creature watching creatures, so "another".
+      const selfQualifies = matchesWatchFor(ability.watchFor, self);
+      const subject = ability.includesSelf
+        ? `this ${noun} or another ${whose}`
+        : selfQualifies
+          ? `another ${whose}`
+          : `${article(whose)} ${whose}`;
       return `Whenever ${subject} enters the battlefield, ${lowerFirst(body)}`;
     }
   }
@@ -158,6 +180,10 @@ function describeTrigger(ability: TriggeredAbility, definitions: Definitions): s
 
 function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+function article(noun: string): string {
+  return /^[aeiou]/i.test(noun) ? "an" : "a";
 }
 
 function describeActivated(ability: ActivatedAbility, definitions: Definitions): string {
@@ -192,7 +218,7 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
   }
 
   for (const trigger of def.triggeredAbilities ?? []) {
-    lines.push(describeTrigger(trigger, definitions));
+    lines.push(describeTrigger(trigger, definitions, def));
   }
   for (const ability of def.activatedAbilities ?? []) {
     lines.push(describeActivated(ability, definitions));

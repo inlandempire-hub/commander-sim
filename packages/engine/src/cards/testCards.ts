@@ -5750,7 +5750,7 @@ export const HINTERLAND_SANCTIFIER: CardDefinition = {
   power: 1,
   toughness: 2,
   // "Whenever another creature you control enters, you gain 1 life."
-  triggeredAbilities: [{ event: "creature-enters", effect: { kind: "gainLife", amount: 1 } }],
+  triggeredAbilities: [{ event: "permanent-enters", watchFor: { type: "Creature" }, effect: { kind: "gainLife", amount: 1 } }],
   tier: "scripted",
 };
 export const LIONHEART_MAVERICK: CardDefinition = {
@@ -5806,7 +5806,7 @@ export const SOUL_WARDEN: CardDefinition = {
   // it watches every player's creatures - an opponent's creature entering
   // gains *you* the life.
   triggeredAbilities: [
-    { event: "creature-enters", watches: "any", effect: { kind: "gainLife", amount: 1 } },
+    { event: "permanent-enters", watchFor: { type: "Creature" }, watches: "any", effect: { kind: "gainLife", amount: 1 } },
   ],
   tier: "scripted",
 };
@@ -5951,7 +5951,7 @@ export const IMPASSIONED_ORATOR: CardDefinition = {
   power: 2,
   toughness: 2,
   // "Whenever another creature you control enters, you gain 1 life."
-  triggeredAbilities: [{ event: "creature-enters", effect: { kind: "gainLife", amount: 1 } }],
+  triggeredAbilities: [{ event: "permanent-enters", watchFor: { type: "Creature" }, effect: { kind: "gainLife", amount: 1 } }],
   tier: "scripted",
 };
 export const KJELDORAN_OUTRIDER: CardDefinition = {
@@ -5992,7 +5992,7 @@ export const LIFECREED_DUO: CardDefinition = {
   toughness: 2,
   keywords: ["Flying"],
   // "Flying / Whenever another creature you control enters, you gain 1 life."
-  triggeredAbilities: [{ event: "creature-enters", effect: { kind: "gainLife", amount: 1 } }],
+  triggeredAbilities: [{ event: "permanent-enters", watchFor: { type: "Creature" }, effect: { kind: "gainLife", amount: 1 } }],
   tier: "scripted",
 };
 export const MESA_UNICORN: CardDefinition = {
@@ -6278,7 +6278,7 @@ export const KOR_CELEBRANT: CardDefinition = {
   // 1 life." The only card of this shape in the pool that counts itself, which
   // is what includesSelf is for.
   triggeredAbilities: [
-    { event: "creature-enters", includesSelf: true, effect: { kind: "gainLife", amount: 1 } },
+    { event: "permanent-enters", watchFor: { type: "Creature" }, includesSelf: true, effect: { kind: "gainLife", amount: 1 } },
   ],
   tier: "scripted",
 };
@@ -6495,7 +6495,7 @@ export const HEALER_OF_THE_PRIDE: CardDefinition = {
   power: 2,
   toughness: 3,
   // "Whenever another creature you control enters, you gain 2 life."
-  triggeredAbilities: [{ event: "creature-enters", effect: { kind: "gainLife", amount: 2 } }],
+  triggeredAbilities: [{ event: "permanent-enters", watchFor: { type: "Creature" }, effect: { kind: "gainLife", amount: 2 } }],
   tier: "scripted",
 };
 export const INDOMITABLE_ANCIENTS: CardDefinition = {
@@ -9107,7 +9107,7 @@ export const ESSENCE_WARDEN: CardDefinition = {
   // "Whenever another creature enters, you gain 1 life." The green Soul Warden,
   // word for word, and watches both sides of the table the same way.
   triggeredAbilities: [
-    { event: "creature-enters", watches: "any", effect: { kind: "gainLife", amount: 1 } },
+    { event: "permanent-enters", watchFor: { type: "Creature" }, watches: "any", effect: { kind: "gainLife", amount: 1 } },
   ],
   tier: "scripted",
 };
@@ -9162,7 +9162,7 @@ export const VIRULENT_EMISSARY: CardDefinition = {
   toughness: 1,
   keywords: ["Deathtouch"],
   // "Deathtouch / Whenever another creature you control enters, you gain 1 life."
-  triggeredAbilities: [{ event: "creature-enters", effect: { kind: "gainLife", amount: 1 } }],
+  triggeredAbilities: [{ event: "permanent-enters", watchFor: { type: "Creature" }, effect: { kind: "gainLife", amount: 1 } }],
   tier: "scripted",
 };
 export const WALL_OF_VINES: CardDefinition = {
@@ -9422,7 +9422,17 @@ export const TANGLESPAN_LOOKOUT: CardDefinition = {
   colorIdentity: ["G"],
   power: 2,
   toughness: 3,
-  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "draw", amount: 1 } }],
+  // "Whenever an Aura you control enters, draw a card." It draws nothing on
+  // its own arrival, which is what this fixture used to do. There are no Auras
+  // in the pool yet, so today it is a plain 2/3 - exactly what the real card is
+  // in a deck with no Auras, and it starts working the day one is added.
+  triggeredAbilities: [
+    {
+      event: "permanent-enters",
+      watchFor: { subtype: "Aura" },
+      effect: { kind: "draw", amount: 1 },
+    },
+  ],
   tier: "scripted",
 };
 export const TAOIST_HERMIT: CardDefinition = {
