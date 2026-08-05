@@ -74,13 +74,30 @@ export interface CardFlight {
  * Call once, from the component that renders the whole table. React runs
  * layout effects from the inside out, so by the time this runs every card has
  * been committed to the DOM and can be measured.
+ *
+ * `paused` holds everything still while opening hands are being decided, which
+ * is what makes the deal happen at the right moment. Cards are dealt into a
+ * hand that a full-screen overlay is sitting on top of, so animating them there
+ * meant the one flight worth watching - seven cards coming off the library at
+ * the start of a game - played out behind the dialog that was covering it, and
+ * again for every mulligan. Nothing is measured while paused, so when the last
+ * player keeps, every card in hand is somewhere the flight system has never
+ * seen one before, and the existing "came off the top of the library" path
+ * deals them all out onto an empty table.
  */
-export function useCardFlight(): CardFlight {
+export function useCardFlight(paused = false): CardFlight {
   const previous = useRef<Map<string, Placement>>(new Map());
   const sequence = useRef(0);
   const [flights, setFlights] = useState<Flight[]>([]);
 
   useLayoutEffect(() => {
+    if (paused) {
+      // Forgetting rather than merely skipping. A card measured before the
+      // pause would still be "where it was" afterwards, and the hand would
+      // slide from behind the overlay instead of being dealt.
+      previous.current = new Map();
+      return;
+    }
     const { cards, anchors } = measure();
     const planned = prefersReducedMotion()
       ? []

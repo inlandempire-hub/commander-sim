@@ -157,8 +157,12 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
    * it wants to be at the top of the tree anyway, since React runs layout
    * effects from the inside out and this one has to measure a fully committed
    * board.
+   *
+   * Paused for the whole of the mulligan, for every player, so the opening
+   * hand deals out when the last one keeps rather than behind the overlay
+   * that is covering the hand at the time.
    */
-  const { flights, flying } = useCardFlight();
+  const { flights, flying } = useCardFlight(state?.mulligan != null);
   /*
    * Lands turning one at a time, and a pip of mana leaving each for the pool.
    * Same reason as above for living up here: it measures a committed board,

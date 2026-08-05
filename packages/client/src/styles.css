@@ -1784,7 +1784,9 @@ body {
 .overlay--mulligan {
   background: rgba(10, 14, 20, 0.88);
   z-index: 120;
-  padding: 16px;
+  /* Matches the 36px the row deducts from the viewport, split either side.
+     Any more and the row would be sized for space it is not allowed to use. */
+  padding: 18px;
 }
 
 /*
@@ -1807,12 +1809,19 @@ body {
    * The browser resolved the loop by letting the row grow to 3476px on a
    * 1280px screen. `vw` cannot be circular because nothing on the page can
    * change it.
+   *
+   * The row used to stop growing at 1560px, which held the cards to 300px tall
+   * on a 1080p screen - readable, but smaller than they need to be at the one
+   * moment where reading seven cards *is* the entire task. The row now takes
+   * the width it is given and the ceiling moved onto the card height instead,
+   * which is the thing actually worth limiting. 460px is comfortably past a
+   * real card held at arm's length; past that it is just large.
    */
-  --mull-w: min(1560px, calc(100vw - 48px));
+  --mull-w: calc(100vw - 36px);
   --mull-card-w: calc((var(--mull-w) - 6 * var(--mull-gap)) / 7);
-  /* 1.4 is 7/5, the card ratio. Capped so a very wide screen doesn't produce
-     cards taller than the screen is. */
-  --mull-card-h: min(calc(var(--mull-card-w) * 1.4), 58vh);
+  /* 1.4 is 7/5, the card ratio. The other two terms keep a tall card inside a
+     short window and inside sanity on an ultrawide one. */
+  --mull-card-h: min(calc(var(--mull-card-w) * 1.4), 62vh, 460px);
 
   width: var(--mull-w);
   max-height: 100%;

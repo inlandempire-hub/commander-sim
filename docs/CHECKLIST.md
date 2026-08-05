@@ -41,69 +41,93 @@ npm run dev -w @mtg-commander-sim/client
 
 ## 1. The opening hand
 
-- [ ] Seven cards appear in an overlay before the game starts.
-- [ ] **Keep** takes that hand. **Mulligan** draws a fresh seven.
-- [ ] After a mulligan you are asked to put cards on the bottom - one per
+- [x ] Seven cards appear in an overlay before the game starts.
+- [x ] **Keep** takes that hand. **Mulligan** draws a fresh seven.
+- [x ] After a mulligan you are asked to put cards on the bottom - one per
       mulligan taken (London mulligan). The count is right.
-- [ ] You cannot mulligan forever; the button stops offering it.
+- [x ] You cannot mulligan forever; the button stops offering it.
 - [ ] Hotseat: both players get their own mulligan, one after the other.
-- [ ] Bot: only your hand is offered - the bot answers its own.
-- [ ] (motion) The seven cards **deal out one after another** from the library
-      pile, not all at once.
+- [x ] Bot: only your hand is offered - the bot answers its own.
+
+**Changed 2026-08-04, so these need re-checking:**
+
+- [ ] (motion) **Nothing moves while you are deciding.** The deal used to play
+      out underneath the mulligan overlay - the one flight worth watching,
+      hidden behind the dialog covering it, and replayed for every mulligan.
+- [ ] (motion) The cards **deal out one after another from the library once the
+      last player has kept**, onto an empty table.
+- [ ] In hotseat, that happens after **both** players have kept, and deals both
+      hands - not one hand and then the other.
+- [ ] Mulliganing to nothing goes **straight into the game**. No "choose 7 cards
+      to put on the bottom" step, because there is no choice in it.
+- [ ] At the bottom of the ladder the button reads **"No mulligans left"**, not
+      "Mulligan to -1", and the prompt says you are starting with an empty hand
+      rather than promising a bottoming step that no longer happens.
+- [ ] Cards during the mulligan are **big enough to read without hovering**.
+      (Bigger on a 1920-wide screen and up; on a 1280-wide window seven across
+      is the binding constraint and they are the size they always were.)
 
 ## 2. Reading a card
 
-- [ ] Hovering any card fills the **top right box** with that card, large.
-- [ ] That box contains the card image and nothing else - no repeated rules
+- [x ] Hovering any card fills the **top right box** with that card, large.
+- [ x] That box contains the card image and nothing else - no repeated rules
       text underneath it.
 - [ ] A card with no image falls back to a readable text box: name, type line,
-      rules text, power/toughness.
+      rules text, power/toughness. *Every card in both decks currently has art,
+      so the only way to see this is to disconnect from the internet - and not
+      noticing it is the correct outcome. Leave it unticked.*
 - [ ] With nothing hovered, the panel shows whatever is on the stack.
-- [ ] **Right-click any card** to open it full-screen. Works in hand, on the
+- [x ] **Right-click any card** to open it full-screen. Works in hand, on the
       battlefield, in a graveyard, on the stack, in the command zone.
-- [ ] Right-click works on a card you **cannot** play - being told no is a
+- [x ] Right-click works on a card you **cannot** play - being told no is a
       reason to want to read it.
-- [ ] Right-click during the **mulligan** opens the card *above* the overlay,
+- [x ] Right-click during the **mulligan** opens the card *above* the overlay,
       not behind it. (This was broken and is fixed; worth confirming.)
-- [ ] **Escape** closes it. So does clicking anywhere.
-- [ ] Escape while inspecting during a mulligan closes only the inspect, and
+- [x ] **Escape** closes it. So does clicking anywhere.
+- [x ] Escape while inspecting during a mulligan closes only the inspect, and
       leaves the mulligan up.
-- [ ] The browser's own right-click menu never appears over the table.
+- [x ] The browser's own right-click menu never appears over the table.
+
+*Right-click inspect stays, but it is now the third way to read a card rather
+than the second: hovering covers the board, and mulligan cards are large enough
+to read on sight. What it still uniquely covers is reading a card while a dialog
+is open - a tutor showing you your library, mainly - because the hover panel is
+behind those. Say the word and it comes out.*
 
 ## 3. Playing cards
 
-- [ ] Clicking a land in hand plays it.
-- [ ] Only **one land per turn**; a second is refused with a message.
-- [ ] Clicking a creature or spell casts it.
-- [ ] Cards you can actually play right now are **highlighted** in hand.
-- [ ] The highlight only appears while you hold priority, not during the
+- [x ] Clicking a land in hand plays it.
+- [x ] Only **one land per turn**; a second is refused with a message.
+- [x ] Clicking a creature or spell casts it.
+- [x ] Cards you can actually play right now are **highlighted** in hand.
+- [x ] The highlight only appears while you hold priority, not during the
       opponent's window.
-- [ ] Your commander sits in the **command zone** on the right of your rail and
+- [x ] Your commander sits in the **command zone** on the right of your rail and
       can be cast from there.
-- [ ] Casting your commander a second time costs {2} more, a third time {4}
+- [x ] Casting your commander a second time costs {2} more, a third time {4}
       more (commander tax).
 - [ ] A **modal** card ("choose one") asks which mode before anything else.
-- [ ] A **targeted** spell asks for a target, and only legal targets respond.
-- [ ] A **tutor** stops mid-resolution and shows you your library to pick from,
+- [x ] A **targeted** spell asks for a target, and only legal targets respond.
+- [x ] A **tutor** stops mid-resolution and shows you your library to pick from,
       with a search box.
-- [ ] Cancel is available on every "choose a target" prompt.
+- [x ] Cancel is available on every "choose a target" prompt.
 
 ## 4. Mana
 
-- [ ] Hovering a castable card **outlines in gold the exact lands** it will tap.
-- [ ] One land lights up for a one-mana spell, two for a two-mana one.
-- [ ] Nothing lights up for a card you cannot afford, or one in a graveyard.
-- [ ] The lands that light up are the lands that actually turn when you click.
-- [ ] Your mana readout in the rail says `Mana: -` when empty, rather than
+- [x ] Hovering a castable card **outlines in gold the exact lands** it will tap.
+- [x ] One land lights up for a one-mana spell, two for a two-mana one.
+- [x ] Nothing lights up for a card you cannot afford, or one in a graveyard.
+- [x ] The lands that light up are the lands that actually turn when you click.
+- [ x] Your mana readout in the rail says `Mana: -` when empty, rather than
       disappearing.
-- [ ] (motion) Tapped lands **turn one after another**, roughly a tenth of a
+- [x ] (motion) Tapped lands **turn one after another**, roughly a tenth of a
       second apart, not all at once.
-- [ ] (motion) A **coloured dot flies from each land to your mana readout**,
+- [x ] (motion) A **coloured dot flies from each land to your mana readout**,
       one per land.
-- [ ] Each dot is the colour of the mana that land makes - white from a Plains,
+- [x ] Each dot is the colour of the mana that land makes - white from a Plains,
       green from a Forest.
 - [ ] A land tapped for something that is *not* mana throws no dot.
-- [ ] Nothing is left stuck: a second or so later the lands are simply tapped,
+- [x ] Nothing is left stuck: a second or so later the lands are simply tapped,
       with no residue.
 
 ## 5. Particle effects (new)
@@ -112,41 +136,41 @@ Each is a separate emitter and can fail on its own. All of them are decoration
 over something already legible - if one is missing, the game still reads
 correctly, which is exactly why they need looking at deliberately.
 
-- [ ] (motion) **Mana arriving in the pool** - a spray of coloured motes at
+- [x ] (motion) **Mana arriving in the pool** - a spray of coloured motes at
       your mana readout as each dot lands. The largest of the five.
-- [ ] It is the **right colour**: white for a Plains, green for a Forest, and
+- [x ] It is the **right colour**: white for a Plains, green for a Forest, and
       so on for blue, black and red if those decks come up.
-- [ ] (motion) **Mana leaving a land** - a much smaller puff at the land
+- [x ] (motion) **Mana leaving a land** - a much smaller puff at the land
       itself, same colour. Should be quieter than the arrival, not equal to it.
-- [ ] (motion) **Damage on a creature** - orange sparks off the card, falling.
-- [ ] A **bigger hit throws more sparks**. Compare 1 damage against 4.
-- [ ] (motion) **A permanent dying** - slow grey ash at the graveyard pile as
+- [x ] (motion) **Damage on a creature** - orange sparks off the card, falling.
+- [x ] A **bigger hit throws more sparks**. Compare 1 damage against 4.
+- [x ] (motion) **A permanent dying** - slow grey ash at the graveyard pile as
       the card lands there.
-- [ ] The ash is **dull, not glowing**. If a creature dying looks like a
+- [x ] The ash is **dull, not glowing**. If a creature dying looks like a
       firework, that is wrong and I want to know.
-- [ ] (motion) **A spell leaving the stack** - blue motes where the card was
+- [x ] (motion) **A spell leaving the stack** - blue motes where the card was
       sitting. Fires whether it resolved or was countered.
 - [ ] Particles are never drawn **on top of a dialog** asking you something.
 - [ ] Particles never **swallow a click** - clicking through a burst works.
-- [ ] **Effects on / off** in the top bar turns all of it off; turning it back
+- [x ] **Effects on / off** in the top bar turns all of it off; turning it back
       on fires one green burst as confirmation.
 - [ ] The setting survives a page reload.
 - [ ] If your system is set to reduce motion, the button reads
       "Effects off (system)" and is disabled.
-- [ ] Nothing stutters. If a big combat drops frames, say so - the cap is 420
+- [x ] Nothing stutters. If a big combat drops frames, say so - the cap is 420
       specks and I can lower it.
 
 ## 6. Combat
 
-- [ ] At declare attackers, clicking your creatures selects them; clicking
+- [x ] At declare attackers, clicking your creatures selects them; clicking
       again deselects.
-- [ ] A creature that **cannot** attack (summoning sick, tapped, Defender) is
+- [x ] A creature that **cannot** attack (summoning sick, tapped, Defender) is
       refused **with a reason**, not silently ignored.
-- [ ] **Confirm attackers** declares them and moves the game on.
-- [ ] At declare blockers, click your blocker, then the attacker it blocks.
-- [ ] Clicking a blocker that is already blocking **takes the block back**.
+- [x ] **Confirm attackers** declares them and moves the game on.
+- [x ] At declare blockers, click your blocker, then the attacker it blocks.
+- [x ] Clicking a blocker that is already blocking **takes the block back**.
 - [ ] Several creatures can gang up on one attacker.
-- [ ] Pointing a ground creature at a flier is refused with a reason.
+- [x ] Pointing a ground creature at a flier is refused with a reason.
 - [ ] **Menace** creatures require two blockers.
 - [ ] After blocks are declared you still hold priority - the window for a
       combat trick. The game must **not** skip past it.

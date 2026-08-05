@@ -79,9 +79,14 @@ export function MulliganOverlay({
             <span className="mulligan__prompt">
               {mulligansTaken === 0
                 ? "Your opening hand. Keep it, or shuffle back for seven new cards."
-                : `Mulligan ${mulligansTaken}. Keep these and put ${owed} card${
-                    owed === 1 ? "" : "s"
-                  } on the bottom, so you start with ${keeping}.`}
+                : keeping <= 0
+                  ? // A mulligan to nothing. Saying "put 7 cards on the bottom"
+                    // here promised a choosing step that no longer happens, and
+                    // described the outcome in the least useful possible way.
+                    "Mulligan 7 - there is nothing left to keep. All seven go back and you start the game with an empty hand."
+                  : `Mulligan ${mulligansTaken}. Keep these and put ${owed} card${
+                      owed === 1 ? "" : "s"
+                    } on the bottom, so you start with ${keeping}.`}
             </span>
           )}
         </div>
@@ -137,7 +142,11 @@ export function MulliganOverlay({
                     : "You cannot mulligan again - there would be nothing left to keep"
                 }
               >
-                Mulligan to {keeping - 1}
+                {/* Not "Mulligan to -1", which is what counting down blindly
+                    produced at the bottom of the ladder. The button is disabled
+                    there, so it should say why rather than name a hand size
+                    that cannot exist. */}
+                {canMulligan ? `Mulligan to ${keeping - 1}` : "No mulligans left"}
               </button>
             </>
           )}

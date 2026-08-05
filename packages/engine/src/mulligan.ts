@@ -94,12 +94,29 @@ export function takeMulligan(state: GameState, playerId: string): void {
 export function keepHand(state: GameState, playerId: string): void {
   const mulligan = requireMulligan(state, playerId);
   if (mulligan.bottoming) throw new Error("Already keeping - choose which cards to put on the bottom");
+  const player = requirePlayer(state, playerId);
 
-  if (mulligan.mulligansTaken > 0) {
+  /*
+   * Bottoming is a choice, and there are two ways for there to be no choice to
+   * make: you owe nothing, or you owe everything.
+   *
+   * The second is a mulligan to nothing. You are looking at seven cards and
+   * all seven go back, so being walked through picking seven of seven is a
+   * form to fill in rather than a decision - and the interface would have you
+   * clicking every card in turn to confirm something already settled. Straight
+   * into the game instead.
+   */
+  if (mulligan.mulligansTaken > 0 && mulligan.mulligansTaken < player.hand.length) {
     mulligan.bottoming = true;
     return;
   }
-  log(state, `${playerId} keeps ${OPENING_HAND_SIZE}`);
+  if (mulligan.mulligansTaken > 0) {
+    for (const card of player.hand.splice(0)) {
+      card.zone = "library";
+      player.library.push(card);
+    }
+  }
+  log(state, `${playerId} keeps ${player.hand.length}`);
   advance(state);
 }
 

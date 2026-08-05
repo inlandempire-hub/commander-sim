@@ -141,10 +141,46 @@ describe("the London mulligan", () => {
   it("a player who mulliganed to nothing keeps an empty hand", () => {
     for (let i = 0; i < 7; i++) takeMulligan(state, DEADLY_DONNY);
     keepHand(state, DEADLY_DONNY);
-    putOnBottom(state, DEADLY_DONNY, donnyHandIds(state));
 
     expect(donnyHandIds(state)).toHaveLength(0);
     expect(state.mulligan?.playerId).toBe(SALTY_MIKE);
+  });
+
+  it("does not ask which cards to bottom when the answer is all of them", () => {
+    // A mulligan to nothing owes seven of seven, so there is no choice to
+    // make - being walked through picking every card is a form, not a
+    // decision. Keeping finishes it outright.
+    for (let i = 0; i < 7; i++) takeMulligan(state, DEADLY_DONNY);
+    expect(cardsToBottom(state)).toBe(7);
+
+    keepHand(state, DEADLY_DONNY);
+    expect(state.mulligan?.bottoming).toBe(false);
+    expect(state.mulligan?.playerId).toBe(SALTY_MIKE);
+    expect(() => putOnBottom(state, DEADLY_DONNY, [])).toThrow(/Salty Mike/);
+  });
+
+  it("puts the whole hand back on the library when it does", () => {
+    const before = librarySize(state, DEADLY_DONNY);
+    for (let i = 0; i < 7; i++) takeMulligan(state, DEADLY_DONNY);
+    keepHand(state, DEADLY_DONNY);
+
+    // Seven were in hand and all seven went back, so nothing has been lost.
+    expect(librarySize(state, DEADLY_DONNY)).toBe(before + 7);
+    expect(donnyHandIds(state)).toHaveLength(0);
+  });
+
+  it("still asks at six, where there is a real choice", () => {
+    for (let i = 0; i < 6; i++) takeMulligan(state, DEADLY_DONNY);
+    keepHand(state, DEADLY_DONNY);
+
+    expect(state.mulligan?.bottoming).toBe(true);
+    expect(state.mulligan?.playerId).toBe(DEADLY_DONNY);
+  });
+
+  it("logs the empty keep like any other", () => {
+    for (let i = 0; i < 7; i++) takeMulligan(state, DEADLY_DONNY);
+    keepHand(state, DEADLY_DONNY);
+    expect(state.log.some((entry) => entry.text === `${DEADLY_DONNY} keeps 0`)).toBe(true);
   });
 
   it("each player's mulligan count is their own", () => {
