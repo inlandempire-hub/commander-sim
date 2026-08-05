@@ -161,8 +161,33 @@ export type Effect =
     };
 
 export interface TriggeredAbility {
-  event: "enters-battlefield" | "attacks" | "dies" | "landfall";
+  /**
+   * `enters-battlefield`, `attacks` and `dies` all watch the card the ability
+   * is printed on. `landfall` and `creature-enters` watch the battlefield.
+   *
+   * The distinction matters and was got wrong: eight lifegain creatures
+   * ("Whenever another creature you control enters, you gain 1 life") were
+   * written as `enters-battlefield`, which fires only when the card itself
+   * arrives - so they gained life exactly once, at the one moment their own
+   * text excludes, and never again.
+   */
+  event: "enters-battlefield" | "attacks" | "dies" | "landfall" | "creature-enters";
   effect: Effect;
+  /**
+   * `creature-enters` only. Whose creatures this watches: "controller" for
+   * "another creature *you control* enters", which is the common case, or
+   * "any" for "another creature enters" (Soul Warden, Essence Warden), which
+   * watches every player's side of the table.
+   */
+  watches?: "controller" | "any";
+  /**
+   * `creature-enters` only. Whether the watcher's own arrival counts.
+   *
+   * Almost every card of this shape says "*another* creature", so this
+   * defaults to false. Kor Celebrant is the one that says "this creature or
+   * another creature you control", and needs it true.
+   */
+  includesSelf?: boolean;
 }
 
 export interface ActivatedAbilityCost {

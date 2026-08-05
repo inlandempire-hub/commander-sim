@@ -5749,7 +5749,8 @@ export const HINTERLAND_SANCTIFIER: CardDefinition = {
   colorIdentity: ["W"],
   power: 1,
   toughness: 2,
-  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 1 } }],
+  // "Whenever another creature you control enters, you gain 1 life."
+  triggeredAbilities: [{ event: "creature-enters", effect: { kind: "gainLife", amount: 1 } }],
   tier: "scripted",
 };
 export const LIONHEART_MAVERICK: CardDefinition = {
@@ -5801,7 +5802,12 @@ export const SOUL_WARDEN: CardDefinition = {
   colorIdentity: ["W"],
   power: 1,
   toughness: 1,
-  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 1 } }],
+  // "Whenever another creature enters, you gain 1 life." No "you control", so
+  // it watches every player's creatures - an opponent's creature entering
+  // gains *you* the life.
+  triggeredAbilities: [
+    { event: "creature-enters", watches: "any", effect: { kind: "gainLife", amount: 1 } },
+  ],
   tier: "scripted",
 };
 export const TUNDRA_WOLVES: CardDefinition = {
@@ -5944,7 +5950,8 @@ export const IMPASSIONED_ORATOR: CardDefinition = {
   colorIdentity: ["W"],
   power: 2,
   toughness: 2,
-  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 1 } }],
+  // "Whenever another creature you control enters, you gain 1 life."
+  triggeredAbilities: [{ event: "creature-enters", effect: { kind: "gainLife", amount: 1 } }],
   tier: "scripted",
 };
 export const KJELDORAN_OUTRIDER: CardDefinition = {
@@ -5984,7 +5991,8 @@ export const LIFECREED_DUO: CardDefinition = {
   power: 1,
   toughness: 2,
   keywords: ["Flying"],
-  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 1 } }],
+  // "Flying / Whenever another creature you control enters, you gain 1 life."
+  triggeredAbilities: [{ event: "creature-enters", effect: { kind: "gainLife", amount: 1 } }],
   tier: "scripted",
 };
 export const MESA_UNICORN: CardDefinition = {
@@ -6266,7 +6274,12 @@ export const KOR_CELEBRANT: CardDefinition = {
   colorIdentity: ["W"],
   power: 1,
   toughness: 4,
-  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 1 } }],
+  // "Whenever this creature OR another creature you control enters, you gain
+  // 1 life." The only card of this shape in the pool that counts itself, which
+  // is what includesSelf is for.
+  triggeredAbilities: [
+    { event: "creature-enters", includesSelf: true, effect: { kind: "gainLife", amount: 1 } },
+  ],
   tier: "scripted",
 };
 export const LOXODON_WAYFARER: CardDefinition = {
@@ -6481,7 +6494,8 @@ export const HEALER_OF_THE_PRIDE: CardDefinition = {
   colorIdentity: ["W"],
   power: 2,
   toughness: 3,
-  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 2 } }],
+  // "Whenever another creature you control enters, you gain 2 life."
+  triggeredAbilities: [{ event: "creature-enters", effect: { kind: "gainLife", amount: 2 } }],
   tier: "scripted",
 };
 export const INDOMITABLE_ANCIENTS: CardDefinition = {
@@ -9090,7 +9104,11 @@ export const ESSENCE_WARDEN: CardDefinition = {
   colorIdentity: ["G"],
   power: 1,
   toughness: 1,
-  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 1 } }],
+  // "Whenever another creature enters, you gain 1 life." The green Soul Warden,
+  // word for word, and watches both sides of the table the same way.
+  triggeredAbilities: [
+    { event: "creature-enters", watches: "any", effect: { kind: "gainLife", amount: 1 } },
+  ],
   tier: "scripted",
 };
 export const MOSS_VIPER: CardDefinition = {
@@ -9143,7 +9161,8 @@ export const VIRULENT_EMISSARY: CardDefinition = {
   power: 1,
   toughness: 1,
   keywords: ["Deathtouch"],
-  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 1 } }],
+  // "Deathtouch / Whenever another creature you control enters, you gain 1 life."
+  triggeredAbilities: [{ event: "creature-enters", effect: { kind: "gainLife", amount: 1 } }],
   tier: "scripted",
 };
 export const WALL_OF_VINES: CardDefinition = {

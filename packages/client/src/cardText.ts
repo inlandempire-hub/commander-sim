@@ -145,6 +145,14 @@ function describeTrigger(ability: TriggeredAbility, definitions: Definitions): s
       return `When this creature dies, ${lowerFirst(body)}`;
     case "landfall":
       return `Landfall - whenever a land enters the battlefield under your control, ${lowerFirst(body)}`;
+    case "creature-enters": {
+      // Worded to match the printed card, because the three variants really do
+      // play differently and the panel is where you find that out: whose
+      // creatures are watched, and whether this one counts itself.
+      const whose = (ability.watches ?? "controller") === "any" ? "creature" : "creature you control";
+      const subject = ability.includesSelf ? `this creature or another ${whose}` : `another ${whose}`;
+      return `Whenever ${subject} enters the battlefield, ${lowerFirst(body)}`;
+    }
   }
 }
 

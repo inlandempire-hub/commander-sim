@@ -43,14 +43,60 @@ export function putOntoBattlefield(
   options: { tapped?: boolean } = {},
 ): CardInstance {
   const instance = moveCard(state, instanceId, "battlefield");
+  enteredBattlefield(state, instance, options);
+  return instance;
+}
+
+/**
+ * Everything that happens because a permanent is now on the battlefield, split
+ * out from `putOntoBattlefield` so a token can share it.
+ *
+ * A token is created directly in the battlefield array rather than moved into
+ * it, so it never went through `putOntoBattlefield` and quietly skipped all of
+ * this: its own enters-the-battlefield trigger, and - once watchers existed -
+ * every other permanent's. A token entering the battlefield is an ordinary
+ * creature entering the battlefield as far as the rules are concerned, and
+ * three Soldier tokens should gain three life beside a Soul Warden.
+ */
+export function enteredBattlefield(
+  state: GameState,
+  instance: CardInstance,
+  options: { tapped?: boolean } = {},
+): void {
   const def = requireDefinition(state, instance.definitionId);
   if (def.keywords?.includes("Haste")) instance.summoningSickness = false;
   if (options.tapped) instance.tapped = true;
 
+  // Triggers printed on the permanent that just arrived.
   for (const trigger of def.triggeredAbilities ?? []) {
     if (trigger.event === "enters-battlefield") {
       pushOntoStack(state, instance.instanceId, instance.controllerId, trigger.effect, [], false);
     }
   }
-  return instance;
+
+  /*
+   * Triggers printed on permanents that were already here, watching for a
+   * creature to arrive - the "Whenever another creature you control enters"
+   * family. The same shape as landfall, which scans the battlefield rather
+   * than the card that moved.
+   *
+   * The new creature is already in its controller's battlefield array by this
+   * point, so it is in this scan too: `includesSelf` is what decides whether
+   * its own arrival sets its own ability off. Every card of this shape says
+   * "another" except Kor Celebrant, which says "this creature or another".
+   */
+  if (!def.types.includes("Creature")) return;
+  for (const player of state.players) {
+    for (const watcher of player.battlefield) {
+      const watcherDef = requireDefinition(state, watcher.definitionId);
+      for (const trigger of watcherDef.triggeredAbilities ?? []) {
+        if (trigger.event !== "creature-enters") continue;
+        if (watcher.instanceId === instance.instanceId && !trigger.includesSelf) continue;
+        if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== instance.controllerId) {
+          continue;
+        }
+        pushOntoStack(state, watcher.instanceId, watcher.controllerId, trigger.effect, [], false);
+      }
+    }
+  }
 }

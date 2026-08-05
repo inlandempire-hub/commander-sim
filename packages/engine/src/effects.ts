@@ -12,7 +12,7 @@ import {
 import { addMana, canPayManaCost, manaValue, payManaCost } from "./mana.js";
 import { effectivePower } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
-import { putOntoBattlefield } from "./permanents.js";
+import { enteredBattlefield, putOntoBattlefield } from "./permanents.js";
 
 /**
  * Applies a resolved (non-permanent) effect: spell/ability damage, draw,
@@ -133,9 +133,14 @@ export function applyEffect(
     case "createToken": {
       for (let i = 0; i < effect.count; i++) {
         const token = createCardInstance(state, effect.tokenDefinitionId, controllerId, "battlefield");
-        // Tokens enter like any other creature - summoning sick unless hasted.
-        const def = state.cardDefinitions[token.definitionId];
-        if (def?.keywords?.includes("Haste")) token.summoningSickness = false;
+        /*
+         * A token enters the battlefield like anything else, so it goes
+         * through the same arrival path - haste, and every trigger that cares
+         * that a creature arrived. It used to only get the haste half, done
+         * here by hand, which meant three Soldier tokens beside a Soul Warden
+         * gained nothing.
+         */
+        enteredBattlefield(state, token);
       }
       return;
     }
