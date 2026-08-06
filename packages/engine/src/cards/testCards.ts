@@ -325,8 +325,14 @@ export const HEALING_SALVE: CardDefinition = {
     modes: [
       { label: "Target player gains 3 life", effect: { kind: "gainLife", amount: 3 } },
       {
-        label: "Prevent the next 3 damage to target creature this turn",
-        effect: { kind: "pump", power: 0, toughness: 3, target: { kind: "creature" } },
+        // Was +0/+3 on a creature until 2026-08-06, which was an approximation
+        // in two directions at once: it could not protect a player at all, and
+        // extra toughness is not prevention - it does not stop deathtouch, it
+        // still feeds the attacker's lifelink, and it stacks with a -N/-N
+        // instead of being irrelevant to one. The engine now has real
+        // prevention, so this is the printed card.
+        label: "Prevent the next 3 damage to any target this turn",
+        effect: { kind: "preventDamage", amount: 3, target: { kind: "any-target" } },
       },
     ],
   },

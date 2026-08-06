@@ -31,7 +31,8 @@ import { CardInspect } from "./components/CardInspect.js";
 import { ManaPipLayer } from "./components/ManaPipLayer.js";
 import { ParticleLayer } from "./components/ParticleLayer.js";
 import { StopSettings } from "./components/StopSettings.js";
-import { burstForFlight } from "./particles.js";
+import { burstsForFlight, spellColor } from "./particles.js";
+import { findInstance } from "./cardLookup.js";
 import {
   emitParticles,
   particlesEnabled,
@@ -189,20 +190,27 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   useEffect(() => {
     for (const flight of flights) {
       if (bursted.current.has(flight.key)) continue;
-      const scheduled = burstForFlight(flight, FLIGHT_MS);
-      if (!scheduled) continue;
-      if (scheduled.delayMs <= 0) {
-        emitParticles(scheduled.burst);
-        continue;
+      // What colour a resolving spell goes off in. Looked up by instance id
+      // because the card has already left the stack by the time this runs -
+      // see cardLookup.ts.
+      const instance = state ? findInstance(state, flight.instanceId) : undefined;
+      const definition = instance ? state?.cardDefinitions[instance.definitionId] : undefined;
+      for (const scheduled of burstsForFlight(flight, FLIGHT_MS, {
+        color: definition ? spellColor(definition.manaCost) : undefined,
+      })) {
+        if (scheduled.delayMs <= 0) {
+          emitParticles(scheduled.burst);
+          continue;
+        }
+        const timer = window.setTimeout(() => {
+          burstTimers.current = burstTimers.current.filter((id) => id !== timer);
+          emitParticles(scheduled.burst);
+        }, scheduled.delayMs);
+        burstTimers.current.push(timer);
       }
-      const timer = window.setTimeout(() => {
-        burstTimers.current = burstTimers.current.filter((id) => id !== timer);
-        emitParticles(scheduled.burst);
-      }, scheduled.delayMs);
-      burstTimers.current.push(timer);
     }
     bursted.current = new Set(flights.map((flight) => flight.key));
-  }, [flights]);
+  }, [flights, state]);
 
   useEffect(
     () => () => {

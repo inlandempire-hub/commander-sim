@@ -11,6 +11,7 @@ import { cardArtUrl } from "../cardArt.js";
 import { useArtOverrides } from "../artContext.js";
 import { useIsFlying } from "../flightContext.js";
 import { useInspect } from "../inspectContext.js";
+import { DURATIONS } from "../motion.js";
 import { emitParticles } from "../particleBus.js";
 
 const COLOR_CLASS: Record<string, string> = {
@@ -21,8 +22,13 @@ const COLOR_CLASS: Record<string, string> = {
   G: "card--G",
 };
 
-/** How long the flinch lasts when a creature is dealt damage. */
-const HIT_MS = 420;
+/**
+ * How long the flinch class stays on. Deliberately a little longer than the
+ * animation it drives (`--t-strike`): removing the class on the exact frame the
+ * animation ends can clip its last step, and a flinch that stops halfway
+ * through its recoil leaves the card visibly off-centre for one frame.
+ */
+const HIT_MS = DURATIONS.strike + 40;
 
 function dominantColorClass(def: CardDefinition): string {
   const colors = Object.entries(def.manaCost?.colors ?? {})
@@ -264,6 +270,12 @@ export function CardView({
                 </span>
               )}
               {instance.damageMarked > 0 && <span className="card__damage"> (-{instance.damageMarked})</span>}
+              {/* Shown on the P/T line rather than as a badge because that is
+                  where the reader is already looking to work out whether this
+                  creature survives combat, and the shield is part of that sum. */}
+              {instance.damagePrevention > 0 && (
+                <span className="card__shield"> (shield {instance.damagePrevention})</span>
+              )}
             </span>
           )}
           {!showArt && definition.keywords?.length ? (

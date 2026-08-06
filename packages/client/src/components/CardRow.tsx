@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { overlapFor } from "../fan.js";
+import { arcFor, overlapFor } from "../fan.js";
 
 /**
  * A row of cards that closes up rather than scrolling when it gets crowded.
@@ -17,6 +17,12 @@ import { overlapFor } from "../fan.js";
 
 export interface CardRowProps {
   className?: string;
+  /**
+   * Bend this row into a held fan - see `arcFor`. Opt-in, and only the hand
+   * asks for it: a battlefield is a table with cards laid on it, and tilting
+   * those would say "held" about something nobody is holding.
+   */
+  arc?: boolean;
   children: ReactNode;
 }
 
@@ -42,10 +48,51 @@ function assumedCardWidth(card: HTMLElement): number {
   return card.offsetWidth + 1;
 }
 
-export function CardRow({ className, children }: CardRowProps) {
+export function CardRow({ className, arc, children }: CardRowProps) {
   const ref = useRef<HTMLDivElement>(null);
   const applied = useRef(-1);
+  const arcApplied = useRef("");
   const measure = useRef(() => {});
+
+  /*
+   * The one place in this client where something other than React writes to a
+   * card element, and it is deliberate rather than a shortcut.
+   *
+   * The overlap is one number for the whole row, so it goes out as a custom
+   * property on the row and every card inherits it. The fan is not: each card
+   * has its own angle, and the value depends on how many cards there are and
+   * how tall they resolved to - neither of which the component rendering the
+   * hand knows. Threading a per-card style prop down from there would mean
+   * measuring in one component and passing the answer through another.
+   *
+   * These are custom properties, not styles React manages, and CardView sets no
+   * `style` prop at all, so there is nothing here for React to fight over. The
+   * stylesheet reads them through `--fan-tilt` rather than using them directly,
+   * which is what lets `:hover` straighten a card that has an inline angle -
+   * an inline custom property would otherwise beat every rule in the sheet.
+   */
+  const applyArc = (cards: HTMLElement[]) => {
+    const height = cards[0]?.offsetHeight ?? 0;
+    const signature = arc ? `${cards.length}:${height}` : "";
+    if (signature === arcApplied.current) return;
+    arcApplied.current = signature;
+
+    if (!arc) {
+      for (const card of cards) {
+        card.style.removeProperty("--fan-angle");
+        card.style.removeProperty("--fan-drop");
+      }
+      return;
+    }
+
+    const poses = arcFor({ count: cards.length, cardHeight: height });
+    cards.forEach((card, index) => {
+      const pose = poses[index];
+      if (!pose) return;
+      card.style.setProperty("--fan-angle", `${pose.tiltDeg.toFixed(2)}deg`);
+      card.style.setProperty("--fan-drop", `${pose.liftPx.toFixed(2)}px`);
+    });
+  };
 
   measure.current = () => {
     const row = ref.current;
@@ -58,6 +105,8 @@ export function CardRow({ className, children }: CardRowProps) {
       cardWidth: cards[0] ? assumedCardWidth(cards[0]) : 0,
       gap,
     });
+
+    applyArc(cards);
 
     // Only write when it has actually moved. The row's own width comes from its
     // parent rather than from its contents, so this cannot feed back into the

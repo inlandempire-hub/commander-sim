@@ -22,6 +22,23 @@
      the three boxes whose contents grow without limit, so it is the one that
      must never be allowed to ask for room. Three turns of log fits. */
   --log-h: 178px;
+
+  /* ---- the motion scale ---------------------------------------------------
+     Five durations and four curves, and nothing in this file should invent a
+     sixth. What each one is for, and why every curve decelerates, is written
+     out once in motion.ts - which holds the same numbers for the parts of the
+     client that animate from JavaScript, and which a test keeps in step with
+     these. Change them there and here together, or the test fails. */
+  --t-press: 70ms;
+  --t-pose: 150ms;
+  --t-travel: 380ms;
+  --t-strike: 420ms;
+  --t-linger: 900ms;
+
+  --ease-settle: cubic-bezier(0.16, 0.84, 0.32, 1);
+  --ease-lift: cubic-bezier(0.32, 0.72, 0.4, 1);
+  --ease-snap: cubic-bezier(0.22, 1, 0.36, 1.18);
+  --ease-strike: cubic-bezier(0.3, 0.85, 0.35, 1);
 }
 
 * {
@@ -474,6 +491,14 @@ body {
   font-size: 9px;
   font-weight: 400;
   color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.rail__shield {
+  display: block;
+  font-size: 9px;
+  font-weight: 600;
+  color: #9fc4ff;
   text-transform: uppercase;
 }
 
@@ -961,6 +986,19 @@ body {
      combat stance and still throw a punch out of it. */
   --clash: 0px;
 
+  /*
+   * The fan. CardRow measures a hand and writes --fan-angle and --fan-drop onto
+   * each card; these two read them, and everything else uses these two.
+   *
+   * The indirection is what makes the hover rule below possible. The measured
+   * values have to be inline - they are per card - and an inline custom
+   * property beats every rule in this file, so `:hover { --fan-angle: 0 }`
+   * would do nothing at all. Reading them into a second pair that only the
+   * stylesheet ever sets puts the cascade back in charge.
+   */
+  --fan-tilt: var(--fan-angle, 0deg);
+  --fan-lift: var(--fan-drop, 0px);
+
   position: relative;
   flex: 0 0 auto;
   height: 100%;
@@ -975,10 +1013,19 @@ body {
   cursor: pointer;
   user-select: none;
   font-size: 11px;
-  transform: translate(var(--nudge), calc(var(--lunge) + var(--clash) + var(--hover)))
-    rotate(var(--tilt)) scale(var(--zoom));
+  transform: translate(
+      var(--nudge),
+      calc(var(--lunge) + var(--clash) + var(--hover) + var(--fan-lift))
+    )
+    rotate(calc(var(--tilt) + var(--fan-tilt))) scale(var(--zoom));
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+  /* Transform and shadow are the card moving, so they take the pose curve.
+     Filter is the card dimming as it taps - a brightness change has no
+     momentum to model, and easing one only makes it look like it stalled. */
+  transition:
+    transform var(--t-pose) var(--ease-lift),
+    box-shadow var(--t-pose) var(--ease-lift),
+    filter var(--t-pose) linear;
 }
 
 /* Hover-to-zoom. The card grows in place rather than opening a preview
@@ -987,6 +1034,12 @@ body {
 .card:hover {
   --hover: -6px;
   --zoom: 1.09;
+  /* Straightens out of the fan on the way up. Picking a card out of a hand
+     means pulling it clear of the others to look at it, and a card that grows
+     while still leaning is the one thing that reads as a rendering mistake
+     rather than as a hand. */
+  --fan-tilt: 0deg;
+  --fan-lift: 0px;
   outline: 2px solid var(--accent);
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.55);
   z-index: 3;
@@ -1075,6 +1128,14 @@ body {
   font-weight: 400;
 }
 
+/* Prevention, in the same blue as everything else on this table that means
+   "protected" rather than "bigger" - it is not a buff and should not read as
+   one sitting next to the +1/+1 counters. */
+.card__shield {
+  color: #9fc4ff;
+  font-weight: 400;
+}
+
 .card__keywords {
   color: var(--text-dim);
   font-size: 8px;
@@ -1151,6 +1212,25 @@ body {
 }
 
 /*
+ * The seat at the top of the screen holds its hand the other way up, so its fan
+ * has to bend away from the centre line rather than towards it - otherwise both
+ * hands curve the same way and the top one reads as sagging.
+ *
+ * The hover rule has to be repeated because this one is no more specific than
+ * `.card:hover` and comes later in the file, so without it a hovered card on
+ * the flipped side would keep its lean.
+ */
+.side--flipped .card {
+  --fan-tilt: calc(-1 * var(--fan-angle, 0deg));
+  --fan-lift: calc(-1 * var(--fan-drop, 0px));
+}
+
+.side--flipped .card:hover {
+  --fan-tilt: 0deg;
+  --fan-lift: 0px;
+}
+
+/*
  * A creature taking damage flinches.
  *
  * --nudge is registered below so it can be interpolated; a browser without
@@ -1174,7 +1254,7 @@ body {
 }
 
 .card--hit {
-  animation: card-hit 0.4s ease-in-out;
+  animation: card-hit var(--t-strike) var(--ease-strike);
   box-shadow: 0 0 0 2px var(--danger), 0 0 18px rgba(255, 91, 106, 0.55);
 }
 
@@ -1210,11 +1290,11 @@ body {
 }
 
 .card--clash {
-  animation: card-clash 0.42s cubic-bezier(0.3, 0.85, 0.35, 1);
+  animation: card-clash var(--t-strike) var(--ease-strike);
 }
 
 .side--flipped .card--clash {
-  animation: card-clash-flipped 0.42s cubic-bezier(0.3, 0.85, 0.35, 1);
+  animation: card-clash-flipped var(--t-strike) var(--ease-strike);
 }
 
 /* A creature that both clashed and took damage wants both animations. The
@@ -1223,14 +1303,14 @@ body {
    most creatures in a fight are hit by it. */
 .card--hit.card--clash {
   animation:
-    card-hit 0.4s ease-in-out,
-    card-clash 0.42s cubic-bezier(0.3, 0.85, 0.35, 1);
+    card-hit var(--t-strike) var(--ease-strike),
+    card-clash var(--t-strike) var(--ease-strike);
 }
 
 .side--flipped .card--hit.card--clash {
   animation:
-    card-hit 0.4s ease-in-out,
-    card-clash-flipped 0.42s cubic-bezier(0.3, 0.85, 0.35, 1);
+    card-hit var(--t-strike) var(--ease-strike),
+    card-clash-flipped var(--t-strike) var(--ease-strike);
 }
 
 /* A copy of this card is currently flying towards this zone. It keeps its
@@ -1600,11 +1680,11 @@ body {
 }
 
 .rail__life--up {
-  animation: life-up 0.85s ease-out;
+  animation: life-up var(--t-linger) var(--ease-settle);
 }
 
 .rail__life--down {
-  animation: life-down 0.85s ease-out;
+  animation: life-down var(--t-linger) var(--ease-settle);
 }
 
 /* The active player's half gets a coloured edge rather than only a border
@@ -1734,7 +1814,10 @@ body {
     inset 0 -2px 0 rgba(0, 0, 0, 0.22),
     0 3px 0 var(--btn-edge),
     0 5px 11px rgba(0, 0, 0, 0.45);
-  transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.12s ease;
+  transition:
+    transform var(--t-press) var(--ease-lift),
+    box-shadow var(--t-press) var(--ease-lift),
+    filter var(--t-press) linear;
 }
 
 .action-bar__go:hover,
@@ -1868,7 +1951,7 @@ body {
   font-size: 15px;
   font-weight: 700;
   pointer-events: none;
-  animation: life-delta 1s ease-out forwards;
+  animation: life-delta var(--t-linger) var(--ease-settle) forwards;
 }
 
 .rail__life-delta--up {
@@ -1902,7 +1985,11 @@ body {
   pointer-events: none;
   z-index: 70;
   opacity: 0;
-  animation: beat 1.15s ease-out;
+  /* Deliberately outside the motion scale, and the only thing here that is.
+     The phase banner is not an object moving, it is an announcement, and it
+     has to hold long enough to be read across the whole table without being
+     looked at directly - which is longer than anything the scale is for. */
+  animation: beat 1.15s var(--ease-settle);
 }
 
 .beat__text {
@@ -1930,8 +2017,40 @@ body {
 /* A spell that has resolved leaves the stack lit up; a card on its way to a
    graveyard is dying and dims as it goes; exile takes it somewhere colder.
    Without this, a creature dying and a land being played look identical. */
+/*
+ * A spell resolving, which is the one moment in a turn that used to have the
+ * least to show for itself. The card was already flying away from the stack and
+ * throwing off motes; what was missing was the spell *going off*.
+ *
+ * Three things now happen together, all from the same colour: a ring thrown
+ * out from where the card sat (the `shockwave` burst), motes drifting after it,
+ * and this - the card itself flaring white-hot as it leaves and cooling to a
+ * steady glow on the way. The flare is deliberately over in the first third of
+ * the journey, so the eye is pulled to where the spell happened and then
+ * released to follow the card wherever it is going.
+ *
+ * Filter and opacity only, never transform: this element's transform belongs to
+ * Framer Motion, which is flying it across the table, and a keyframe touching
+ * it would fight the flight and win in whichever order the browser applied
+ * them. The glow colour is set inline per card by CardFlightLayer.
+ */
+@keyframes spell-flare {
+  0% {
+    filter: brightness(2.4) saturate(1.5) drop-shadow(0 0 30px var(--spell-glow, rgba(120, 175, 255, 0.85)));
+  }
+  35% {
+    filter: brightness(1.3) saturate(1.2) drop-shadow(0 0 20px var(--spell-glow, rgba(120, 175, 255, 0.85)));
+  }
+  100% {
+    filter: brightness(1) saturate(1) drop-shadow(0 0 14px var(--spell-glow, rgba(120, 175, 255, 0.85)))
+      drop-shadow(0 12px 20px rgba(0, 0, 0, 0.55));
+  }
+}
+
 .flight--resolving {
-  filter: drop-shadow(0 0 16px rgba(120, 175, 255, 0.85)) drop-shadow(0 12px 20px rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(0 0 16px var(--spell-glow, rgba(120, 175, 255, 0.85)))
+    drop-shadow(0 12px 20px rgba(0, 0, 0, 0.55));
+  animation: spell-flare var(--t-travel) var(--ease-settle);
 }
 
 .flight--dying {
@@ -1966,7 +2085,7 @@ body {
   color: #ff8b96;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
   pointer-events: none;
-  animation: hit-number 0.42s ease-out forwards;
+  animation: hit-number var(--t-strike) var(--ease-settle) forwards;
 }
 
 @keyframes hit-number {
@@ -2190,7 +2309,7 @@ body {
 
 .mulligan__slot {
   flex: 0 0 var(--mull-card-w);
-  transition: transform 0.14s ease;
+  transition: transform var(--t-pose) var(--ease-lift);
 }
 
 /* The real printed face. No frame of our own around it - the card already has
@@ -2488,6 +2607,10 @@ body {
   background: var(--pip-color, #d8d2c4);
   box-shadow: 0 0 8px 2px var(--pip-glow, rgba(216, 210, 196, 0.7));
   transform: translate(var(--from-x), var(--from-y));
+  /* The one accelerating curve on the table, and the one thing it is right
+     for: a pip is not arriving anywhere, it is being pulled into the pool, and
+     something being drawn in should be speeding up when it disappears. The
+     duration is inline because the flight is staggered per land. */
   animation: pip-fly var(--pip-ms, 520ms) ease-in var(--pip-delay, 0ms) forwards;
 }
 

@@ -237,6 +237,14 @@ export function PlayerBoard({
         >
           {player.life}
           <span className="rail__life-label">life</span>
+          {/* A prevention shield is invisible until it silently eats damage,
+              which is the worst way for a rules effect to work: you would only
+              find out it had been there by the number not moving. */}
+          {player.damagePrevention > 0 && (
+            <span className="rail__shield" title="Damage that will be prevented this turn">
+              shield {player.damagePrevention}
+            </span>
+          )}
           {lifeFlash && (
             <span
               className={`rail__life-delta ${lifeFlash.delta > 0 ? "rail__life-delta--up" : "rail__life-delta--down"}`}
@@ -363,7 +371,9 @@ export function PlayerBoard({
             )}
           </div>
           <div className="zone zone--hand">
-            <CardRow className="row__cards">
+            {/* The only fanned row on the table - this is the one you are
+                actually holding. */}
+            <CardRow className="row__cards" arc>
               {player.hand.map((instance) => (
                 <CardView
                   key={instance.instanceId}

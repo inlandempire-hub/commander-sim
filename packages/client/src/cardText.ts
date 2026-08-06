@@ -72,6 +72,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Add ${`{${effect.color}}`.repeat(effect.amount)}.`;
     case "gainLife":
       return `You gain ${effect.amount} life.`;
+    case "preventDamage":
+      return `Prevent the next ${effect.amount} damage that would be dealt to ${describeTarget(
+        effect.target,
+      )} this turn.`;
     case "addCounter":
       return `Put ${effect.amount} +1/+1 ${plural(effect.amount, "counter")} on this creature.`;
     case "addCounterToEachOther":

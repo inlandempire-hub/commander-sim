@@ -27,7 +27,7 @@ import type { Placement } from "./flight.js";
 /** A function returning 0..1. Injectable purely so the tests are deterministic. */
 export type Random = () => number;
 
-export type BurstKind = "mana-absorb" | "mana-spark" | "impact" | "ash" | "resolve";
+export type BurstKind = "mana-absorb" | "mana-spark" | "impact" | "ash" | "resolve" | "shockwave";
 
 export interface Particle {
   /** Viewport pixels, same coordinate space as getBoundingClientRect. */
@@ -103,6 +103,17 @@ interface Preset {
   aim: number;
   /** Total width of the spray, radians. TAU is every direction. */
   spread: number;
+  /**
+   * Makes this burst a ring rather than a spray: the specks are spaced evenly
+   * around the circle instead of scattered at random, start this many pixels
+   * out from the centre, and travel straight outwards.
+   *
+   * Evenness is the whole point. A random spray of enough particles eventually
+   * covers every direction too, but it does so lumpily, and a shockwave with
+   * gaps in it reads as a scatter that happened to be circular rather than as
+   * an edge expanding.
+   */
+  ring?: number;
 }
 
 const TAU = Math.PI * 2;
@@ -204,6 +215,36 @@ const PRESETS: Record<BurstKind, Preset> = {
     aim: -Math.PI / 2,
     spread: TAU,
   },
+  /*
+   * The other half of a spell resolving: a ring thrown out from where the card
+   * was sitting, in the spell's own colour.
+   *
+   * The motes above say "something left the stack". This says "and it did
+   * something" - which is the part that was missing. A counterspell and a
+   * creature spell and a board wipe all used to leave the stack identically,
+   * and the only place the difference showed up was in the log.
+   *
+   * Fast out and heavily dragged, so it opens in the first tenth of a second
+   * and then stops rather than drifting. That deceleration is what makes it a
+   * shockwave instead of an explosion; nothing here has weight to carry.
+   */
+  shockwave: {
+    count: 26,
+    perStrength: 0,
+    maxCount: 26,
+    // A narrow speed range on purpose: spread these out and the ring stops
+    // being a ring by the time it is at its widest.
+    speed: [195, 225],
+    life: [300, 380],
+    size: [1.3, 2.1],
+    gravity: 0,
+    drag: 0.05,
+    additive: true,
+    color: "#cfe0ff",
+    aim: 0,
+    spread: TAU,
+    ring: 6,
+  },
 };
 
 /**
@@ -226,6 +267,32 @@ export const MANA_COLORS: Record<string, string> = {
 
 export function manaColor(color: string | undefined): string {
   return MANA_COLORS[color ?? "C"] ?? MANA_COLORS.C!;
+}
+
+/** Gold, the way a multicoloured card's frame is gold. Not a mana colour. */
+export const MULTICOLOR = "#e8c765";
+
+/**
+ * What colour a card's own effects should throw off.
+ *
+ * Taken from the mana cost rather than from a colour identity, because this is
+ * about the spell you just watched somebody cast: the pips they paid are the
+ * ones on screen a second earlier, and a card whose identity includes a colour
+ * its cost never mentions would flash a colour nothing in the game showed.
+ *
+ * Deliberately not a Color union in the signature - it takes only what it
+ * needs, which keeps this module free of engine imports, and it is the shape
+ * a mana cost happens to have rather than the type.
+ */
+export function spellColor(
+  cost: { colors?: Partial<Record<string, number>> } | undefined,
+): string {
+  const colors = Object.entries(cost?.colors ?? {})
+    .filter(([, pips]) => (pips ?? 0) > 0)
+    .map(([color]) => color);
+  if (colors.length === 0) return MANA_COLORS.C!;
+  if (colors.length > 1) return MULTICOLOR;
+  return manaColor(colors[0]);
 }
 
 /** `#rrggbb` plus an alpha, as a CSS colour. Anything unparseable passes through. */
@@ -264,12 +331,18 @@ export function spawnBurst(burst: Burst, random: Random = Math.random): Particle
   const particles: Particle[] = [];
 
   for (let i = 0; i < count; i++) {
-    const angle = preset.aim + (random() - 0.5) * preset.spread;
+    // A ring divides the circle up between its specks; everything else scatters
+    // them, because a spray with evenly spaced particles reads as a machine.
+    const angle =
+      preset.ring === undefined
+        ? preset.aim + (random() - 0.5) * preset.spread
+        : preset.aim + (i / count) * preset.spread;
     const speed = between(random, preset.speed[0], preset.speed[1]);
     const life = between(random, preset.life[0], preset.life[1]);
+    const radius = preset.ring ?? 0;
     particles.push({
-      x: burst.x,
-      y: burst.y,
+      x: burst.x + Math.cos(angle) * radius,
+      y: burst.y + Math.sin(angle) * radius,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       life,
@@ -355,7 +428,7 @@ function centreOf(placement: Placement): { x: number; y: number } {
 }
 
 /**
- * Which burst, if any, a card's journey between zones is worth.
+ * Which bursts, if any, a card's journey between zones is worth.
  *
  * Driven off the flight system rather than off the engine for the same reason
  * the flights themselves are (see flight.ts): the client never has to be told a
@@ -365,22 +438,38 @@ function centreOf(placement: Placement): { x: number; y: number } {
  * Only two journeys qualify. Everything else - a land being played, a card
  * drawn, a spell put on the stack - already has the card itself travelling,
  * which is plenty; adding a burst to each would turn a turn into fireworks.
+ *
+ * `color` is the resolving spell's own colour, and only the resolution uses it.
+ * Ash has no business being green.
  */
-export function burstForFlight(
+export function burstsForFlight(
   flight: { from: Placement; to: Placement; delay: number },
   flightMs: number,
-): ScheduledBurst | null {
+  options: { color?: string } = {},
+): ScheduledBurst[] {
   if (flight.from.zone === "battlefield" && flight.to.zone === "graveyard") {
     // At the far end, timed to the card landing: the ash is the permanent
     // arriving in the graveyard, not leaving the battlefield.
     const at = centreOf(flight.to);
-    return { burst: { kind: "ash", x: at.x, y: at.y }, delayMs: flight.delay + flightMs };
+    return [{ burst: { kind: "ash", x: at.x, y: at.y }, delayMs: flight.delay + flightMs }];
   }
   if (flight.from.zone === "stack") {
-    // At the near end, immediately: the spell resolving is it leaving the
-    // stack, whether it then goes to the battlefield or to the graveyard.
+    /*
+     * At the near end, immediately: the spell resolving is it leaving the
+     * stack, whether it then goes to the battlefield or to the graveyard.
+     *
+     * Two bursts from the same point, and they are doing different jobs. The
+     * ring is the spell going off - it opens fast, it is the same shape every
+     * time, and it is coloured by the card, so a red spell resolving is
+     * distinguishable from a blue one at a glance. The motes are the card
+     * itself dispersing, and they drift up and away behind it.
+     */
     const at = centreOf(flight.from);
-    return { burst: { kind: "resolve", x: at.x, y: at.y }, delayMs: flight.delay };
+    const color = options.color;
+    return [
+      { burst: { kind: "shockwave", x: at.x, y: at.y, color }, delayMs: flight.delay },
+      { burst: { kind: "resolve", x: at.x, y: at.y, color }, delayMs: flight.delay },
+    ];
   }
-  return null;
+  return [];
 }

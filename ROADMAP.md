@@ -85,7 +85,7 @@ See "Deck builder" below.
 ## Phase 6 — Polish
 - [x] Smoother animations - DONE (2026-08-02). Cards travel between zones, tap, lunge into combat and flinch when damaged; see "Motion: cards that travel" below.
 - [x] Card art via Scryfall images - DONE (2026-08-01), see "Card art" below.
-- [ ] UI pass so it reads as a real digital card game - **in progress, roughly 7/10** against the agreed scale (0 = where this started, 10 = MTG Arena). Since the 5/10 note: fanned rows instead of a scrollbar, targeting and held blocking lines, a canvas particle system, phase beats, floating damage and life numbers, synthesised sound, a readable stack, and raised 3D controls. What is left for 8+: hand cards fanning in a real arc rather than by overlapping (blocked on the flight system measuring rotated bounding boxes), tuned easing curves rather than chosen ones, spells resolving with a flourish of their own, and a real damage-prevention shield so Healing Salve's second mode stops being an approximation.
+- [ ] UI pass so it reads as a real digital card game - **in progress, roughly 8/10** against the agreed scale (0 = where this started, 10 = MTG Arena). Since the 5/10 note: fanned rows instead of a scrollbar, targeting and held blocking lines, a canvas particle system, phase beats, floating damage and life numbers, synthesised sound, a readable stack, and raised 3D controls. Everything listed as needed for 8 is done (2026-08-06, see "The push to 8" below): the hand fans in a real arc, the motion scale is tuned rather than chosen, spells resolve with a flourish of their own, and damage prevention is a real shield. What is left for 9+ is listed there too.
 - [x] Auto-skip priority passes when there's nothing meaningful to do - DONE (2026-07-30). See "Auto-pass + turn-sequence rules fixes" below.
 
 ## Ongoing (never "done")
@@ -1414,3 +1414,158 @@ dies. Shown as a card rather than a rail thumbnail, with "In play" when it is
 on the battlefield.
 
 338 tests, typecheck clean. Every item above verified in the browser.
+
+## The push to 8 (2026-08-06)
+
+Four things, which were the four things the 7/10 note listed as standing
+between here and 8. Nothing new was invented for this - it is the list being
+worked through.
+
+### The hand fans in a real arc
+
+`fan.ts` / `CardRow.tsx`. Overlapping got a hand most of the way there but it
+still read as a stack of cards pushed together rather than as a hand somebody
+is holding. A real hand pivots around the fist at the bottom: the cards splay
+outwards and the outer ones ride lower than the middle one.
+
+Modelled as exactly that pivot rather than as a tilt-per-card lookup. Each card
+sits on the rim of a wheel whose hub is three card heights below the row, and
+turning card `i` by its angle drops its centre by `radius * (1 - cos angle)` -
+the sagitta of that arc. Anything else needs the lift and the rotation kept in
+step by hand, and they drift apart the moment either is adjusted. The step
+tightens once a hand is big enough that the fan would exceed its total spread,
+so a three-card hand and a twelve-card hand bend by the same amount overall.
+
+Opt-in per row, and only the hand asks for it: a battlefield is a table with
+cards laid on it, and tilting those would say "held" about something nobody is
+holding. The seat at the top of the screen bends the other way, or both hands
+curve the same way and the top one reads as sagging.
+
+Hovering straightens a card out of the fan on its way up, and that needed one
+piece of care. The measured angles have to be inline - they are per card - and
+an inline custom property beats every rule in the stylesheet, so
+`:hover { --fan-angle: 0 }` would have done nothing. The cards read the inline
+values into a second pair that only the stylesheet ever sets, which puts the
+cascade back in charge.
+
+Verified in both modes: seven cards spanning -12deg to +12deg with drops of
+8.65px at the ends and none in the middle, mirrored on the flipped seat; six
+cards re-fanning to +/-10deg with no card upright; battlefield rows with no fan
+properties at all; and a hovered card computing to the identity transform.
+
+### The flight system, unblocked
+
+That arc was listed as *blocked* on the flight system, and this is why.
+`getBoundingClientRect` measures what is drawn, and what is drawn is now often
+rotated. The rectangle it returns for a rotated card is the upright box that
+*contains* it - for a card leaning 12 degrees, 119.7x148.7 instead of 94x132 -
+so a flight aimed at one arrived off centre and scaled itself against a size
+the card never actually has.
+
+`offsetWidth`/`offsetHeight` are the layout box and ignore transforms entirely.
+The position is recovered from the centre, because every transform on a card is
+composed about its centre, and rotating a box about its centre leaves that
+centre where it was. Translation deliberately survives: a card that has lunged
+into combat really is somewhere else.
+
+This also quietly fixes tapped cards, which have had the same problem since
+they started rotating. Verified: a tilted hand card measured 119.7x148.7 the
+old way and 94x132 the new way, with its left corrected by 12.8px, while an
+upright card in the same row measured identically both ways.
+
+### A tuned motion scale instead of chosen numbers
+
+`motion.ts`, plus custom properties in `styles.css`. Every duration and curve
+in the client used to be chosen where it was written - 0.16s here, 0.14s there,
+`ease` on almost everything. Individually each was defensible; together they
+were not a system, and a card lifting under the cursor eased the same way as a
+life total falling.
+
+Five durations, picked by what the motion is for. Perception is the constraint,
+not taste: under about 100ms a change is not seen as movement at all, only as a
+jump, and over about 250ms a small change starts registering as a wait. So
+poses live at 150ms, a control answers a click in 70ms, and the long ones are
+long because something has to be *read*.
+
+Four curves, and **every one decelerates**. This is the change that is actually
+visible. CSS's default `ease` accelerates and decelerates about equally, which
+suits something passing through and suits nothing here: a card arriving in a
+zone, a hand lifting, a life total settling are all objects coming to rest.
+
+The scale is duplicated - as numbers in `motion.ts` for the parts that animate
+from JavaScript, as custom properties for the stylesheet - because CSS cannot
+import a module and writing the stylesheet from JavaScript at boot would be
+worse. A test parses `styles.css` and fails the moment the two drift apart,
+which is the whole risk the duplication carries. Two things sit outside the
+scale on purpose and say so in place: the phase banner, which is an
+announcement rather than an object and has to hold long enough to be read; and
+the mana pip, the one accelerating curve on the table, because a pip is not
+arriving anywhere - it is being pulled into the pool.
+
+### Spells resolve with a flourish of their own
+
+A resolving spell already threw off motes. What was missing was the spell
+*going off*: a counterspell, a creature spell and a board wipe all left the
+stack identically, and the only place the difference showed was the log.
+
+Three things now happen together, all from the same colour - the card's own,
+taken from the pips its controller actually paid. A ring is thrown out from
+where the card sat (a new `shockwave` burst: evenly spaced around the circle
+rather than scattered, because a shockwave with gaps in it reads as a scatter
+that happened to be circular), the motes drift after it, and the card itself
+flares white-hot as it leaves and cools on the way. The flare is filter and
+opacity only, never transform - that belongs to Framer Motion, which is flying
+the card across the table.
+
+Verified by recording what the particle canvas actually drew: 661 arcs for one
+resolution, every one in `#f4efd8`, which is the white mana colour and the
+colour of the {1}{W} creature that resolved. Before this they would all have
+been the same fixed blue.
+
+### Damage prevention is a real shield
+
+Healing Salve's second mode reads "prevent the next 3 damage that would be
+dealt to any target this turn" and was implemented as +0/+3 on a creature. That
+was an approximation in two directions at once: it could not protect a player
+at all, and extra toughness is not prevention - it does not stop deathtouch, it
+still feeds the attacker's lifelink, and it stacks with a -N/-N instead of
+being irrelevant to one.
+
+The engine now has a shield, on creatures and on players, spent by the next
+damage that arrives and cleared in cleanup. The part that made this worth doing
+properly is `damage.ts`: **one place damage is actually dealt**. Before it,
+damage was applied by whoever happened to be dealing it - `applyEffect` for a
+burn spell, `dealCombatDamage` in four more places for unblocked attackers,
+blockers, trample and first strike. That was survivable while nothing could
+interfere with damage. A shield that stopped burn spells but not an attacking
+creature would be worse than no shield at all.
+
+Routing everything through one function also fixed a latent inaccuracy nobody
+had hit yet: lifelink and commander damage were computed from the source's
+power rather than from the damage actually dealt. Both now key off what landed.
+
+Thirteen tests, covering each path damage can arrive by: a burn spell, an
+unblocked attacker, a blocker, trample, commander damage, deathtouch, and the
+cleanup step. One of them guards the fixture itself, so it cannot quietly go
+back to being +0/+3.
+
+Both shields are shown - "shield 3" under a life total, "(shield 2)" beside a
+creature's power and toughness. A prevention effect that is invisible until it
+silently eats damage is the worst way for a rules effect to work: you would
+only find out it had been there by the number not moving.
+
+### What is left for 9+
+
+Diminishing returns from here, and worth saying plainly so the next session
+does not go looking for a list that is longer than it is:
+
+- Cards in a fan should shuffle apart slightly to make room for the one being
+  hovered, rather than only the hovered card moving.
+- The stack could cascade properly - each object offset from the one below in a
+  way that reads as depth rather than as a pile.
+- Sound is synthesised and thin. Real samples would be a bigger jump in feel
+  than anything left in the visuals.
+- Turn transitions have a beat but no sense of handover.
+
+483 tests, typecheck clean. Every item above verified in the browser, in both
+bot mode and hotseat.

@@ -1,6 +1,7 @@
 import type { CardInstance, GameState } from "./types.js";
 import { log, requireDefinition, requirePlayer } from "./state.js";
 import { effectivePower, effectiveToughness } from "./counters.js";
+import { damageCreature, damagePlayer } from "./damage.js";
 import { pushOntoStack } from "./permanents.js";
 
 /**
@@ -243,19 +244,24 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
     if (!wasBlocked) {
       if (!attackerStrikesNow || power <= 0) continue;
       const defender = requirePlayer(state, defendingPlayerId);
-      defender.life -= power;
-      if (attackerHasLifelink) {
-        requirePlayer(state, attackerFound.instance.controllerId).life += power;
+      // Everything downstream keys off what actually landed rather than off
+      // the attacker's power: a player who prevented the damage gained no
+      // lifelink for the attacker and took no commander damage either.
+      const { dealt } = damagePlayer(state, defender, power);
+      if (attackerHasLifelink && dealt > 0) {
+        requirePlayer(state, attackerFound.instance.controllerId).life += dealt;
       }
-      if (attackerFound.instance.isCommander) {
+      if (attackerFound.instance.isCommander && dealt > 0) {
         defender.commanderDamageTaken[attackerInstanceId] =
-          (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + power;
+          (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + dealt;
       }
       continue;
     }
 
     let remainingPower = attackerStrikesNow ? power : 0;
     let anyBlockerDeathtouchDamage = false;
+    /** How much of this attacker's power a blocker's shield swallowed. */
+    let preventedByBlockers = 0;
     for (let i = 0; i < blockers.length; i++) {
       const blockerFound = blockers[i]!;
       const isLastBlocker = i === blockers.length - 1;
@@ -272,8 +278,14 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
         const assign =
           !attackerHasTrample && isLastBlocker ? remainingPower : Math.min(remainingPower, neededForLethal);
 
-        blockerFound.instance.damageMarked += assign;
-        if (attackerHasDeathtouch && assign > 0) blockerFound.instance.deathtouchDamage = true;
+        // Assigned power is spent whether or not it lands: a blocker with a
+        // shield up soaks its share of the attacker's power all the same, and
+        // trample does not get to carry the prevented damage through to the
+        // player (rule 702.19b assigns against toughness, not against what
+        // survives prevention).
+        preventedByBlockers += damageCreature(state, blockerFound.instance, assign, {
+          deathtouch: attackerHasDeathtouch,
+        }).prevented;
         remainingPower -= assign;
       }
 
@@ -284,25 +296,30 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       const blockerHasDeathtouch = blockerDef.keywords?.includes("Deathtouch") ?? false;
       const blockerHasLifelink = blockerDef.keywords?.includes("Lifelink") ?? false;
 
-      attackerFound.instance.damageMarked += blockerPower;
-      if (blockerHasDeathtouch && blockerPower > 0) anyBlockerDeathtouchDamage = true;
-      if (blockerHasLifelink && blockerPower > 0) {
-        requirePlayer(state, blockerFound.instance.controllerId).life += blockerPower;
+      const { dealt: dealtToAttacker } = damageCreature(state, attackerFound.instance, blockerPower);
+      if (blockerHasDeathtouch && dealtToAttacker > 0) anyBlockerDeathtouchDamage = true;
+      if (blockerHasLifelink && dealtToAttacker > 0) {
+        requirePlayer(state, blockerFound.instance.controllerId).life += dealtToAttacker;
       }
     }
     if (anyBlockerDeathtouchDamage) attackerFound.instance.deathtouchDamage = true;
 
+    let trampledThrough = 0;
     if (attackerStrikesNow && attackerHasTrample && remainingPower > 0) {
       const defender = requirePlayer(state, defendingPlayerId);
-      defender.life -= remainingPower;
-      if (attackerFound.instance.isCommander) {
+      trampledThrough = damagePlayer(state, defender, remainingPower).dealt;
+      if (attackerFound.instance.isCommander && trampledThrough > 0) {
         defender.commanderDamageTaken[attackerInstanceId] =
-          (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + remainingPower;
+          (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + trampledThrough;
       }
     }
 
     if (attackerStrikesNow && attackerHasLifelink && power > 0) {
-      requirePlayer(state, attackerFound.instance.controllerId).life += power;
+      // The whole of this attacker's power, which is dealt somewhere: to its
+      // blockers, and over them to the player if it tramples. Only what
+      // prevention swallowed is missing from it.
+      const dealt = power - preventedByBlockers - (remainingPower - trampledThrough);
+      if (dealt > 0) requirePlayer(state, attackerFound.instance.controllerId).life += dealt;
     }
   }
 }

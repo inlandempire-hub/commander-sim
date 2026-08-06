@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { planFlights, type Flight, type Placement } from "./flight.js";
+import { DURATIONS } from "./motion.js";
 
 /** How long a card spends in the air. */
-export const FLIGHT_MS = 380;
+export const FLIGHT_MS = DURATIONS.travel;
 
 /**
  * The DOM half of the card-movement animation - see flight.ts for what it is
@@ -19,9 +20,40 @@ interface Measurements {
   anchors: Map<string, Placement>;
 }
 
+/**
+ * Where a card is, as if it were not leaning.
+ *
+ * `getBoundingClientRect` measures what is drawn, and what is drawn is often
+ * rotated: a tapped permanent turns nine degrees, and every card in a hand now
+ * leans by a few (see `arcFor`). The rectangle it returns for a rotated card is
+ * the upright box that *contains* it, which is both wider and taller than the
+ * card - so a flight aimed at one arrived a few pixels off centre and, worse,
+ * scaled itself against a size the card never actually has. That was the thing
+ * blocking the hand from fanning at all.
+ *
+ * `offsetWidth`/`offsetHeight` are the layout box and ignore transforms
+ * entirely, which is exactly the size wanted. The position is recovered from
+ * the centre, because every transform on a card is composed about its centre
+ * (see `.card` in styles.css) and rotating or scaling a box about its centre
+ * leaves that centre where it was.
+ *
+ * Translation deliberately survives this: a card that has lunged into combat or
+ * lifted under the cursor really is somewhere else, and a card flying to it
+ * should go where it is rather than where it would be standing still.
+ */
 function rectOf(element: Element): { left: number; top: number; width: number; height: number } {
   const rect = element.getBoundingClientRect();
-  return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+  const box = element as HTMLElement;
+  // An element with no layout box - display: contents, or an SVG node - has no
+  // offsetWidth to fall back on, so keep what the rect said.
+  const width = box.offsetWidth || rect.width;
+  const height = box.offsetHeight || rect.height;
+  return {
+    left: rect.left + (rect.width - width) / 2,
+    top: rect.top + (rect.height - height) / 2,
+    width,
+    height,
+  };
 }
 
 function measure(): Measurements {

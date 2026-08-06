@@ -120,6 +120,7 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "counter":
     case "returnFromGraveyard":
     case "returnFromExile":
+    case "preventDamage":
       return effect.target;
     // `pump` is the one optional case: "target creature gets +2/+2" targets,
     // but "{G}: this creature gets +2/+2" is the same effect with no target,

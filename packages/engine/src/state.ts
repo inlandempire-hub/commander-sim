@@ -21,6 +21,7 @@ export function createPlayer(id: string): Player {
     manaPool: {},
     commanderCastCount: {},
     hasLost: false,
+    damagePrevention: 0,
     attemptedDrawFromEmptyLibrary: false,
     landsPlayedThisTurn: 0,
   };
@@ -85,6 +86,7 @@ export function createCardInstance(
     plusOneCounters: 0,
     temporaryPowerBonus: 0,
     temporaryToughnessBonus: 0,
+    damagePrevention: 0,
     isCommander: options.isCommander ?? false,
     summoningSickness: true,
   };
@@ -143,6 +145,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.plusOneCounters = 0; // a zone change makes a new object, per the real rules - counters don't carry over
   instance.temporaryPowerBonus = 0; // likewise, until-end-of-turn pumps don't follow a card between zones
   instance.temporaryToughnessBonus = 0;
+  instance.damagePrevention = 0; // a shield protects the object it was cast on, not the new one this became
   instance.controllerId = owner.id; // zone changes return control to the owner
   instance.summoningSickness = destination === "battlefield";
 

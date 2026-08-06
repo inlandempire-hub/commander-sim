@@ -432,15 +432,91 @@ re-checking rather than checking from scratch.
 
 ---
 
+## 17. Added 2026-08-06 - the push to 8/10
+
+The four things the roadmap listed as standing between 7 and 8.
+
+### The hand fans in an arc
+
+- [ ] Your hand leans. The middle card is upright, the outer ones tilt away
+      from it, and the ones at the ends sit slightly lower than the middle.
+- [ ] It looks like a hand somebody is holding rather than cards pushed
+      together.
+- [ ] The opponent's hand at the top of the screen curves the *other* way -
+      away from the middle of the table, not towards it.
+- [ ] The bend stays about the same overall whether you hold four cards or
+      eleven. A big hand tightens its spacing instead of curving further.
+- [ ] Hovering a card straightens it upright as it lifts. It does not grow
+      while still leaning.
+- [ ] Nothing on the battlefield leans. Lands and creatures lie flat.
+- [ ] Playing a card re-fans the rest smoothly rather than snapping.
+
+### Cards still fly to the right places
+
+- [ ] A card leaving your hand flies from where it actually was, including
+      when it was one of the leaning ones at the end of the row.
+- [ ] It arrives centred on its new home, not a few pixels off.
+- [ ] Drawing a card still flies it from the library pile into the hand.
+- [ ] A tapped creature dying flies from where it is sitting, not from beside
+      itself. *(This was wrong before today too - tapped cards rotate, and the
+      old measurement had the same problem the fan would have had.)*
+
+### Motion generally
+
+- [ ] Everything that moves slows down as it arrives rather than gliding at a
+      constant speed. Hardest to name, easiest to feel - if the table reads as
+      calmer, that is this.
+- [ ] Buttons still answer a click instantly.
+- [ ] Nothing feels slower than it did. Durations barely moved; the curves did.
+- [ ] The phase banner still holds long enough to read.
+
+### Spells resolving
+
+- [ ] A spell resolving throws out a ring from where it was sitting, not just
+      a scatter of specks.
+- [ ] The ring is the spell's own colour. A white spell flashes white, a green
+      one green, a gold one gold.
+- [ ] The card flares bright as it leaves the stack and cools on the way to
+      wherever it is going.
+- [ ] A counterspell resolving looks different from a creature spell resolving,
+      because the two are different colours - they used to be identical.
+- [ ] It is a flourish and not a firework. If it is distracting, say so.
+
+### Healing Salve, and prevention
+
+- [ ] Healing Salve's second mode now reads "Prevent the next 3 damage to any
+      target this turn". It used to be "+0/+3 on a creature", which was a
+      different card.
+- [ ] Cast on yourself, the next 3 damage that would hit you does not.
+- [ ] Cast on a creature, the next 3 damage marked on it does not get marked.
+- [ ] A shield shows while it lasts: "shield 3" under a life total, or
+      "(shield 2)" beside a creature's power and toughness.
+- [ ] A shielded creature blocking a deathtouch attacker survives - prevented
+      damage was never dealt, so deathtouch never touched it.
+- [ ] An attacker with lifelink gains no life from damage that was prevented.
+- [ ] A trampler blocked by a shielded creature does *not* get to send the
+      prevented damage through to you.
+- [ ] Any unused shield is gone by your next turn.
+- [ ] The log says when damage was prevented and how much.
+
+### Nothing else moved
+
+- [ ] Combat, blocking, the stack, mana, the bot and the deck builder all
+      behave exactly as they did yesterday.
+- [ ] Lifelink still gains the right amount when nothing is preventing
+      anything. *(Damage now goes through one shared path; this is the check
+      that the rewrite did not change ordinary combat.)*
+- [ ] Commander damage still accumulates correctly.
+
+---
+
 ## Known rough edges
 
 Not bugs to report - I already know:
 
 - Clicking an opponent's creature outside combat can surface an internal-sounding
   message, along the lines of `Tifa Lockhart has no activated ability at index 0`.
-- Hand cards fan by overlapping, not by rotating into an arc. Rotating widens
-  each card's bounding box, which the card-movement system measures, so it is a
-  real piece of work rather than one CSS line.
-- Easing curves are chosen, not tuned. If something moves in a way that feels
-  cheap rather than wrong, that is this.
+- Cards in a fan do not shuffle apart to make room for the one you are
+  hovering. Only the hovered card moves.
+- Sound is synthesised rather than sampled, and thin because of it.
 - Particles are simple round specks. No trails, no sprites, no lighting.

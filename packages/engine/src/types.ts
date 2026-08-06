@@ -74,6 +74,18 @@ export type Effect =
   | { kind: "draw"; amount: number }
   | { kind: "addMana"; color: Color; amount: number }
   | { kind: "gainLife"; amount: number }
+  /**
+   * "Prevent the next N damage that would be dealt to any target this turn"
+   * (Healing Salve's second mode, and the whole prevention family).
+   *
+   * A shield rather than extra toughness, which is what an earlier version of
+   * Healing Salve approximated it with. The two behave differently in ways
+   * that come up: a shield stops damage from reaching a player at all, it
+   * protects against a deathtouch source rather than merely surviving it, it
+   * denies the attacker's lifelink the life it would have gained, and it does
+   * nothing at all against destruction or -N/-N.
+   */
+  | { kind: "preventDamage"; amount: number; target: TargetSelector }
   /** Puts `amount` +1/+1 counters on the target creature, or on the effect's own source if no target is given. */
   | { kind: "addCounter"; amount: number }
   /**
@@ -297,6 +309,17 @@ export interface CardInstance {
   temporaryPowerBonus: number;
   /** Extra toughness from "until end of turn" effects. Cleared alongside temporaryPowerBonus; goes negative for -N/-N effects. */
   temporaryToughnessBonus: number;
+  /**
+   * A shield of damage yet to be prevented - "prevent the next N damage that
+   * would be dealt to this creature this turn". Consumed by the next damage
+   * that arrives, whatever the source, and cleared in the cleanup step along
+   * with the rest of the until-end-of-turn state.
+   *
+   * Genuinely different from toughness, which is why it is not modelled as
+   * one: a prevented point of damage never happens, so it feeds no lifelink,
+   * marks no deathtouch, and counts towards no commander damage.
+   */
+  damagePrevention: number;
   isCommander: boolean;
   summoningSickness: boolean;
 }
@@ -385,6 +408,8 @@ export interface Player {
   commanderCastCount: Record<string, number>;
   hasLost: boolean;
   lossReason?: string;
+  /** The player's own shield - see `damagePrevention` on CardInstance. */
+  damagePrevention: number;
   /** Set when this player tried to draw from an empty library; checked as a state-based action. */
   attemptedDrawFromEmptyLibrary: boolean;
   landsPlayedThisTurn: number;

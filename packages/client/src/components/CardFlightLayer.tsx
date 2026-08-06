@@ -1,8 +1,12 @@
 import { motion } from "framer-motion";
+import type { CSSProperties } from "react";
 import type { CardInstance, GameState } from "@mtg-commander-sim/engine";
 import { CardView } from "./CardView.js";
+import { allInstances } from "../cardLookup.js";
 import { NotFlyingProvider } from "../flightContext.js";
 import type { Flight } from "../flight.js";
+import { EASINGS } from "../motion.js";
+import { spellColor, withAlpha } from "../particles.js";
 import { FLIGHT_MS } from "../useCardFlight.js";
 
 /**
@@ -28,19 +32,7 @@ export interface CardFlightLayerProps {
 /** Every card the state knows about, wherever it currently is. */
 function indexInstances(state: GameState): Map<string, CardInstance> {
   const byId = new Map<string, CardInstance>();
-  for (const player of state.players) {
-    for (const zone of [
-      player.hand,
-      player.battlefield,
-      player.graveyard,
-      player.exile,
-      player.command,
-      player.library,
-    ]) {
-      for (const instance of zone) byId.set(instance.instanceId, instance);
-    }
-  }
-  for (const instance of state.stackCards) byId.set(instance.instanceId, instance);
+  for (const instance of allInstances(state)) byId.set(instance.instanceId, instance);
   return byId;
 }
 
@@ -74,7 +66,20 @@ export function CardFlightLayer({ state, flights }: CardFlightLayerProps) {
               ]
                 .filter(Boolean)
                 .join(" ")}
-              style={{ width: flight.to.width, height: flight.to.height }}
+              /*
+               * The glow a resolving spell flares in is its own colour, so a
+               * Lightning Bolt and a Counterspell resolving do not look like
+               * the same event happening twice. Softened to 80% rather than
+               * passed as the flat colour: a solid drop-shadow at full alpha
+               * around a card reads as a border, not as light coming off it.
+               */
+              style={
+                {
+                  width: flight.to.width,
+                  height: flight.to.height,
+                  "--spell-glow": withAlpha(spellColor(definition.manaCost), 0.8),
+                } as CSSProperties
+              }
               // Position and size are both animated as a transform: the card
               // grows from whatever size its old zone drew it at into the size
               // its new one will. Every card is 5:7, so one scale covers both.
@@ -87,7 +92,11 @@ export function CardFlightLayer({ state, flights }: CardFlightLayerProps) {
               transition={{
                 duration: FLIGHT_MS / 1000,
                 delay: flight.delay / 1000,
-                ease: [0.22, 0.61, 0.36, 1],
+                // The same curve the rest of the table settles on - see
+                // motion.ts. A card crossing the table is the clearest case of
+                // a thing arriving somewhere, so it decelerates into its zone
+                // rather than gliding in at a constant speed.
+                ease: [...EASINGS.settle],
               }}
             >
               <CardView instance={instance} definition={definition} />

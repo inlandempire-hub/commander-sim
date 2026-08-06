@@ -153,7 +153,11 @@ function runAutomaticStepActions(state: GameState): void {
           instance.deathtouchDamage = false;
           instance.temporaryPowerBonus = 0; // "until end of turn" effects wear off here
           instance.temporaryToughnessBonus = 0;
+          instance.damagePrevention = 0;
         }
+        // Unspent prevention expires with the turn too - "prevent the next 3
+        // damage this turn" is not a shield you get to keep.
+        player.damagePrevention = 0;
         emptyManaPool(player);
       }
       break;

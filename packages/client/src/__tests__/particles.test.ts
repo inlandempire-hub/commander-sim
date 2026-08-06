@@ -3,11 +3,13 @@ import {
   MANA_COLORS,
   MAX_PARTICLES,
   burstCount,
-  burstForFlight,
+  burstsForFlight,
   manaColor,
+  MULTICOLOR,
   mergeParticles,
   particleAlpha,
   spawnBurst,
+  spellColor,
   stepParticles,
   withAlpha,
   type Particle,
@@ -31,6 +33,42 @@ describe("spawnBurst", () => {
     for (const p of particles) {
       expect(p.x).toBe(400);
       expect(p.y).toBe(250);
+    }
+  });
+
+  it("spaces a shockwave evenly around a ring, moving outwards", () => {
+    const centre = { x: 400, y: 250 };
+    const particles = spawnBurst({ kind: "shockwave", ...centre }, fixedRandom([0.5]));
+    expect(particles.length).toBeGreaterThan(8);
+
+    const angles: number[] = [];
+    for (const p of particles) {
+      const dx = p.x - centre.x;
+      const dy = p.y - centre.y;
+      // Every speck starts the same distance out - that distance is the ring.
+      expect(Math.hypot(dx, dy)).toBeCloseTo(6, 6);
+      // And travels straight away from the centre rather than across it: the
+      // position offset and the velocity point the same way.
+      expect(Math.atan2(dy, dx)).toBeCloseTo(Math.atan2(p.vy, p.vx), 6);
+      angles.push(Math.atan2(dy, dx));
+    }
+
+    // Evenly spaced, which is what separates a ring from a spray that happened
+    // to go in every direction. Sorted first, since the order they spawn in is
+    // not the order they sit in around the circle.
+    angles.sort((a, b) => a - b);
+    const gap = (Math.PI * 2) / particles.length;
+    for (let i = 1; i < angles.length; i++) {
+      expect(angles[i]! - angles[i - 1]!).toBeCloseTo(gap, 6);
+    }
+  });
+
+  it("scatters everything that is not a ring", () => {
+    // The mirror of the test above: an evenly spaced spray reads as a machine.
+    const particles = spawnBurst({ kind: "impact", x: 0, y: 0 }, fixedRandom([0.1, 0.9, 0.4]));
+    for (const p of particles) {
+      expect(p.x).toBe(0);
+      expect(p.y).toBe(0);
     }
   });
 
@@ -229,9 +267,9 @@ describe("mergeParticles", () => {
   });
 });
 
-describe("burstForFlight", () => {
+describe("burstsForFlight", () => {
   it("throws ash when a permanent reaches the graveyard", () => {
-    const scheduled = burstForFlight(
+    const [scheduled] = burstsForFlight(
       { from: place("battlefield", 100, 100), to: place("graveyard", 500, 300), delay: 0 },
       380,
     );
@@ -243,39 +281,59 @@ describe("burstForFlight", () => {
   });
 
   it("waits for a staggered card to actually land before the ash appears", () => {
-    const scheduled = burstForFlight(
+    const [scheduled] = burstsForFlight(
       { from: place("battlefield", 0, 0), to: place("graveyard", 0, 0), delay: 110 },
       380,
     );
     expect(scheduled?.delayMs).toBe(490);
   });
 
-  it("throws motes where a spell was sitting when it leaves the stack", () => {
-    const scheduled = burstForFlight(
+  it("throws a ring and motes where a spell was sitting when it leaves the stack", () => {
+    const scheduled = burstsForFlight(
       { from: place("stack", 200, 60), to: place("battlefield", 40, 400), delay: 0 },
       380,
     );
-    expect(scheduled?.burst.kind).toBe("resolve");
-    expect(scheduled?.burst.x).toBe(250);
-    expect(scheduled?.burst.y).toBe(130);
-    // Immediately: resolving *is* leaving the stack.
-    expect(scheduled?.delayMs).toBe(0);
+    expect(scheduled.map((s) => s.burst.kind)).toEqual(["shockwave", "resolve"]);
+    for (const each of scheduled) {
+      expect(each.burst.x).toBe(250);
+      expect(each.burst.y).toBe(130);
+      // Immediately, and together: resolving *is* leaving the stack.
+      expect(each.delayMs).toBe(0);
+    }
+  });
+
+  it("colours a resolving spell but never the ash of one that died", () => {
+    const resolving = burstsForFlight(
+      { from: place("stack", 0, 0), to: place("battlefield", 0, 0), delay: 0 },
+      380,
+      { color: "#7fce6c" },
+    );
+    for (const each of resolving) expect(each.burst.color).toBe("#7fce6c");
+
+    // A creature reaching the graveyard is not a spell going off, and green
+    // ash would say it was.
+    const dying = burstsForFlight(
+      { from: place("battlefield", 0, 0), to: place("graveyard", 0, 0), delay: 0 },
+      380,
+      { color: "#7fce6c" },
+    );
+    expect(dying[0]?.burst.color).toBeUndefined();
   });
 
   it("treats a countered spell the same as a resolved one - both left the stack", () => {
-    const scheduled = burstForFlight(
+    const scheduled = burstsForFlight(
       { from: place("stack", 0, 0), to: place("graveyard", 0, 0), delay: 0 },
       380,
     );
-    expect(scheduled?.burst.kind).toBe("resolve");
+    expect(scheduled.map((s) => s.burst.kind)).toEqual(["shockwave", "resolve"]);
   });
 
   it("stays quiet for ordinary card movement", () => {
     // A land being played and a card being drawn already have the card itself
     // travelling; a burst on each would turn a turn into fireworks.
-    expect(burstForFlight({ from: place("hand", 0, 0), to: place("battlefield", 0, 0), delay: 0 }, 380)).toBeNull();
-    expect(burstForFlight({ from: place("library", 0, 0), to: place("hand", 0, 0), delay: 0 }, 380)).toBeNull();
-    expect(burstForFlight({ from: place("hand", 0, 0), to: place("stack", 0, 0), delay: 0 }, 380)).toBeNull();
+    expect(burstsForFlight({ from: place("hand", 0, 0), to: place("battlefield", 0, 0), delay: 0 }, 380)).toEqual([]);
+    expect(burstsForFlight({ from: place("library", 0, 0), to: place("hand", 0, 0), delay: 0 }, 380)).toEqual([]);
+    expect(burstsForFlight({ from: place("hand", 0, 0), to: place("stack", 0, 0), delay: 0 }, 380)).toEqual([]);
   });
 });
 
@@ -299,5 +357,23 @@ describe("colours", () => {
     expect(withAlpha("#000000", 5)).toBe("rgba(0, 0, 0, 1)");
     expect(withAlpha("#000000", -1)).toBe("rgba(0, 0, 0, 0)");
     expect(withAlpha("rebeccapurple", 0.5)).toBe("rebeccapurple");
+  });
+
+  describe("spellColor", () => {
+    it("takes a single-coloured spell's own colour", () => {
+      expect(spellColor({ colors: { R: 1 } })).toBe(MANA_COLORS.R);
+      expect(spellColor({ colors: { G: 2, R: 0 } })).toBe(MANA_COLORS.G);
+    });
+
+    it("gives a multicoloured spell gold, the way its frame is gold", () => {
+      expect(spellColor({ colors: { W: 1, U: 1 } })).toBe(MULTICOLOR);
+    });
+
+    it("treats a spell with no pips as colourless, cost or no cost", () => {
+      // An artifact paid for entirely in generic, and a card with no mana cost
+      // at all - a land being one, which never reaches this but must not throw.
+      expect(spellColor({ colors: {} })).toBe(MANA_COLORS.C);
+      expect(spellColor(undefined)).toBe(MANA_COLORS.C);
+    });
   });
 });

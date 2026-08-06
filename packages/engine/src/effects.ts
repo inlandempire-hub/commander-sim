@@ -10,6 +10,7 @@ import {
   shuffleLibrary,
 } from "./state.js";
 import { addMana, canPayManaCost, manaValue, payManaCost } from "./mana.js";
+import { damageCreature, damagePlayer } from "./damage.js";
 import { effectivePower } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
 import { enteredBattlefield, putOntoBattlefield } from "./permanents.js";
@@ -39,14 +40,15 @@ export function applyEffect(
       for (const target of targets) {
         if (target.kind === "player") {
           const player = requirePlayer(state, target.playerId);
-          player.life -= effect.amount;
-          totalDealt += effect.amount;
+          totalDealt += damagePlayer(state, player, effect.amount).dealt;
         } else if (target.kind === "card") {
           const found = findInstance(state, target.instanceId);
           if (found) {
-            found.instance.damageMarked += effect.amount;
-            if (hasDeathtouch) found.instance.deathtouchDamage = true;
-            totalDealt += effect.amount;
+            // Counted after prevention, so a shielded target denies lifelink
+            // the life it would otherwise have gained.
+            totalDealt += damageCreature(state, found.instance, effect.amount, {
+              deathtouch: hasDeathtouch,
+            }).dealt;
           }
         }
       }
@@ -74,6 +76,30 @@ export function applyEffect(
       }
       if (targets.length === 0) controller.life += effect.amount;
       log(state, `${controllerId} gains ${effect.amount} life`);
+      return;
+    }
+    case "preventDamage": {
+      /*
+       * Shields stack rather than replace: two castings of Healing Salve on
+       * the same creature prevent six, not three. Nothing about "prevent the
+       * next 3 damage" says the second one throws the first away.
+       */
+      for (const target of targets) {
+        if (target.kind === "player") {
+          const player = requirePlayer(state, target.playerId);
+          player.damagePrevention += effect.amount;
+          log(state, `the next ${effect.amount} damage to ${player.id} this turn will be prevented`);
+        } else if (target.kind === "card") {
+          const found = findInstance(state, target.instanceId);
+          if (found) {
+            found.instance.damagePrevention += effect.amount;
+            log(
+              state,
+              `the next ${effect.amount} damage to ${cardName(state, target.instanceId)} this turn will be prevented`,
+            );
+          }
+        }
+      }
       return;
     }
     case "addCounter": {
