@@ -16,3 +16,12 @@ tools/scryfall-report/output/
 # Vite dev-server cache
 .vite/
 packages/client/node_modules/.vite/
+
+# Card-back images and the icon set. These are Wizards' artwork, so they live on
+# disk and are not committed - the same posture as Scryfall's card art and the
+# bulk data above, and the reason for it is in the "Scope & non-goals" section
+# of CLAUDE.md. The client falls back to a drawn card back when they are
+# missing, so a fresh clone runs without them; see docs/SETUP.md for where to
+# put your own copies.
+art/
+packages/client/public/card-backs/

@@ -115,6 +115,22 @@ console encoding cannot represent them.
 `data/` and `output/` are gitignored on purpose - that's Scryfall's data, not
 ours to redistribute, and it regenerates in one command.
 
+## Card backs (optional)
+
+The library pile shows a real card back. Those images are Wizards' artwork and
+so are not in the repo, for the same reason the Scryfall data above isn't. The
+client works without them - it draws a plain blue-grey back instead - but if you
+want the real ones, put two PNGs here:
+
+```
+packages/client/public/card-backs/light.png   # the near seat, i.e. you
+packages/client/public/card-backs/dark.png    # the far seat, i.e. the bot
+```
+
+Any size will do; they're displayed about 46px wide, so anything above 300px
+across is wasted bytes. `object-fit: cover` crops them to 5:7, so a back with a
+printed border loses a pixel or two of it.
+
 ## Common problems
 
 **The client shows a blank page or fails to resolve `@mtg-commander-sim/engine`.**

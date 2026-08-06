@@ -14,6 +14,17 @@ const LIFE_FLASH_MS = 1000;
 const TAKE_TURN_MS = 700;
 
 /**
+ * The two card backs, served from the client's public folder.
+ *
+ * They are not in the repo - they are Wizards' artwork, and the project's rule
+ * is that none of that is committed (CLAUDE.md, "Scope & non-goals"). Drop your
+ * own copies at these paths; docs/SETUP.md says so too. Missing is a supported
+ * state, not a broken one.
+ */
+const CARD_BACK_NEAR = "/card-backs/light.png";
+const CARD_BACK_FAR = "/card-backs/dark.png";
+
+/**
  * One player's half of the table.
  *
  * The two halves face each other rather than repeating: the opponent's is
@@ -125,6 +136,8 @@ export function PlayerBoard({
   const targetingClass = (group: CardType): string =>
     selectingPermanentType === group ? "zone--targeting" : "";
   const assignedBlockerIds = new Set(Object.keys(blockerAssignments));
+  const [backArtFailed, setBackArtFailed] = useState(false);
+  const backArt = backArtFailed ? null : flipped ? CARD_BACK_FAR : CARD_BACK_NEAR;
   const inDamageStep = state.step === "combat-damage" || state.step === "first-strike-damage";
 
   /**
@@ -323,6 +336,25 @@ export function PlayerBoard({
               data-flight-anchor={libraryAnchorKey(player.id)}
               title={`${player.library.length} cards left`}
             >
+              {/* The two decks are told apart by their backs, the way two real
+                  players' sleeves are: the light back is always the near seat
+                  (you), the dark one always the far seat (the bot, or the other
+                  player in hotseat). Keyed off `flipped` rather than off any
+                  notion of "is this the bot", because the far half of the table
+                  is the opponent's in every mode.
+
+                  If the file is not there the img removes itself and the drawn
+                  back underneath shows through - see .pile__back in styles.css
+                  for why that case is real rather than defensive. */}
+              {backArt && (
+                <img
+                  className="pile__back-art"
+                  src={backArt}
+                  alt=""
+                  draggable={false}
+                  onError={() => setBackArtFailed(true)}
+                />
+              )}
               <span className="pile__back-count">{player.library.length}</span>
             </div>
           </div>

@@ -385,6 +385,34 @@ a near-black table.
       should read as the edge of the highlight, not as a second highlight - say
       if it looks like a sticker.
 
+## 15. Added 2026-08-06 - bare felt, and real card backs
+
+### Where the weave is now
+
+- [ ] The four coloured beds are plain cloth. No crosshatch on the green, the
+      blue, the burgundy or the lemon.
+- [ ] The grey table around and between them still has it.
+- [ ] The beds still stand off the table - the raised edge and the cushion
+      under each one are unchanged. Say if losing the texture flattened them.
+
+### The card backs
+
+- [ ] The library pile on **your** side of the table shows the light card back.
+- [ ] The one on the **far** side shows the dark one. In hotseat that is the
+      other player rather than the bot, which is the intended reading.
+- [ ] Neither is stretched or squashed.
+- [ ] The number of cards left sits at the foot of the card on a black
+      lozenge, and is readable on both backs at a glance.
+- [ ] It counts down as cards are drawn - it should drop by one every draw
+      step, both seats.
+- [ ] Drawing still works: the card flies out of the pile rather than appearing
+      in hand.
+
+### Nothing else moved
+
+- [ ] The felt colours, the highlights and the rings from section 14 are all as
+      they were.
+- [ ] The graveyard and exile piles beside the library are unchanged.
 
 ---
 

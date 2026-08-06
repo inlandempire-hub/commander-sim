@@ -439,9 +439,18 @@ body {
  * The drop shadow is a little larger than the buttons' because these are much
  * larger objects and the same 11px blur under a full-width mat reads as a hard
  * line rather than as a shadow. The 3px cushion is identical.
+ *
+ * `position: relative` is what keeps the weave off them. The crosshatch is an
+ * absolutely-positioned pseudo-element on .side, so it paints in the positioned
+ * layer - above every static child, which these used to be. It was laid over
+ * all four beds, and a texture that crosses a raised edge is the one thing that
+ * flattens the whole effect back out: cloth belongs to the table, and the mats
+ * are objects lying on it. Now the weave shows only on the grey between and
+ * around them, which is what it was for.
  */
 .zone,
 .command {
+  position: relative;
   background: linear-gradient(rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.16)), var(--felt-face);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
@@ -760,9 +769,8 @@ body {
  *
  * `--felt-ink` is set by whichever zone needs something other than the pale
  * default - only the lemon command zone so far, whose cloth is light enough
- * that the usual dim grey nearly vanishes into it. The text shadow is the
- * label sitting *in* the weave; without it, small pale type on a saturated
- * ground shimmers.
+ * that the usual dim grey nearly vanishes into it. The text shadow is what
+ * stops small pale type shimmering on a saturated ground.
  */
 .zone__label {
   font-size: 9px;
@@ -2095,8 +2103,15 @@ body {
 
 /* --- the library pile ----------------------------------------------------- */
 
-/* Face-down, so a card back rather than a card. Drawn rather than an image:
-   the real one is Wizards' artwork, and this only has to read as "the deck". */
+/*
+ * Face-down, so a card back rather than a card.
+ *
+ * The background here is the drawn back this used to be on its own, and it is
+ * still doing a job: it is what shows when the image is missing. The images are
+ * Wizards' artwork and so are not in the repo (see .gitignore), which means a
+ * fresh clone genuinely has no card back to load - the pile has to look like a
+ * deck either way rather than like a broken image.
+ */
 .pile__back {
   position: relative;
   width: var(--card-small-w);
@@ -2109,15 +2124,51 @@ body {
     linear-gradient(#20293a, #161d2a);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
   display: flex;
-  align-items: center;
+  /* The count sits at the foot of the card rather than in the middle of it.
+     Both backs put their logo across the centre, which is the part that says
+     "this is a deck" at 46px wide, and a plate parked on top of it was hiding
+     the only thing the image was added for. */
+  align-items: flex-end;
   justify-content: center;
+  padding-bottom: 3px;
 }
 
+/* `cover` rather than `contain`: the two backs are photographed at slightly
+   different aspect ratios and neither is exactly 5:7, and a letterboxed card
+   back reads as a picture of a card rather than as the card. The couple of
+   pixels it crops off are the printed border. */
+.pile__back-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+/*
+ * The count, on its own plate.
+ *
+ * It used to be bare white text with a shadow, which was fine over a flat dark
+ * gradient and is not fine over artwork - the light back is a pale green sky
+ * behind exactly where this sits. So it stops relying on the thing underneath
+ * it: a near-opaque black lozenge with a pale ring, white text on top. That is
+ * 17:1 against its own plate whatever the back is, and it is the same object on
+ * both backs rather than one tuned per image.
+ */
 .pile__back-count {
+  position: relative;
   font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #fff;
+  background: rgba(6, 9, 14, 0.88);
+  border-radius: 999px;
+  padding: 3px 6px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 1px 4px rgba(0, 0, 0, 0.7);
 }
 
 /* --- life totals ---------------------------------------------------------- */
