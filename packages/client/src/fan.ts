@@ -121,3 +121,90 @@ export function arcFor({ count, cardHeight }: ArcInput): ArcPose[] {
     return { tiltDeg, liftPx: radius * (1 - Math.cos(radians)) };
   });
 }
+
+/**
+ * The hand parting around the card you are looking at.
+ *
+ * Hovering already lifts a card and straightens it out of the fan, but the two
+ * cards beside it stayed exactly where they were - so in a crowded hand the one
+ * you were trying to read came up still half-buried under its neighbour. What a
+ * person does is push the neighbours aside with their thumb.
+ *
+ * The push is largest for the card immediately beside the hovered one and
+ * decays from there, which is what a hand does: the gap opens locally and
+ * closes up again further out rather than shoving the whole row sideways.
+ *
+ * It decays to *exactly* zero at each end, which is not a nicety. A crowded row
+ * is precisely as wide as the space it has and clips at its edges, so a card at
+ * the end that moved even a few pixels would have those pixels shaved off it.
+ * Measured before this was added: hovering the middle of a seven-card hand
+ * pushed the last card 7.34px past the edge.
+ */
+
+/** How far the card next to the hovered one is pushed, at minimum. */
+export const OPEN_MIN_PX = 7;
+
+/**
+ * The share of the current overlap the nearest neighbour moves by. A crowded
+ * hand hides more of each card, so it has to open further to show the same
+ * amount - a fixed number would be too much in a four-card hand and useless in
+ * a twelve-card one.
+ */
+export const OPEN_SHARE_OF_OVERLAP = 0.75;
+
+/** How much of the push each further card gets. */
+export const OPEN_FALLOFF = 0.45;
+
+export interface OpenInput {
+  count: number;
+  /** Index of the card under the cursor, or -1 for none. */
+  hovered: number;
+  /** How far the row is currently overlapping its cards - see `overlapFor`. */
+  overlap: number;
+}
+
+/** Pixels each card should slide sideways. Negative is left. */
+export function openAround({ count, hovered, overlap }: OpenInput): number[] {
+  const shifts: number[] = new Array(Math.max(0, count)).fill(0);
+  if (hovered < 0 || hovered >= count || count < 2) return shifts;
+
+  const magnitude = Math.max(OPEN_MIN_PX, overlap * OPEN_SHARE_OF_OVERLAP);
+  // Each side of the hovered card is tapered against its own end, because the
+  // hovered card is rarely in the middle - two cards to the left and six to
+  // the right have to reach zero at different distances.
+  const reach = { left: hovered, right: count - 1 - hovered };
+
+  for (let i = 0; i < count; i++) {
+    // The hovered card holds its place. It is already lifting and straightening;
+    // sliding it as well would make the card you are pointing at the one thing
+    // on the table that moves away from the cursor.
+    const offset = i - hovered;
+    if (offset === 0) continue;
+
+    const distance = Math.abs(offset);
+    const furthest = offset < 0 ? reach.left : reach.right;
+    const decay = Math.pow(OPEN_FALLOFF, distance - 1);
+
+    /*
+     * The taper only applies to a crowded row, and that is the whole of the
+     * reasoning. A row is only ever exactly as wide as its space *because* it
+     * was overlapped to fit; a row that is not overlapping has slack, cannot be
+     * clipped, and is free to spread.
+     *
+     * The cost is that when the row is crowded and the hovered card is second
+     * from an end, the single card beyond it does not move - it is both the
+     * neighbour that should make room and the edge that must not. The edge
+     * wins, and it costs nothing: cards overlap towards the left, so the card
+     * outside the hovered one is underneath it and was never covering it.
+     */
+    const atEnd = Math.pow(OPEN_FALLOFF, furthest - 1);
+    const crowded = overlap > 0;
+    const scaled = !crowded ? decay : furthest <= 1 ? 0 : (decay - atEnd) / (1 - atEnd);
+
+    // `|| 0` normalises negative zero, which the taper produces for every card
+    // on the left-hand end. It is numerically identical to zero and prints as
+    // "-0.00px", which is a confusing thing to find in the DOM.
+    shifts[i] = Math.sign(offset) * magnitude * scaled || 0;
+  }
+  return shifts;
+}

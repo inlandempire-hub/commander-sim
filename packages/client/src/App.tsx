@@ -908,7 +908,13 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           />
         )}
 
-        <TableBeat state={state} />
+        <TableBeat
+          state={state}
+          nearPlayerId={bottomPlayer.id}
+          // Undefined in hotseat, where this client drives both seats and
+          // "your turn" would be true of every turn.
+          youId={controlled.length === 1 ? controlled[0]!.id : undefined}
+        />
 
         {/* Mana leaving the lands that were just tapped. Purely decorative:
             the pool in the rail is already correct before the first one

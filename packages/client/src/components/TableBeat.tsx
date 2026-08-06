@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameState } from "@mtg-commander-sim/engine";
+import { play } from "../sound.js";
 
 /**
  * The two moments in a turn worth announcing across the table: it becoming
@@ -10,16 +11,47 @@ import type { GameState } from "@mtg-commander-sim/engine";
  * under a second - banner-ing every one of them would be a strobe, not a beat.
  * These are the points where the game hands control back to a player and the
  * thing they should be thinking about changes.
+ *
+ * ## Handover (2026-08-06)
+ *
+ * The turn beat used to read "Turn 3 - Deadly Donny" in the middle of the
+ * screen, which is a caption rather than a handover: it named the state the
+ * game had already arrived in, with nothing to say that anything had *passed*
+ * from one side of the table to the other.
+ *
+ * Three changes, all saying the same thing in different registers. The banner
+ * arrives from the side of the table whose turn it now is, so the movement
+ * itself carries the direction. It leads with *whose* turn rather than with
+ * the number, because that is the part you need. And it makes a sound - a
+ * rising fifth, once a turn, the only cue in the game that is a pure tone.
+ *
+ * The sound is played from here rather than off the log, unlike almost
+ * everything else. The log's turn marker is a heading rather than an event,
+ * and matching on it would fire the cue again every time the log was
+ * re-scanned rather than once when the turn actually changed.
  */
 
 const BEAT_MS = 1150;
 
 export interface TableBeatProps {
   state: GameState;
+  /** Whoever is drawn at the near edge, so the banner knows which way to come from. */
+  nearPlayerId: string;
+  /**
+   * The seat this client actually plays, when there is exactly one. Undefined
+   * in hotseat, where both seats are yours and "your turn" would be true of
+   * every turn and therefore useless.
+   */
+  youId?: string;
 }
 
-export function TableBeat({ state }: TableBeatProps) {
-  const [beat, setBeat] = useState<{ text: string; key: number } | null>(null);
+export function TableBeat({ state, nearPlayerId, youId }: TableBeatProps) {
+  const [beat, setBeat] = useState<{
+    text: string;
+    detail: string;
+    from: "near" | "far";
+    key: number;
+  } | null>(null);
   const timer = useRef<number | undefined>(undefined);
   /*
    * The last turn each kind of announcement was made for, kept apart rather
@@ -54,12 +86,28 @@ export function TableBeat({ state }: TableBeatProps) {
      */
     window.clearTimeout(timer.current);
     const key = Date.now();
-    setBeat({ text: inCombat ? "Combat" : `Turn ${turnNumber} — ${activePlayerId}`, key });
+
+    // Whose half of the table the turn now belongs to. Combat is neither
+    // side's - it is the thing happening between them - so it keeps coming
+    // from the near edge rather than picking a side.
+    const from: "near" | "far" =
+      inCombat || activePlayerId === nearPlayerId ? "near" : "far";
+    const yours = youId !== undefined && activePlayerId === youId;
+    setBeat({
+      text: inCombat ? "Combat" : yours ? "Your turn" : activePlayerId,
+      detail: inCombat ? "" : `Turn ${turnNumber}`,
+      from,
+      key,
+    });
+    // Only the handover. Combat already has an entire board leaning towards
+    // the centre line to announce it.
+    if (!inCombat) play("turn");
+
     timer.current = window.setTimeout(
       () => setBeat((current) => (current?.key === key ? null : current)),
       BEAT_MS,
     );
-  }, [inCombat, turnNumber, activePlayerId]);
+  }, [inCombat, turnNumber, activePlayerId, nearPlayerId, youId]);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
@@ -67,8 +115,9 @@ export function TableBeat({ state }: TableBeatProps) {
   return (
     // Keyed so a second beat arriving while the first is still on screen
     // restarts the animation instead of leaving the old text mid-fade.
-    <div className="beat" key={beat.key} aria-live="polite">
+    <div className={`beat beat--${beat.from}`} key={beat.key} aria-live="polite">
       <span className="beat__text">{beat.text}</span>
+      {beat.detail && <span className="beat__detail">{beat.detail}</span>}
     </div>
   );
 }

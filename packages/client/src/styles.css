@@ -427,6 +427,26 @@ body {
   margin-left: calc(-1 * var(--overlap, 0px));
 }
 
+/*
+ * Room for the lean.
+ *
+ * A fanned row rotates its outer cards, and a rotated card paints outside the
+ * box it was laid out in - a 94x132 card at 12 degrees needs about 13px more
+ * on each side. The row is exactly as wide as its space, so without this those
+ * corners land on the clip edge and get shaved off. Measured before the fix:
+ * the end cards overhung by 10.3px and lost every pixel of it.
+ *
+ * Padding is the right tool because `overflow: clip` clips at the *padding*
+ * edge, so this is space the cards can paint into but not be laid out in.
+ * CardRow subtracts it before working out the overlap - measuring against
+ * padding the cards cannot occupy would under-overlap the row and push the
+ * last card straight back into the clip.
+ */
+.row__cards--arc {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
 /* --- the outer rail: life, mana, command zone, graveyard ------------------ */
 
 .rail {
@@ -803,13 +823,59 @@ body {
   scrollbar-width: thin;
 }
 
+/*
+ * The stack, as a stack.
+ *
+ * Each entry steps back from the one above it - in from the left, a little
+ * smaller, a little dimmer - so the order is visible before anything has been
+ * read. A flat column of identical rows is a list, and a list of two spells
+ * makes you read both to work out which happens first.
+ *
+ * `--depth` comes in from StackView as an ordinary style, 0 for the top of the
+ * stack. Every step is clamped, because the stack has no fixed height and a
+ * five-deep pile must not indent itself off the panel or fade to nothing.
+ */
 .stack-entry {
+  --depth: 0;
+  --step: min(var(--depth), 4);
+
   display: flex;
   gap: 6px;
   padding: 4px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--border);
+
+  margin-left: calc(var(--step) * 9px);
+  /* From the left edge, so the indent and the shrink pull the same way rather
+     than fighting - scaling about the centre would pull the left edge back
+     out and undo the step. */
+  transform-origin: left center;
+  transform: scale(calc(1 - var(--step) * 0.035));
+  opacity: calc(1 - var(--step) * 0.13);
+  transition:
+    transform var(--t-pose) var(--ease-lift),
+    opacity var(--t-pose) var(--ease-lift);
+}
+
+/*
+ * The one that resolves next. Lit rather than merely undimmed: this is the row
+ * a response has to be aimed at, and the whole reason the panel exists.
+ */
+.stack-entry--next {
+  background: rgba(91, 140, 255, 0.1);
+  border-color: rgba(91, 140, 255, 0.55);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.stack-entry__next {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
 /* Only while a counterspell is looking for something to point at. */
@@ -817,6 +883,13 @@ body {
   cursor: pointer;
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+/* A spell you are about to counter is worth seeing whole, however deep it is
+   in the pile - the depth cue has done its job by then. */
+.stack-entry--selectable:hover {
+  transform: scale(1);
+  opacity: 1;
 }
 
 .stack-entry__art {
@@ -998,6 +1071,11 @@ body {
    */
   --fan-tilt: var(--fan-angle, 0deg);
   --fan-lift: var(--fan-drop, 0px);
+  /* Sideways, when the hand is parting around the card under the cursor. Read
+     straight through rather than via a second variable like the two above,
+     because nothing needs to override it: the hovered card's own shift is
+     always zero, so there is no hover rule to lose to. */
+  --fan-slide: var(--fan-shift, 0px);
 
   position: relative;
   flex: 0 0 auto;
@@ -1014,7 +1092,7 @@ body {
   user-select: none;
   font-size: 11px;
   transform: translate(
-      var(--nudge),
+      calc(var(--nudge) + var(--fan-slide)),
       calc(var(--lunge) + var(--clash) + var(--hover) + var(--fan-lift))
     )
     rotate(calc(var(--tilt) + var(--fan-tilt))) scale(var(--zoom));
@@ -1992,7 +2070,42 @@ body {
   animation: beat 1.15s var(--ease-settle);
 }
 
+/*
+ * The turn arriving from the side of the table it now belongs to.
+ *
+ * The direction is the whole point. A banner that fades in centred names the
+ * new state; one that comes *from* somewhere says something was handed over,
+ * and which way. Combat keeps the near direction rather than picking a side -
+ * it belongs to neither player.
+ *
+ * The travel is on the inner element rather than on `.beat`, which is a
+ * full-screen flex container: transforming that would move the box the text is
+ * being centred inside, and the text would land off centre.
+ */
+.beat--near .beat__text,
+.beat--near .beat__detail {
+  animation-name: beat-from-near;
+}
+
+.beat--far .beat__text,
+.beat--far .beat__detail {
+  animation-name: beat-from-far;
+}
+
+@keyframes beat-from-near {
+  0% { transform: translateY(28px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes beat-from-far {
+  0% { transform: translateY(-28px); }
+  100% { transform: translateY(0); }
+}
+
 .beat__text {
+  animation-duration: var(--t-travel);
+  animation-timing-function: var(--ease-settle);
+  animation-fill-mode: both;
   font-size: 40px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -2005,11 +2118,55 @@ body {
   background: linear-gradient(90deg, transparent, rgba(10, 14, 20, 0.72) 20%, rgba(10, 14, 20, 0.72) 80%, transparent);
 }
 
+/* The turn number, under the name. Secondary on purpose: whose turn it is
+   changes what you do, the number never does. */
+.beat__detail {
+  position: absolute;
+  margin-top: 78px;
+  animation-duration: var(--t-travel);
+  animation-timing-function: var(--ease-settle);
+  animation-fill-mode: both;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
+}
+
 @keyframes beat {
   0% { opacity: 0; }
   14% { opacity: 1; }
   70% { opacity: 1; }
   100% { opacity: 0; }
+}
+
+/*
+ * The half of the table that has just taken the turn, lighting up as it does.
+ *
+ * The steady `.side--active` edge says whose turn it is; this says the turn
+ * just *changed*, which is a different fact and the one that was missing. One
+ * sweep, then it hands back to the steady state - a permanent effect here
+ * would be a second, competing way of saying the same thing.
+ */
+@keyframes side-takes-turn {
+  0% {
+    box-shadow:
+      inset 0 0 0 2px rgba(91, 140, 255, 0.9),
+      inset 0 0 60px rgba(91, 140, 255, 0.25),
+      0 0 34px rgba(91, 140, 255, 0.4);
+  }
+  100% {
+    box-shadow:
+      inset 0 0 0 1px rgba(91, 140, 255, 0.4),
+      inset 0 0 40px rgba(0, 0, 0, 0.3),
+      0 0 22px rgba(91, 140, 255, 0.14),
+      0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+}
+
+.side--taking-turn {
+  animation: side-takes-turn 0.7s var(--ease-settle);
 }
 
 /* --- the shape of a journey ----------------------------------------------- */

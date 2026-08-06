@@ -85,7 +85,7 @@ See "Deck builder" below.
 ## Phase 6 — Polish
 - [x] Smoother animations - DONE (2026-08-02). Cards travel between zones, tap, lunge into combat and flinch when damaged; see "Motion: cards that travel" below.
 - [x] Card art via Scryfall images - DONE (2026-08-01), see "Card art" below.
-- [ ] UI pass so it reads as a real digital card game - **in progress, roughly 8/10** against the agreed scale (0 = where this started, 10 = MTG Arena). Since the 5/10 note: fanned rows instead of a scrollbar, targeting and held blocking lines, a canvas particle system, phase beats, floating damage and life numbers, synthesised sound, a readable stack, and raised 3D controls. Everything listed as needed for 8 is done (2026-08-06, see "The push to 8" below): the hand fans in a real arc, the motion scale is tuned rather than chosen, spells resolve with a flourish of their own, and damage prevention is a real shield. What is left for 9+ is listed there too.
+- [ ] UI pass so it reads as a real digital card game - **in progress, roughly 9/10** against the agreed scale, which is restated properly under "What 9 and 10 actually mean" below (the old shorthand of "10 = MTG Arena" was never reachable without a game engine and was not what the scale was measuring). Everything listed for 8 and for 9 is done as of 2026-08-06 - see "The push to 8" and "The push to 9". What 10 needs is written out there; it is a short list and none of it is animation.
 - [x] Auto-skip priority passes when there's nothing meaningful to do - DONE (2026-07-30). See "Auto-pass + turn-sequence rules fixes" below.
 
 ## Ongoing (never "done")
@@ -1554,18 +1554,162 @@ creature's power and toughness. A prevention effect that is invisible until it
 silently eats damage is the worst way for a rules effect to work: you would
 only find out it had been there by the number not moving.
 
-### What is left for 9+
+### What was left for 9
 
-Diminishing returns from here, and worth saying plainly so the next session
-does not go looking for a list that is longer than it is:
-
-- Cards in a fan should shuffle apart slightly to make room for the one being
-  hovered, rather than only the hovered card moving.
-- The stack could cascade properly - each object offset from the one below in a
-  way that reads as depth rather than as a pile.
-- Sound is synthesised and thin. Real samples would be a bigger jump in feel
-  than anything left in the visuals.
-- Turn transitions have a beat but no sense of handover.
+All four done the same day - see "The push to 9" below. Kept here as the record
+of what 8 was missing: the fan not parting around the cursor, the stack not
+reading as a pile, thin sound, and a turn that changed hands without saying so.
 
 483 tests, typecheck clean. Every item above verified in the browser, in both
 bot mode and hotseat.
+
+## The push to 9 (2026-08-06)
+
+The four things the 8/10 note listed. As with the push to 8, nothing new was
+invented - the list was worked through.
+
+### The hand parts around the card you are looking at
+
+`openAround` in fan.ts. Hovering already lifted a card and straightened it out
+of the fan, but its neighbours stayed exactly where they were, so in a crowded
+hand the card you were trying to read came up still half-buried under the one
+next to it. What a person does is push the neighbours aside with their thumb.
+
+The push is largest for the card immediately beside the hovered one and decays
+from there - the gap opens locally and closes up again further out, rather than
+shoving the whole row sideways.
+
+It decays to **exactly** zero at each end, and that is not a nicety. A crowded
+row is precisely as wide as the space it has and clips at its edges, so a card
+at the end that moved even a few pixels would have those pixels shaved off it.
+Measured before the taper was added: hovering the middle of a seven-card hand
+pushed the last card 7.34px past the edge. Each side tapers against its own
+end, because the hovered card is rarely in the middle.
+
+The taper applies only when the row is actually crowded - a row that is not
+overlapping has slack, cannot be clipped, and is free to spread.
+
+**A bug this turned up.** Measuring the overhang showed the end cards were
+*already* being clipped by 10.3px, and had been since the fan shipped an hour
+earlier: a card rotated 12 degrees paints about 13px outside the box it was
+laid out in, and the row had no room for it. Fixed with horizontal padding on
+fanned rows - `overflow: clip` clips at the padding edge, so padding is space a
+card can paint into but not be laid out in - and by subtracting that padding
+before computing the overlap, since `clientWidth` includes it. Verified after:
+3.7px of clearance on both sides, identical whether or not anything is hovered.
+
+### Sound with a body
+
+`sound.ts`, rewritten. The old version was one oscillator per cue with a fixed
+twelve-millisecond fade at each end. That is a *beep*, and a beep is what makes
+a game sound cheap however good it looks. A card landing on a table is not a
+sine wave.
+
+Still nothing bundled and nothing downloaded - same posture as the card art.
+Three things separate this from the old version, none of which need a sample:
+
+- **Cues are layered.** Real sounds have a transient, a body and a tail. A card
+  being played is mostly transient and was the worst served by one oscillator.
+- **Noise is a first-class voice.** Paper, impact and scrape are noise through a
+  moving filter, not a tone. The card cue has no oscillator in it at all now;
+  the old triangle-wave blip was the single most toy-like sound in the game.
+- **There is a room.** A short feedback delay under everything, sent low, so
+  cues have somewhere to decay into rather than stopping dead. A real reverb
+  needs an impulse response, which is a file, so this is the cheap version -
+  and the cheap version is most of the effect. A compressor sits after it,
+  because four creatures taking combat damage is four cues inside a tenth of a
+  second and the sum used to clip.
+
+Two new cues. **Shield**, for damage that was prevented: the previous behaviour
+was to play the *impact* sound, because the log line contains the word
+"damage" - which said the exact opposite of what had happened. It rises where
+the damage cue falls. And **turn**, a rising fifth over a low swell, played
+directly by TableBeat rather than off the log, because the log's turn marker is
+a heading rather than an event.
+
+The cue specifications are now data and are tested: every voice under a gain
+ceiling (a typo of 0.5 for 0.05 is genuinely painful through headphones, silent
+in review, and obvious only to whoever is wearing them), every cue under a
+duration ceiling, no frequency sweeping to zero (which throws at runtime and
+would take out the whole cue), and every attack shorter than its own voice.
+
+### The stack reads as depth
+
+Each entry now steps back from the one above it - in from the left, a little
+smaller, a little dimmer - and the top one is lit and labelled "resolves next".
+A flat column of identical rows is a list, and a list of two spells makes you
+read both to work out which happens first; this says which one happens first
+before you have read either. Every step is clamped at four, so a deep stack
+cannot indent itself off the panel or fade to nothing. A spell you are about to
+counter comes back to full size on hover, because by then the depth cue has
+done its job.
+
+### The turn changing hands
+
+The turn beat used to read "Turn 3 - Deadly Donny" in the middle of the screen,
+which is a caption rather than a handover: it named the state the game had
+arrived in, with nothing to say that anything had *passed* from one side of the
+table to the other.
+
+Three changes saying the same thing in three registers. The banner arrives from
+the side of the table whose turn it now is, so the movement carries the
+direction. It leads with *whose* turn rather than with the number - "Your turn"
+when the seat is yours, the player's name when it is not, and never "your turn"
+in hotseat where both seats are yours and it would be true every turn. And the
+half of the table taking the turn lights up once as it arrives, distinct from
+the steady edge that says whose turn it is.
+
+**A bug this turned up.** The first version skipped the flash the first time
+each board saw itself become active, meaning to skip the game opening. But each
+side becomes active for the first time on a different turn, so it swallowed the
+opponent's opening turn as well - the near seat lit up on its turns and the far
+seat never did. Caught in the browser by sampling the class over twelve turns.
+It now skips turn one specifically, which is what was meant.
+
+## What 9 and 10 actually mean
+
+The original shorthand was "0 = where this started, 10 = MTG Arena", and that
+was never a usable ceiling: Arena is a game engine with a full-time art team,
+and CLAUDE.md says explicitly that this does not need to match it. What the
+scale has really been measuring, in retrospect:
+
+- **8 - nothing on the table is *missing*.** Every state change has a visible
+  cause and a visible result. Nothing pops into existence or vanishes.
+- **9 - nothing on the table is *inert*.** Things react to each other rather
+  than only to the game state: the hand parts around your cursor, the stack has
+  an order you can see, the turn is handed over rather than merely reassigned,
+  and the audio has a body rather than a pitch. Reached today.
+- **10 - nothing on the table is *unfinished*.** Not more motion. Consistency:
+  every surface holding the same standard, every control being a designed
+  object, and the whole thing holding up under conditions that are not the one
+  window size it was built in.
+
+### What 10 needs
+
+Four items, and deliberately none of them are animation:
+
+- [ ] **The deck builder brought up to the table's standard.** It is the one
+      surface that still looks like a form: native selects and checkboxes,
+      default focus rings, no felt, none of the raised controls. Half the time
+      before a game is spent in there and it currently reads as a different
+      application.
+- [ ] **Every window size, not just this one.** The table is one viewport tall
+      and never scrolls, which is right, but the card sizes, rail width and log
+      height are tuned for roughly 1280x720. Needs checking and fixing at a
+      laptop's 1366x768 and at a large monitor, where the cards should get
+      bigger rather than the felt.
+- [ ] **Reduced motion as an equal path, not a stripped one.** The
+      `prefers-reduced-motion` branch currently switches animations off, which
+      leaves several things that were *only* communicated by motion saying
+      nothing at all - the clash, the flight, the flourish. Each needs a still
+      equivalent.
+- [ ] **Keyboard and focus.** Nothing on the table can be reached without a
+      mouse. Not an accessibility checkbox so much as the last thing separating
+      this from a finished application: a client where the only way to pass
+      priority is to find a button with the pointer is not done.
+
+Everything above is work on surfaces that already exist rather than new
+systems, which is what makes it the last stretch rather than another phase.
+
+505 tests, typecheck clean. Every item verified in the browser in both bot mode
+and hotseat.

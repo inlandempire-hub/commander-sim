@@ -10,6 +10,9 @@ import { emitParticles } from "../particleBus.js";
 /** How long a life change stays flagged up before fading. */
 const LIFE_FLASH_MS = 1000;
 
+/** How long this half of the table stays lit after taking the turn. */
+const TAKE_TURN_MS = 700;
+
 /**
  * One player's half of the table.
  *
@@ -202,12 +205,46 @@ export function PlayerBoard({
     .map(([color, amount]) => `${amount}${color === "generic" ? "" : color}`)
     .join(" ");
 
+  /*
+   * The moment this half of the table takes the turn, as distinct from holding
+   * it. The steady blue edge says whose turn it is and is on for the whole
+   * turn; this fires once as it arrives and is gone in under a second.
+   *
+   * Keyed off the turn number rather than off `isActivePlayer` alone, because
+   * in a two-player game the flag is true for exactly one whole turn and a
+   * plain transition would have nothing to re-trigger on.
+   */
+  const [taking, setTaking] = useState(false);
+  const lastTurnHeld = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isActivePlayer) return;
+    if (lastTurnHeld.current === state.turnNumber) return;
+    const first = lastTurnHeld.current === null;
+    lastTurnHeld.current = state.turnNumber;
+    /*
+     * Turn one is the game opening rather than a handover, and flashing the
+     * board as the table appears reads as a loading glitch.
+     *
+     * Keyed off the turn number and not merely off "first time this component
+     * saw itself active", which is what this was at first and which was wrong:
+     * each side sees itself become active for the first time on a different
+     * turn, so the guard swallowed the opponent's opening turn as well. Caught
+     * in the browser - the near seat lit up on its turns and the far seat
+     * never did.
+     */
+    if (first && state.turnNumber <= 1) return;
+    setTaking(true);
+    const timer = window.setTimeout(() => setTaking(false), TAKE_TURN_MS);
+    return () => window.clearTimeout(timer);
+  }, [isActivePlayer, state.turnNumber]);
+
   return (
     <section
       className={[
         "side",
         flipped ? "side--flipped" : "",
         isActivePlayer ? "side--active" : "",
+        taking ? "side--taking-turn" : "",
         player.hasLost ? "side--lost" : "",
       ]
         .filter(Boolean)

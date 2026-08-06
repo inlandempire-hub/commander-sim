@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { arcFor, overlapFor } from "../fan.js";
+import { arcFor, openAround, overlapFor } from "../fan.js";
 
 /**
  * A row of cards that closes up rather than scrolling when it gets crowded.
@@ -94,19 +94,49 @@ export function CardRow({ className, arc, children }: CardRowProps) {
     });
   };
 
+  /*
+   * Which card the cursor is over, and how far the rest should slide aside for
+   * it - see `openAround`.
+   *
+   * The index is found by delegation rather than by a listener per card,
+   * because React replaces the children whenever the hand changes and
+   * per-child listeners would have to be rebound every time. One listener on
+   * the row survives all of it.
+   */
+  const hovered = useRef(-1);
+  const applyOpening = (cards: HTMLElement[], overlap: number) => {
+    const shifts = openAround({ count: cards.length, hovered: hovered.current, overlap });
+    cards.forEach((card, index) => {
+      const shift = shifts[index] ?? 0;
+      if (shift === 0) card.style.removeProperty("--fan-shift");
+      else card.style.setProperty("--fan-shift", `${shift.toFixed(2)}px`);
+    });
+  };
+
   measure.current = () => {
     const row = ref.current;
     if (!row) return;
     const cards = Array.from(row.children) as HTMLElement[];
-    const gap = Number.parseFloat(getComputedStyle(row).columnGap) || 0;
+    const style = getComputedStyle(row);
+    const gap = Number.parseFloat(style.columnGap) || 0;
+
+    /*
+     * The width the cards can actually use, which is not `clientWidth`:
+     * clientWidth includes horizontal padding, and a fanned row has some (see
+     * `.row__cards--arc`). Measuring against padding the cards cannot occupy
+     * would under-overlap the row and push the last card into the clip.
+     */
+    const padding =
+      (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
     const overlap = overlapFor({
-      available: row.clientWidth,
+      available: row.clientWidth - padding,
       count: cards.length,
       cardWidth: cards[0] ? assumedCardWidth(cards[0]) : 0,
       gap,
     });
 
     applyArc(cards);
+    if (arc) applyOpening(cards, overlap);
 
     // Only write when it has actually moved. The row's own width comes from its
     // parent rather than from its contents, so this cannot feed back into the
@@ -139,8 +169,41 @@ export function CardRow({ className, arc, children }: CardRowProps) {
     return () => observer.disconnect();
   }, []);
 
+  /*
+   * Tracking the cursor, for the parting above. Deliberately kept out of React
+   * state: this changes on every mouse move across a hand and re-rendering the
+   * whole board to slide two cards sideways would be an absurd price. The
+   * indices are read back out of the DOM at the moment they are needed.
+   */
+  useLayoutEffect(() => {
+    const row = ref.current;
+    if (!row || !arc) return;
+
+    const indexOf = (target: EventTarget | null): number => {
+      if (!(target instanceof Node)) return -1;
+      return Array.from(row.children).findIndex((child) => child.contains(target));
+    };
+    const set = (index: number) => {
+      if (index === hovered.current) return;
+      hovered.current = index;
+      measure.current();
+    };
+    const onOver = (event: PointerEvent) => set(indexOf(event.target));
+    // pointerleave rather than pointerout: out fires while moving *between*
+    // cards inside the row, which would slam the hand shut and reopen it on
+    // every crossing.
+    const onLeave = () => set(-1);
+
+    row.addEventListener("pointerover", onOver);
+    row.addEventListener("pointerleave", onLeave);
+    return () => {
+      row.removeEventListener("pointerover", onOver);
+      row.removeEventListener("pointerleave", onLeave);
+    };
+  }, [arc]);
+
   return (
-    <div ref={ref} className={className}>
+    <div ref={ref} className={arc ? `${className ?? ""} row__cards--arc`.trim() : className}>
       {children}
     </div>
   );

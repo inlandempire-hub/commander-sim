@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type {
   CardDefinition,
   CardInstance,
@@ -99,10 +99,11 @@ export function StackView({
       */}
       {state.stack.length > 0 && (
         <div className="stack__list">
-          {[...state.stack].reverse().map((obj) => (
+          {[...state.stack].reverse().map((obj, depth) => (
             <StackEntry
               key={obj.id}
               obj={obj}
+              depth={depth}
               instance={state.stackCards.find((c) => c.instanceId === obj.sourceInstanceId)}
               cardDefinitions={cardDefinitions}
               selectable={selectingSpellTarget}
@@ -127,6 +128,7 @@ export function StackView({
  */
 function StackEntry({
   obj,
+  depth,
   instance,
   cardDefinitions,
   selectable,
@@ -134,6 +136,8 @@ function StackEntry({
   onClick,
 }: {
   obj: StackObject;
+  /** 0 is the top of the stack - the one that resolves next. */
+  depth: number;
   instance?: CardInstance;
   cardDefinitions: Record<string, CardDefinition>;
   selectable?: boolean;
@@ -157,7 +161,25 @@ function StackEntry({
 
   return (
     <div
-      className={`stack-entry ${selectable ? "stack-entry--selectable" : ""}`.trim()}
+      /*
+       * The pile reads as a pile because each entry sits a little further back
+       * than the one above it - stepped in from the left, scaled down and
+       * dimmed. A flat list of identical rows says "here are two spells" and
+       * makes you read both to find out which one happens first; this says
+       * which one happens first before you have read either.
+       *
+       * The depth is arithmetic on a number React already has, so it goes out
+       * as an ordinary style prop - unlike the fan, where the value depends on
+       * a measurement and has to be written from the DOM side.
+       */
+      className={[
+        "stack-entry",
+        depth === 0 ? "stack-entry--next" : "",
+        selectable ? "stack-entry--selectable" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      style={{ "--depth": depth } as CSSProperties}
       onClick={onClick}
       onMouseEnter={() =>
         definition && onHover?.(definition.id, instance?.ownerId, obj.sourceInstanceId)
@@ -178,6 +200,9 @@ function StackEntry({
       <div className="stack-entry__body">
         <div className="stack-entry__head">
           <span className="stack-entry__name">{definition?.name ?? "Ability"}</span>
+          {/* Only on the top one. Depth alone tells you the order once you know
+              to look for it; this tells you the first time. */}
+          {depth === 0 && <span className="stack-entry__next">resolves next</span>}
           {definition?.manaCost && (
             <span className="stack-entry__cost">{formatManaCost(definition.manaCost)}</span>
           )}
