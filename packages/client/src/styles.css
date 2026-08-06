@@ -39,6 +39,54 @@
   --ease-lift: cubic-bezier(0.32, 0.72, 0.4, 1);
   --ease-snap: cubic-bezier(0.22, 1, 0.36, 1.18);
   --ease-strike: cubic-bezier(0.3, 0.85, 0.35, 1);
+
+  /* ---- the felts ----------------------------------------------------------
+     One pair per zone: the cloth, and the cushion below it. The cushion is a
+     hand-picked darker shade rather than a computed one, so a browser without
+     colour-mix still gets the right thing - same reasoning as the buttons.
+
+     These are pool-table cloth rather than card-table green: saturated, but
+     darkened well below the named colour, because a zone is a large field and
+     a large field at full saturation on a dark screen glares. Honolulu blue is
+     #0076B6 and lemon is far brighter again; both are pulled down here until
+     they sit under the cards rather than in front of them. */
+  --felt-hand: #0b5d8e;
+  --felt-hand-edge: #063b5c;
+
+  --felt-lands: #1c5c34;
+  --felt-lands-edge: #0d3720;
+
+  --felt-creatures: #6b2135;
+  --felt-creatures-edge: #43121f;
+
+  --felt-command: #b0a233;
+  --felt-command-edge: #6d641b;
+
+  /* Artifacts and enchantments. Not one of the four asked for, and deliberately
+     the quietest: it is the row that is empty in most games, and giving it a
+     fifth loud colour would make the board read as a paint chart. */
+  --felt-other: #394050;
+  --felt-other-edge: #232936;
+
+  /*
+   * The ring that makes a highlight visible on any cloth.
+   *
+   * Every card highlight - playable, selected, will-tap, eligible attacker,
+   * chosen attacker, damaged - used to be a coloured outline seen against a
+   * near-black table, and a single colour was enough. On coloured felt it is
+   * not: measured against the new beds, the gold "selected" ring drops to
+   * 1.81:1 on lemon, the blue "eligible attacker" ring to 1.15:1, and the red
+   * damaged border to 1.46:1 on Honolulu blue. Those are invisible.
+   *
+   * Two tones, dark then light, is the standard answer and the only one that
+   * survives every ground: against pale cloth the dark band separates, against
+   * dark cloth the light one does. Neither has to know what it is sitting on,
+   * which matters because a card can be on any of five felts.
+   *
+   * Sits *outside* the coloured ring - outlines paint above box-shadows - so
+   * the colour still reads as the colour and this is only the edge of it.
+   */
+  --ring-halo: 0 0 0 5px rgba(0, 0, 0, 0.72), 0 0 0 6px rgba(255, 255, 255, 0.3);
 }
 
 * {
@@ -214,7 +262,9 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column-reverse;
-  gap: 4px;
+  /* Room for the cushions. Each bed now stands 3px off the table with a shadow
+     under that, and at the old 4px the two mats' cushions nearly touched. */
+  gap: 8px;
 }
 
 /*
@@ -265,9 +315,14 @@ body {
   flex-direction: column;
   gap: 3px;
   border-radius: 8px;
-  padding: 3px 5px;
-  background: linear-gradient(rgba(190, 168, 96, 0.11), rgba(190, 168, 96, 0.03));
-  border: 1px solid rgba(206, 184, 120, 0.22);
+  padding: 3px 6px;
+  border: none;
+  /* The lemon bed. Its cloth is far lighter than the other three, so the label
+     on it takes dark ink - the dim grey every other zone label uses is close to
+     unreadable on yellow, which is the one real cost of this colour. */
+  --felt-face: var(--felt-command);
+  --felt-cushion: var(--felt-command-edge);
+  --felt-ink: rgba(28, 24, 4, 0.82);
 }
 
 .command__cards {
@@ -302,11 +357,14 @@ body {
 
 /* Said rather than left blank, so an empty box reads as "it is on the
    battlefield" instead of as something missing. */
+/* Takes the lemon bed's dark ink for the same reason the label does - this only
+   appears once the commander is on the battlefield, which is mid-game and
+   exactly when nobody would think to check it was still legible. */
 .command__empty {
   margin: auto;
   font-size: 10px;
   font-style: italic;
-  color: var(--text-dim);
+  color: var(--felt-ink, var(--text-dim));
 }
 
 .side--flipped .side__zones {
@@ -326,7 +384,7 @@ body {
    actually have to read during combat - into a third of the half. */
 .row--base {
   flex-direction: row;
-  gap: 6px;
+  gap: 8px;
 }
 
 .row--creatures {
@@ -339,7 +397,7 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 /*
@@ -357,28 +415,59 @@ body {
   min-width: 0;
   display: flex;
   border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 2px 6px;
+  border: none;
+  padding: 3px 7px;
+}
+
+/*
+ * Each zone is a bed of cloth with a cushion under it, the way a pool table is.
+ *
+ * They used to be eleven-percent washes of colour over the dark table, which
+ * marked the zones out but left them flat: the board read as one surface with
+ * tinted regions drawn on it rather than as separate mats laid down on it.
+ *
+ * The build-up is the same one the Pass and Concede buttons use, for the same
+ * reason - a bright inner edge along the top and a dark one along the bottom
+ * so the surface reads as lit from above, a solid band of its own darker shade
+ * underneath standing it off the table, and a soft shadow beneath that. On a
+ * button that band is the side of the key; here it is the cushion.
+ *
+ * The gradient over the solid colour is what stops a large flat field looking
+ * like paint - one pass of light down the bed, the same on every zone, so they
+ * are lit by the same lamp rather than each having their own.
+ *
+ * The drop shadow is a little larger than the buttons' because these are much
+ * larger objects and the same 11px blur under a full-width mat reads as a hard
+ * line rather than as a shadow. The 3px cushion is identical.
+ */
+.zone,
+.command {
+  background: linear-gradient(rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.16)), var(--felt-face);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+    0 3px 0 var(--felt-cushion),
+    0 6px 14px rgba(0, 0, 0, 0.5);
 }
 
 .zone--hand {
-  background: linear-gradient(rgba(96, 128, 178, 0.11), rgba(96, 128, 178, 0.04));
-  border-color: rgba(120, 156, 210, 0.18);
+  --felt-face: var(--felt-hand);
+  --felt-cushion: var(--felt-hand-edge);
 }
 
 .zone--lands {
-  background: linear-gradient(rgba(120, 150, 96, 0.12), rgba(120, 150, 96, 0.04));
-  border-color: rgba(140, 174, 110, 0.2);
+  --felt-face: var(--felt-lands);
+  --felt-cushion: var(--felt-lands-edge);
 }
 
 .zone--other {
-  background: linear-gradient(rgba(150, 116, 190, 0.12), rgba(150, 116, 190, 0.04));
-  border-color: rgba(168, 134, 208, 0.2);
+  --felt-face: var(--felt-other);
+  --felt-cushion: var(--felt-other-edge);
 }
 
 .zone--creatures {
-  background: linear-gradient(rgba(190, 122, 96, 0.12), rgba(190, 122, 96, 0.04));
-  border-color: rgba(206, 140, 112, 0.2);
+  --felt-face: var(--felt-creatures);
+  --felt-cushion: var(--felt-creatures-edge);
 }
 
 /* Lands and other permanents are reference material once they are down - you
@@ -666,13 +755,29 @@ body {
   max-height: none;
 }
 
+/*
+ * Printed onto the cloth rather than floating above it.
+ *
+ * `--felt-ink` is set by whichever zone needs something other than the pale
+ * default - only the lemon command zone so far, whose cloth is light enough
+ * that the usual dim grey nearly vanishes into it. The text shadow is the
+ * label sitting *in* the weave; without it, small pale type on a saturated
+ * ground shimmers.
+ */
 .zone__label {
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-dim);
+  color: var(--felt-ink, rgba(255, 255, 255, 0.62));
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45);
   margin-bottom: 2px;
   flex: 0 0 auto;
+}
+
+/* The one label that is not on cloth - the stack lives in the sidebar. */
+.stack .zone__label {
+  color: var(--text-dim);
+  text-shadow: none;
 }
 
 /* Marks the one zone a spell is currently waiting to be pointed at - the stack
@@ -1400,6 +1505,7 @@ body {
 
 .card--selected {
   outline: 3px solid var(--gold);
+  box-shadow: var(--ring-halo);
   z-index: 2;
 }
 
@@ -1414,13 +1520,13 @@ body {
  */
 .card--attack-eligible {
   outline: 3px solid #4f9ae0;
-  box-shadow: 0 0 12px rgba(79, 154, 224, 0.45);
+  box-shadow: var(--ring-halo), 0 0 12px rgba(79, 154, 224, 0.45);
   z-index: 2;
 }
 
 .card--attack-chosen {
   outline: 3px solid #ef8a3c;
-  box-shadow: 0 0 14px rgba(239, 138, 60, 0.55);
+  box-shadow: var(--ring-halo), 0 0 14px rgba(239, 138, 60, 0.55);
   z-index: 2;
 }
 
@@ -1458,7 +1564,7 @@ body {
  */
 .card--playable {
   border-color: #6fd08c;
-  box-shadow: 0 0 0 1px #6fd08c, 0 0 12px rgba(111, 208, 140, 0.5);
+  box-shadow: 0 0 0 1px #6fd08c, var(--ring-halo), 0 0 12px rgba(111, 208, 140, 0.5);
 }
 
 /* Combat pairing label - which blocker is on which attacker. Pinned to the
@@ -2254,8 +2360,11 @@ body {
 /* A creature carrying damage stays marked after the flinch has finished - it
    is going to die to the next point of anything, and that should be visible
    from the board rather than only from the number in its corner. */
+/* The border is the card's own edge, so its outer side is seen against the
+   cloth - 1.46:1 on the blue felt without a ring under it. */
 .card--damaged {
   border-color: #b4535e;
+  box-shadow: var(--ring-halo);
 }
 
 /* --- targeting arrows ------------------------------------------------------ */
@@ -2725,7 +2834,7 @@ body {
  */
 .card--will-tap {
   border-color: var(--gold);
-  box-shadow: 0 0 0 2px rgba(214, 178, 90, 0.55), 0 0 14px rgba(214, 178, 90, 0.4);
+  box-shadow: 0 0 0 2px rgba(214, 178, 90, 0.55), var(--ring-halo), 0 0 14px rgba(214, 178, 90, 0.4);
 }
 
 /*

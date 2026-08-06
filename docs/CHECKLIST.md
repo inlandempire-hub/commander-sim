@@ -346,6 +346,46 @@ Turn sound on and listen to each separately. Everything here changed.
       the section above all still behave as they did.
 - [ ] The board, combat, mana, the bot and the deck builder are unchanged.
 
+## 14. Added 2026-08-06 - coloured felts
+
+- [ ] The four zones are now beds of coloured cloth: **green** for lands,
+      **Honolulu blue** for the hand, **burgundy** for creatures, **lemon** for
+      the command zone.
+- [ ] Each one stands off the table with a cushion under it and a shadow under
+      that, the same build-up the Pass and Concede buttons have.
+- [ ] They read as separate mats laid on the table rather than as tinted
+      regions drawn on one surface.
+- [ ] The weave still shows over each of them - they are cloth, not paint.
+- [ ] The colours are darkened well below the named ones, because a large field
+      at full saturation glares. **Say if any of them wants to be brighter or
+      duller** - they are four variables at the top of the stylesheet and cost
+      nothing to change.
+- [ ] The lemon command zone in particular: it is the lightest and the one most
+      likely to be wrong.
+- [ ] Artifacts and enchantments got a fifth, deliberately quiet slate colour
+      rather than a fifth loud one. Say if you would rather it had a real one.
+- [ ] The "Command" label and the "In play" text on the lemon bed are dark
+      rather than pale, and readable.
+
+### Highlights still read on the new colours
+
+This is where saturated cloth costs something - every highlight used to sit on
+a near-black table.
+
+- [ ] A **playable** card in hand (green glow) still stands out against the
+      blue felt.
+- [ ] A **castable commander** still stands out against the lemon felt. *(Every
+      highlight measured between 1.0 and 1.9 to one on lemon before the ring
+      was added - invisible.)*
+- [ ] **Eligible** (blue) and **chosen** (orange) attackers both still read
+      against burgundy.
+- [ ] A **damaged** creature's red border still reads.
+- [ ] A card being **targeted** (gold) still reads wherever it is.
+- [ ] Each of those now has a thin dark-then-light ring around its colour. It
+      should read as the edge of the highlight, not as a second highlight - say
+      if it looks like a sticker.
+
+
 ---
 
 ## Known rough edges
