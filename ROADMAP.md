@@ -18,7 +18,7 @@ Lives in `packages/engine` (`@mtg-commander-sim/engine`), no UI or networking de
 **Known Phase 1 simplifications** (intentional, revisit later — see comments in source for exact locations):
 - No "skip your first draw step" rule, no discard-to-hand-size in cleanup.
 - Mana pools empty once per turn (cleanup) rather than after every step/phase.
-- Combat is simplified to one blocker per attacker; no first strike/double strike/deathtouch damage-step interactions yet.
+- ~~Combat is simplified to one blocker per attacker; no first strike/double strike/deathtouch damage-step interactions yet.~~ **Resolved.** Menace (2026-07-30) reworked `dealCombatDamage` for any number of blockers per attacker, and First/Double Strike added a real `first-strike-damage` step to the turn sequence, inserted only when a combatant has it. Deathtouch is handled as a state-based action.
 - Continuous-effect layers aren't modeled - fine for the current vanilla/simple-keyword cards, will need real work for cards with layer-dependent effects.
 - The commander replacement effect (move to command zone on death) is always taken automatically; the real rule makes it an optional choice for the owner - needs a decision-prompt hook once a client/UI exists.
 - No library shuffling - deck setup takes `libraryIds` in the order given; callers should shuffle before calling `setUpCommanderDeck` if randomness matters.
@@ -85,7 +85,7 @@ See "Deck builder" below.
 ## Phase 6 — Polish
 - [x] Smoother animations - DONE (2026-08-02). Cards travel between zones, tap, lunge into combat and flinch when damaged; see "Motion: cards that travel" below.
 - [x] Card art via Scryfall images - DONE (2026-08-01), see "Card art" below.
-- [ ] UI pass so it reads as a real digital card game - **in progress, roughly 5/10** against the agreed scale (0 = where this started, 10 = MTG Arena). Still to come for 5-7: cards fanning/overlapping instead of a scrollbar when a row is crowded, spells resolving with a flourish, and a real damage-prevention shield so Healing Salve's second mode stops being an approximation.
+- [ ] UI pass so it reads as a real digital card game - **in progress, roughly 7/10** against the agreed scale (0 = where this started, 10 = MTG Arena). Since the 5/10 note: fanned rows instead of a scrollbar, targeting and held blocking lines, a canvas particle system, phase beats, floating damage and life numbers, synthesised sound, a readable stack, and raised 3D controls. What is left for 8+: hand cards fanning in a real arc rather than by overlapping (blocked on the flight system measuring rotated bounding boxes), tuned easing curves rather than chosen ones, spells resolving with a flourish of their own, and a real damage-prevention shield so Healing Salve's second mode stops being an approximation.
 - [x] Auto-skip priority passes when there's nothing meaningful to do - DONE (2026-07-30). See "Auto-pass + turn-sequence rules fixes" below.
 
 ## Ongoing (never "done")
@@ -94,10 +94,10 @@ See "Deck builder" below.
 - [ ] Revisit continuous-effect layers as cards demand more precise handling
 - [ ] Decide later whether to support 3-4 player pod Commander (engine core should already be player-count-agnostic per CLAUDE.md)
 - [ ] Decide later whether to support additional formats beyond Commander
-- [ ] **First Strike / Double Strike** - needs a real extra combat-damage sub-step (only inserted into the turn sequence when at least one combatant has it), not just a flag check. Bigger structural change than Menace/Ward/Flash, which are all done (see "Flash, Menace, Ward" below) - deferred until asked for.
+- [x] **First Strike / Double Strike** - DONE. A real extra `first-strike-damage` step in `turn.ts`'s TURN_SEQUENCE, skipped by `shouldSkipCurrentStep` unless `combatHasFirstStrike` finds a combatant with either keyword, so a combat without one is unchanged.
 - [x] **Menace** - DONE (2026-07-30). See "Flash, Menace, Ward" below - `dealCombatDamage` now handles any number of blockers per attacker.
 - [x] **Ward** - DONE (2026-07-30), with a documented simplification (auto-pay from floating mana only, no opt-out choice). See "Flash, Menace, Ward" below.
-- [ ] **MTGA-style opt-in auto-pass preferences** ("stop for combat tricks", "never stop unless lethal", etc.) - a player choosing not to be asked even when a real decision exists. Explicitly different from the forced auto-pass shipped 2026-07-30 (that only ever skips when nothing is possible); this is a settings/preference layer on top, deferred until later per the user.
+- [x] **MTGA-style opt-in auto-pass preferences** - DONE. `packages/client/src/stops.ts` plus the Stops panel (`StopSettings.tsx`): per-step stops the player chooses, and a Full control switch that stops at every step. The layer on top of the forced auto-pass shipped 2026-07-30, exactly as scoped.
 
 ## Keyword mechanics batch (2026-07-30)
 
