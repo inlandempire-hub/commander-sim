@@ -869,30 +869,27 @@ body {
 }
 
 .action-bar__go {
+  --btn-face: var(--accent);
+  --btn-edge: #2f4da8;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 1px;
   width: 100%;
-  background: var(--accent);
-  color: white;
-  border: none;
   border-radius: 6px;
   padding: 7px 6px;
   font-size: 12px;
   font-family: inherit;
+  font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
-}
-
-.action-bar__go:hover {
-  filter: brightness(1.1);
 }
 
 /* The one pass a turn that gives up everything you had left to do. Warmer than
    the ordinary pass so the change of label is not the only thing marking it. */
 .action-bar__go--end-turn {
-  background: var(--attack, #c9743f);
+  --btn-face: #c9743f;
+  --btn-edge: #8a4a24;
 }
 
 /* Whose priority it is, under the verb rather than in brackets after it -
@@ -1568,21 +1565,19 @@ body {
 
 /* --- colour and motion accents -------------------------------------------- */
 
+/* The header controls are secondary, so they take a muted slate face rather
+   than a colour of their own - raised like everything else, but not competing
+   with the two buttons that act on the game. */
 .table__sound {
-  background: transparent;
-  border: 1px solid var(--border);
+  --btn-face: #39445a;
+  --btn-edge: #232b3b;
+  --btn-ink: var(--text);
   border-radius: 4px;
-  color: var(--text-dim);
   font-family: inherit;
   font-size: 11px;
-  padding: 1px 8px;
+  padding: 3px 9px;
   cursor: pointer;
   margin-left: auto;
-}
-
-.table__sound:hover {
-  border-color: var(--accent);
-  color: var(--text);
 }
 
 .table__link {
@@ -1699,6 +1694,83 @@ body {
     inset 0 0 40px rgba(0, 0, 0, 0.3),
     0 0 22px rgba(91, 140, 255, 0.14),
     0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+/*
+ * Every control that sits on the table, raised off it.
+ *
+ * Two separate problems, one fix. The weave below is an absolutely-positioned
+ * pseudo-element on .side, so it paints in the positioned layer - above every
+ * static child. Cards and life totals are `position: relative` and clear it;
+ * the buttons were not, so the felt crosshatch was being painted straight over
+ * the top of them. `position: relative` is the whole of that fix and is why it
+ * is the first line here.
+ *
+ * The rest is what a control on a games table should look like: one solid
+ * colour rather than anything the surface shows through, a bright edge along
+ * the top and a dark one along the bottom so it reads as lit from above, and a
+ * band of its own darker colour underneath standing it off the cloth. Pressing
+ * it moves it down onto the table and shortens that band, which is the whole
+ * of the press - no separate animation, just the object doing what an object
+ * would.
+ *
+ * --btn-face and --btn-edge are set per button below; edge is a hand-picked
+ * darker shade of face rather than a computed one, so a browser without
+ * color-mix still gets the right thing.
+ */
+.action-bar__go,
+.concede,
+.table__stops,
+.table__full-control,
+.table__sound,
+.mulligan__actions button {
+  position: relative;
+  z-index: 1;
+  background: var(--btn-face);
+  color: var(--btn-ink, #fff);
+  border: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.22),
+    0 3px 0 var(--btn-edge),
+    0 5px 11px rgba(0, 0, 0, 0.45);
+  transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.12s ease;
+}
+
+.action-bar__go:hover,
+.concede:hover,
+.table__stops:hover,
+.table__full-control:hover,
+.table__sound:hover,
+.mulligan__actions button:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.action-bar__go:active,
+.concede:active,
+.table__stops:active,
+.table__full-control:active,
+.table__sound:active,
+.mulligan__actions button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 1px 0 var(--btn-edge),
+    0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+/* Someone who has asked for less motion still gets the press, because it is
+   the feedback rather than decoration - but instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .action-bar__go,
+  .concede,
+  .table__stops,
+  .table__full-control,
+  .table__sound,
+  .mulligan__actions button {
+    transition: none;
+  }
 }
 
 /* The weave. Two very faint crosshatches, well under the threshold where you
@@ -2184,27 +2256,25 @@ body {
   border-radius: 8px;
   padding: 12px 26px;
   cursor: pointer;
-  border: 1px solid transparent;
 }
 
 .mulligan__keep {
-  background: #3f8f5c;
-  color: white;
+  --btn-face: #3f8f5c;
+  --btn-edge: #276039;
 }
 
 .mulligan__mull {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text);
+  --btn-face: #39445a;
+  --btn-edge: #232b3b;
+  --btn-ink: var(--text);
 }
 
-.mulligan__actions button:hover:not(:disabled) {
-  filter: brightness(1.12);
-}
-
+/* A disabled button is not raised - it is not a thing you can press, so it
+   should not look like one. */
 .mulligan__actions button:disabled {
   opacity: 0.45;
   cursor: default;
+  box-shadow: none;
 }
 
 /* --- a spell that has just resolved ---------------------------------------- */
@@ -2247,14 +2317,13 @@ body {
  * ever appears, and it looks like what it does.
  */
 .concede {
+  --btn-face: var(--danger);
+  --btn-edge: #a02f3c;
   flex: 0 0 auto;
   /* Anchored to the bottom of the rail, directly above the piles - see the
      .concede + .rail__piles rule. */
   margin-top: auto;
   width: 100%;
-  background: var(--danger);
-  border: none;
-  color: #fff;
   border-radius: 6px;
   padding: 6px 8px;
   font-family: inherit;
@@ -2262,10 +2331,6 @@ body {
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
-}
-
-.concede:hover {
-  filter: brightness(1.12);
 }
 
 /* ---------------------------------------------------------------------------
@@ -2477,26 +2542,23 @@ body {
 
 .table__stops,
 .table__full-control {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-dim);
+  --btn-face: #39445a;
+  --btn-edge: #232b3b;
+  --btn-ink: var(--text);
   border-radius: 5px;
-  padding: 2px 8px;
+  padding: 3px 9px;
   font-family: inherit;
   font-size: 11px;
   cursor: pointer;
 }
 
-.table__stops:hover {
-  color: var(--text);
-  border-color: var(--accent);
-}
-
 /* Loud on purpose: full control stops the game at every step, which reads as
    something being broken if you have forgotten you switched it on. */
 .table__full-control {
-  border-color: var(--gold);
-  color: var(--gold);
+  --btn-face: var(--gold);
+  --btn-edge: #8a6f22;
+  --btn-ink: #241d05;
+  font-weight: 600;
 }
 
 .overlay__panel--stops {

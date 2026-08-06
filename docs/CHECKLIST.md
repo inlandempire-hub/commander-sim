@@ -29,13 +29,13 @@ one or the other and are marked.
 npm run dev -w @mtg-commander-sim/client
 ```
 
-- [ ] `http://localhost:5180/` opens a hotseat game (you play both seats).
-- [ ] `?mode=bot` plays you against the computer. `&seat=mike` takes the green
+- [x ] `http://localhost:5180/` opens a hotseat game (you play both seats).
+- [x ] `?mode=bot` plays you against the computer. `&seat=mike` takes the green
       deck instead of the white one. `&delay=350` speeds the bot up.
-- [ ] `?mode=deck` opens the deck builder.
-- [ ] `?mode=network&seat=donny` joins a running server; the other player opens
+- [x ] `?mode=deck` opens the deck builder.
+- [x ] `?mode=network&seat=donny` joins a running server; the other player opens
       the same URL with `&seat=mike`.
-- [ ] The page **never scrolls**, in either direction, at any window size.
+- [x ] The page **never scrolls**, in either direction, at any window size.
 
 ---
 
@@ -327,36 +327,36 @@ re-checking rather than checking from scratch.
 
 ### The Pass button and the command zone
 
-- [ ] The **command zone is the same height as the creature row**, not the whole
+- [x ] The **command zone is the same height as the creature row**, not the whole
       board, on both seats. *(Measured: both line up on the edge nearest the
       centre line.)*
-- [ ] The **Pass button sits in the gap under the command zone**, level with
+- [x ] The **Pass button sits in the gap under the command zone**, level with
       your hand, on the right.
-- [ ] It reads **"Pass"** for the whole turn.
-- [ ] It reads **"End Turn"**, in a warmer colour, at your end step - and its
+- [x ] It reads **"Pass"** for the whole turn.
+- [x ] It reads **"End Turn"**, in a warmer colour, at your end step - and its
       tooltip says "Pass here and your turn is over". *(Seen; note the game
       normally auto-passes through the end step, so you may only meet this with
       a stop set or Full control on.)*
-- [ ] If an opponent responds at your end step it goes back to "Pass", because
+- [x ] If an opponent responds at your end step it goes back to "Pass", because
       that click now resolves their spell instead.
-- [ ] Nothing else moved: Confirm attackers / Confirm blocks still appear above
+- [x ] Nothing else moved: Confirm attackers / Confirm blocks still appear above
       it, and "Waiting for ..." still replaces it when it is not your priority.
 
 ### Concede
 
-- [ ] **Concede is directly above the library and graveyard**, in the left rail.
-- [ ] It is **filled red with white text**.
-- [ ] It **does not move for the whole game** - in particular it stays put when
+- [x ] **Concede is directly above the library and graveyard**, in the left rail.
+- [x ] It is **filled red with white text**.
+- [x ] It **does not move for the whole game** - in particular it stays put when
       Confirm attackers/blocks appear, and when commander-damage lines appear in
       the rail above it. *(That was the actual bug: it used to sit at the end of
       the button strip and shift under your cursor.)*
-- [ ] It still asks before conceding.
+- [x ] It still asks before conceding.
 
 ### The stack
 
-- [ ] Each thing on the stack is a **row with its art, name, mana cost, type
+- [x ] Each thing on the stack is a **row with its art, name, mana cost, type
       line and rules text** - readable, rather than a cropped illustration.
-- [ ] Topmost (resolving first) is at the top.
+- [x ] Topmost (resolving first) is at the top.
 - [ ] Several spells deep, the list scrolls rather than shrinking them.
 - [ ] A **triggered or activated ability** on the stack says what it does, not
       `Ability (gainLife)`. *(Not seen live - the pool's triggers resolve too

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mtg-commander-sim-client",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@mtg-commander-sim/client"],
+      "port": 5180
+    }
+  ]
+}
