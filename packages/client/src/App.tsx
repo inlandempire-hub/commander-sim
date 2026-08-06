@@ -26,7 +26,6 @@ import { TablePrompt } from "./components/TablePrompt.js";
 import { TargetArrow } from "./components/TargetArrow.js";
 import { BlockLines } from "./components/BlockLines.js";
 import { MulliganOverlay } from "./components/MulliganOverlay.js";
-import { cueForLogLine, play, setSoundEnabled, soundEnabled } from "./sound.js";
 import { CardInspect } from "./components/CardInspect.js";
 import { ManaPipLayer } from "./components/ManaPipLayer.js";
 import { ParticleLayer } from "./components/ParticleLayer.js";
@@ -129,7 +128,6 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const [hovered, setHovered] = useState<HoveredCard | null>(null);
   /** A modal spell waiting on you to choose which mode you're casting. */
   const [pendingMode, setPendingMode] = useState<{ ownerId: string; instanceId: string } | null>(null);
-  const [sound, setSound] = useState(soundEnabled);
   const [particles, setParticles] = useState(particlesEnabled);
   /**
    * Something the interface itself wants to say - almost always "you cannot do
@@ -151,8 +149,6 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     loadStops(typeof window === "undefined" ? undefined : window.localStorage),
   );
   const [fullControl, setFullControl] = useState(false);
-  /** How far through the log we've already made a noise about. */
-  const soundedTo = useRef(0);
   /*
    * Cards physically travelling between zones. This has to be called here,
    * above the "no state yet" return, because hooks can't be conditional - and
@@ -226,23 +222,6 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   };
 
   /*
-   * Sound is driven off the log rather than off each action, so anything the
-   * engine learns to describe gets a cue for free. Only new lines fire, and
-   * only the last few, so catching up after a bot's fast turn doesn't play a
-   * chord.
-   */
-  useEffect(() => {
-    const lines = state?.log ?? [];
-    if (lines.length < soundedTo.current) soundedTo.current = 0; // log was trimmed
-    const fresh = lines.slice(Math.max(soundedTo.current, lines.length - 3));
-    soundedTo.current = lines.length;
-    for (const entry of fresh) {
-      const cue = cueForLogLine(entry.text);
-      if (cue) play(cue);
-    }
-  }, [state?.log.length, state]);
-
-  /*
    * Auto-pass: whenever the priority holder (a seat this client controls) has
    * nothing productive to do, pass on their behalf instead of making them
    * click through an empty window. Paused while a target-selection is in
@@ -272,20 +251,6 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     if (pass) controller.passPriority(priorityPlayerId);
   }, [state, controller, pendingTarget, stops, fullControl, showStops]);
 
-  /*
-   * A noise when the game refuses something.
-   *
-   * The sound module has had an "error" cue since sound was added and nothing
-   * ever played it - every other cue is picked off a log line, and a refusal
-   * never reaches the log, because nothing happened. Being told no is exactly
-   * the moment a cue earns its place: the message appears in the middle of the
-   * table and it is easy to click straight past it.
-   */
-  const refusal = lastError ?? notice;
-  useEffect(() => {
-    if (refusal) play("error");
-  }, [refusal]);
-
   if (!state) {
     return (
       <div className="table table--waiting">
@@ -309,14 +274,14 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const pendingPermanentType = pendingSelector?.kind === "permanent" ? pendingSelector.cardType : undefined;
 
   /**
-   * Who sits at the near edge of the table. In network and bot modes that's
-   * the seat this client drives; in hotseat, where the client drives both, it
-   * is fixed to the first player rather than following the turn - two people
-   * sharing one screen need the board to stay put, and swapping sides every
-   * turn would send every card animating across the table.
+   * Who sits at the near edge of the table: the one seat this client drives.
+   * Every other seat is drawn across the table with its hand face-down - see
+   * `hideHand` on PlayerBoard. The fallback to the first player only covers a
+   * controller reporting no controllable seat at all, which no shipped mode
+   * does; it keeps the board renderable rather than crashing on it.
    */
   const controlled = state.players.filter((p) => controller.canControlPlayer(p.id));
-  const bottomPlayer = controlled.length === 1 ? controlled[0]! : state.players[0]!;
+  const bottomPlayer = controlled[0] ?? state.players[0]!;
   const topPlayers = state.players.filter((p) => p.id !== bottomPlayer.id);
 
   // What the detail panel reads out. A hovered card wins, because that's you
@@ -608,16 +573,14 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
      *
      * Blocks having been declared is exactly when the attacker gets to respond
      * - the combat trick, the pump spell, the removal on a blocker. Passing
-     *   here on their behalf skipped that window entirely, and since this
-     *   client drives both seats in hotseat it skipped it silently. Auto-pass
-     *   already moves things on when there is genuinely nothing castable, so
-     *   leaving priority alone costs nothing when nobody has a play.
+     *   here on their behalf skipped that window entirely. Auto-pass already
+     *   moves things on when there is genuinely nothing castable, so leaving
+     *   priority alone costs nothing when nobody has a play.
      */
   }
 
   /**
-   * Whose seat concedes. In hotseat this client drives both, so it is whoever
-   * currently holds priority - the person actually sitting at the keyboard.
+   * Whose seat concedes: yours, whether or not you hold priority at the time.
    */
   function handleConcede() {
     const holder = state!.players[state!.priorityPlayerIndex]!.id;
@@ -733,20 +696,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           </button>
           <button
             type="button"
-            className="table__sound"
-            title={sound ? "Sound on - click to mute" : "Sound off - click to unmute"}
-            onClick={() => {
-              const next = !sound;
-              setSound(next);
-              setSoundEnabled(next);
-              if (next) play("card");
-            }}
-          >
-            {sound ? "Sound on" : "Sound off"}
-          </button>
-          <button
-            type="button"
-            className="table__sound"
+            className="table__particles"
             disabled={particlesSuppressedByMotionPreference()}
             title={
               particlesSuppressedByMotionPreference()
@@ -782,8 +732,10 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           </a>
         </header>
 
+        {/* Face-down, always. There is no mode in which you may look at
+            another player's hand - see the note on `hideHand`. */}
         {topPlayers.map((player) => (
-          <PlayerBoard key={player.id} flipped {...boardProps(player)} />
+          <PlayerBoard key={player.id} flipped hideHand {...boardProps(player)} />
         ))}
 
         {/* The controls ride in the gap under the bottom seat's command zone -
@@ -911,8 +863,6 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
         <TableBeat
           state={state}
           nearPlayerId={bottomPlayer.id}
-          // Undefined in hotseat, where this client drives both seats and
-          // "your turn" would be true of every turn.
           youId={controlled.length === 1 ? controlled[0]!.id : undefined}
         />
 
@@ -943,7 +893,11 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
 
         {/* Last, and outside every scroll container, so a card crossing the
             table isn't clipped at the edge of the row it left. */}
-        <CardFlightLayer state={state} flights={flights} />
+        <CardFlightLayer
+          state={state}
+          flights={flights}
+          hiddenHandOwnerIds={new Set(topPlayers.map((p) => p.id))}
+        />
       </div>
     </TableContext>
   );

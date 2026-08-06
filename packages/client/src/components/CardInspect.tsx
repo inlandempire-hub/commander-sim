@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CardDefinition } from "@mtg-commander-sim/engine";
-import { formatManaCost, typeLine } from "../format.js";
+import { typeLine } from "../format.js";
+import { ManaCostView } from "./ManaCostView.js";
 import { describeCard } from "../cardText.js";
 import { cardArtUrl } from "../cardArt.js";
 import { useArtOverrides } from "../artContext.js";
@@ -64,7 +65,7 @@ export function CardInspect({ definition, cardDefinitions, ownerId, onClose }: C
           <div className="inspect__text">
             <div className="inspect__head">
               <span className="inspect__name">{definition.name}</span>
-              <span className="inspect__cost">{formatManaCost(definition.manaCost)}</span>
+              <ManaCostView cost={definition.manaCost} size={20} className="inspect__cost" />
             </div>
             <div className="inspect__type">{typeLine(definition)}</div>
             {rules.length > 0 ? (

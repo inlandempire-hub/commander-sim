@@ -9,7 +9,8 @@ import { CardFace } from "./CardFace.js";
 import { cardArtUrl } from "../cardArt.js";
 import { useArtOverrides } from "../artContext.js";
 import { describeCard, describeEffect } from "../cardText.js";
-import { formatManaCost, typeLine } from "../format.js";
+import { typeLine } from "../format.js";
+import { ManaCostView } from "./ManaCostView.js";
 
 export interface StackViewProps {
   state: GameState;
@@ -204,7 +205,7 @@ function StackEntry({
               to look for it; this tells you the first time. */}
           {depth === 0 && <span className="stack-entry__next">resolves next</span>}
           {definition?.manaCost && (
-            <span className="stack-entry__cost">{formatManaCost(definition.manaCost)}</span>
+            <ManaCostView cost={definition.manaCost} size={12} className="stack-entry__cost" />
           )}
         </div>
         <div className="stack-entry__type">

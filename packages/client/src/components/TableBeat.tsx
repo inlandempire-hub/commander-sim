@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameState } from "@mtg-commander-sim/engine";
-import { play } from "../sound.js";
 
 /**
  * The two moments in a turn worth announcing across the table: it becoming
@@ -21,14 +20,8 @@ import { play } from "../sound.js";
  *
  * Three changes, all saying the same thing in different registers. The banner
  * arrives from the side of the table whose turn it now is, so the movement
- * itself carries the direction. It leads with *whose* turn rather than with
- * the number, because that is the part you need. And it makes a sound - a
- * rising fifth, once a turn, the only cue in the game that is a pure tone.
- *
- * The sound is played from here rather than off the log, unlike almost
- * everything else. The log's turn marker is a heading rather than an event,
- * and matching on it would fire the cue again every time the log was
- * re-scanned rather than once when the turn actually changed.
+ * itself carries the direction. And it leads with *whose* turn rather than
+ * with the number, because that is the part you need.
  */
 
 const BEAT_MS = 1150;
@@ -99,10 +92,6 @@ export function TableBeat({ state, nearPlayerId, youId }: TableBeatProps) {
       from,
       key,
     });
-    // Only the handover. Combat already has an entire board leaning towards
-    // the centre line to announce it.
-    if (!inCombat) play("turn");
-
     timer.current = window.setTimeout(
       () => setBeat((current) => (current?.key === key ? null : current)),
       BEAT_MS,

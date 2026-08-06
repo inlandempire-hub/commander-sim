@@ -24,7 +24,8 @@ tell me what is wrong and I will fix it rather than rebuild it.
 separately rather than grouped as "animations". A group can be ticked while one
 of its five members has been broken for a fortnight - which has already
 happened here twice: a card panel faded to invisible by a leftover keyframe,
-and a sound cue that existed for weeks with nothing able to play it.
+and a sound cue that existed for weeks with nothing able to play it (sound is
+gone now, but the lesson stands).
 
 **What I cannot check myself.** The browser preview I develop against does not
 composite frames. I can prove a thing exists, is the right size, in the right
@@ -38,23 +39,20 @@ and end points are correct. **I cannot watch anything move.** Items marked
 npm run dev -w @mtg-commander-sim/client
 ```
 
-`http://localhost:5180/` is a hotseat game. `?mode=bot` plays the computer
-(`&seat=mike` takes the green deck, `&delay=350` speeds it up). `?mode=deck`
-opens the deck builder. `?mode=network&seat=donny` joins a running server.
+`http://localhost:5180/` plays the computer, which is now the default and the
+only single-browser mode (`&seat=mike` takes the green deck, `&delay=350`
+speeds the bot up, `&delay=1500` slows it down). `?mode=deck` opens the deck
+builder. `?mode=network&seat=donny` joins a running server.
 
-Play one game against the bot and one hotseat game; some items only occur in
-one or the other and are marked.
+Hotseat is gone as of 2026-08-06, so items that said "in hotseat" have been
+removed rather than reworded - there is nowhere to check them.
 
 ---
 
 ## 1. The opening hand
 
-- [ ] Hotseat: both players get their own mulligan, one after the other.
-
-**Changed 2026-08-04, so these need re-checking:**
-
-- [ ] In hotseat, that happens after **both** players have kept, and deals both
-      hands - not one hand and then the other.
+- [ ] You mulligan first, the bot decides for itself, and the game starts only
+      once both have kept.
 
 ## 2. Reading a card
 
@@ -92,22 +90,7 @@ behind those. Say the word and it comes out.*
 
 - [ ] (motion) A card being exiled goes **pale and purple**.
 
-## 8. Sound
-
-Each cue is a separate sound with its own trigger. Turn sound on and listen for
-each one individually.
-
-- [ ] **Draw** - a short high tick when a card is drawn.
-- [ ] The mute setting survives a reload.
-
-## 9. Hotseat
-
-- [ ] Both seats are driven from one screen.
-- [ ] The board does not flip between turns.
-- [ ] Each player gets their own mulligan, prompts, and target choices.
-- [ ] Concede concedes for whoever currently holds priority.
-
-## 10. Deck builder
+## 8. Deck builder
 
 - [ ] Import and export a deck as text.
 - [ ] Illegal decks are refused with the reason.
@@ -176,17 +159,12 @@ re-checking rather than checking from scratch.
 - [ ] It still cannot cast what it cannot pay for.
 - [ ] Its lands still visibly tap when it pays.
 
-### Sound
+### The log
 
-- [ ] There is a **sound on every draw**, including the one at the start of each
-      turn. *(This was the reported bug: the draw step wrote no log line at all,
-      and the client's sound is driven off the log, so the most common draw in
-      the game was silent.)*
-- [ ] The log now has a "draws 1 card" line each turn to match.
-- [ ] Turn 1 does **not** draw - the player going first skips their draw step -
-      so no sound then either.
-- [ ] The opening hand and a mulligan redraw are **silent**, and do not write
-      "draws 7 cards" into the log.
+- [ ] The log has a "draws 1 card" line each turn. *(The draw step used to write
+      no line at all, which is how the missing draw sound went unnoticed.)*
+- [ ] Turn 1 does **not** draw - the player going first skips their draw step.
+- [ ] The opening hand and a mulligan redraw do not write "draws 7 cards".
 
 ### Cards
 
@@ -293,29 +271,6 @@ above, which is itself unticked - go through both in one sitting if you can.
 - [ ] The end cards of the fan are not clipped even when nothing is hovered.
       *(They were, by 10px, in the build before this one.)*
 
-### Sound
-
-Turn sound on and listen to each separately. Everything here changed.
-
-- [ ] Playing a card is **paper on cloth**, not a beep. This is the biggest
-      single change and the one to judge first.
-- [ ] A land is heavier than a spell and lands with a thump.
-- [ ] Damage is an impact - a hit, with the pitch dropping.
-- [ ] A creature dying is recognisably the same family of sound as damage, but
-      slower and lower.
-- [ ] Drawing a card is a short riffle, and quiet enough to hear fifty times.
-- [ ] Attacking is a call rather than an impact.
-- [ ] The turn changing hands makes a sound - a rising pair of notes, once a
-      turn. **New.**
-- [ ] Damage that gets **prevented** makes a ringing sound, not the impact one.
-      **New**, and it used to play the hit, which said the opposite of what had
-      happened.
-- [ ] Nothing is harsh, and nothing is loud. Say so if any cue makes you reach
-      for the mute.
-- [ ] Several things happening at once (four creatures in combat) does not
-      crackle or distort.
-- [ ] Cues sound like they are in a room rather than in a void.
-
 ### The stack
 
 - [ ] With two or more things waiting, each one sits slightly further back than
@@ -332,7 +287,6 @@ Turn sound on and listen to each separately. Everything here changed.
 - [ ] The banner slides in **from the side of the table whose turn it now is** -
       up from the bottom for yours, down from the top for theirs.
 - [ ] Against the bot it says "Your turn" on yours and "Salty Mike" on theirs.
-- [ ] In hotseat it names both players rather than saying "your turn" for both.
 - [ ] The turn number is underneath, smaller.
 - [ ] The half of the table taking the turn lights up briefly as it does, then
       settles back to the steady blue edge.
@@ -398,8 +352,7 @@ a near-black table.
 ### The card backs
 
 - [ ] The library pile on **your** side of the table shows the light card back.
-- [ ] The one on the **far** side shows the dark one. In hotseat that is the
-      other player rather than the bot, which is the intended reading.
+- [ ] The one on the **far** side shows the dark one.
 - [ ] Neither is stretched or squashed.
 - [ ] The number of cards left sits at the foot of the card on a black
       lozenge, and is readable on both backs at a glance.
@@ -414,6 +367,58 @@ a near-black table.
       they were.
 - [ ] The graveyard and exile piles beside the library are unchanged.
 
+## 16. Added 2026-08-06 - symbols, backs, and one mode fewer
+
+### Mana costs are printed symbols
+
+- [ ] Cards in hand show real mana symbols instead of `{3}{B}{B}`.
+- [ ] The generic number and the coloured pips are in the printed order -
+      generic first, then white, blue, black, red, green.
+- [ ] The command zone, the stack, the deck builder's card list and its pool
+      all show them too.
+- [ ] **No card name is cut short by its cost.** This was the reported bug; the
+      cost now holds its width and the name gives way, with a two-line clamp
+      and an ellipsis when it has to.
+- [ ] A long name still reads - say if any card is now unidentifiable.
+- [ ] Pips are big enough to tell apart at a glance, and not so big they
+      dominate the card.
+
+### The opponent is an opponent
+
+- [ ] The far half of the table shows a **fan of dark card backs** where its
+      hand used to be. You cannot see what the bot is holding.
+- [ ] You can still tell how many cards it has by counting them.
+- [ ] When the bot draws, the card **flies face-down** into its hand. *(It flew
+      face-up before this build, which showed you its whole hand one card at a
+      time.)*
+- [ ] Your own hand is unchanged and still fans, lifts and parts.
+- [ ] Hotseat is gone. `http://localhost:5180/` with no parameters now starts a
+      game against the bot, and there is no "Play hotseat" button in the deck
+      builder.
+
+### Dealing
+
+- [ ] After the mulligan, cards **deal one at a time, left to right**, rather
+      than the hand appearing all at once.
+- [ ] Both hands deal, yours face-up and theirs face-down.
+- [ ] It takes about a second - long enough to read as dealing, short enough
+      not to wait through. Say if it is too slow or too fast.
+
+### Speed
+
+- [ ] The bot takes noticeably longer between actions than it did, so you can
+      follow what it is doing. *(800ms, up from 450. `?delay=1200` if you want
+      it slower still, `?delay=400` for the old pace.)*
+- [ ] Everything else moves slightly slower too - card flights, hover, the
+      combat clash. It should read as more deliberate, not as sluggish.
+
+### Sound is gone
+
+- [ ] The game is silent and there is no sound button in the header.
+- [ ] Nothing else broke with it: the turn banner still arrives, the log still
+      records damage being prevented, and refusals still show in the middle of
+      the table.
+
 ---
 
 ## Known rough edges
@@ -424,8 +429,6 @@ them:
 - Clicking an opponent's creature outside combat can surface an
   internal-sounding message, along the lines of `Tifa Lockhart has no activated
   ability at index 0`.
-- Sound is synthesised rather than sampled. It has body now, but a real
-  recording of a card hitting a table would still beat it.
 - Particles are simple round specks. No trails, no sprites, no lighting.
 - The deck builder still looks like a form rather than part of the game - this
   is the largest item on the list for 10/10.

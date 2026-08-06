@@ -32,18 +32,45 @@
  * cannot drift - see motion.test.ts.
  */
 
-/** Milliseconds. */
+/**
+ * Milliseconds.
+ *
+ * Widened by about a fifth on 2026-08-06: everything was inside its band but
+ * sat at the fast end of it, and against the bot - which answers in well under
+ * a second - the effect was a game that resolved itself faster than you could
+ * watch it. Slower here is not decoration; it is the difference between seeing
+ * a card move and finding it has moved.
+ */
 export const DURATIONS = {
   /** A control acknowledging a click. Fast enough to feel like the click itself. */
-  press: 70,
+  press: 80,
   /** A card changing pose: hovering, tapping, leaning into combat, fanning. */
-  pose: 150,
+  pose: 190,
   /** Something crossing the table - a card flying between zones. */
-  travel: 380,
+  travel: 460,
   /** A one-shot impact: the clash, the flinch, the damage number appearing. */
-  strike: 420,
+  strike: 500,
   /** Long enough to read: a life total ticking, a number floating away. */
-  linger: 900,
+  linger: 1050,
+} as const;
+
+/**
+ * Dealing the opening hand.
+ *
+ * Its own pair rather than part of the scale above, because it is the only
+ * motion in the game with a *rhythm* - seven cards arriving one after another
+ * rather than one thing moving. `card` is how long a single card takes to
+ * land; `step` is the gap between one starting and the next, and is what makes
+ * it read as dealing rather than as a hand appearing.
+ *
+ * Seven cards at these numbers takes just over 1.1 seconds, which is about as
+ * long as a real deal and comfortably short of feeling like a loading screen.
+ */
+export const DEAL = {
+  /** One card, from off the left edge to its place in the fan. */
+  card: 300,
+  /** The gap between one card being dealt and the next. */
+  step: 130,
 } as const;
 
 /** Control points of a cubic-bezier, as CSS and Framer Motion both want them. */

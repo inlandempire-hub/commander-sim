@@ -8,6 +8,7 @@ import type { Flight } from "../flight.js";
 import { EASINGS } from "../motion.js";
 import { spellColor, withAlpha } from "../particles.js";
 import { FLIGHT_MS } from "../useCardFlight.js";
+import { CARD_BACK_FAR } from "../cardBacks.js";
 
 /**
  * Draws the cards currently travelling between zones, in a fixed layer over
@@ -27,6 +28,20 @@ import { FLIGHT_MS } from "../useCardFlight.js";
 export interface CardFlightLayerProps {
   state: GameState;
   flights: Flight[];
+  /**
+   * Whose hands you are not allowed to see into - everyone but you.
+   *
+   * Without this the layer leaked every card the opponent drew. A draw is a
+   * flight from a library into a hand, and this layer renders the real card
+   * for the length of that flight; the hand it lands in is face-down, but the
+   * card was face-up all the way there. In bot mode, where one tab holds both
+   * seats' state, that was the bot's whole hand shown to you one card at a
+   * time.
+   *
+   * Only the destination matters. A card leaving a hidden hand for the stack
+   * is being cast, which makes it public the moment it is on its way.
+   */
+  hiddenHandOwnerIds?: ReadonlySet<string>;
 }
 
 /** Every card the state knows about, wherever it currently is. */
@@ -36,7 +51,7 @@ function indexInstances(state: GameState): Map<string, CardInstance> {
   return byId;
 }
 
-export function CardFlightLayer({ state, flights }: CardFlightLayerProps) {
+export function CardFlightLayer({ state, flights, hiddenHandOwnerIds }: CardFlightLayerProps) {
   if (flights.length === 0) return null;
   const byId = indexInstances(state);
 
@@ -99,7 +114,13 @@ export function CardFlightLayer({ state, flights }: CardFlightLayerProps) {
                 ease: [...EASINGS.settle],
               }}
             >
-              <CardView instance={instance} definition={definition} />
+              {flight.to.zone === "hand" && hiddenHandOwnerIds?.has(instance.ownerId) ? (
+                <div className="card card--facedown card--in-flight-back">
+                  <img className="card__back-art" src={CARD_BACK_FAR} alt="" draggable={false} />
+                </div>
+              ) : (
+                <CardView instance={instance} definition={definition} />
+              )}
             </motion.div>
           );
         })}

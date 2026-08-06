@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   effectivePower,
   effectiveToughness,
@@ -6,7 +6,8 @@ import {
   type CardInstance,
   type GameState,
 } from "@mtg-commander-sim/engine";
-import { formatManaCost, typeLine } from "../format.js";
+import { typeLine } from "../format.js";
+import { ManaCostView } from "./ManaCostView.js";
 import { cardArtUrl } from "../cardArt.js";
 import { useArtOverrides } from "../artContext.js";
 import { useIsFlying } from "../flightContext.js";
@@ -93,6 +94,12 @@ export interface CardViewProps {
    * involved but never what it's paired with.
    */
   badge?: string;
+  /**
+   * This card's place in its row, left to right, used to stagger the opening
+   * deal. Only read while the zone is actually dealing (`.zone--dealing` in
+   * styles.css), so it is harmless to pass all the time.
+   */
+  dealIndex?: number;
 }
 
 export function CardView({
@@ -111,6 +118,7 @@ export function CardView({
   attackChoice,
   onHover,
   badge,
+  dealIndex,
 }: CardViewProps) {
   const isCreature = definition.types.includes("Creature");
   const showCost = instance.zone === "hand" || instance.zone === "command" || instance.zone === "stack";
@@ -235,6 +243,7 @@ export function CardView({
         onHover ? () => onHover(definition.id, instance.ownerId, instance.instanceId) : undefined
       }
       onMouseLeave={onHover ? () => onHover(null) : undefined}
+      style={dealIndex === undefined ? undefined : ({ "--deal-index": dealIndex } as CSSProperties)}
       title={`${definition.name} - ${typeLine(definition)} (right-click to enlarge)`}
     >
       {showArt && (
@@ -252,7 +261,7 @@ export function CardView({
       <div className="card__body">
         <div className="card__header">
           <span className="card__name">{definition.name}</span>
-          {showCost && <span className="card__cost">{formatManaCost(definition.manaCost)}</span>}
+          {showCost && <ManaCostView cost={definition.manaCost} size={10} className="card__cost" />}
         </div>
         {/* With art there is no room for a type line or keyword list, and no
             need - the detail panel reads out the whole card on hover. */}

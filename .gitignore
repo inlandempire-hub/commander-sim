@@ -25,3 +25,4 @@ packages/client/node_modules/.vite/
 # put your own copies.
 art/
 packages/client/public/card-backs/
+packages/client/public/mana/

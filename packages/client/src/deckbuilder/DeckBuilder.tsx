@@ -5,7 +5,7 @@ import {
   type CardDefinition,
   type CardType,
 } from "@mtg-commander-sim/engine";
-import { formatManaCost } from "../format.js";
+import { ManaCostView } from "../components/ManaCostView.js";
 import {
   buildPool,
   filterPool,
@@ -154,14 +154,14 @@ export function DeckBuilder() {
    * archetypes or another deck you saved - a saved opponent is passed by id as
    * `vsdeck`, an archetype by name as `vs`.
    *
-   * `hotseat` swaps the bot for a second person on the same screen. Same deck
-   * parameters either way, which is the point: any deck you build is playable
-   * in any mode.
+   * Against the bot, which is the only single-browser mode there is - the
+   * hotseat button that used to sit beside this one was removed with hotseat
+   * itself (see main.tsx). To play a person, both of you open the client in
+   * ?mode=network against a running server.
    */
-  function handlePlay(hotseat: boolean) {
+  function handlePlay() {
     if (!deck) return;
-    const params = new URLSearchParams({ mydeck: deck.id });
-    if (!hotseat) params.set("mode", "bot");
+    const params = new URLSearchParams({ mydeck: deck.id, mode: "bot" });
 
     const savedOpponent = decks.find((d) => d.id === opponent);
     if (savedOpponent) {
@@ -422,18 +422,9 @@ export function DeckBuilder() {
                 type="button"
                 className="btn btn--play"
                 disabled={!status?.playable}
-                onClick={() => handlePlay(false)}
+                onClick={() => handlePlay()}
               >
                 Play against the bot
-              </button>
-              <button
-                type="button"
-                className="btn"
-                disabled={!status?.playable}
-                title="Two people taking turns on this one screen"
-                onClick={() => handlePlay(true)}
-              >
-                Play hotseat
               </button>
             </div>
 
@@ -441,7 +432,7 @@ export function DeckBuilder() {
               <h2>Commander</h2>
               {commanderDef ? (
                 <p>
-                  <strong>{commanderDef.name}</strong> {formatManaCost(commanderDef.manaCost)}
+                  <strong>{commanderDef.name}</strong> <ManaCostView cost={commanderDef.manaCost} size={13} />
                   <br />
                   <span className="muted">
                     Colour identity: {commanderDef.colorIdentity.join("") || "colourless"}
@@ -537,7 +528,7 @@ export function DeckBuilder() {
                       >
                         <span className="decklist__count">{entry.count}</span>
                         <span className="decklist__name">{entry.def.name}</span>
-                        <span className="decklist__cost">{formatManaCost(entry.def.manaCost)}</span>
+                        <ManaCostView cost={entry.def.manaCost} size={12} className="decklist__cost" />
                         <button
                           type="button"
                           className="btn btn--small"
@@ -680,7 +671,7 @@ function PoolRow({ card, inDeck, isCommander, canAdd, onAdd, onMakeCommander }: 
       <CardArtStrip definition={card.def} />
       <div className="pool__head">
         <span className="pool__name">{card.def.name}</span>
-        <span className="pool__cost">{formatManaCost(card.def.manaCost)}</span>
+        <ManaCostView cost={card.def.manaCost} size={12} className="pool__cost" />
       </div>
       <div className="pool__type">
         {card.typeLine}

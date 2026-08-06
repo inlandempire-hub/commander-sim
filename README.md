@@ -17,12 +17,12 @@ and it never ships anyone else's card data or art - see
   effect.
 - **817 real cards**, every one transcribed from Scryfall and re-checkable
   against it by an audit script. Nothing in the pool is invented.
-- **Three ways to play**: hotseat (two people, one screen), over a WebSocket
-  against a friend, or against a heuristic bot.
+- **Two ways to play**: against a heuristic bot, or over a WebSocket against a
+  friend on another machine. Your opponent's hand is face-down either way.
 - **Five pre-built archetype decks**, one per colour.
 - **A deck builder** with search, filters, live legality checking, saved decks
   and text import/export.
-- **235 tests** covering the engine, the bot and the deck builder.
+- **503 tests** covering the engine, the bot and the deck builder.
 
 See [ROADMAP.md](ROADMAP.md) for the full phase-by-phase history and the
 current backlog.
@@ -56,7 +56,7 @@ contributors.
 | `packages/engine` | The rules engine. No UI, no networking - a pure game-state machine. Also holds the card pool and the archetype decks. |
 | `packages/protocol` | Shared client/server message types, plus the per-viewer state filter that redacts hidden zones. |
 | `packages/server` | Authoritative WebSocket server for two-player networked games. |
-| `packages/client` | React UI. Hotseat, network and bot modes, plus the deck builder. |
+| `packages/client` | React UI. Bot and network modes, plus the deck builder. |
 | `packages/bot` | The computer opponent - a pure `decideAction(state, playerId)` library with two harnesses. |
 | `tools/scryfall-report` | Python tooling for picking, generating and auditing card fixtures against Scryfall's bulk data. |
 | `docs/` | Setup, testing, and card-pool guides. |

@@ -1713,3 +1713,107 @@ systems, which is what makes it the last stretch rather than another phase.
 
 505 tests, typecheck clean. Every item verified in the browser in both bot mode
 and hotseat.
+
+## Printed symbols, a hidden opponent, and one mode fewer (2026-08-06)
+
+Seven things asked for in one pass, plus a bug that fell out of one of them.
+
+### Mana costs are symbols
+
+`manaSymbols.ts` and `ManaCostView.tsx`. `{3}{B}{B}` is how Magic writes a cost
+down in prose; it is not how a card shows one, and on a card face it is both
+longer and slower to read than the pips it stands for. Three black pips read as
+"three black"; the braces version has to be parsed.
+
+The icons live in `packages/client/public/mana/` and are gitignored along with
+the card backs, same posture as the Scryfall art. That makes "no icons on disk"
+a real state rather than a defensive one, so the fallback matters: if any single
+symbol fails to load, the *whole* cost reverts to braces text in one go. Half
+pips and half text cannot be read at all, and the flag is per cost rather than
+per pip because they either all shipped or none did. Verified by renaming the
+folder: eleven costs on the board, eleven fallbacks, no broken images.
+
+**The reported bug this fixes.** Names were being cut off by their costs. The
+header is a flex row, and `overflow: hidden` on the name set its automatic
+minimum size to zero - so a five-symbol cost was free to squeeze a long name
+down to a few characters. The fix is a priority inversion: the cost now holds
+its width and the name gives way, because a cost is one to six fixed glyphs and
+cannot be abbreviated while a name has a two-line clamp and an ellipsis. The
+cost is capped at 46% of the header so it can never be the thing that squeezes
+the name out; past that the pips wrap to a second row, which only four or more
+of them can reach. Measured after: a three-pip cost sits on one row at 32px
+with 46px left for the name, and no name in a seven-card hand truncates.
+
+### Hotseat is gone
+
+It could not work. Magic is a hidden-information game and one screen has one
+pair of eyes on it: either both hands are face up, in which case neither player
+can play honestly, or the screen is handed over and re-hidden every turn.
+Everything hotseat existed for - playing a deck you built, testing something
+quickly - bot mode does, against an opponent that cannot read your hand either.
+
+So there are two modes now, bot and network, and bot is the default with no
+parameters at all. Every seat that is not yours draws its hand face-down: a fan
+of card backs rather than a count in a corner, because how many cards they are
+holding is something you read constantly and seven backs in an arc say it
+without you counting anything. It carries the same `.card` class as a real one,
+so the fan, the overlap and the row's height all work on it unchanged.
+
+**A bug this turned up, and the reason the change was worth more than it
+looked.** The flight layer renders the real card for the length of a flight,
+and a draw is a flight from a library into a hand. So the hand was face-down and
+every card entering it was face-up on the way there - in bot mode, where one tab
+holds both seats' state, that showed you the bot's entire hand one card at a
+time. Flights into a hand you may not see are now drawn as a back. Caught by
+watching every flight over twenty-five seconds of bot play and recording whether
+each was face-up and whose it was.
+
+### Dealing the opening hand
+
+The mulligan overlay closed and seven cards were simply *there* - the one moment
+in the game where nothing had moved to put them in your hand. They now arrive
+one at a time from the left, 130ms apart, about 1.1 seconds for a full hand.
+
+It animates four variables rather than `transform`, because a card's transform
+is composed from every pose it is in at once and a keyframe setting `transform`
+directly would throw away the fan tilt for the length of the deal and snap it
+back at the end. The four are registered with `@property` so they interpolate;
+unregistered custom properties jump from one value to the other halfway
+through, which would be seven cards blinking into place rather than a deal.
+
+Triggered off the mulligan ending rather than off the hand filling up: hands
+fill and empty constantly and only this once is it a deal.
+
+### Everything slower
+
+The motion scale widened by about a fifth (press 70 to 80, pose 150 to 190,
+travel 380 to 460, strike 420 to 500, linger 900 to 1050), and the bot's gap
+between actions went from 450ms to 800. Every duration was inside its band but
+at the fast end of it, and a bot turn is a dozen or more actions - untap, draw,
+land, spell, attack, pass, pass - which at 450ms went past faster than you could
+see what it had done. `?delay=` overrides it either way.
+
+### Pass and Concede
+
+The player's name came off the pass button: this client only ever acts for one
+seat, so "Pass / Deadly Donny" was telling you who you are on every turn of
+every game. Both buttons went to caps, 800 weight and 15px/14px from 12px
+semibold sentence case. They are not form controls; they are the physical keys
+you hit between fifty and two hundred times a game, and at a glance across the
+table you should be able to tell PASS from END TURN from CONFIRM ATTACKERS
+without reading any of them.
+
+### Sound removed
+
+`sound.ts`, its tests, the cue wiring, the mute button and the log-driven
+dispatch are all gone, on the user's call. It was synthesised from oscillators
+and filtered noise, and no amount of layering makes that sound like a card
+hitting a table; the cues had become sound for its own sake. It is recoverable
+from git history if it ever earns its place back - which would mean real
+recordings, not more oscillators.
+
+503 tests, typecheck clean. Verified against the bot in the browser: the deal
+staggers 0, 130, 260, 390, 520, 650, 780ms across seven cards; the opponent's
+hand is seven backs and zero real cards; the bot's draws fly face-down; costs
+render as pips everywhere and fall back cleanly to braces with the folder
+renamed away; and the page scrolls in neither direction.

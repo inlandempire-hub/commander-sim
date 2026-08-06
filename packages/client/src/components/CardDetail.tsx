@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { CardDefinition } from "@mtg-commander-sim/engine";
-import { formatManaCost, typeLine } from "../format.js";
+import { typeLine } from "../format.js";
+import { ManaCostView } from "./ManaCostView.js";
 import { describeCard } from "../cardText.js";
 import { cardArtUrl } from "../cardArt.js";
 import { useArtOverrides } from "../artContext.js";
@@ -73,7 +74,7 @@ export function CardDetail({ definition, cardDefinitions, ownerId }: CardDetailP
     <aside className="detail detail--text">
       <div className="detail__head">
         <span className="detail__name">{definition.name}</span>
-        <span className="detail__cost">{formatManaCost(definition.manaCost)}</span>
+        <ManaCostView cost={definition.manaCost} size={14} className="detail__cost" />
       </div>
       <div className="detail__type">{typeLine(definition)}</div>
       {rules.length > 0 ? (

@@ -29,11 +29,17 @@
      out once in motion.ts - which holds the same numbers for the parts of the
      client that animate from JavaScript, and which a test keeps in step with
      these. Change them there and here together, or the test fails. */
-  --t-press: 70ms;
-  --t-pose: 150ms;
-  --t-travel: 380ms;
-  --t-strike: 420ms;
-  --t-linger: 900ms;
+  --t-press: 80ms;
+  --t-pose: 190ms;
+  --t-travel: 460ms;
+  --t-strike: 500ms;
+  --t-linger: 1050ms;
+
+  /* Dealing the opening hand: how long one card takes, and the gap between
+     one card and the next. Kept beside the scale and checked by the same
+     test, but deliberately not part of it - see DEAL in motion.ts. */
+  --t-deal: 300ms;
+  --t-deal-step: 130ms;
 
   --ease-settle: cubic-bezier(0.16, 0.84, 0.32, 1);
   --ease-lift: cubic-bezier(0.32, 0.72, 0.4, 1);
@@ -1079,20 +1085,32 @@ body {
   gap: 5px;
 }
 
+/*
+ * The two buttons that act on the game are the loudest text on the table.
+ *
+ * They used to be 12px semibold sentence case, which is the weight of a form
+ * control - and these are not form controls, they are the physical keys you
+ * hit between fifty and two hundred times a game. Caps, heavier, wider tracked
+ * and larger: at a glance across a 1280px table you should be able to tell
+ * PASS from END TURN from CONFIRM ATTACKERS without reading any of them.
+ */
 .action-bar__go {
   --btn-face: var(--accent);
   --btn-edge: #2f4da8;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 1px;
   width: 100%;
   border-radius: 6px;
-  padding: 7px 6px;
-  font-size: 12px;
+  padding: 9px 6px;
+  font-size: 15px;
   font-family: inherit;
-  font-weight: 600;
-  line-height: 1.2;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.15;
   cursor: pointer;
 }
 
@@ -1101,17 +1119,6 @@ body {
 .action-bar__go--end-turn {
   --btn-face: #c9743f;
   --btn-edge: #8a4a24;
-}
-
-/* Whose priority it is, under the verb rather than in brackets after it -
-   two short lines fit the rail where one long one did not. */
-.action-bar__who {
-  font-size: 10px;
-  opacity: 0.85;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .action-bar__game-over {
@@ -1204,11 +1211,16 @@ body {
   cursor: pointer;
   user-select: none;
   font-size: 11px;
+  /* --deal-* are the opening deal and are zero at every other moment - see
+     "dealing the opening hand" further down. They join the composition here
+     for the same reason as everything else: so the deal and the fan can both
+     be true of a card at once. */
   transform: translate(
-      calc(var(--nudge) + var(--fan-slide)),
-      calc(var(--lunge) + var(--clash) + var(--hover) + var(--fan-lift))
+      calc(var(--nudge) + var(--fan-slide) + var(--deal-x, 0px)),
+      calc(var(--lunge) + var(--clash) + var(--hover) + var(--fan-lift) + var(--deal-y, 0px))
     )
-    rotate(calc(var(--tilt) + var(--fan-tilt))) scale(var(--zoom));
+    rotate(calc(var(--tilt) + var(--fan-tilt) + var(--deal-rot, 0deg)))
+    scale(calc(var(--zoom) * var(--deal-scale, 1)));
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
   /* Transform and shadow are the card moving, so they take the pose curve.
      Filter is the card dimming as it taps - a brightness change has no
@@ -1269,13 +1281,28 @@ body {
 
 .card__header {
   display: flex;
+  /* Top-aligned rather than stretched: the name can run to two lines and the
+     cost is one row of pips, and a cost floating in the middle of a two-line
+     name reads as belonging to the second line. */
+  align-items: flex-start;
   justify-content: space-between;
   gap: 4px;
   font-weight: 600;
   line-height: 1.15;
 }
 
+/*
+ * The name gets the space that is left, and never less than half the card.
+ *
+ * It used to be a plain flex item beside the cost, and `overflow: hidden` sets
+ * an item's automatic minimum size to zero - so a five-symbol cost was free to
+ * squeeze a long name down to a few characters. The floor stops that; the
+ * two-line clamp then ends it with an ellipsis, which reads as "there is more
+ * name here" rather than as a word that has been sliced through.
+ */
 .card__name {
+  flex: 1 1 auto;
+  min-width: 48%;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1284,11 +1311,58 @@ body {
   font-size: 10px;
 }
 
+/*
+ * The cost holds its width and the name gives way, which is the opposite of
+ * what a plain flex row does. A cost is one to six fixed glyphs and cannot be
+ * abbreviated; a name has a two-line clamp and an ellipsis and can. Capped at
+ * a little under half the header so it can never be the thing that squeezes
+ * the name out - past that the pips wrap onto a second row instead, which is
+ * only reachable with four or more of them.
+ */
 .card__cost {
+  flex: 0 0 auto;
+  max-width: 46%;
   color: var(--gold);
   font-weight: 600;
   font-size: 10px;
   white-space: nowrap;
+}
+
+/* --- mana costs as printed symbols ---------------------------------------- */
+
+/*
+ * Pips wrap rather than pushing the name aside. A commander's fourth cast costs
+ * {8}{2}{W} worth of symbols, and a single row of those is wider than the card;
+ * wrapping puts the overflow on a second row inside the same box, which is what
+ * a real card does with a long cost too.
+ *
+ * `--pip` is set inline by the component, so one rule serves the card face, the
+ * detail panel and the stack at their three different sizes.
+ */
+.mana-cost {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1px;
+  vertical-align: -0.1em;
+}
+
+.mana-cost__pip {
+  width: var(--pip, 11px);
+  height: var(--pip, 11px);
+  display: block;
+  /* The symbols are round with a light grey field, which disappears into a pale
+     card frame. A hairline ring pins them to the card the way the printed ones
+     are pinned by their own black outline. */
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+
+/* When the icons are not on disk the whole cost falls back to {3}{B}{B}, which
+   is what this used to be everywhere. */
+.mana-cost--text {
+  font-variant-numeric: tabular-nums;
 }
 
 .card__type {
@@ -1840,7 +1914,7 @@ body {
 /* The header controls are secondary, so they take a muted slate face rather
    than a colour of their own - raised like everything else, but not competing
    with the two buttons that act on the game. */
-.table__sound {
+.table__particles {
   --btn-face: #39445a;
   --btn-edge: #232b3b;
   --btn-ink: var(--text);
@@ -1994,7 +2068,7 @@ body {
 .concede,
 .table__stops,
 .table__full-control,
-.table__sound,
+.table__particles,
 .mulligan__actions button {
   position: relative;
   z-index: 1;
@@ -2016,7 +2090,7 @@ body {
 .concede:hover,
 .table__stops:hover,
 .table__full-control:hover,
-.table__sound:hover,
+.table__particles:hover,
 .mulligan__actions button:hover:not(:disabled) {
   filter: brightness(1.1);
 }
@@ -2025,7 +2099,7 @@ body {
 .concede:active,
 .table__stops:active,
 .table__full-control:active,
-.table__sound:active,
+.table__particles:active,
 .mulligan__actions button:active:not(:disabled) {
   transform: translateY(2px);
   box-shadow:
@@ -2042,7 +2116,7 @@ body {
   .concede,
   .table__stops,
   .table__full-control,
-  .table__sound,
+  .table__particles,
   .mulligan__actions button {
     transition: none;
   }
@@ -2099,6 +2173,128 @@ body {
   max-height: none;
   min-height: 0;
   transition: none;
+}
+
+/* --- the opponent's hand, face-down --------------------------------------- */
+
+/*
+ * A card you are not allowed to see.
+ *
+ * Every seat but yours draws its hand like this, in every mode. It is a card
+ * rather than a count in a corner because how many cards they are holding is
+ * something you read constantly, and seven backs in an arc say it without you
+ * counting anything - and because the arc, the overlap and the row's height
+ * all already work on cards, so a face-down hand costs no new layout.
+ *
+ * It carries the same `.card` class as a real one so it fans and overlaps
+ * identically, and deliberately none of the interactive ones: no hover lift, no
+ * click, no inspect. There is nothing behind it to reveal.
+ */
+.card--facedown {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #10151d;
+  background: linear-gradient(#20293a, #161d2a);
+  cursor: default;
+  pointer-events: none;
+}
+
+.card__back-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* A face-down card mid-flight fills the wrapper the flight layer measured, the
+   same way a face-up one does - see `.flight .card`. Without this it would size
+   itself from the row it is no longer in. */
+.card--in-flight-back {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+}
+
+/* --- dealing the opening hand --------------------------------------------- */
+
+/*
+ * Seven cards arriving one at a time instead of appearing together.
+ *
+ * The class is on the zone and only for as long as the deal lasts, which is
+ * what keeps this off every other card that ever enters a hand - a drawn card
+ * has its own flight out of the library, and staggering *that* would delay it
+ * by however many cards were already in hand.
+ *
+ * It animates four variables rather than `transform`, because a card's
+ * transform is composed from every pose it is in at once (see the note on
+ * .card above) and a keyframe that set `transform` directly would throw away
+ * the fan tilt for the length of the deal and then snap it back. These four are
+ * deal-only and add into that same composition.
+ *
+ * Custom properties only interpolate if they are registered with a type, which
+ * is what the @property rules below are for - unregistered, they would jump
+ * from one value to the other halfway through and the deal would be seven
+ * cards blinking into place.
+ *
+ * `backwards` fill is what holds each card at its start pose through its own
+ * delay; without it the whole hand would be visible for a frame and then start
+ * dealing. The cost is that a tab which never composites a frame holds them at
+ * the start pose - acceptable, since the class removes itself on a timer that
+ * runs regardless.
+ */
+@property --deal-x {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --deal-y {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --deal-rot {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@property --deal-scale {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+
+.zone--dealing .card {
+  animation: deal-in var(--t-deal) var(--ease-settle) backwards;
+  animation-delay: calc(var(--deal-index, 0) * var(--t-deal-step));
+}
+
+@keyframes deal-in {
+  from {
+    opacity: 0;
+    /* In from the left and a touch high, which is the direction a hand is
+       actually dealt in. */
+    --deal-x: -38px;
+    --deal-y: -14px;
+    --deal-rot: -8deg;
+    --deal-scale: 0.9;
+  }
+  to {
+    opacity: 1;
+    --deal-x: 0px;
+    --deal-y: 0px;
+    --deal-rot: 0deg;
+    --deal-scale: 1;
+  }
+}
+
+/* The deal is the one motion here that is purely ceremony - there is no state
+   it is the only report of - so it is the first thing to go. */
+@media (prefers-reduced-motion: reduce) {
+  .zone--dealing .card {
+    animation: none;
+  }
 }
 
 /* --- the library pile ----------------------------------------------------- */
@@ -2761,11 +2957,15 @@ body {
   margin-top: auto;
   width: 100%;
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 8px 8px;
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  /* Matched to the pass button above, one step down in size: it is the same
+     kind of object, and the one that ends the game should not be the quieter
+     of the two by accident. */
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   cursor: pointer;
 }
 

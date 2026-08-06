@@ -5,6 +5,8 @@ import { ZonePile } from "./ZonePile.js";
 import { CardRow } from "./CardRow.js";
 import { libraryAnchorKey } from "../flight.js";
 import { landCardHeight } from "../landSize.js";
+import { DEAL } from "../motion.js";
+import { CARD_BACK_FAR, CARD_BACK_NEAR } from "../cardBacks.js";
 import { emitParticles } from "../particleBus.js";
 
 /** How long a life change stays flagged up before fading. */
@@ -12,17 +14,6 @@ const LIFE_FLASH_MS = 1000;
 
 /** How long this half of the table stays lit after taking the turn. */
 const TAKE_TURN_MS = 700;
-
-/**
- * The two card backs, served from the client's public folder.
- *
- * They are not in the repo - they are Wizards' artwork, and the project's rule
- * is that none of that is committed (CLAUDE.md, "Scope & non-goals"). Drop your
- * own copies at these paths; docs/SETUP.md says so too. Missing is a supported
- * state, not a broken one.
- */
-const CARD_BACK_NEAR = "/card-backs/light.png";
-const CARD_BACK_FAR = "/card-backs/dark.png";
 
 /**
  * One player's half of the table.
@@ -53,6 +44,14 @@ export interface PlayerBoardProps {
   cardDefinitions: Record<string, CardDefinition>;
   /** True for the seat across the table, whose zones run in the opposite direction. */
   flipped?: boolean;
+  /**
+   * Draw this player's hand face-down. True for every seat but yours, always -
+   * there is no mode left in which you are entitled to see another hand. Over
+   * the network the cards arrive redacted anyway and this is what makes that
+   * look deliberate rather than broken; against the bot the state is shared in
+   * one tab, and this is the only thing between you and its hand.
+   */
+  hideHand?: boolean;
   isActivePlayer: boolean;
   hasPriority: boolean;
   selectedAttackerIds: Set<string>;
@@ -104,6 +103,7 @@ export function PlayerBoard({
   state,
   cardDefinitions,
   flipped,
+  hideHand,
   isActivePlayer,
   hasPriority,
   selectedAttackerIds,
@@ -138,6 +138,34 @@ export function PlayerBoard({
   const assignedBlockerIds = new Set(Object.keys(blockerAssignments));
   const [backArtFailed, setBackArtFailed] = useState(false);
   const backArt = backArtFailed ? null : flipped ? CARD_BACK_FAR : CARD_BACK_NEAR;
+
+  /*
+   * Dealing the opening hand.
+   *
+   * The mulligan overlay closes and seven cards were simply *there*, which is
+   * the one moment in the game where nothing had moved to put them in your
+   * hand - every other card arrives by flying out of the library. They now
+   * arrive one at a time from the left, on a stagger.
+   *
+   * Triggered off the mulligan ending rather than off the hand filling up,
+   * because the hand fills and empties constantly and only this once is it a
+   * deal. `state.mulligan` is non-null for the whole of the mulligan, for both
+   * seats, and null the instant both have kept - see the engine's mulligan.ts.
+   */
+  const [dealing, setDealing] = useState(false);
+  const wasMulliganing = useRef(state.mulligan != null);
+  useEffect(() => {
+    const mulliganing = state.mulligan != null;
+    const finished = wasMulliganing.current && !mulliganing;
+    wasMulliganing.current = mulliganing;
+    if (!finished) return;
+    setDealing(true);
+    const timer = window.setTimeout(
+      () => setDealing(false),
+      DEAL.step * Math.max(player.hand.length - 1, 0) + DEAL.card + 60,
+    );
+    return () => window.clearTimeout(timer);
+  }, [state.mulligan, player.hand.length]);
   const inDamageStep = state.step === "combat-damage" || state.step === "first-strike-damage";
 
   /**
@@ -439,20 +467,41 @@ export function PlayerBoard({
               </div>
             )}
           </div>
-          <div className="zone zone--hand">
+          <div className={`zone zone--hand ${dealing ? "zone--dealing" : ""}`.trim()}>
             {/* The only fanned row on the table - this is the one you are
-                actually holding. */}
+                actually holding.
+
+                The opponent's is fanned identically but face-down. It is not a
+                count in a corner: how many cards they are holding is real
+                information you read constantly, and seven backs in an arc say
+                it without you counting anything. `--deal-index` staggers the
+                deal - see the note on dealing above. */}
             <CardRow className="row__cards" arc>
-              {player.hand.map((instance) => (
-                <CardView
-                  key={instance.instanceId}
-                  instance={instance}
-                  definition={cardDefinitions[instance.definitionId]!}
-                  playable={canPlay?.(instance.instanceId)}
-                  onHover={onHover}
-                  onClick={() => onHandCardClick(instance.instanceId)}
-                />
-              ))}
+              {player.hand.map((instance, index) =>
+                hideHand ? (
+                  <div
+                    key={instance.instanceId}
+                    className="card card--facedown"
+                    style={{ "--deal-index": index } as CSSProperties}
+                    data-card-instance={instance.instanceId}
+                    data-card-zone="hand"
+                    data-card-owner={instance.ownerId}
+                    aria-hidden="true"
+                  >
+                    {backArt && <img className="card__back-art" src={backArt} alt="" draggable={false} />}
+                  </div>
+                ) : (
+                  <CardView
+                    key={instance.instanceId}
+                    instance={instance}
+                    definition={cardDefinitions[instance.definitionId]!}
+                    playable={canPlay?.(instance.instanceId)}
+                    dealIndex={index}
+                    onHover={onHover}
+                    onClick={() => onHandCardClick(instance.instanceId)}
+                  />
+                ),
+              )}
             </CardRow>
           </div>
 

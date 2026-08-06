@@ -1,7 +1,7 @@
 /**
  * How anything on the table asks for a burst of particles.
  *
- * A module-level channel rather than a React context, matching sound.ts, and
+ * A module-level channel rather than a React context, and
  * for the same reason: the things that want to make a noise or throw off a few
  * specks are scattered five levels deep in the tree (a card taking damage, a
  * land being tapped), and threading a callback down to every one of them would

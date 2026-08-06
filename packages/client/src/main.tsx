@@ -20,6 +20,17 @@ import "./deckbuilder/deckbuilder.css";
 
 const SEAT_LABELS: Record<string, string> = { donny: "Deadly Donny", mike: "Salty Mike" };
 
+/**
+ * How long the bot waits between its own actions.
+ *
+ * Raised from 450ms on 2026-08-06. The bot's turn is a dozen or more actions -
+ * untap, draw, land, a spell, attack, pass, pass - and at 450ms the whole thing
+ * went by faster than you could see what it had done, which made the game feel
+ * like it was resolving itself rather than being played at you. Overridable
+ * with ?delay= for anyone who disagrees.
+ */
+const DEFAULT_BOT_DELAY_MS = 800;
+
 /** A deck plus the name to show for it - satisfied by both an Archetype and a saved deck. */
 interface NamedDeck {
   name: string;
@@ -42,43 +53,26 @@ function artBySeat(entries: Array<[string, NamedDeck | undefined]>): ArtOverride
 }
 
 /**
- * Hotseat mode (default): both seats on one screen, one local GameState.
- * Takes the same ?deck= / &vs= archetype parameters as bot mode, so two people
- * sharing a screen can play the built decks rather than only the demo pair.
+ * Two ways to play, and deliberately only two.
+ *
+ * **Bot** - the default, and what you get with no ?mode at all. One local
+ * GameState with the other seat driven by @mtg-commander-sim/bot through the
+ * same GameController the UI uses.
+ *
+ * **Network** - ?mode=network&seat=..., one browser per person, against a
+ * running @mtg-commander-sim/server.
+ *
+ * There used to be a third, "hotseat": both seats driven from one screen. It
+ * was removed on 2026-08-06 because it cannot work. Magic is a hidden-
+ * information game and one screen has one set of eyes on it - either both hands
+ * are face up, in which case neither player can play honestly, or the screen
+ * has to be handed over and re-hidden every turn. Everything it existed for
+ * (playing a deck you built, testing quickly) bot mode does, against an
+ * opponent that cannot see your hand either.
  */
-function LocalRoot({ decks }: { decks: { human?: NamedDeck; opponent?: NamedDeck } }) {
-  // Both seats fall back together: a hotseat game with one real deck and one
-  // demo deck would be a confusing half-state, so it's both or neither.
-  const controller = useLocalGameController(
-    decks.human && decks.opponent
-      ? {
-          decks: [
-            { id: SEAT_LABELS.donny!, deck: decks.human.deck },
-            { id: SEAT_LABELS.mike!, deck: decks.opponent.deck },
-          ],
-        }
-      : {},
-  );
-  return (
-    <App
-      controller={controller}
-      artOverrides={artBySeat([
-        [SEAT_LABELS.donny!, decks.human],
-        [SEAT_LABELS.mike!, decks.opponent],
-      ])}
-      modeNotice={
-        decks.human && decks.opponent
-          ? `Hotseat: ${SEAT_LABELS.donny} playing ${decks.human.name} against ${SEAT_LABELS.mike} playing ${decks.opponent.name}.`
-          : "Hotseat mode, demo decks built from the engine's Scryfall-sourced card pool (see CLAUDE.md)."
-      }
-    />
-  );
-}
 
 /**
- * Bot mode: open with ?mode=bot (optionally &seat=mike to play the green deck
- * instead). One local GameState as in hotseat, except the other seat is driven
- * by @mtg-commander-sim/bot through the same GameController the UI uses.
+ * Bot mode: the default. Add ?seat=mike to play the green deck instead.
  */
 function findArchetype(wanted: string | null): Archetype | undefined {
   if (!wanted) return undefined;
@@ -174,8 +168,8 @@ function Notice({ message }: { message: string }) {
  * archetype name when both are given, since naming a specific deck you built
  * is the more deliberate instruction of the two.
  *
- * Used for every seat in every mode, so "play the deck I built" works in
- * hotseat exactly as it does against the bot.
+ * Used for every seat in both modes, so "play the deck I built" works over the
+ * network exactly as it does against the bot.
  */
 function resolveDeck(
   savedId: string | null,
@@ -202,19 +196,6 @@ function Root() {
   if (isError(myDeck)) return <Notice message={myDeck.error} />;
   if (isError(theirDeck)) return <Notice message={theirDeck.error} />;
 
-  if (mode === "bot") {
-    const humanSeat = params.get("seat") === "mike" ? "mike" : "donny";
-    const delayMs = Number(params.get("delay") ?? 450);
-    return (
-      <BotRoot
-        humanSeat={humanSeat}
-        delayMs={Number.isFinite(delayMs) ? delayMs : 450}
-        humanDeck={myDeck}
-        botDeck={theirDeck}
-      />
-    );
-  }
-
   if (mode === "network") {
     const seat = params.get("seat") ?? "";
     const serverUrl = params.get("server") ?? "ws://localhost:8787";
@@ -231,7 +212,18 @@ function Root() {
     return <NetworkRoot seat={seat} serverUrl={serverUrl} />;
   }
 
-  return <LocalRoot decks={{ human: myDeck, opponent: theirDeck }} />;
+  // No mode, or an unrecognised one, is bot mode - the default and the only
+  // one that works from a single browser with nobody else involved.
+  const humanSeat = params.get("seat") === "mike" ? "mike" : "donny";
+  const delayMs = Number(params.get("delay") ?? DEFAULT_BOT_DELAY_MS);
+  return (
+    <BotRoot
+      humanSeat={humanSeat}
+      delayMs={Number.isFinite(delayMs) ? delayMs : DEFAULT_BOT_DELAY_MS}
+      humanDeck={myDeck}
+      botDeck={theirDeck}
+    />
+  );
 }
 
 const rootElement = document.getElementById("root");

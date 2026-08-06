@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { cssEase, DURATIONS, EASINGS, type Easing } from "../motion.js";
+import { cssEase, DEAL, DURATIONS, EASINGS, type Easing } from "../motion.js";
 
 /**
  * The motion scale exists twice - as custom properties in styles.css and as
@@ -68,6 +68,27 @@ describe("the motion scale", () => {
     for (const [name, [, y1]] of Object.entries(EASINGS)) {
       expect(y1, name).toBeGreaterThan(0.6);
     }
+  });
+
+  it("declares the deal timings in styles.css too", () => {
+    expect(customProperty("t-deal")).toBe(`${DEAL.card}ms`);
+    expect(customProperty("t-deal-step")).toBe(`${DEAL.step}ms`);
+  });
+
+  it("deals a whole opening hand in about the time a person would", () => {
+    // Seven cards, each starting one step after the last. Long enough to read
+    // as dealing rather than as the hand appearing; short enough that nobody
+    // sits through it. Both ends matter - the first version of this was a
+    // 60ms step, which was a flicker, not a deal.
+    const seven = DEAL.step * 6 + DEAL.card;
+    expect(seven).toBeGreaterThan(700);
+    expect(seven).toBeLessThan(1600);
+  });
+
+  it("keeps the gap between cards shorter than a card's own arrival", () => {
+    // Otherwise each card lands before the next sets off and the deal reads as
+    // seven separate events rather than as one run.
+    expect(DEAL.step).toBeLessThan(DEAL.card);
   });
 
   it("overshoots only where overshoot is the point", () => {

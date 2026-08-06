@@ -10,10 +10,8 @@ import { passWouldEndTurn, type GameState } from "@mtg-commander-sim/engine";
  * the best of the three: it is level with your hand, which is where your eyes
  * already are when it is your turn to act.
  *
- * Only the bottom seat gets one. In bot mode that is the only seat you drive;
- * in hotseat you drive both from one screen, and a button that jumped between
- * the top and bottom of the table depending on whose decision it was would be
- * worse than one that is always in the same place.
+ * Only the bottom seat gets one, which is the only seat you ever drive - see
+ * main.tsx, where hotseat was removed for exactly that reason.
  *
  * Concede is deliberately not here - see ConcedeButton. Anything wordy - a
  * prompt explaining a two-click choice, an error - is not here either; see
@@ -91,8 +89,11 @@ export function ActionBar({
           }
           onClick={onPassPriority}
         >
+          {/* No name on it. This button is only ever yours to press - there
+              is no mode left in which this client acts for anybody else - so
+              "Pass / Deadly Donny" was telling you who you are on every turn
+              of every game. */}
           {endsTurn ? "End Turn" : "Pass"}
-          <span className="action-bar__who">{priorityPlayerId}</span>
         </button>
       ) : (
         // Passing here would pass on someone else's behalf - which in bot mode

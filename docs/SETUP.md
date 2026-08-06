@@ -50,7 +50,7 @@ npm test
 npm run typecheck
 ```
 
-235 tests should pass and the typecheck should print nothing.
+Every test should pass and the typecheck should print nothing.
 
 ## Playing it
 
@@ -63,14 +63,21 @@ the URL:
 
 | URL | What you get |
 |---|---|
-| `http://localhost:5180/` | Hotseat with the demo decks - both seats on one screen. |
-| `?deck=white&vs=green` | Hotseat with two of the five archetype decks. |
-| `?mode=bot&deck=red&vs=blue` | You play red, the bot plays blue. |
-| `?mode=bot&mydeck=<id>` | You play a deck you built in the deck builder. |
+| `http://localhost:5180/` | You against the bot, demo decks. |
+| `?deck=red&vs=blue` | You play red, the bot plays blue. |
+| `?mydeck=<id>` | You play a deck you built in the deck builder. |
+| `?seat=mike` | Swaps which of the two seats is yours. |
+| `?delay=1500` | Slows the bot down (default 800ms between its actions). |
 | `?mode=deck` | The deck builder. |
 | `?mode=network&seat=donny` | Join a networked game as Deadly Donny. |
 
 Deck names are matched loosely, so `deck=white` and `deck=Radiant` both work.
+
+There are two modes and only two: against the bot, or against a person over the
+network. Hotseat - two people on one screen - was removed on 2026-08-06. Magic
+is a hidden-information game and one screen has one pair of eyes on it, so
+either both hands are face up and neither player can play honestly, or the
+screen gets handed over and re-hidden every turn.
 
 ### Networked play
 
@@ -115,21 +122,38 @@ console encoding cannot represent them.
 `data/` and `output/` are gitignored on purpose - that's Scryfall's data, not
 ours to redistribute, and it regenerates in one command.
 
-## Card backs (optional)
+## Card backs and mana symbols (optional)
 
-The library pile shows a real card back. Those images are Wizards' artwork and
-so are not in the repo, for the same reason the Scryfall data above isn't. The
-client works without them - it draws a plain blue-grey back instead - but if you
-want the real ones, put two PNGs here:
+The library pile and the opponent's hand show a real card back, and mana costs
+are drawn as printed symbols rather than as `{3}{B}{B}`. Both sets of images are
+Wizards' artwork and so are not in the repo, for the same reason the Scryfall
+data above isn't. The client works without either - it draws a plain blue-grey
+card back, and falls back to the braces text for costs - but if you want the
+real ones, put them here:
 
 ```
 packages/client/public/card-backs/light.png   # the near seat, i.e. you
 packages/client/public/card-backs/dark.png    # the far seat, i.e. the bot
+
+packages/client/public/mana/w.png             # the five colours, lower case
+packages/client/public/mana/u.png
+packages/client/public/mana/b.png
+packages/client/public/mana/r.png
+packages/client/public/mana/g.png
+packages/client/public/mana/0.png             # generic, 0 through 20
+packages/client/public/mana/1.png
+...
+packages/client/public/mana/20.png
 ```
 
-Any size will do; they're displayed about 46px wide, so anything above 300px
-across is wasted bytes. `object-fit: cover` crops them to 5:7, so a back with a
-printed border loses a pixel or two of it.
+Any size will do. Card backs display about 46px wide, so anything above 300px
+across is wasted bytes; `object-fit: cover` crops them to 5:7, so a back with a
+printed border loses a pixel or two of it. Mana pips display between 11px and
+20px and want to be square.
+
+The costs are all-or-nothing per card: if any one symbol fails to load, that
+cost falls back to the braces text in full, because a cost that is half pips and
+half text cannot be read.
 
 ## Common problems
 
