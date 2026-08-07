@@ -10701,6 +10701,109 @@ export const UR_GOLEM_S_EYE: CardDefinition = {
   tier: "vanilla",
 };
 
+
+/* ---------------------------------------------------------------------------
+ * Fetchlands, and sacrificing for value (2026-08-07)
+ *
+ * Step 2 of the Blech list. Two new activated-ability costs carry all of it:
+ * `payLife` and `sacrificeSelf`, both paid on activation rather than on
+ * resolution - which is the whole trick of a fetchland. It is in the graveyard
+ * before its search ever resolves, and the ability still finds the land,
+ * because an ability is independent of its source once it is on the stack.
+ *
+ * The find is by land *type*, not by "basic land": a fetch can take Bayou, and
+ * writing it as basics-only would be a materially weaker card than the one
+ * printed.
+ * ------------------------------------------------------------------------- */
+
+export const BLOODSTAINED_MIRE: CardDefinition = {
+  id: "bloodstained-mire",
+  name: "Bloodstained Mire",
+  scryfallId: "579743fe-f71e-4cb2-8629-d6b02ed1591d",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, payLife: 1, sacrificeSelf: true }, effect: { kind: "searchLibrary", cardType: "Land", subtypes: ["Swamp", "Mountain"], destination: "battlefield" } }],
+  tier: "vanilla",
+};
+
+export const MARSH_FLATS: CardDefinition = {
+  id: "marsh-flats",
+  name: "Marsh Flats",
+  scryfallId: "9db3ba6d-eb7f-4f5b-9a3b-c6239c3baa42",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, payLife: 1, sacrificeSelf: true }, effect: { kind: "searchLibrary", cardType: "Land", subtypes: ["Plains", "Swamp"], destination: "battlefield" } }],
+  tier: "vanilla",
+};
+
+export const POLLUTED_DELTA: CardDefinition = {
+  id: "polluted-delta",
+  name: "Polluted Delta",
+  scryfallId: "6e288374-2b71-4ace-b1d2-a19fee6cb4af",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, payLife: 1, sacrificeSelf: true }, effect: { kind: "searchLibrary", cardType: "Land", subtypes: ["Island", "Swamp"], destination: "battlefield" } }],
+  tier: "vanilla",
+};
+
+export const VERDANT_CATACOMBS: CardDefinition = {
+  id: "verdant-catacombs",
+  name: "Verdant Catacombs",
+  scryfallId: "94c229ea-90da-4aa0-bfda-b162fb3b5b8b",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, payLife: 1, sacrificeSelf: true }, effect: { kind: "searchLibrary", cardType: "Land", subtypes: ["Swamp", "Forest"], destination: "battlefield" } }],
+  tier: "vanilla",
+};
+
+export const WINDSWEPT_HEATH: CardDefinition = {
+  id: "windswept-heath",
+  name: "Windswept Heath",
+  scryfallId: "bd1d13f7-fd38-4f0b-a8e0-1eac78668117",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, payLife: 1, sacrificeSelf: true }, effect: { kind: "searchLibrary", cardType: "Land", subtypes: ["Forest", "Plains"], destination: "battlefield" } }],
+  tier: "vanilla",
+};
+
+export const WOODED_FOOTHILLS: CardDefinition = {
+  id: "wooded-foothills",
+  name: "Wooded Foothills",
+  scryfallId: "4e11ea8a-f895-438d-a3b7-f070238e4161",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, payLife: 1, sacrificeSelf: true }, effect: { kind: "searchLibrary", cardType: "Land", subtypes: ["Mountain", "Forest"], destination: "battlefield" } }],
+  tier: "vanilla",
+};
+
+export const SAKURA_TRIBE_ELDER: CardDefinition = {
+  id: "sakura-tribe-elder",
+  name: "Sakura-Tribe Elder",
+  scryfallId: "7a8b1c49-8594-426d-b585-41140235bb0e",
+  types: ["Creature"],
+  subtypes: ["Snake", "Shaman"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { sacrificeSelf: true }, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "battlefield", tapped: true } }],
+  tier: "scripted",
+};
+
+export const BOGWATER_LUMARET: CardDefinition = {
+  id: "bogwater-lumaret",
+  name: "Bogwater Lumaret",
+  scryfallId: "7a42f51a-3377-47bb-b6fb-c0515bf1dcfb",
+  types: ["Creature"],
+  subtypes: ["Spirit", "Frog"],
+  manaCost: { generic: 0, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "permanent-enters", watches: "controller", includesSelf: true, watchFor: { type: "Creature" }, effect: { kind: "gainLife", amount: 1 } }],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -11544,5 +11647,13 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     SISAY_S_RING,
     THRAN_DYNAMO,
     UR_GOLEM_S_EYE,
+    BLOODSTAINED_MIRE,
+    MARSH_FLATS,
+    POLLUTED_DELTA,
+    VERDANT_CATACOMBS,
+    WINDSWEPT_HEATH,
+    WOODED_FOOTHILLS,
+    SAKURA_TRIBE_ELDER,
+    BOGWATER_LUMARET,
   ].map((def) => [def.id, def]),
 );

@@ -1,4 +1,4 @@
-import type { Color, GameState, ManaColor, ManaCost, ManaPool, Player } from "./types.js";
+import type { ActivatedAbility, Color, Effect, GameState, ManaColor, ManaCost, ManaPool, Player } from "./types.js";
 import { ALL_COLORS } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 
@@ -73,6 +73,28 @@ export function emptyManaPool(player: Player): void {
 }
 
 /**
+ * A mana ability whose only cost is tapping the permanent.
+ *
+ * The distinction matters everywhere mana is counted without being spent -
+ * "could this player afford that spell", "which lands should auto-tap turn" -
+ * because all of those treat a source as free. A fetchland taps, pays a life
+ * and sacrifices itself to produce no mana at all, and counting it would have
+ * the game offer you spells you cannot cast, then tap a land to nothing trying
+ * to pay for one.
+ */
+export function isFreeManaAbility(
+  ability: ActivatedAbility,
+): ability is ActivatedAbility & { effect: Extract<Effect, { kind: "addMana" }> } {
+  return (
+    ability.cost.tap === true &&
+    ability.cost.mana === undefined &&
+    ability.cost.payLife === undefined &&
+    ability.cost.sacrificeSelf !== true &&
+    ability.effect.kind === "addMana"
+  );
+}
+
+/**
  * What a player's mana pool WOULD look like if they tapped every untapped
  * mana-producing permanent they control (in addition to whatever's already
  * floating). Used to decide "is there any point asking this player to act" -
@@ -89,9 +111,8 @@ export function potentialAvailableMana(state: GameState, playerId: string): Mana
     const def = requireDefinition(state, instance.definitionId);
     if (def.types.includes("Creature") && instance.summoningSickness) continue;
     for (const ability of def.activatedAbilities ?? []) {
-      if (ability.cost.tap && ability.effect.kind === "addMana" && !ability.cost.mana) {
-        addMana(pool, ability.effect.color, ability.effect.amount);
-      }
+      if (!isFreeManaAbility(ability)) continue;
+      addMana(pool, ability.effect.color, ability.effect.amount);
     }
   }
   return pool;

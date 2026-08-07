@@ -1,8 +1,9 @@
 import type { GameState, StackTarget } from "./types.js";
-import { findInstance, requireDefinition, requirePlayer } from "./state.js";
+import { findInstance, log, requireDefinition, requirePlayer } from "./state.js";
 import { canPayManaCost, payManaCost } from "./mana.js";
 import { applyEffect } from "./effects.js";
 import { pushOntoStack } from "./permanents.js";
+import { sacrificePermanent } from "./sba.js";
 import { attemptWardPayments } from "./ward.js";
 
 /**
@@ -42,9 +43,27 @@ export function activateAbility(
   if (ability.cost.mana && !canPayManaCost(player, ability.cost.mana)) {
     throw new Error(`${playerId} cannot pay the activation cost of ${def.name}`);
   }
+  if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) {
+    // You may not pay life you do not have. Paying down to exactly 0 is legal
+    // and loses the game to the usual state-based action - that is the real
+    // rule, and it is why this is `<` rather than `<=`.
+    throw new Error(`${playerId} cannot pay ${ability.cost.payLife} life`);
+  }
 
   if (ability.cost.tap) instance.tapped = true;
   if (ability.cost.mana) payManaCost(player, ability.cost.mana);
+  if (ability.cost.payLife !== undefined) {
+    player.life -= ability.cost.payLife;
+    log(state, `${playerId} pays ${ability.cost.payLife} life`);
+  }
+  /*
+   * The sacrifice happens here, as part of the cost, and that ordering is the
+   * whole card: a fetchland is in the graveyard before its search ever
+   * resolves. An ability is independent of its source once activated, so
+   * losing the permanent does not stop it - which is exactly why this must not
+   * be written as part of the effect.
+   */
+  if (ability.cost.sacrificeSelf) sacrificePermanent(state, instanceId);
 
   const isManaAbility = ability.effect.kind === "addMana";
   if (isManaAbility) {

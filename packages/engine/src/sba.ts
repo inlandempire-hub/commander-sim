@@ -33,6 +33,24 @@ function moveDyingCreatureToItsZone(state: GameState, instanceId: string, isComm
 }
 
 /**
+ * Sacrifices a permanent its controller owns.
+ *
+ * Sacrificing is not destruction - it cannot be prevented, and Indestructible
+ * does not stop it - but it *is* a permanent being put into a graveyard from
+ * the battlefield, so it dies in the rules sense and anything watching for that
+ * fires. Reusing the death handler rather than writing a second move is what
+ * guarantees that: a separate `moveCard` here would silently skip every dies
+ * trigger and the commander replacement effect at once.
+ */
+export function sacrificePermanent(state: GameState, instanceId: string): void {
+  const found = findInstance(state, instanceId);
+  if (!found || found.instance.zone !== "battlefield") return;
+  const def = state.cardDefinitions[found.instance.definitionId];
+  log(state, `${found.instance.controllerId} sacrifices ${def?.name ?? "a permanent"}`);
+  moveDyingCreatureToItsZone(state, instanceId, found.instance.isCommander === true);
+}
+
+/**
  * Checks and applies state-based actions until the game state is stable:
  * lethal damage/toughness<=0 destroys creatures (respecting the commander
  * replacement effect and indestructible), the legend rule, and loss

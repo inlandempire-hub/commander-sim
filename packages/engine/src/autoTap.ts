@@ -1,6 +1,6 @@
 import { ALL_COLORS, type CardInstance, type Color, type GameState, type ManaColor, type ManaCost, type ManaPool, type Player, type StackTarget } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
-import { addMana, applyCommanderTax, canPayManaCostFromPool, potentialAvailableMana } from "./mana.js";
+import { addMana, applyCommanderTax, canPayManaCostFromPool, isFreeManaAbility, potentialAvailableMana } from "./mana.js";
 import { activateAbility } from "./abilities.js";
 import { castSpell, type CastOptions } from "./casting.js";
 
@@ -41,8 +41,10 @@ export function manaSources(state: GameState, player: Player): ManaSource[] {
     // Summoning-sick creatures can't use tap abilities, but lands always can.
     if (def.types.includes("Creature") && instance.summoningSickness) continue;
     def.activatedAbilities?.forEach((ability, abilityIndex) => {
-      if (!ability.cost.tap || ability.cost.mana) return;
-      if (ability.effect.kind !== "addMana") return;
+      // Anything with a further cost - mana, life, sacrificing itself - is
+      // not a source auto-tap may spend on your behalf. Tapping a fetchland to
+      // "make mana" would cost a land and a life and produce nothing.
+      if (!isFreeManaAbility(ability)) return;
       sources.push({ instance, abilityIndex, color: ability.effect.color, amount: ability.effect.amount });
     });
   }

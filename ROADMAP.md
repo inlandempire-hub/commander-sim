@@ -2154,3 +2154,50 @@ all.
 589 tests, typecheck clean, 841 fixtures audited against Scryfall with no
 problems found. Sol Ring and Golgari Guildgate both verified rendering in the
 deck builder.
+
+## Step 2 of the Blech list: fetchlands and sacrificing for value (2026-08-07)
+
+Two new activated-ability costs, and they carry the rest of the mana base:
+`payLife` and `sacrificeSelf`. Both are paid on **activation**, not resolution,
+and that ordering is the whole trick of a fetchland - it is already in the
+graveyard when its search resolves, and the search still finds the land, because
+an ability is independent of its source once it is on the stack. Written the
+other way round, as part of the effect, a fetchland would never fetch.
+
+`searchLibrary` gained a `subtypes` filter, because a fetch asks for "a Swamp or
+Mountain **card**" - a land type, not "a basic land". Bayou is a legal find, and
+a fetch restricted to basics would be materially weaker than the printed card.
+
+Sacrificing routes through the existing death handler rather than doing its own
+`moveCard`. That is what makes a sacrificed commander go to the command zone,
+and it is the same route any dies trigger will take - a second move here would
+have silently skipped both.
+
+Three places count mana without spending it - "could this player afford that",
+"which lands should auto-tap", "is there anything worth stopping the turn for" -
+and all three treated a tap ability as free. A fetchland taps, so a naive scan
+sees a mana source; it produces nothing and costs a land and a life. Now behind
+one shared `isFreeManaAbility`, so they cannot drift apart. Life is checked as a
+cost too: an ability you cannot pay for is not an action, and offering it stops
+the turn for something you cannot do.
+
+**A second bug of the kind that cost eight cards before.** The creature path
+still used the loose lifegain pattern - `^When(?:ever)? .*enters, you gain N
+life\.$` - and Bogwater Lumaret reads "whenever this creature **or another
+creature you control** enters". It was emitted as a plain enters-battlefield
+trigger, which fires once, on the one occasion the card's own text excludes. The
+fix writes the family out one shape at a time (self, others-you-control,
+self-or-others, any-player's) with a guard that refuses anything close but not
+exact, rather than guessing. `audit_triggers.py` confirms the existing pool was
+already clean, so this was a trap waiting for the next card rather than damage
+already done - which is exactly when it is cheapest to fix.
+
+New: `gen_fixtures.py --named`, which emits fixtures for an explicit list of
+cards and reports any it cannot represent on stderr. The mode the deck-led loop
+actually wants - deck_report says which cards are addable, this emits exactly
+those - rather than generating a colour spread and picking wanted cards out of
+it. Creature fixtures are also stamped with their Scryfall id now instead of
+leaving that to a second script somebody has to remember to run.
+
+**The Blech list is at 23 of 100**, from 15. 849 fixtures, both audits clean.
+608 tests, typecheck clean.

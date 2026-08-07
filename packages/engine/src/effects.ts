@@ -296,11 +296,13 @@ export function applyEffect(
 
 /** What a search is looking for, in the card's own words, for the picker heading. */
 function describeSearch(effect: Extract<Effect, { kind: "searchLibrary" }>): string {
-  const what = effect.basicLandOnly
-    ? "a basic land card"
-    : effect.cardType
-      ? `a ${effect.cardType.toLowerCase()} card`
-      : "a card";
+  const what = effect.subtypes?.length
+    ? `a ${effect.subtypes.join(" or ")} card`
+    : effect.basicLandOnly
+      ? "a basic land card"
+      : effect.cardType
+        ? `a ${effect.cardType.toLowerCase()} card`
+        : "a card";
   const where = effect.destination === "battlefield" ? "onto the battlefield" : "into your hand";
   return `Search your library for ${what} and put it ${where}${effect.tapped ? " tapped" : ""}`;
 }
@@ -314,6 +316,11 @@ function matchesSearch(
   if (!definition) return false;
   if (effect.basicLandOnly && !definition.supertypes?.includes("Basic")) return false;
   if (effect.cardType && !definition.types.includes(effect.cardType)) return false;
+  // "A Swamp or Mountain card" - any one of them is enough, and a nonbasic with
+  // the type counts. Bayou is a legal find for a fetchland asking for a Swamp.
+  if (effect.subtypes?.length && !effect.subtypes.some((s) => definition.subtypes?.includes(s))) {
+    return false;
+  }
   return true;
 }
 

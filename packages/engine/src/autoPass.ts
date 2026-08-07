@@ -82,6 +82,9 @@ export function hasAnyLegalAction(state: GameState, playerId: string): boolean {
     for (const ability of def.activatedAbilities ?? []) {
       if (ability.effect.kind === "addMana") continue; // a mana ability alone isn't a meaningful action
       if (!canPayManaCostFromPool(potentialMana, ability.cost.mana ?? EMPTY_COST)) continue;
+      // Life is a cost like any other: an ability you cannot pay for is not an
+      // action, and offering it stops the turn for something you can't do.
+      if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) continue;
       if (hasSomethingToTarget(state, playerId, ability.effect)) return true;
     }
   }

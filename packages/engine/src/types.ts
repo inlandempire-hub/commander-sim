@@ -186,6 +186,15 @@ export type Effect =
       cardType?: CardType;
       /** Narrows further to basic lands only, for the ramp spells. */
       basicLandOnly?: boolean;
+      /**
+       * Any one of these subtypes will do - "a Swamp or Mountain card", which
+       * is what every fetchland asks for.
+       *
+       * Note this is *not* the same as `basicLandOnly`: a fetchland finds any
+       * card with the type, so Bayou is a legal find for "a Swamp card" and a
+       * fetch that could only take basics would be a materially weaker card.
+       */
+      subtypes?: string[];
       destination: "hand" | "battlefield";
       tapped?: boolean;
     };
@@ -233,6 +242,20 @@ export interface TriggeredAbility {
 export interface ActivatedAbilityCost {
   tap?: boolean;
   mana?: ManaCost;
+  /**
+   * "Pay N life." A real cost, not an effect: it is paid on activation whether
+   * or not the ability resolves, and it cannot be paid with life you do not
+   * have. Paying down to exactly 0 is legal and loses the game to the usual
+   * state-based action, which is the real rule and not a special case here.
+   */
+  payLife?: number;
+  /**
+   * "Sacrifice this creature/land." Sacrifices the permanent the ability is
+   * printed on, as part of the cost - so the ability still resolves from a
+   * source that is already in the graveyard, which is what makes a fetchland
+   * work at all.
+   */
+  sacrificeSelf?: boolean;
 }
 
 export interface ActivatedAbility {

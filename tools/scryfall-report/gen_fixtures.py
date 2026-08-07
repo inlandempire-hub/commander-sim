@@ -43,8 +43,43 @@ SUPPORTED_KEYWORDS = {
     "indestructible": "Indestructible",
 }
 
-GAIN_LIFE = re.compile(r"^When(?:ever)? .*enters, you gain (\d+) life\.$")
-DRAW_CARD = re.compile(r"^When(?:ever)? .*enters, draw a card\.$")
+"""
+Lifegain and draw on something entering the battlefield.
+
+These are written out one shape at a time on purpose. A single loose pattern -
+`^When(?:ever)? .*enters, you gain (\\d+) life\\.$` - is what this file used
+until 2026-08-07, and it matched all of these and emitted every one of them as
+`enters-battlefield`, the trigger that fires only when the card itself arrives.
+For a card that says "whenever *another* creature you control enters" that is
+the one moment its own text excludes, so it gained life exactly once, at the
+wrong time, and never again. Eight cards shipped that way and had to be
+corrected; the note on TriggeredAbility in types.ts is the scar.
+
+Bogwater Lumaret is the card that proved the pattern was still dangerous - it
+reads "whenever this creature *or another creature you control* enters", and the
+loose pattern quietly wrote it as a plain ETB.
+
+Anything resembling one of these that does not match exactly is refused by
+ENTERS_TRIGGERISH below rather than guessed at.
+"""
+# "When this creature enters, you gain 2 life."
+SELF_ENTERS_GAIN = re.compile(r"^When this creature enters, you gain (\d+) life\.$")
+SELF_ENTERS_DRAW = re.compile(r"^When this creature enters, draw a card\.$")
+# "Whenever another creature you control enters, you gain 1 life." - Kor Skyfisher family.
+OTHERS_ENTERS_GAIN = re.compile(
+    r"^Whenever another creature you control enters, you gain (\d+) life\.$"
+)
+# "Whenever this creature or another creature you control enters, ..." - Kor Celebrant.
+SELF_OR_OTHERS_ENTERS_GAIN = re.compile(
+    r"^Whenever this creature or another creature you control enters, you gain (\d+) life\.$"
+)
+# "Whenever another creature enters, you gain 1 life." - Soul Warden, watching
+# every player's side of the table rather than only its controller's.
+ANY_ENTERS_GAIN = re.compile(r"^Whenever another creature enters, you gain (\d+) life\.$")
+
+# The guard. Any line that talks about something entering and gaining life or
+# drawing, and is not one of the exact shapes above, refuses the card.
+ENTERS_TRIGGERISH = re.compile(r"^When(?:ever)? .*enters.*, (?:you gain \d+ life|draw)")
 
 # "{1}{G}: This creature gets +2/+2 until end of turn." - an activated ability
 # using the same until-end-of-turn modifier the pump spells do.
@@ -101,6 +136,53 @@ SELF_ETB_DRAW = re.compile(
 )
 
 
+# Fetchlands, and the one shape they all share:
+#   "{T}, Pay 1 life, Sacrifice this land: Search your library for a Swamp or
+#    Mountain card, put it onto the battlefield, then shuffle."
+#
+# The find is by land *type*, not by "basic land" - a fetch can take Bayou, and
+# writing it as basics-only would be a materially weaker card.
+FETCH = re.compile(
+    r"^\{T\}, Pay (\d+) life, Sacrifice this land: Search your library for an? "
+    r"([A-Za-z]+)(?:, ([A-Za-z]+),)? or ([A-Za-z]+) card, put it onto the battlefield( tapped)?, "
+    r"then shuffle\.$"
+)
+# "Sacrifice this creature: Search your library for a basic land card, put that
+# card onto the battlefield tapped, then shuffle." - Sakura-Tribe Elder.
+SAC_FOR_BASIC = re.compile(
+    r"^Sacrifice this (?:creature|land|permanent): Search your library for a basic land card, "
+    r"put (?:it|that card) onto the battlefield( tapped)?, then shuffle\.$"
+)
+
+
+def enters_trigger(line):
+    """The TS for a lifegain/draw-on-enters trigger, or None if this isn't one.
+
+    `watchFor` is written out rather than left off on every watcher: omitting it
+    watches *every* permanent, which no card of this shape means, and which
+    Tanglespan Lookout got wrong once.
+    """
+    gain = SELF_ENTERS_GAIN.match(line)
+    if gain:
+        return '{ event: "enters-battlefield", effect: { kind: "gainLife", amount: %s } }' % gain.group(1)
+    if SELF_ENTERS_DRAW.match(line):
+        return '{ event: "enters-battlefield", effect: { kind: "draw", amount: 1 } }'
+
+    for pattern, includes_self, watches in (
+        (SELF_OR_OTHERS_ENTERS_GAIN, True, "controller"),
+        (OTHERS_ENTERS_GAIN, False, "controller"),
+        (ANY_ENTERS_GAIN, False, "any"),
+    ):
+        watcher = pattern.match(line)
+        if watcher:
+            return (
+                '{ event: "permanent-enters", watches: "%s", %swatchFor: { type: "Creature" }, '
+                'effect: { kind: "gainLife", amount: %s } }'
+                % (watches, "includesSelf: true, " if includes_self else "", watcher.group(1))
+            )
+    return None
+
+
 def mana_ability(color, amount=1):
     return '{ cost: { tap: true }, effect: { kind: "addMana", color: "%s", amount: %d } }' % (color, amount)
 
@@ -147,6 +229,19 @@ def interpret_permanent(card):
         if either:
             for color in [g for g in either.groups() if g]:
                 activated.append(mana_ability(color))
+            continue
+
+        fetch = FETCH.match(line)
+        if fetch:
+            life = int(fetch.group(1))
+            subtypes = [g for g in fetch.group(2, 3, 4) if g]
+            activated.append(
+                '{ cost: { tap: true, payLife: %d, sacrificeSelf: true }, effect: '
+                '{ kind: "searchLibrary", cardType: "Land", subtypes: [%s], '
+                'destination: "battlefield"%s } }'
+                % (life, ", ".join('"%s"' % s for s in subtypes),
+                   ", tapped: true" if fetch.group(5) else "")
+            )
             continue
 
         gain = SELF_ETB_GAIN.match(line)
@@ -404,13 +499,15 @@ def interpret(card):
 
     lines, uncounterable = lift_cant_be_countered([l.strip() for l in text.split("\n") if l.strip()])
     for line in lines:
-        gain = GAIN_LIFE.match(line)
-        if gain:
-            triggers.append('{ event: "enters-battlefield", effect: { kind: "gainLife", amount: %s } }' % gain.group(1))
+        trigger = enters_trigger(line)
+        if trigger:
+            triggers.append(trigger)
             continue
-        if DRAW_CARD.match(line):
-            triggers.append('{ event: "enters-battlefield", effect: { kind: "draw", amount: 1 } }')
-            continue
+        if ENTERS_TRIGGERISH.match(line):
+            # Close to one of the shapes above without being one of them. Refuse
+            # rather than guess: guessing here is precisely how eight cards ended
+            # up gaining life at the one moment their text excludes.
+            return None
 
         pump = ACTIVATED_PUMP.match(line)
         if pump:
@@ -422,6 +519,15 @@ def interpret(card):
             activated.append(
                 '{ cost: { mana: %s }, effect: { kind: "pump", power: %s, toughness: %s } }'
                 % (cost, pump.group(2), pump.group(3))
+            )
+            continue
+
+        sac = SAC_FOR_BASIC.match(line)
+        if sac:
+            activated.append(
+                '{ cost: { sacrificeSelf: true }, effect: { kind: "searchLibrary", '
+                'cardType: "Land", basicLandOnly: true, destination: "battlefield"%s } }'
+                % (", tapped: true" if sac.group(1) else "")
             )
             continue
 
@@ -464,6 +570,10 @@ def emit(card, keywords, triggers, activated=(), uncounterable=False):
         "export const %s: CardDefinition = {" % const_name(card["name"]),
         '  id: "%s",' % slugify(card["name"]),
         '  name: "%s",' % card["name"].replace('"', '\\"'),
+        # Stamped here rather than left to add_scryfall_ids.py afterwards: a
+        # fixture without one has no card art, and "run the other script too" is
+        # a step that gets forgotten.
+        '  scryfallId: "%s",' % card["id"],
         "  types: [%s]," % ", ".join('"%s"' % t for t in types),
     ]
     if subtypes:
@@ -560,10 +670,72 @@ def spread(pool, limit):
     return [pool[int(i * step)] for i in range(limit)]
 
 
+def emit_named(names):
+    """
+    Fixtures for an explicit list of cards, each routed to the right emitter.
+
+    The mode the deck-led loop actually wants: deck_report.py says which cards
+    of a list are addable, and this emits exactly those. Generating a colour
+    spread and picking the wanted cards out of it was the alternative, and it
+    scales badly the moment a list needs one specific uncommon.
+
+    A name that cannot be represented is reported on stderr rather than skipped
+    silently - being handed 6 fixtures when you asked for 7 is the kind of thing
+    nobody notices until a deck is short a card.
+    """
+    wanted = {n.strip().lower(): n.strip() for n in names if n.strip()}
+    found = {}
+    with gzip.open(DATA, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            card = json.loads(line)
+            key = card["name"].lower()
+            if key not in wanted or key in found:
+                continue
+            if card.get("layout") in ("art_series", "token", "double_faced_token"):
+                continue
+            found[key] = card
+
+    for key, original in wanted.items():
+        card = found.get(key)
+        if card is None:
+            print("// SKIPPED %s - no such card in the bulk data" % original, file=sys.stderr)
+            continue
+        type_line = card["type_line"]
+        body = None
+        if "Instant" in type_line or "Sorcery" in type_line:
+            effect = spell_effect(card)
+            if effect:
+                body = emit_spell(card, effect[0], effect[1])
+        elif "Creature" in type_line:
+            interpreted = interpret(card)
+            if interpreted is not None:
+                body = emit(card, *interpreted)
+        else:
+            interpreted = interpret_permanent(card)
+            if interpreted is not None:
+                body = emit_permanent(card, *interpreted)
+        if body is None:
+            print("// SKIPPED %s - not representable exactly" % card["name"], file=sys.stderr)
+            continue
+        print()
+        print(body)
+    return [c for c in found.values()]
+
+
 def main():
     args = sys.argv[1:]
     commanders = "--commanders" in args
     spells = "--spells" in args
+    if "--named" in args:
+        names = [a for a in args if not a.startswith("--")]
+        if not names:
+            names = [line for line in sys.stdin.read().splitlines()]
+        print("// Generated by gen_fixtures.py --named")
+        cards = emit_named(names)
+        print()
+        print("// ids: %s" % json.dumps([slugify(c["name"]) for c in cards]))
+        print("// consts: %s" % ", ".join(const_name(c["name"]) for c in cards))
+        return
     permanent_type = next(
         (t for flag, t in (("--lands", "Land"), ("--artifacts", "Artifact"),
                            ("--enchantments", "Enchantment")) if flag in args),
