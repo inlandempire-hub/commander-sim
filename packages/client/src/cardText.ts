@@ -214,6 +214,14 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
 
   if (def.cantBeCountered) lines.push("This spell can't be countered.");
 
+  // First, and before the abilities, exactly as the card prints it. This is the
+  // whole drawback of a tapland: leaving it out makes Golgari Guildgate read as
+  // a strictly better card than it is, which is worse than saying nothing about
+  // the card at all.
+  if (def.entersTapped) {
+    lines.push(`This ${def.types.includes("Land") ? "land" : "permanent"} enters tapped.`);
+  }
+
   if (def.staticBuff) {
     const who = def.staticBuff.subtype ? `${def.staticBuff.subtype}s` : "creatures";
     lines.push(

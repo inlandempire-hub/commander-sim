@@ -1,4 +1,4 @@
-import type { Color, GameState, ManaCost, ManaPool, Player } from "./types.js";
+import type { Color, GameState, ManaColor, ManaCost, ManaPool, Player } from "./types.js";
 import { ALL_COLORS } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 
@@ -55,7 +55,16 @@ export function payManaCost(player: Player, cost: ManaCost): void {
   }
 }
 
-export function addMana(pool: ManaPool, color: Color, amount: number): void {
+/**
+ * Colourless goes into the `generic` bucket, which is already exactly how
+ * colourless mana behaves: it pays the generic part of a cost and never a
+ * coloured pip. See ManaColor in types.ts for the one case that does not cover.
+ */
+export function addMana(pool: ManaPool, color: ManaColor, amount: number): void {
+  if (color === "C") {
+    pool.generic = (pool.generic ?? 0) + amount;
+    return;
+  }
   pool[color] = (pool[color] ?? 0) + amount;
 }
 

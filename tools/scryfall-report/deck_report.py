@@ -75,11 +75,17 @@ BLOCKERS = [
      "Alternative and additional casting costs",
      "casting.ts pays the printed cost and nothing else"),
 
-    (r"\{T\}: Add|^Add \{|^Add one mana|\{T\}, .*: Add",
-     "Mana abilities on nonland permanents, and colourless mana",
-     "Color is W|U|B|R|G and addMana takes a Color, so a mana rock cannot be written at all"),
+    # Plain "{T}: Add {G}", "{T}: Add {C}{C}" and "{T}: Add {B} or {G}" are all
+    # supported as of 2026-08-07 and are filtered out before diagnosis - see
+    # `supported_permanent_line`. What is left here is the shapes that are not.
+    (r"Add one mana of any color|Add one mana of any type|could produce",
+     "Mana abilities that produce a choice of any colour",
+     "addMana names one colour; 'any colour' is a choice nothing can make yet"),
+    (r"\{T\}: Add .*\. (This|You)|\{[WUBRG]/[WUBRG]\}|\{T\}, .*: Add",
+     "Mana abilities with a rider or an extra cost",
+     "an activated ability has one effect and a cost of tapping and mana, nothing else"),
     (r"^\{T\}:|^\{\d+\}, \{T\}:",
-     "Tap abilities on permanents other than lands",
+     "Tap abilities that are not mana abilities",
      "activatedAbilities support a tap cost, but only the pump and mana shapes are generated"),
     (r"^At the beginning of",
      "Turn-based triggers (upkeep, end step, each combat)",
@@ -138,9 +144,13 @@ BLOCKERS = [
     (r"^Create |\bcreates? (a|an|one|two|three|\d+)\b.*token",
      "Token creation for arbitrary tokens",
      "createToken works but needs a fixture per token, and none exist beyond the current few"),
-    (r"enters tapped|enters the battlefield tapped",
-     "Permanents that enter tapped",
-     "nothing can arrive tapped, which is most nonbasic lands"),
+    # Plain "This land enters tapped." is supported. What survives to here is
+    # the conditional forms, which are a different problem entirely: a condition
+    # on the permanent's own arrival.
+    (r"enters tapped unless|As this .* enters|enters the battlefield tapped unless",
+     "Permanents that enter tapped only under a condition",
+     "entersTapped is a flat yes or no; writing a conditional one as flat makes "
+     "the card strictly worse than it is"),
     (r"\bproliferate\b|\b(charge|loyalty|\-1/\-1|time|oil) counter",
      "Counters other than +1/+1",
      "counters.ts models plusOneCounters only"),
@@ -307,6 +317,15 @@ def effect_is_expressible(text):
     return False
 
 
+def supported_permanent_line(line):
+    """True if gen_fixtures' permanent path handles this line on its own."""
+    return any(
+        pattern.match(line)
+        for pattern in (gen.TAP_ADD, gen.TAP_ADD_EITHER, gen.ENTERS_TAPPED,
+                        gen.SELF_ETB_GAIN, gen.SELF_ETB_DRAW)
+    )
+
+
 def analyse_line(raw_line):
     """(title, why) for one oracle line the generator refused."""
     line = strip_ability_word(raw_line)
@@ -446,25 +465,28 @@ def classify(card):
         return "blocked", [(card.get("mana_cost") or "", "X, hybrid or phyrexian mana in the cost",
                             "parse_mana_cost refuses anything but digits and WUBRG")]
 
-    # ADDABLE has to mean "the generator will emit this", and the generator only
-    # emits creatures, instants and sorceries. Without this guard Bayou came
-    # back addable: it has no rules text at all, so `interpret` was perfectly
-    # happy with it - while emit() would have written it out as a creature with
-    # no power or toughness, and the engine grants mana abilities from explicit
-    # activatedAbilities rather than from the land types on a card. A tool that
-    # promises a land it cannot deliver is worse than one that admits it.
+    # ADDABLE has to mean "the generator will emit this", so each type goes to
+    # the function that actually decides it. Routing everything through
+    # `interpret` was wrong and said so loudly: Bayou has no rules text at all,
+    # so `interpret` was perfectly happy with it while `emit` would have written
+    # it out as a creature with no power or toughness.
     if "Instant" in type_line or "Sorcery" in type_line:
         if gen.spell_effect(card) is not None:
             return "addable", None
     elif "Creature" in type_line:
+        # An artifact creature is still a creature: it has power and toughness
+        # and belongs on the creature path, not the permanent one.
         if gen.interpret(card) is not None:
+            return "addable", None
+    elif any(t in type_line for t in ("Land", "Artifact", "Enchantment")):
+        if gen.interpret_permanent(card) is not None:
             return "addable", None
     else:
         kind = type_line.split("—")[0].strip() or type_line
         return "blocked", [(type_line,
                             "Card types the generator does not emit: %s" % kind,
-                            "gen_fixtures writes creatures, instants and sorceries; lands, "
-                            "artifacts and enchantments have no emit path at all")]
+                            "gen_fixtures writes creatures, instants, sorceries, lands, "
+                            "artifacts and enchantments - this is none of them")]
 
     lines = oracle_lines(card)
     if not lines:
@@ -475,10 +497,16 @@ def classify(card):
 
     reasons = []
     for line in lines:
-        # Keyword-only lines are not what is blocking this card - something else
-        # on it is - so they must not be reported as a gap.
+        # Lines that are individually fine are not what is blocking this card -
+        # something else on it is - so they must not be reported as a gap.
+        # Without this, Deathcap Glade is refused for its conditional tapped
+        # line and then *also* blamed for its perfectly ordinary "{T}: Add {B}
+        # or {G}", which inflates a capability the engine already has into the
+        # top of the work queue.
         parts = [p.strip().lower() for p in line.split(",") if p.strip()]
         if parts and all(p in gen.SUPPORTED_KEYWORDS for p in parts):
+            continue
+        if supported_permanent_line(line):
             continue
         title, why = analyse_line(line)
         reasons.append((line, title, why))

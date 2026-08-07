@@ -2088,3 +2088,69 @@ produced confidently wrong answers: art-series rows in the bulk data are named
 "Lightning Bolt // Lightning Bolt" and were shadowing the real cards, and a
 modal double-faced card was answering to "Rampant Growth" because half-names
 were indexed in the same pass as full names.
+
+## Step 1 of the Blech list: lands and mana rocks (2026-08-07)
+
+The first step of the deck-led loop, chosen because 25 of the list's 100 cards
+are lands and the fixture generator had no way to write one. The pool went in
+with five lands - the basics, hand-written - and no artifact that produces mana.
+
+**Two engine features, both small, both needed by everything here.**
+
+`ManaColor = Color | "C"`. Colourless is deliberately *not* a member of `Color`:
+colour identity, deck legality and the pips in a cost are all about the five
+colours, and widening that type would have let "colourless" through every one of
+those checks. Only production needed the sixth option. It lands in the pool's
+`generic` bucket, which already behaves the way colourless does - pays the
+generic part of a cost, never a coloured pip. The one thing that does not model
+is a cost demanding colourless specifically ({C} on an Eldrazi); no card in the
+pool has one, and the first that does needs a real distinction rather than
+another special case.
+
+`CardDefinition.entersTapped`, honoured in `enteredBattlefield` alongside the
+existing `options.tapped` so a ramp spell fetching a tapland is not a double
+negative. Unconditional only - see below.
+
+**The generator learned to emit noncreature permanents.** Lands get their mana
+from their basic land types where they have them (Bayou's printed text is
+nothing but reminder text in brackets, so a generator reading only rules text
+would have emitted a dual that taps for nothing), and from their text where they
+say it out loud. "{T}: Add {B} or {G}" is written as two separate abilities,
+which is what `activatedAbilities` already is - no new engine concept.
+
+Reach across the whole cached dataset: **130 lands and 20 mana rocks** are now
+representable exactly, against five and zero before. 24 were added to the pool
+this pass (17 lands, 7 rocks), taking it to 841 fixtures, all of which
+`audit_fixtures.py` re-checks clean against Scryfall.
+
+**What was deliberately refused.** Conditional taplands - Woodland Cemetery,
+Deathcap Glade, Overgrown Tomb, Undergrowth Stadium. "Enters tapped unless you
+control two or more other lands" written as flatly tapped is a strictly worse
+card than the one printed, and this pool does not carry cards that are quietly
+wrong. They come back when there is a condition system.
+
+**One bug caught, and it is the same bug this project has had before.** The
+loose lifegain pattern the creature path uses - "When...enters, you gain N
+life." - also matches Seraph Sanctuary's "whenever an *Angel you control*
+enters" and Staff of the Death Magus's "whenever you *cast a black spell* or a
+Swamp you control enters". Both would have become enters-battlefield triggers,
+so both would have paid out exactly once, at the one moment the real card does
+nothing. That is what the note on `TriggeredAbility` in types.ts is about; it
+cost eight cards last time. The permanent path uses a strict self-only pattern
+and both cards are refused.
+
+**The Blech list went from 10 playable to 15**, and the remaining queue is
+honest about it - "mana abilities" dropped out of the top slot and split into
+the two shapes that genuinely are not supported (any-colour, and abilities with
+a rider). The report also stopped blaming cards for lines it can handle: a card
+refused for its conditional tapped line was also being charged for its perfectly
+ordinary "{T}: Add {B} or {G}", which inflated a solved problem to the top of
+the work queue.
+
+Card text in the client prints the drawback now. Left out, Golgari Guildgate
+read as a free dual land, which is worse than saying nothing about a card at
+all.
+
+589 tests, typecheck clean, 841 fixtures audited against Scryfall with no
+problems found. Sol Ring and Golgari Guildgate both verified rendering in the
+deck builder.

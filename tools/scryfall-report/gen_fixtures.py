@@ -58,6 +58,197 @@ WORD_NUMBERS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Lands and other noncreature permanents.
+#
+# Added 2026-08-07. Until then this file emitted creatures, instants and
+# sorceries only, which is why the pool had 817 cards and exactly five lands -
+# the basics, hand-written. A real decklist is a quarter to a third lands, so
+# no list could ever be more than three-quarters representable however many
+# creatures got added.
+# ---------------------------------------------------------------------------
+
+# A land with a basic land type taps for that colour without saying so: the
+# ability comes from the type, and the card's own text is reminder text in
+# brackets that strip_reminder throws away. Bayou reads as blank rules text and
+# is a dual land; the mana has to come from "Land - Swamp Forest".
+BASIC_LAND_MANA = {
+    "Plains": "W", "Island": "U", "Swamp": "B", "Mountain": "R", "Forest": "G",
+}
+
+# "{T}: Add {G}." / "{T}: Add {C}{C}." - one colour, one or more of it.
+TAP_ADD = re.compile(r"^\{T\}: Add ((?:\{[WUBRGC]\})+)\.$")
+# "{T}: Add {B} or {G}." - written as two separate abilities, which is what the
+# engine's activatedAbilities array already is. No new engine concept needed.
+TAP_ADD_EITHER = re.compile(r"^\{T\}: Add \{([WUBRGC])\}(?:, \{([WUBRGC])\},)? or \{([WUBRGC])\}\.$")
+ENTERS_TAPPED = re.compile(r"^This (?:land|permanent|artifact|creature|enchantment) enters tapped\.$")
+
+# The permanent's *own* arrival, and nothing else.
+#
+# The loose `GAIN_LIFE` pattern used for creatures - "When...enters, you gain N
+# life." - is not safe here, and proving it took one run: it matched Seraph
+# Sanctuary's "Whenever an *Angel you control* enters, you gain 1 life" and
+# Staff of the Death Magus's "Whenever you *cast a black spell* or a Swamp you
+# control enters, you gain 1 life". Both would have been written as
+# enters-battlefield triggers, so both would have paid out exactly once, on the
+# one occasion the real card does nothing. That is the same mistake documented
+# on TriggeredAbility in types.ts, which cost eight cards last time.
+SELF_ETB_GAIN = re.compile(
+    r"^When this (?:land|permanent|artifact|enchantment|creature) enters, you gain (\d+) life\.$"
+)
+SELF_ETB_DRAW = re.compile(
+    r"^When this (?:land|permanent|artifact|enchantment|creature) enters, draw a card\.$"
+)
+
+
+def mana_ability(color, amount=1):
+    return '{ cost: { tap: true }, effect: { kind: "addMana", color: "%s", amount: %d } }' % (color, amount)
+
+
+def interpret_permanent(card):
+    """
+    (activated, triggers, enters_tapped) for a noncreature permanent, or None.
+
+    Same contract as `interpret`: one unrepresentable line and the whole card is
+    refused. Conditional versions are refused on purpose - "enters tapped unless
+    you control two or more other lands" written as flatly tapped is a strictly
+    worse card than the one printed, and a fixture that quietly nerfs a card is
+    exactly what this file exists to prevent.
+    """
+    text = strip_reminder(card.get("oracle_text"))
+    # Older printings name themselves ("When Radiant Fountain enters..."), the
+    # same normalisation the spell path does.
+    text = text.replace(card["name"], "this permanent")
+    activated = []
+    triggers = []
+    enters_tapped = False
+
+    subtypes = card["type_line"].split("—")[-1].strip().split() if "—" in card["type_line"] else []
+    if "Land" in card["type_line"]:
+        for subtype in subtypes:
+            if subtype in BASIC_LAND_MANA:
+                activated.append(mana_ability(BASIC_LAND_MANA[subtype]))
+
+    for line in [l.strip() for l in text.split("\n") if l.strip()]:
+        if ENTERS_TAPPED.match(line):
+            enters_tapped = True
+            continue
+
+        tap_add = TAP_ADD.match(line)
+        if tap_add:
+            symbols = re.findall(r"\{([WUBRGC])\}", tap_add.group(1))
+            # "Add {C}{C}" is one ability producing two, not two abilities.
+            if len(set(symbols)) != 1:
+                return None
+            activated.append(mana_ability(symbols[0], len(symbols)))
+            continue
+
+        either = TAP_ADD_EITHER.match(line)
+        if either:
+            for color in [g for g in either.groups() if g]:
+                activated.append(mana_ability(color))
+            continue
+
+        gain = SELF_ETB_GAIN.match(line)
+        if gain:
+            triggers.append('{ event: "enters-battlefield", effect: { kind: "gainLife", amount: %s } }' % gain.group(1))
+            continue
+        if SELF_ETB_DRAW.match(line):
+            triggers.append('{ event: "enters-battlefield", effect: { kind: "draw", amount: 1 } }')
+            continue
+
+        return None  # a line we can't express - skip the whole card
+
+    # A land that taps for nothing and does nothing is not a card worth having,
+    # and is usually a sign the interesting half of its text was in a line this
+    # refused. Wastes and Wastes-likes are the only real exception and they are
+    # not in any list yet.
+    if not activated and not triggers:
+        return None
+    return activated, triggers, enters_tapped
+
+
+def emit_permanent(card, activated, triggers, enters_tapped):
+    """A CardDefinition for a land, artifact or enchantment - no power/toughness."""
+    head = card["type_line"].split("—")[0]
+    types = [t for t in ("Land", "Artifact", "Enchantment") if t in head]
+    subtypes = card["type_line"].split("—")[-1].strip().split() if "—" in card["type_line"] else []
+    supertypes = [s for s in ("Legendary", "Basic", "Snow") if s in head]
+
+    lines = [
+        "export const %s: CardDefinition = {" % const_name(card["name"]),
+        '  id: "%s",' % slugify(card["name"]),
+        '  name: "%s",' % card["name"].replace('"', '\\"'),
+        '  scryfallId: "%s",' % card["id"],
+        "  types: [%s]," % ", ".join('"%s"' % t for t in types),
+    ]
+    if subtypes:
+        lines.append("  subtypes: [%s]," % ", ".join('"%s"' % s for s in subtypes))
+    if supertypes:
+        lines.append("  supertypes: [%s]," % ", ".join('"%s"' % s for s in supertypes))
+    # Lands have no mana cost at all - not a cost of zero. Writing `{generic: 0}`
+    # would make one castable from the hand as a {0} spell.
+    if "Land" not in types:
+        cost = ts_mana_cost(card.get("mana_cost"))
+        if cost is None:
+            return None
+        lines.append("  manaCost: %s," % cost)
+    lines.append("  colorIdentity: [%s]," % ", ".join('"%s"' % c for c in card.get("color_identity") or []))
+    if enters_tapped:
+        lines.append("  entersTapped: true,")
+    if triggers:
+        lines.append("  triggeredAbilities: [%s]," % ", ".join(triggers))
+    if activated:
+        lines.append("  activatedAbilities: [%s]," % ", ".join(activated))
+    # A mana ability is declarative data, the same as a keyword - the five basic
+    # lands have been "vanilla" with an activated ability since the first day.
+    # A trigger is the thing that makes a card scripted.
+    lines.append('  tier: "%s",' % ("scripted" if triggers else "vanilla"))
+    lines.append("};")
+    return "\n".join(lines)
+
+
+def permanent_candidates(colors, want_type):
+    """
+    Commander-legal lands/artifacts/enchantments this file can represent exactly.
+
+    `colors` is a deck's colour identity as a string - "BG" for Golgari, "C" or
+    "" for colourless only - and a card is included when its own identity is a
+    *subset* of it. That is the actual Commander deckbuilding rule, and it is
+    the difference between 21 lands and 131: an equality test against a single
+    colour excludes every dual land ever printed, which is most of the ones
+    worth having.
+    """
+    wanted = {c for c in colors.upper() if c in "WUBRG"}
+    out = []
+    with gzip.open(DATA, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            card = json.loads(line)
+            if card["legalities"]["commander"] != "legal":
+                continue
+            type_line = card["type_line"]
+            if "Token" in type_line or "//" in card["name"] or card["name"].startswith("A-"):
+                continue
+            if want_type not in type_line:
+                continue
+            # A land that is also a creature is played as a land but dies to
+            # creature removal and can attack; neither emitter is right for it.
+            # An artifact creature is a creature: it needs power and toughness,
+            # and emit_permanent writes none. A land creature is played as a
+            # land but dies to creature removal. Neither belongs on this path -
+            # the Myr and the Hedron Crawler came through here before this
+            # check and would have been written as 0/0 permanents.
+            if "Creature" in type_line:
+                continue
+            if not set(card.get("color_identity") or []) <= wanted:
+                continue
+            interpreted = interpret_permanent(card)
+            if interpreted is None:
+                continue
+            out.append((card, *interpreted))
+    return out
+
+
 def number(word):
     """'two' or '2' into an int, or None if it is neither."""
     if word is None:
@@ -373,11 +564,31 @@ def main():
     args = sys.argv[1:]
     commanders = "--commanders" in args
     spells = "--spells" in args
+    permanent_type = next(
+        (t for flag, t in (("--lands", "Land"), ("--artifacts", "Artifact"),
+                           ("--enchantments", "Enchantment")) if flag in args),
+        None,
+    )
     args = [a for a in args if not a.startswith("--")]
     color = args[0]
     limit = int(args[1]) if len(args) > 1 else 45
 
-    if spells:
+    if permanent_type:
+        pool = permanent_candidates(color, permanent_type)
+        pool.sort(key=lambda entry: (mana_value(entry[0]), entry[0]["name"]))
+        pool = spread(pool, limit)
+        print("// Generated by gen_fixtures.py - %d %ss, colour %s"
+              % (len(pool), permanent_type.lower(), color))
+        emitted = []
+        for card, activated, triggers, enters_tapped in pool:
+            body = emit_permanent(card, activated, triggers, enters_tapped)
+            if body is None:
+                continue
+            print()
+            print(body)
+            emitted.append(card)
+        cards = emitted
+    elif spells:
         pool = spell_candidates(color)
         pool.sort(key=lambda entry: (mana_value(entry[0]), entry[0]["name"]))
         pool = spread(pool, limit)

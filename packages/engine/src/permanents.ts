@@ -73,7 +73,10 @@ export function enteredBattlefield(
 ): void {
   const def = requireDefinition(state, instance.definitionId);
   if (def.keywords?.includes("Haste")) instance.summoningSickness = false;
-  if (options.tapped) instance.tapped = true;
+  // Either the card says so on its face, or whatever put it here said so (a
+  // ramp spell fetching a land onto the battlefield tapped). Not exclusive:
+  // a land that enters tapped anyway still enters tapped when fetched.
+  if (options.tapped || def.entersTapped) instance.tapped = true;
 
   // Triggers printed on the permanent that just arrived.
   for (const trigger of def.triggeredAbilities ?? []) {

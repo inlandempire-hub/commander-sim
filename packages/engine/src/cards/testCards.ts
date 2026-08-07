@@ -10404,6 +10404,303 @@ export const TERRA_STOMPER: CardDefinition = {
   tier: "scripted",
 };
 
+
+/* ---------------------------------------------------------------------------
+ * Lands and mana rocks (2026-08-07)
+ *
+ * The first cards of either type in the pool beyond the five basics. Generated
+ * by `gen_fixtures.py --lands BG` and `--artifacts BG`, which learned to emit
+ * noncreature permanents on the same day; every one of these is a card the
+ * effect DSL holds exactly, tapped-ness and all.
+ *
+ * Duals here come in two shapes and both are honest. Bayou and Woodland Chasm
+ * carry basic land types and get their mana from those - their printed text is
+ * nothing but reminder text in brackets. Golgari Guildgate and the rest say
+ * "{T}: Add {B} or {G}" out loud, which is written as two separate abilities,
+ * because that is what the engine's activatedAbilities array already is.
+ *
+ * The conditional taplands of the format - Woodland Cemetery, Deathcap Glade,
+ * Overgrown Tomb - are deliberately absent. "Enters tapped unless you control
+ * two or more other lands" written as flatly tapped is a worse card than the
+ * one printed, and this pool does not carry cards that are quietly wrong.
+ * ------------------------------------------------------------------------- */
+
+export const ADVENTURER_S_INN: CardDefinition = {
+  id: "adventurers-inn",
+  name: "Adventurer's Inn",
+  scryfallId: "f0da2ee1-986e-4cbf-92eb-d96fdb572ca5",
+  types: ["Land"],
+  subtypes: ["Town"],
+  colorIdentity: [],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 2 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const BAYOU: CardDefinition = {
+  id: "bayou",
+  name: "Bayou",
+  scryfallId: "bd7567df-b4d8-41a8-8eac-c05afa784bfe",
+  types: ["Land"],
+  subtypes: ["Swamp", "Forest"],
+  colorIdentity: ["B", "G"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const FOUL_ORCHARD: CardDefinition = {
+  id: "foul-orchard",
+  name: "Foul Orchard",
+  scryfallId: "1e1bad7b-e102-4dff-b79a-fd755c2b6d49",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const GOHN_TOWN_OF_RUIN: CardDefinition = {
+  id: "gohn-town-of-ruin",
+  name: "Gohn, Town of Ruin",
+  scryfallId: "99582781-613e-4a33-aec7-7569b4a961aa",
+  types: ["Land"],
+  subtypes: ["Town"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const GOLGARI_GUILDGATE: CardDefinition = {
+  id: "golgari-guildgate",
+  name: "Golgari Guildgate",
+  scryfallId: "92d4646c-a375-4835-aa58-8bb77d1a5abf",
+  types: ["Land"],
+  subtypes: ["Gate"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const HAUNTED_MIRE: CardDefinition = {
+  id: "haunted-mire",
+  name: "Haunted Mire",
+  scryfallId: "3e041aef-5771-4a3f-af07-e85a66c48979",
+  types: ["Land"],
+  subtypes: ["Swamp", "Forest"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const ILLEGITIMATE_BUSINESS: CardDefinition = {
+  id: "illegitimate-business",
+  name: "Illegitimate Business",
+  scryfallId: "71597acf-1ce6-46a8-b6c0-88755c8a377c",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 1 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const JUNGLE_HOLLOW: CardDefinition = {
+  id: "jungle-hollow",
+  name: "Jungle Hollow",
+  scryfallId: "ea13440b-3f7b-4182-9541-27c1fa3121e5",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 1 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const RADIANT_FOUNTAIN: CardDefinition = {
+  id: "radiant-fountain",
+  name: "Radiant Fountain",
+  scryfallId: "7ee5e77f-ca43-480d-ac37-48336d3bf044",
+  types: ["Land"],
+  colorIdentity: [],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 2 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const SNOW_COVERED_FOREST: CardDefinition = {
+  id: "snow-covered-forest",
+  name: "Snow-Covered Forest",
+  scryfallId: "ca17acea-f079-4e53-8176-a2f5c5c408a1",
+  types: ["Land"],
+  subtypes: ["Forest"],
+  supertypes: ["Basic", "Snow"],
+  colorIdentity: ["G"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const SNOW_COVERED_SWAMP: CardDefinition = {
+  id: "snow-covered-swamp",
+  name: "Snow-Covered Swamp",
+  scryfallId: "6aa85af8-15f5-4620-8aea-0b45c28372ed",
+  types: ["Land"],
+  subtypes: ["Swamp"],
+  supertypes: ["Basic", "Snow"],
+  colorIdentity: ["B"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const SNOW_COVERED_WASTES: CardDefinition = {
+  id: "snow-covered-wastes",
+  name: "Snow-Covered Wastes",
+  scryfallId: "87870792-e429-4eba-8193-cdce5c7b6c55",
+  types: ["Land"],
+  supertypes: ["Basic", "Snow"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const SUBTERRANEAN_CAVERN: CardDefinition = {
+  id: "subterranean-cavern",
+  name: "Subterranean Cavern",
+  scryfallId: "038bf500-e23a-4d38-9312-db1909e20353",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "gainLife", amount: 1 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const TREE_OF_TALES: CardDefinition = {
+  id: "tree-of-tales",
+  name: "Tree of Tales",
+  scryfallId: "3b3134b3-1bad-4b41-9e56-700125ff31fa",
+  types: ["Land", "Artifact"],
+  colorIdentity: ["G"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const VAULT_OF_WHISPERS: CardDefinition = {
+  id: "vault-of-whispers",
+  name: "Vault of Whispers",
+  scryfallId: "e85e4098-f872-4aa4-a71a-208b6090be28",
+  types: ["Land", "Artifact"],
+  colorIdentity: ["B"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const WASTES: CardDefinition = {
+  id: "wastes",
+  name: "Wastes",
+  scryfallId: "baf8f4f2-9f25-4cd2-8d78-1041e134aeac",
+  types: ["Land"],
+  supertypes: ["Basic"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const WOODLAND_CHASM: CardDefinition = {
+  id: "woodland-chasm",
+  name: "Woodland Chasm",
+  scryfallId: "b2dd0b71-5a60-418c-82fc-f13d1b5075d0",
+  types: ["Land"],
+  subtypes: ["Swamp", "Forest"],
+  supertypes: ["Snow"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const SOL_RING: CardDefinition = {
+  id: "sol-ring",
+  name: "Sol Ring",
+  scryfallId: "91fdb56b-54d5-4272-8319-505ff987fe9b",
+  types: ["Artifact"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 2 } }],
+  tier: "vanilla",
+};
+
+export const CHARCOAL_DIAMOND: CardDefinition = {
+  id: "charcoal-diamond",
+  name: "Charcoal Diamond",
+  scryfallId: "f0475c79-bc7f-4de8-a020-226bc658d303",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["B"],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const MOSS_DIAMOND: CardDefinition = {
+  id: "moss-diamond",
+  name: "Moss Diamond",
+  scryfallId: "96fcae3a-d58c-4832-8280-3f65b5dfd853",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["G"],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const WORN_POWERSTONE: CardDefinition = {
+  id: "worn-powerstone",
+  name: "Worn Powerstone",
+  scryfallId: "ace686ad-9e3f-41b3-b8eb-d1b6d45eb4e1",
+  types: ["Artifact"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 2 } }],
+  tier: "vanilla",
+};
+
+export const SISAY_S_RING: CardDefinition = {
+  id: "sisays-ring",
+  name: "Sisay's Ring",
+  scryfallId: "20c0e608-0208-408a-b473-1e54caa96cea",
+  types: ["Artifact"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 2 } }],
+  tier: "vanilla",
+};
+
+export const THRAN_DYNAMO: CardDefinition = {
+  id: "thran-dynamo",
+  name: "Thran Dynamo",
+  scryfallId: "7ce5f12e-fc02-42f8-a5ca-b523050d4650",
+  types: ["Artifact"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 3 } }],
+  tier: "vanilla",
+};
+
+export const UR_GOLEM_S_EYE: CardDefinition = {
+  id: "ur-golems-eye",
+  name: "Ur-Golem's Eye",
+  scryfallId: "7a2ea921-8ef9-4a31-b484-73375e828d34",
+  types: ["Artifact"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 2 } }],
+  tier: "vanilla",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -11223,5 +11520,29 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WINTER_S_GRASP,
     CARNAGE_TYRANT,
     TERRA_STOMPER,
+    ADVENTURER_S_INN,
+    BAYOU,
+    FOUL_ORCHARD,
+    GOHN_TOWN_OF_RUIN,
+    GOLGARI_GUILDGATE,
+    HAUNTED_MIRE,
+    ILLEGITIMATE_BUSINESS,
+    JUNGLE_HOLLOW,
+    RADIANT_FOUNTAIN,
+    SNOW_COVERED_FOREST,
+    SNOW_COVERED_SWAMP,
+    SNOW_COVERED_WASTES,
+    SUBTERRANEAN_CAVERN,
+    TREE_OF_TALES,
+    VAULT_OF_WHISPERS,
+    WASTES,
+    WOODLAND_CHASM,
+    SOL_RING,
+    CHARCOAL_DIAMOND,
+    MOSS_DIAMOND,
+    WORN_POWERSTONE,
+    SISAY_S_RING,
+    THRAN_DYNAMO,
+    UR_GOLEM_S_EYE,
   ].map((def) => [def.id, def]),
 );

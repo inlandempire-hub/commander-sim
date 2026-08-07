@@ -2,6 +2,24 @@ export type Color = "W" | "U" | "B" | "R" | "G";
 
 export const ALL_COLORS: Color[] = ["W", "U", "B", "R", "G"];
 
+/**
+ * What a mana ability can produce: one of the five colours, or `"C"` for
+ * colourless.
+ *
+ * Colourless is deliberately *not* a member of `Color`. Colour identity, deck
+ * legality and the colour pips in a cost are all about the five colours, and
+ * widening that type would have quietly let "colourless" through every one of
+ * those checks. Only production needs the sixth option.
+ *
+ * Colourless mana lands in the pool's `generic` bucket, which already behaves
+ * the way colourless does: it pays the generic part of a cost and can never pay
+ * a coloured pip. The one thing that treatment does not model is a cost that
+ * demands colourless specifically ({C} in a mana cost, as on Eldrazi) - no card
+ * in the pool has one, and when the first does it needs a real distinction here
+ * rather than another special case at the call site.
+ */
+export type ManaColor = Color | "C";
+
 export type CardType =
   | "Land"
   | "Creature"
@@ -72,7 +90,7 @@ export type TargetSelector =
 export type Effect =
   | { kind: "damage"; amount: number; target: TargetSelector }
   | { kind: "draw"; amount: number }
-  | { kind: "addMana"; color: Color; amount: number }
+  | { kind: "addMana"; color: ManaColor; amount: number }
   | { kind: "gainLife"; amount: number }
   /**
    * "Prevent the next N damage that would be dealt to any target this turn"
@@ -267,6 +285,16 @@ export interface CardDefinition {
   staticBuff?: { power: number; toughness: number; subtype?: string };
   /** Tokens cease to exist the moment they leave the battlefield, rather than moving zones. */
   isToken?: boolean;
+  /**
+   * "This permanent enters tapped." True for most nonbasic lands that produce
+   * more than one colour - the drawback that pays for the fixing.
+   *
+   * Only the unconditional printing. "Enters tapped unless you control two or
+   * more other lands" is a condition on the permanent's own arrival, which
+   * nothing here can express, and a card like that must not be written as
+   * flatly tapped - it would be strictly worse than the card really is.
+   */
+  entersTapped?: boolean;
   triggeredAbilities?: TriggeredAbility[];
   activatedAbilities?: ActivatedAbility[];
   /** What resolving this spell does, for instants/sorceries. */

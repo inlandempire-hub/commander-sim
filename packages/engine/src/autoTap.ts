@@ -1,4 +1,4 @@
-import { ALL_COLORS, type CardInstance, type Color, type GameState, type ManaCost, type ManaPool, type Player, type StackTarget } from "./types.js";
+import { ALL_COLORS, type CardInstance, type Color, type GameState, type ManaColor, type ManaCost, type ManaPool, type Player, type StackTarget } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
 import { addMana, applyCommanderTax, canPayManaCostFromPool, potentialAvailableMana } from "./mana.js";
 import { activateAbility } from "./abilities.js";
@@ -28,7 +28,7 @@ const EMPTY_COST: ManaCost = { generic: 0, colors: {} };
 export interface ManaSource {
   instance: CardInstance;
   abilityIndex: number;
-  color: Color;
+  color: ManaColor;
   amount: number;
 }
 
@@ -79,7 +79,9 @@ function chooseSource(sources: ManaSource[], pool: ManaPool, cost: ManaCost): Ma
 
   const preferred =
     shortfallColors.length > 0
-      ? sources.find((s) => shortfallColors.includes(s.color))
+      ? // A colourless source is never in shortfallColors, which is exactly
+        // right: it can only ever help with the generic part of a cost.
+        sources.find((s) => (shortfallColors as ManaColor[]).includes(s.color))
       : // Colour requirements are met; anything untapped now helps with the generic part.
         sources[0];
 
@@ -104,7 +106,7 @@ export function nextSourceToTap(
 export interface PlannedTap {
   instanceId: string;
   abilityIndex: number;
-  color: Color;
+  color: ManaColor;
   amount: number;
 }
 
