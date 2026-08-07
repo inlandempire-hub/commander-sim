@@ -26,3 +26,12 @@ packages/client/node_modules/.vite/
 art/
 packages/client/public/card-backs/
 packages/client/public/mana/
+
+# The font files, copied out of ./fonts by the font lab's setup. Same reasoning:
+# they arrived with a mix of OFL and 1001fonts personal-use terms, and whether a
+# given one can be committed is a question to answer for the font that actually
+# gets chosen rather than for all ten. Their licence files are copied alongside
+# them. The CC0 sound effects under public/sfx ARE committed - see that folder's
+# LICENSE.txt - because public domain is ours to redistribute.
+fonts/
+packages/client/public/fonts/

@@ -69,6 +69,7 @@ the URL:
 | `?seat=mike` | Swaps which of the two seats is yours. |
 | `?delay=1500` | Slows the bot down (default 800ms between its actions). |
 | `?mode=deck` | The deck builder. |
+| `?mode=fonts` | The font lab - choose the type on the buttons and the combat banner. |
 | `?mode=network&seat=donny` | Join a networked game as Deadly Donny. |
 
 Deck names are matched loosely, so `deck=white` and `deck=Radiant` both work.
@@ -154,6 +155,33 @@ printed border loses a pixel or two of it. Mana pips display between 11px and
 The costs are all-or-nothing per card: if any one symbol fails to load, that
 cost falls back to the braces text in full, because a cost that is half pips and
 half text cannot be read.
+
+## Fonts (optional)
+
+`?mode=fonts` opens the font lab, which sets the type on the Pass/Concede
+buttons and on the combat banner. It reads `packages/client/public/fonts/`,
+which is gitignored for the same reason as everything else above - the fonts
+came with a mix of OFL and 1001fonts personal-use terms, and whether a given one
+can be committed is a question for the font that actually gets chosen. To
+rebuild that folder from a `fonts/` directory of downloads, the layout it
+expects is one folder per family with `regular` / `medium` / `semibold` / `bold`
+and optional `-italic` variants; `packages/client/src/fontCatalogue.ts` is the
+list, and adding a family means adding an entry there.
+
+With the folder missing, every family falls back to the system stack and the
+lab still runs - it just has nothing interesting to show.
+
+## Sound
+
+The sound effects **are** committed, unlike everything else on this page. They
+are Kenney's Casino Audio pack, CC0 (public domain), which is ours to
+redistribute - see `packages/client/public/sfx/LICENSE.txt`. Real card foley:
+placing, sliding, shuffling, plus chips for mana and life.
+
+Combat is the gap. The pack has no impacts, so damage borrows a poker-chip
+clack and attacking has no cue at all. Kenney's RPG Audio pack (also CC0) would
+fill both; the manifest to add them to is `SAMPLES` in
+`packages/client/src/sound.ts`.
 
 ## Common problems
 

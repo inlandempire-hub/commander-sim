@@ -419,6 +419,75 @@ a near-black table.
       records damage being prevented, and refusals still show in the middle of
       the table.
 
+## 17. Added 2026-08-07 - real foley, a bigger deck, and the font lab
+
+### Sound is recordings now
+
+Turn it on with the header button. Everything here is a real recording rather
+than a synthesiser - Kenney's Casino Audio, CC0.
+
+- [ ] Playing a card is **a card going down on a table**. This is the whole
+      point of the change and the first thing to judge.
+- [ ] A land sounds heavier than a spell. *(Same recording, pitched down - say
+      if that reads as a trick rather than as weight.)*
+- [ ] Drawing is a card sliding off the top of the deck.
+- [ ] Dealing the opening hand is seven of those in a row, and sounds like
+      dealing rather than like a machine gun.
+- [ ] A mulligan is a shuffle. *(It runs about three seconds, which is how long
+      a shuffle takes - say if that is too long to sit through.)*
+- [ ] Tapping lands for mana lays a chip down, once per payment rather than
+      once per land.
+- [ ] Gaining life is chips stacking up.
+- [ ] Something dying, destroyed or exiled is a card being swept aside.
+- [ ] The game refusing something is low and blunt, and clearly not one of the
+      above.
+- [ ] Nothing is harsh and nothing is loud. Say so if any cue makes you reach
+      for the mute.
+- [ ] Four creatures in combat at once does not turn to mush.
+- [ ] **Damage is a poker chip clack, and it is the one honest compromise.**
+      The pack is card and casino foley; there is nothing in it for a sword
+      landing. Say whether it reads as an impact or as a stray chip - Kenney's
+      RPG pack has real ones and is another 940KB.
+- [ ] **Attacking has no sound at all**, for the same reason. Deliberate, not
+      missing.
+
+### The rail
+
+- [ ] The library is roughly three times the size it was, and you can actually
+      see the card back on it.
+- [ ] The graveyard (and exile, when there is one) sit **above** it.
+- [ ] The count on the deck is bigger to match.
+- [ ] Nothing runs off the bottom of the screen, and the rail does not grow a
+      scroll bar - including late in a game when commander damage rows appear.
+- [ ] The concede button has not moved.
+
+### The font lab
+
+Open it at `?mode=fonts`.
+
+- [ ] Ten families to cycle through, each shown set in itself.
+- [ ] Picking one changes the previews immediately.
+- [ ] The previews are the **real** buttons and the real banner, at their real
+      sizes, on their real backgrounds - not mock-ups.
+- [ ] The combat banner holds still instead of playing once and vanishing.
+- [ ] The weight slider works, and "Snap to nearest" jumps to a weight the
+      family actually has.
+- [ ] Italic works, and the lab warns you when a family has no real italic and
+      the browser is shearing one instead.
+- [ ] It warns the same way for a weight the family does not have.
+- [ ] "Use this" saves; the choice survives a reload and shows up on the table.
+- [ ] The buttons and the banner are chosen **separately** - setting one does
+      not change the other.
+- [ ] "Reset to default" puts that one back to the system font.
+- [ ] Judge the buttons at the size they are actually used: can you tell PASS
+      from END TURN from CONFIRM ATTACKERS at a glance, without reading them?
+- [ ] Does "Confirm attackers" still fit the column in the face you picked?
+
+### Nothing else moved
+
+- [ ] Mana symbols, the face-down opponent hand, the deal and the bot's speed
+      are all as they were yesterday.
+
 ---
 
 ## Known rough edges
@@ -432,6 +501,10 @@ them:
 - Particles are simple round specks. No trails, no sprites, no lighting.
 - The deck builder still looks like a form rather than part of the game - this
   is the largest item on the list for 10/10.
+- Combat has no foley: damage borrows a chip clack and attacking is silent.
+  Needs a second CC0 pack.
+- The library is sized for a 1280x720 window and does not grow on a larger one,
+  which is part of the "every window size" item rather than its own bug.
 - Nothing on the table can be reached from the keyboard.
 - Everything is tuned for roughly a 1280x720 window. Other sizes work but have
   not been gone through.

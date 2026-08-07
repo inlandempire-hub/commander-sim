@@ -1817,3 +1817,104 @@ staggers 0, 130, 260, 390, 520, 650, 780ms across seven cards; the opponent's
 hand is seven backs and zero real cards; the bot's draws fly face-down; costs
 render as pips everywhere and fall back cleanly to braces with the folder
 renamed away; and the page scrolls in neither direction.
+
+## Real foley, a deck you can see, and a font lab (2026-08-07)
+
+### Sound, from recordings
+
+The synthesised version was deleted yesterday because no amount of layering
+makes an oscillator sound like card stock. This one is Kenney's **Casino Audio**
+pack - CC0, 29 files, 269KB - and it is **committed**, unlike the card art, the
+mana symbols and the fonts. That is not an inconsistency: CC0 is public domain
+and ours to redistribute, so there is no reason to make a fresh clone go and
+find it. The licence sits beside the files.
+
+Three things separate a sample library from a soundboard, and all three are in
+`sound.ts`:
+
+- **Variants.** Most cues have several takes and never play the same one twice
+  running (`pickIndex`, and the no-immediate-repeat rule is tested exhaustively
+  rather than sampled). Dealing fires seven times in a second, and one take
+  seven times is a machine gun whatever the recording is.
+- **Detune.** Every play is nudged a few percent in speed. Even across eight
+  takes, exact repetition is what gives a library away.
+- **A voice cap.** Six concurrent at most. Four creatures taking combat damage
+  is four cues inside a tenth of a second and the sum used to clip.
+
+Cues are still picked off the log, so anything the engine learns to describe
+gets a sound without a call site. The order in `cueForLogLine` is load-bearing
+and the test says so: "3 damage to Deadly Donny prevented" contains the word
+"damage", and getting that wrong once meant prevented damage played the sound of
+a hit.
+
+**What this pack does not cover, stated plainly.** It is card and casino foley.
+There is nothing in it for a sword landing, so combat damage borrows a poker
+chip clack - an impact of roughly the right length and weight, and not the sound
+of a creature being hit - and `attack` has no cue at all rather than a faked
+one. Kenney's RPG Audio pack (also CC0, ~940KB) fills both, and the manifest is
+one object.
+
+### The rail, and a deck you can see
+
+The library was 46px wide in a 132px column with a stack of dead rail above it,
+which was fine when it was a drawn placeholder and absurd once it carried real
+artwork. Graveyard and exile moved to a row above it and the deck took the
+width: **82x115 rather than 46x64**, about three times the area, with the count
+scaled to match.
+
+Sized by measurement, not by preference. The first attempt used the full rail
+width, which is 122px and 171px tall, and that ran the rail 24px off the bottom
+of a 720px window. The second used flexbox to take whatever was left, which
+collapsed - `margin-top: auto` on the piles absorbs the free space *before*
+flex-grow gets it, so there was nothing to grow into. The third measured what
+is actually spare (134px below the concede button) minus one commander-damage
+row (19px), which is 115px of card, which is 82px of width. It holds with a
+damage row injected, on both seats.
+
+It is a fixed number rather than a share of the rail on purpose: the concede
+button is pinned relative to the piles block, and the whole point of that pin is
+that the button which ends the game does not drift down the rail as the game
+goes on. A flexible library would unpin it.
+
+### The font lab
+
+`?mode=fonts`. Ten families, two targets, live preview, saved choice.
+
+The two targets are separate because they are different jobs. The buttons are a
+control hit two hundred times a game at 14-15px in a 132px column, where legible
+beats characterful. The combat banner is one second at 40px across the middle of
+the table, which is exactly where a display face earns its keep. A font that is
+right for one is very often wrong for the other.
+
+Three decisions worth recording:
+
+- **The previews are the real components.** `.action-bar__go`, `.concede` and
+  `.beat` off styles.css, at their real sizes, on their real backgrounds. A
+  specimen in a neutral box at 32px tells you nothing about whether "Confirm
+  attackers" fits a 132px column.
+- **The banner holds still.** In a game it arrives, sits for about a second and
+  leaves, which is long enough to notice and nowhere near long enough to judge a
+  typeface. `lab__beat-held` changes exactly two things - it un-fixes the
+  position and stops the animation - so everything visible is the shipped rule.
+- **Faked weights are called out.** A browser asked for bold with no bold file
+  smears the outlines and asked for italic it shears them; both look plausible
+  at display size and wrong at 14px. So the catalogue records what each family
+  genuinely ships, choosing a family snaps the weight onto something real, and
+  the lab says which of the two you are looking at.
+
+The join between the lab and the stylesheet is four CSS custom properties per
+target, and it fails silently when it breaks - no error, no warning, just a font
+that did not change. So a test asserts both ends against each other: every
+property the lab writes is consumed by styles.css, and every one has a fallback
+so a cleared preference is the old table rather than an unstyled one.
+
+The font files are gitignored. They arrived with a mix of OFL and 1001fonts
+personal-use terms, and whether a given one can be committed is a question to
+answer for the font that actually gets chosen rather than for all ten.
+
+555 tests, typecheck clean. Verified in the browser: every sample fetches and
+decodes to real stereo audio; the deal fires seven slides on the near seat only;
+the library measures 82x115 on both seats and survives an injected
+commander-damage row without the rail scrolling; and choosing Manuale in the lab
+snapped 800 to 700, applied italic live, saved, survived a reload and reached
+the Pass and Concede buttons on the table.

@@ -7,6 +7,7 @@ import { libraryAnchorKey } from "../flight.js";
 import { landCardHeight } from "../landSize.js";
 import { DEAL } from "../motion.js";
 import { CARD_BACK_FAR, CARD_BACK_NEAR } from "../cardBacks.js";
+import { play, primeSounds } from "../sound.js";
 import { emitParticles } from "../particleBus.js";
 
 /** How long a life change stays flagged up before fading. */
@@ -160,12 +161,33 @@ export function PlayerBoard({
     wasMulliganing.current = mulliganing;
     if (!finished) return;
     setDealing(true);
+
+    /*
+     * One card slide per card, on the same stagger the animation uses, so the
+     * sound and the movement are the same event rather than two.
+     *
+     * Near seat only. Both hands deal at once and fourteen slides inside a
+     * second is a riffle rather than a deal - and it is your hand you are
+     * watching. Priming here as well because keeping an opening hand is a
+     * click, which is what a browser needs before it will start any audio.
+     */
+    const cues: number[] = [];
+    if (!flipped) {
+      primeSounds();
+      for (let i = 0; i < player.hand.length; i++) {
+        cues.push(window.setTimeout(() => play("draw"), DEAL.step * i));
+      }
+    }
+
     const timer = window.setTimeout(
       () => setDealing(false),
       DEAL.step * Math.max(player.hand.length - 1, 0) + DEAL.card + 60,
     );
-    return () => window.clearTimeout(timer);
-  }, [state.mulligan, player.hand.length]);
+    return () => {
+      window.clearTimeout(timer);
+      for (const id of cues) window.clearTimeout(id);
+    };
+  }, [state.mulligan, player.hand.length, flipped]);
   const inDamageStep = state.step === "combat-damage" || state.step === "first-strike-damage";
 
   /**
@@ -350,14 +372,47 @@ export function PlayerBoard({
             must not depend on which buttons happen to be showing. */}
         {concede}
 
+        {/*
+            Graveyard and exile above, library below.
+            
+            They used to sit side by side, which left the library at 46px in a
+            132px column with a stack of dead space above it - and the card back
+            it now shows was too small to see. The library is the one of the
+            three you look at every turn (how many cards are left is real
+            information in a long game) and the only one that is a picture
+            rather than a count, so it takes the full width of the rail and the
+            other two share a row above it.
+        */}
         <div className="rail__piles">
+          <div className="rail__piles-row">
+            <ZonePile
+              label="Graveyard"
+              ownerLabel={player.id}
+              cards={player.graveyard}
+              cardDefinitions={cardDefinitions}
+              selecting={selectingGraveyardTarget}
+              onCardClick={selectingGraveyardTarget ? onGraveyardCardClick : undefined}
+              onHover={onHover}
+            />
+            {/* Exile only appears once something is in it - an always-empty box
+                in a narrow rail is just clutter. */}
+            {player.exile.length > 0 && (
+              <ZonePile
+                label="Exile"
+                ownerLabel={player.id}
+                cards={player.exile}
+                cardDefinitions={cardDefinitions}
+                onHover={onHover}
+              />
+            )}
+          </div>
+
           {/* The library is face-down and can't be looked through, so it is a
-              card back and a count rather than a ZonePile. It earns its place
-              twice over: how many cards are left is real information in a long
-              game, and it gives drawn cards somewhere to fly from - without a
-              library on screen, a draw has no honest starting point and the
-              card would have to appear in hand out of nowhere. */}
-          <div className="pile">
+              card back and a count rather than a ZonePile. It also gives drawn
+              cards somewhere to fly from - without a library on screen, a draw
+              has no honest starting point and the card would have to appear in
+              hand out of nowhere. */}
+          <div className="pile pile--library">
             <div className="zone__label">Library</div>
             <div
               className="pile__back"
@@ -366,10 +421,9 @@ export function PlayerBoard({
             >
               {/* The two decks are told apart by their backs, the way two real
                   players' sleeves are: the light back is always the near seat
-                  (you), the dark one always the far seat (the bot, or the other
-                  player in hotseat). Keyed off `flipped` rather than off any
-                  notion of "is this the bot", because the far half of the table
-                  is the opponent's in every mode.
+                  (you), the dark one always the far seat. Keyed off `flipped`
+                  rather than off any notion of "is this the bot", because the
+                  far half of the table is the opponent's in every mode.
 
                   If the file is not there the img removes itself and the drawn
                   back underneath shows through - see .pile__back in styles.css
@@ -386,26 +440,6 @@ export function PlayerBoard({
               <span className="pile__back-count">{player.library.length}</span>
             </div>
           </div>
-          <ZonePile
-            label="Graveyard"
-            ownerLabel={player.id}
-            cards={player.graveyard}
-            cardDefinitions={cardDefinitions}
-            selecting={selectingGraveyardTarget}
-            onCardClick={selectingGraveyardTarget ? onGraveyardCardClick : undefined}
-            onHover={onHover}
-          />
-          {/* Exile only appears once something is in it - an always-empty box
-              in a narrow rail is just clutter. */}
-          {player.exile.length > 0 && (
-            <ZonePile
-              label="Exile"
-              ownerLabel={player.id}
-              cards={player.exile}
-              cardDefinitions={cardDefinitions}
-              onHover={onHover}
-            />
-          )}
         </div>
       </div>
 

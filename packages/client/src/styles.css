@@ -654,12 +654,26 @@ body {
   gap: 3px;
 }
 
-/* Graveyard and exile sit side by side at the bottom of the rail as small
-   piles, so the rail stays short whether they hold one card or thirty. */
+/*
+ * The bottom of the rail: graveyard and exile in a row, library under them.
+ *
+ * All three used to share one row, which left the library 46px wide in a 132px
+ * column with a stack of empty rail above it. The library is the only one of
+ * the three that is a picture rather than a count, and the only one you look at
+ * every turn, so it gets the full width and the other two share the row above.
+ */
 .rail__piles {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   margin-top: auto;
+  min-height: 0;
+  flex: 0 1 auto;
+}
+
+.rail__piles-row {
+  display: flex;
+  gap: 8px;
 }
 
 /* When there is a concede button, it is the thing pinned to the bottom and the
@@ -1097,6 +1111,13 @@ body {
 .action-bar__go {
   --btn-face: var(--accent);
   --btn-edge: #2f4da8;
+  /* Set in the font lab (?mode=fonts) and applied to :root at boot. The
+     fallbacks are what these were before the lab existed, so a cleared
+     preference is the old table rather than an unstyled one. */
+  font-family: var(--font-buttons, inherit);
+  font-weight: var(--font-buttons-weight, 800);
+  font-style: var(--font-buttons-style, normal);
+  letter-spacing: var(--font-buttons-tracking, 0.06em);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1106,10 +1127,7 @@ body {
   border-radius: 6px;
   padding: 9px 6px;
   font-size: 15px;
-  font-family: inherit;
-  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
   line-height: 1.15;
   cursor: pointer;
 }
@@ -2352,6 +2370,45 @@ body {
  * 17:1 against its own plate whatever the back is, and it is the same object on
  * both backs rather than one tuned per image.
  */
+/*
+ * The library, at the size a deck actually is.
+ *
+ * Sized by the space left in the rail rather than by a number. A fixed width
+ * was the first attempt and it ran 24px off the bottom of a 720px window: the
+ * rail holds a name, a life total, a mana line, a variable number of commander
+ * damage rows, a concede button and a graveyard before it gets here, so how
+ * much room is left is not something this rule can know. It takes what remains,
+ * `aspect-ratio` on .pile__back turns that height into a width, and
+ * `max-width` stops it spilling out of the rail on a tall window.
+ */
+/*
+ * The deck, at 82px rather than 46.
+ *
+ * The cap is on the width, not the height, so `aspect-ratio` keeps it a true
+ * 5:7 card and nothing gets cropped or squashed. 82px is measured rather than
+ * chosen: the near rail on a 1280x720 window has 134px of height to spare
+ * below the concede button, one commander-damage row (19px) can appear later
+ * in any game, and 115px of card is 82px of width.
+ *
+ * It is a fixed number and not a share of the rail because the piles block has
+ * to keep a stable height - the concede button is pinned relative to it, and
+ * the whole point of that pin is that the button which ends the game does not
+ * drift down the rail as the game goes on. See the .concede rule.
+ *
+ * Making this grow on a larger window is part of the "every window size" item
+ * in ROADMAP.md, not something this rule should guess at.
+ */
+.pile--library .pile__back {
+  width: min(100%, 82px);
+}
+
+/* Bigger card, bigger number - a 12px count on a 120px card reads as a
+   footnote rather than as the thing you are checking. */
+.pile--library .pile__back-count {
+  font-size: 17px;
+  padding: 4px 9px;
+}
+
 .pile__back-count {
   position: relative;
   font-size: 12px;
@@ -2460,8 +2517,14 @@ body {
   animation-timing-function: var(--ease-settle);
   animation-fill-mode: both;
   font-size: 40px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+  /* Chosen separately from the buttons in the font lab: this has room, a
+     second of your attention and never has to be read twice, which is a
+     different job and very often a different face. The tracking fallback is
+     0.16em rather than the buttons' 0.06 because 40px caps need the air. */
+  font-family: var(--font-beat, inherit);
+  font-weight: var(--font-beat-weight, 700);
+  font-style: var(--font-beat-style, normal);
+  letter-spacing: calc(0.1em + var(--font-beat-tracking, 0.02em) * 3);
   text-transform: uppercase;
   color: var(--text);
   text-shadow: 0 2px 24px rgba(0, 0, 0, 0.95), 0 0 40px rgba(91, 140, 255, 0.35);
@@ -2958,14 +3021,16 @@ body {
   width: 100%;
   border-radius: 6px;
   padding: 8px 8px;
-  font-family: inherit;
   /* Matched to the pass button above, one step down in size: it is the same
      kind of object, and the one that ends the game should not be the quieter
-     of the two by accident. */
+     of the two by accident. It reads the same font variables for the same
+     reason - they are one control in two colours. */
   font-size: 14px;
-  font-weight: 800;
+  font-family: var(--font-buttons, inherit);
+  font-weight: var(--font-buttons-weight, 800);
+  font-style: var(--font-buttons-style, normal);
+  letter-spacing: var(--font-buttons-tracking, 0.06em);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
   cursor: pointer;
 }
 
@@ -3320,4 +3385,327 @@ body {
   background: var(--accent);
   border: none;
   color: white;
+}
+
+/* ---------------------------------------------------------------------------
+   The font lab (?mode=fonts)
+   ---------------------------------------------------------------------------
+
+   A room for comparing type on the two things that carry it. Its own surface
+   rather than a panel on the table, because choosing a typeface means looking
+   at the same six words for a while and the board behind them is a distraction.
+
+   Everything in the preview column is a real component with its real class -
+   see FontLab.tsx for why. The rules below only ever style the lab's own
+   chrome; nothing here touches .action-bar__go, .concede or .beat except to
+   undo the two things that stop them being visible when they are not in a game.
+   --------------------------------------------------------------------------- */
+
+.lab {
+  min-height: 100vh;
+  padding: 16px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.lab__top {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.lab__title {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.lab__note {
+  color: var(--text-dim);
+  font-size: 12px;
+  flex: 1 1 320px;
+}
+
+.lab__targets {
+  display: flex;
+  gap: 10px;
+}
+
+/* Which of the two things you are choosing for. A pair of tabs rather than a
+   dropdown: there are two, and both need to be one click away while you are
+   going back and forth deciding whether they should match. */
+.lab__target {
+  flex: 0 1 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lab__target span {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.lab__target--on {
+  border-color: var(--accent);
+  background: var(--panel-active);
+}
+
+.lab__blurb {
+  margin: 0;
+  max-width: 78ch;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.lab__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 260px 260px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.lab__families {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 72vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* Each family's name is set in that family - the fastest way to skim ten of
+   them, and the only part of this list that is not just words about type. */
+.lab__family {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.lab__family strong {
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.lab__family--on {
+  border-color: var(--gold);
+  background: var(--panel-active);
+}
+
+.lab__family-note {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.lab__family-faces {
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.lab__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.lab__control {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.lab__control--row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.lab__control input[type="range"] {
+  width: 100%;
+}
+
+.lab__hint {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.lab__snap {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Said in orange rather than red: a faked bold is a thing to know about, not an
+   error - sometimes it is genuinely the best available answer. */
+.lab__warn {
+  color: #e0a44a;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.lab__warn--block {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.lab__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.lab__keep,
+.lab__reset {
+  flex: 1 1 auto;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-active);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lab__keep {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.lab__keep:disabled {
+  opacity: 0.45;
+  border-color: var(--border);
+  background: var(--panel-active);
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.lab__previews {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lab__preview {
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lab__preview-label {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+}
+
+/* The buttons on the same slate the rail is, because a control's face colour
+   is half of whether its type reads. */
+.lab__preview--felt {
+  background: linear-gradient(#1b212b, #161b23);
+  border: 1px solid var(--border);
+}
+
+/* And the banner over the felt it actually crosses, for the same reason. */
+.lab__preview--table {
+  background: linear-gradient(rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.2)), #1c5c34;
+  border: 1px solid #0d3720;
+}
+
+/* The rail, at the width it really is - the whole question for the buttons is
+   whether "Confirm attackers" fits in 132px in the face you have picked. */
+.lab__rail {
+  width: var(--rail-w);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lab__beat-stage {
+  position: relative;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/*
+ * The banner, held.
+ *
+ * Exactly two things change: it stops being `position: fixed` (it would cover
+ * the whole lab) and it stops animating (it would play once and vanish). Its
+ * size, weight, tracking, colour, shadow and rules are the shipped ones, which
+ * is the entire point of previewing it here rather than mocking it up.
+ */
+.lab__beat-held {
+  position: absolute;
+  inset: 0;
+  opacity: 1;
+  animation: none;
+}
+
+.lab__beat-held .beat__text,
+.lab__beat-held .beat__detail {
+  animation: none;
+  transform: none;
+}
+
+.lab__css {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #11151c;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+@media (max-width: 1100px) {
+  .lab__body {
+    grid-template-columns: 1fr;
+  }
+  .lab__families {
+    max-height: 40vh;
+  }
 }

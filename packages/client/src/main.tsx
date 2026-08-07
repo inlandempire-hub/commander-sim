@@ -12,6 +12,9 @@ import { useLocalGameController } from "./useLocalGameController.js";
 import { useNetworkGameController } from "./useNetworkGameController.js";
 import { useBotOpponent } from "./useBotOpponent.js";
 import { DeckBuilder } from "./deckbuilder/DeckBuilder.js";
+import { FontLab } from "./FontLab.js";
+import { allFontFaceCss } from "./fontCatalogue.js";
+import { applyPrefs, installFontFaces, loadPrefs } from "./fontPrefs.js";
 import { browserStore, findDeck, loadDecks, toDeckList } from "./deckbuilder/deckStorage.js";
 import type { ArtOverrides } from "./cardArt.js";
 import type { ArtOverridesByPlayer } from "./artContext.js";
@@ -188,6 +191,7 @@ function Root() {
   const mode = params.get("mode");
 
   if (mode === "deck") return <DeckBuilder />;
+  if (mode === "fonts") return <FontLab />;
 
   // Both seats read the same pair of parameters everywhere: ?deck=/&vs= name
   // the built-in archetypes, ?mydeck=/&vsdeck= take ids from the deck builder.
@@ -228,6 +232,18 @@ function Root() {
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Missing #root element");
+
+/*
+ * Type, before anything renders.
+ *
+ * The @font-face rules come from the catalogue rather than from styles.css so
+ * there is one list of which files exist, and the saved choice goes on as
+ * custom properties so no component ever has to know a font was picked. Both
+ * before render: applying them afterwards means a frame of the old font, which
+ * on the combat banner is a visible flash.
+ */
+installFontFaces(allFontFaceCss());
+applyPrefs(loadPrefs());
 
 createRoot(rootElement).render(
   <StrictMode>

@@ -15,6 +15,7 @@ import {
 } from "@mtg-commander-sim/engine";
 import type { GameController } from "./gameController.js";
 import { PlayerBoard } from "./components/PlayerBoard.js";
+import { cueForLogLine, play, primeSounds, setSoundEnabled, soundEnabled } from "./sound.js";
 import { StackView } from "./components/StackView.js";
 import { ActionBar, ConcedeButton } from "./components/ActionBar.js";
 import { CardDetail } from "./components/CardDetail.js";
@@ -128,6 +129,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const [hovered, setHovered] = useState<HoveredCard | null>(null);
   /** A modal spell waiting on you to choose which mode you're casting. */
   const [pendingMode, setPendingMode] = useState<{ ownerId: string; instanceId: string } | null>(null);
+  const [sound, setSound] = useState(soundEnabled);
   const [particles, setParticles] = useState(particlesEnabled);
   /**
    * Something the interface itself wants to say - almost always "you cannot do
@@ -149,6 +151,8 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     loadStops(typeof window === "undefined" ? undefined : window.localStorage),
   );
   const [fullControl, setFullControl] = useState(false);
+  /** How far through the log we've already made a noise about. */
+  const soundedTo = useRef(0);
   /*
    * Cards physically travelling between zones. This has to be called here,
    * above the "no state yet" return, because hooks can't be conditional - and
@@ -220,6 +224,46 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     setStops(next);
     saveStops(typeof window === "undefined" ? undefined : window.localStorage, next);
   };
+
+  /*
+   * Sound is driven off the log rather than off each action, so anything the
+   * engine learns to describe gets a cue for free. Only new lines fire, and
+   * only the last few, so catching up after a bot's fast turn plays a handful
+   * of samples rather than thirty at once.
+   */
+  useEffect(() => {
+    const lines = state?.log ?? [];
+    if (lines.length < soundedTo.current) soundedTo.current = 0; // log was trimmed
+    const fresh = lines.slice(Math.max(soundedTo.current, lines.length - 3));
+    soundedTo.current = lines.length;
+    for (const entry of fresh) {
+      const cue = cueForLogLine(entry.text);
+      if (cue) play(cue);
+    }
+  }, [state?.log.length, state]);
+
+  /*
+   * A chip laid down for every land that taps. Not off the log - mana payment
+   * writes no line, because it is a step on the way to casting rather than an
+   * event in its own right. One cue per batch rather than per land: paying
+   * {4} taps four lands inside a few hundred milliseconds and four clacks on
+   * top of each other is a rattle.
+   */
+  const manaHeard = useRef(0);
+  useEffect(() => {
+    if (manaPips.length > manaHeard.current) play("mana");
+    manaHeard.current = manaPips.length;
+  }, [manaPips.length]);
+
+  /*
+   * A noise when the game refuses something. Being told no never reaches the
+   * log - nothing happened - and the message appears in the middle of the
+   * table where it is easy to click straight past.
+   */
+  const refusal = lastError ?? notice;
+  useEffect(() => {
+    if (refusal) play("refuse");
+  }, [refusal]);
 
   /*
    * Auto-pass: whenever the priority holder (a seat this client controls) has
@@ -693,6 +737,25 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             onClick={() => setShowStops(true)}
           >
             Stops
+          </button>
+          <button
+            type="button"
+            className="table__particles"
+            title={sound ? "Sound on - click to mute" : "Sound off - click to unmute"}
+            onClick={() => {
+              const next = !sound;
+              setSound(next);
+              setSoundEnabled(next);
+              // Turning it on is also the click that lets the browser start an
+              // audio context at all, so it is the right moment to fetch every
+              // sample and to play one as the confirmation.
+              if (next) {
+                primeSounds();
+                play("card");
+              }
+            }}
+          >
+            {sound ? "Sound on" : "Sound off"}
           </button>
           <button
             type="button"
