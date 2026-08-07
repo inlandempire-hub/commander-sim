@@ -314,6 +314,20 @@ export function PlayerBoard({
         .join(" ")}
     >
       <div className="rail">
+        {/*
+            Concede, first thing in the rail and above the player's own name.
+
+            It has now been in three places. At the end of the action bar it sat
+            under whichever confirm button happened to be showing, so the button
+            that ends the game moved *to* where the cursor had just been. Pinned
+            above the piles it stopped moving with the buttons but still drifted
+            with the rail's own contents - commander damage rows appear as a
+            game goes on. The top of the rail is the only spot with nothing
+            above it to push it, so it is in the same pixel on turn one and turn
+            thirty. See ConcedeButton.
+        */}
+        {concede}
+
         <div className="rail__identity">
           <span className="rail__name">{player.id}</span>
           {hasPriority && <span className="rail__priority">Priority</span>}
@@ -367,23 +381,38 @@ export function PlayerBoard({
         ))}
         {player.hasLost && <div className="rail__lost">LOST: {player.lossReason}</div>}
 
-        {/* Concede sits here, immediately above the piles, and nowhere else all
-            game. See ConcedeButton: it ends the game outright, so its position
-            must not depend on which buttons happen to be showing. */}
-        {concede}
-
         {/*
-            Graveyard and exile above, library below.
-            
-            They used to sit side by side, which left the library at 46px in a
-            132px column with a stack of dead space above it - and the card back
-            it now shows was too small to see. The library is the one of the
-            three you look at every turn (how many cards are left is real
-            information in a long game) and the only one that is a picture
-            rather than a count, so it takes the full width of the rail and the
-            other two share a row above it.
+            Graveyard and library side by side, the same size; exile a chip
+            above them.
+
+            All three shared one row once, which left each at 46px. The library
+            then took the full width of the rail at 82px with the graveyard
+            small above it, which read as two unrelated things rather than as
+            two piles on the same table. They are now a matched pair, half the
+            rail each.
+
+            Half the rail is what sets the size: 62px of width, and 5:7 turns
+            that into 87px of card. Stacking them at the library's old 82px
+            instead would want 264px of rail for the pair and there are 157px
+            going - it is width, not height, that this column is short of, so
+            side by side is the arrangement that makes them big, not the one
+            that makes them small. Exile gives up its picture to pay for it: it
+            is the one of the three you can go a whole game without opening.
         */}
         <div className="rail__piles">
+          {/* Only once something is in it - an always-empty box in a narrow
+              rail is just clutter. */}
+          {player.exile.length > 0 && (
+            <ZonePile
+              compact
+              label="Exile"
+              ownerLabel={player.id}
+              cards={player.exile}
+              cardDefinitions={cardDefinitions}
+              onHover={onHover}
+            />
+          )}
+
           <div className="rail__piles-row">
             <ZonePile
               label="Graveyard"
@@ -394,50 +423,41 @@ export function PlayerBoard({
               onCardClick={selectingGraveyardTarget ? onGraveyardCardClick : undefined}
               onHover={onHover}
             />
-            {/* Exile only appears once something is in it - an always-empty box
-                in a narrow rail is just clutter. */}
-            {player.exile.length > 0 && (
-              <ZonePile
-                label="Exile"
-                ownerLabel={player.id}
-                cards={player.exile}
-                cardDefinitions={cardDefinitions}
-                onHover={onHover}
-              />
-            )}
-          </div>
 
-          {/* The library is face-down and can't be looked through, so it is a
-              card back and a count rather than a ZonePile. It also gives drawn
-              cards somewhere to fly from - without a library on screen, a draw
-              has no honest starting point and the card would have to appear in
-              hand out of nowhere. */}
-          <div className="pile pile--library">
-            <div className="zone__label">Library</div>
-            <div
-              className="pile__back"
-              data-flight-anchor={libraryAnchorKey(player.id)}
-              title={`${player.library.length} cards left`}
-            >
-              {/* The two decks are told apart by their backs, the way two real
-                  players' sleeves are: the light back is always the near seat
-                  (you), the dark one always the far seat. Keyed off `flipped`
-                  rather than off any notion of "is this the bot", because the
-                  far half of the table is the opponent's in every mode.
+            {/* The library is face-down and can't be looked through, so it is a
+                card back and a count rather than a ZonePile. It also gives
+                drawn cards somewhere to fly from - without a library on screen,
+                a draw has no honest starting point and the card would have to
+                appear in hand out of nowhere. */}
+            <div className="pile pile--library">
+              <div className="zone__label">Library</div>
+              <div
+                className="pile__back"
+                data-flight-anchor={libraryAnchorKey(player.id)}
+                title={`${player.library.length} cards left`}
+              >
+                {/* The two decks are told apart by their backs, the way two
+                    real players' sleeves are: the light back is always the near
+                    seat (you), the dark one always the far seat. Keyed off
+                    `flipped` rather than off any notion of "is this the bot",
+                    because the far half of the table is the opponent's in every
+                    mode.
 
-                  If the file is not there the img removes itself and the drawn
-                  back underneath shows through - see .pile__back in styles.css
-                  for why that case is real rather than defensive. */}
-              {backArt && (
-                <img
-                  className="pile__back-art"
-                  src={backArt}
-                  alt=""
-                  draggable={false}
-                  onError={() => setBackArtFailed(true)}
-                />
-              )}
-              <span className="pile__back-count">{player.library.length}</span>
+                    If the file is not there the img removes itself and the
+                    drawn back underneath shows through - see .pile__back in
+                    styles.css for why that case is real rather than
+                    defensive. */}
+                {backArt && (
+                  <img
+                    className="pile__back-art"
+                    src={backArt}
+                    alt=""
+                    draggable={false}
+                    onError={() => setBackArtFailed(true)}
+                  />
+                )}
+                <span className="pile__back-count">{player.library.length}</span>
+              </div>
             </div>
           </div>
         </div>

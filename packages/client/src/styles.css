@@ -655,12 +655,12 @@ body {
 }
 
 /*
- * The bottom of the rail: graveyard and exile in a row, library under them.
+ * The bottom of the rail: graveyard and library side by side, exile above them.
  *
- * All three used to share one row, which left the library 46px wide in a 132px
- * column with a stack of empty rail above it. The library is the only one of
- * the three that is a picture rather than a count, and the only one you look at
- * every turn, so it gets the full width and the other two share the row above.
+ * Pinned to the bottom so they hold one position all game - the rail's middle
+ * grows as commander damage rows appear, and this is the block you reach for.
+ * Concede is no longer part of that arrangement: it sits at the very top of the
+ * rail now, where nothing can push it at all. See the .concede rule.
  */
 .rail__piles {
   display: flex;
@@ -671,17 +671,38 @@ body {
   flex: 0 1 auto;
 }
 
+/*
+ * The pair, at half the rail each.
+ *
+ * `flex: 1 1 0` rather than letting each size to its contents: it is what makes
+ * the two columns identical whatever is in them, and identical columns are what
+ * make the graveyard and the library the same size - both cards are 100% of
+ * their column and both are 5:7, so one number decides both heights.
+ *
+ * 132px of rail less an 8px gap is 62px each, which is 87px of card. Stacking
+ * them instead at the library's old 82px width would want 264px of rail for the
+ * pair, and there are about 157px going once the name, life, mana, a commander
+ * damage row and the gaps have taken theirs. This column is short of width, not
+ * of height.
+ */
 .rail__piles-row {
   display: flex;
   gap: 8px;
+  align-items: flex-start;
 }
 
-/* When there is a concede button, it is the thing pinned to the bottom and the
-   piles simply follow it. Otherwise the rail's variable middle - commander
-   damage rows appear as the game goes on - would slide the concede button down
-   over the course of a game, which is the one thing it must not do. */
-.concede + .rail__piles {
-  margin-top: 0;
+.rail__piles-row > .pile {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* One line, always. The label sits above the card in each column, so a label
+   that wraps in one column and not the other pushes that column's card down and
+   the pair stops lining up - which is the whole point of the pair. */
+.rail__piles-row .zone__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pile__top {
@@ -691,9 +712,21 @@ body {
   padding: 0;
   cursor: pointer;
   display: block;
+  width: 100%;
 }
 
-/* How many cards are underneath the one on top. */
+/* The top card fills its column, which is what ties its height to the library's
+   - see .rail__piles-row. `.card--small` otherwise pins itself to a fixed 46px,
+   which is the right size for a land beside the hand and half the size of the
+   deck it now sits next to. */
+.rail__piles-row .card--small {
+  width: 100%;
+  height: auto;
+}
+
+/* How many cards are in the pile. Shown from the first card rather than the
+   second, because the label above no longer carries the count: at half the rail
+   "Graveyard (12)" is two lines of text. */
 .pile__count {
   position: absolute;
   right: -4px;
@@ -707,10 +740,83 @@ body {
   color: var(--text);
 }
 
+/*
+ * Inside the card's corner rather than hanging off it.
+ *
+ * The overhang is fine for a pile with room around it and is not fine here: the
+ * piles are pinned to the bottom of the rail, so 4px of badge hanging below the
+ * last one is 4px of overflow, which turns the rail's `overflow-y: auto` into a
+ * real scrollbar, which takes 10px off the rail's width, which shrinks both
+ * piles from 62px to 57px. Four pixels of badge moving two card widths is the
+ * kind of thing you only find by measuring.
+ */
+.rail__piles-row .pile__count {
+  right: 3px;
+  bottom: 3px;
+  font-size: 11px;
+  padding: 1px 6px;
+}
+
+/*
+ * An empty graveyard, card-shaped.
+ *
+ * It used to be the word "empty" on one line, which was fine when this pile
+ * stood on its own and is not fine beside the library: the column would be 14px
+ * tall until something died and 87px after, and the library would jump the
+ * first time a creature traded. The slot holds its size from turn one.
+ */
 .pile__empty {
   font-size: 10px;
   color: var(--text-dim);
   font-style: italic;
+}
+
+.rail__piles-row .pile__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+/*
+ * Exile: a name and a count, not a picture.
+ *
+ * The rail fits two card-sized piles and no more, and of the three this is the
+ * one you can go a whole game without opening - so it is the one that gives up
+ * its card. It still opens the same look-through overlay when clicked.
+ */
+.pile-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 7px;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.pile-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.pile-chip__count {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  letter-spacing: 0;
 }
 
 /* --- looking through a pile ----------------------------------------------- */
@@ -2391,42 +2497,30 @@ body {
  * both backs rather than one tuned per image.
  */
 /*
- * The library, at the size a deck actually is.
+ * The deck, at whatever half the rail is.
  *
- * Sized by the space left in the rail rather than by a number. A fixed width
- * was the first attempt and it ran 24px off the bottom of a 720px window: the
- * rail holds a name, a life total, a mana line, a variable number of commander
- * damage rows, a concede button and a graveyard before it gets here, so how
- * much room is left is not something this rule can know. It takes what remains,
- * `aspect-ratio` on .pile__back turns that height into a width, and
- * `max-width` stops it spilling out of the rail on a tall window.
- */
-/*
- * The deck, at 82px rather than 46.
+ * It has been three sizes. 46px was the small-card default and too small to see
+ * the back at all; 82px was a measured fixed number, arrived at by working out
+ * how much rail was spare below the concede button. It is now simply the width
+ * of its column, which is 62px at the rail's current 132px - smaller than 82,
+ * and the price of the graveyard beside it being the same size, which is what
+ * makes the two read as two piles on one table rather than as two unrelated
+ * boxes.
  *
- * The cap is on the width, not the height, so `aspect-ratio` keeps it a true
- * 5:7 card and nothing gets cropped or squashed. 82px is measured rather than
- * chosen: the near rail on a 1280x720 window has 134px of height to spare
- * below the concede button, one commander-damage row (19px) can appear later
- * in any game, and 115px of card is 82px of width.
- *
- * It is a fixed number and not a share of the rail because the piles block has
- * to keep a stable height - the concede button is pinned relative to it, and
- * the whole point of that pin is that the button which ends the game does not
- * drift down the rail as the game goes on. See the .concede rule.
- *
- * Making this grow on a larger window is part of the "every window size" item
- * in ROADMAP.md, not something this rule should guess at.
+ * The width leads and `aspect-ratio` on .pile__back supplies the height, so the
+ * card stays a true 5:7 and nothing is cropped or squashed. Growing the pair on
+ * a larger window means widening the rail, which is part of the "every window
+ * size" item in ROADMAP.md rather than something this rule should guess at.
  */
 .pile--library .pile__back {
-  width: min(100%, 82px);
+  width: 100%;
 }
 
-/* Bigger card, bigger number - a 12px count on a 120px card reads as a
-   footnote rather than as the thing you are checking. */
+/* Bigger card, bigger number - a 12px count on an 87px card reads as a footnote
+   rather than as the thing you are checking. */
 .pile--library .pile__back-count {
-  font-size: 17px;
-  padding: 4px 9px;
+  font-size: 15px;
+  padding: 3px 8px;
 }
 
 .pile__back-count {
@@ -3028,16 +3122,18 @@ body {
  * It used to be a quiet outline at the end of the action bar, which put it
  * directly under whichever confirm button happened to be showing - so the
  * button that ends the game moved around, and moved *to* where your cursor had
- * just been. It is now pinned above the piles in the rail, where nothing else
- * ever appears, and it looks like what it does.
+ * just been. Pinning it above the piles fixed that and left one thing still
+ * able to move it: the rail's own middle grows as commander damage rows appear.
+ * It is now the first thing in the rail, above the player's own name, which is
+ * the only place in the column with nothing above it to push it down.
  */
 .concede {
   --btn-face: var(--danger);
   --btn-edge: #a02f3c;
+  /* Never squeezed by whatever else the rail is holding: this is the control
+     that ends the game, and a rail under pressure must take its room from
+     somewhere else. */
   flex: 0 0 auto;
-  /* Anchored to the bottom of the rail, directly above the piles - see the
-     .concede + .rail__piles rule. */
-  margin-top: auto;
   width: 100%;
   border-radius: 6px;
   padding: 8px 8px;

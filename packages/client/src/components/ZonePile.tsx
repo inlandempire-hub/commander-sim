@@ -29,6 +29,14 @@ export interface ZonePileProps {
   onHover?: (definitionId: string | null, ownerId?: string, instanceId?: string) => void;
   /** Whose pile this is, so the overlay can say so. */
   ownerLabel: string;
+  /**
+   * A one-line name-and-count chip instead of a card.
+   *
+   * Exile, and only exile. The rail has room for two card-sized piles side by
+   * side and no more, and exile is the one of the three you can go a whole game
+   * without opening - so it keeps the click-through and gives up the picture.
+   */
+  compact?: boolean;
 }
 
 export function ZonePile({
@@ -39,6 +47,7 @@ export function ZonePile({
   onCardClick,
   onHover,
   ownerLabel,
+  compact,
 }: ZonePileProps) {
   const [open, setOpen] = useState(false);
 
@@ -52,19 +61,78 @@ export function ZonePile({
   }, [selecting, cards.length]);
 
   const top = cards[cards.length - 1];
+  const title = `${cards.length} card${cards.length === 1 ? "" : "s"} - click to look through`;
+
+  const overlay =
+    open &&
+    createPortal(
+      <div className="overlay" onClick={() => !selecting && setOpen(false)}>
+        <div className="overlay__panel" onClick={(e) => e.stopPropagation()}>
+          <div className="overlay__head">
+            <strong>
+              {ownerLabel}'s {label.toLowerCase()}
+            </strong>
+            <span className="overlay__count">
+              {cards.length} card{cards.length === 1 ? "" : "s"}
+              {selecting ? " - click one to choose it" : ""}
+            </span>
+            {!selecting && (
+              <button type="button" className="overlay__close" onClick={() => setOpen(false)}>
+                Close
+              </button>
+            )}
+          </div>
+          <div className="overlay__grid">
+            {/* Most recent first - the order you'd flip through them. */}
+            {[...cards].reverse().map((instance) => (
+              <CardView
+                key={instance.instanceId}
+                instance={instance}
+                definition={cardDefinitions[instance.definitionId]!}
+                selected={selecting}
+                onHover={onHover}
+                onClick={
+                  onCardClick
+                    ? () => {
+                        onCardClick(instance.instanceId);
+                        setOpen(false);
+                      }
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+
+  if (compact) {
+    return (
+      <>
+        <button
+          type="button"
+          className={`pile-chip ${selecting ? "zone--targeting" : ""}`.trim()}
+          onClick={() => setOpen(true)}
+          title={title}
+        >
+          <span>{label}</span>
+          <span className="pile-chip__count">{cards.length}</span>
+        </button>
+        {overlay}
+      </>
+    );
+  }
 
   return (
     <div className={`pile ${selecting ? "zone--targeting" : ""}`}>
-      <div className="zone__label">
-        {label} ({cards.length})
-      </div>
+      {/* The count lives on the badge rather than in the label. At the width
+          this pile now has - half the rail, so it can match the library beside
+          it - "Graveyard (12)" wraps to two lines and drags the card below the
+          library's. */}
+      <div className="zone__label">{label}</div>
       {top ? (
-        <button
-          type="button"
-          className="pile__top"
-          onClick={() => setOpen(true)}
-          title={`${cards.length} card${cards.length === 1 ? "" : "s"} - click to look through`}
-        >
+        <button type="button" className="pile__top" onClick={() => setOpen(true)} title={title}>
           {/* The card is hidden while the overlay is up: the same instance can't
               be rendered twice at once, since Framer Motion tracks it by id. */}
           {!open && (
@@ -75,54 +143,15 @@ export function ZonePile({
               small
             />
           )}
-          {cards.length > 1 && <span className="pile__count">{cards.length}</span>}
+          <span className="pile__count">{cards.length}</span>
         </button>
       ) : (
+        /* Card-shaped rather than the word "empty" on its own line: this pile
+           sits beside the library and has to hold the same space whether or not
+           anything has died yet, or the library moves the first time it does. */
         <div className="pile__empty">empty</div>
       )}
-
-      {open &&
-        createPortal(
-          <div className="overlay" onClick={() => !selecting && setOpen(false)}>
-            <div className="overlay__panel" onClick={(e) => e.stopPropagation()}>
-              <div className="overlay__head">
-                <strong>
-                  {ownerLabel}'s {label.toLowerCase()}
-                </strong>
-                <span className="overlay__count">
-                  {cards.length} card{cards.length === 1 ? "" : "s"}
-                  {selecting ? " - click one to choose it" : ""}
-                </span>
-                {!selecting && (
-                  <button type="button" className="overlay__close" onClick={() => setOpen(false)}>
-                    Close
-                  </button>
-                )}
-              </div>
-              <div className="overlay__grid">
-                {/* Most recent first - the order you'd flip through them. */}
-                {[...cards].reverse().map((instance) => (
-                  <CardView
-                    key={instance.instanceId}
-                    instance={instance}
-                    definition={cardDefinitions[instance.definitionId]!}
-                    selected={selecting}
-                    onHover={onHover}
-                    onClick={
-                      onCardClick
-                        ? () => {
-                            onCardClick(instance.instanceId);
-                            setOpen(false);
-                          }
-                        : undefined
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+      {overlay}
     </div>
   );
 }

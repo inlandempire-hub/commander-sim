@@ -501,6 +501,37 @@ Open it at `?mode=fonts`.
 
 ---
 
+## 18. Added 2026-08-07 - a matched pair, and concede where it cannot move
+
+### Graveyard and library
+
+- [ ] They are **side by side, the same size**, and level with each other.
+- [ ] They stay that size all game - when the first card hits the graveyard,
+      the library does not move.
+- [ ] The library is **smaller than it was yesterday** (62px wide rather than
+      82). That is the cost of the pair: the rail is 132px, and two matched
+      piles is what fits. Say if you would rather have the big library back and
+      an odd-sized graveyard beside it.
+- [ ] The graveyard label no longer carries a count - the count is the badge on
+      the card's corner instead.
+- [ ] Clicking the graveyard still opens the full look-through.
+
+### Exile
+
+- [ ] It is now a **one-line chip above the pair**, not a card. Still only
+      there once something has actually been exiled.
+- [ ] Clicking it still opens the same look-through overlay.
+- [ ] Say if losing the picture matters - it is the only one of the three that
+      gave anything up.
+
+### Concede
+
+- [ ] It is the **first thing in the rail**, above your own name.
+- [ ] It is in the same place on turn one and turn thirty. Commander damage
+      rows and the loss banner appear below it during a game and must not move
+      it.
+- [ ] Nothing else ever appears above it.
+
 ## Known rough edges
 
 Not bugs to report - already known, and here so you do not spend a line on
@@ -514,8 +545,11 @@ them:
   is the largest item on the list for 10/10.
 - Combat has no foley: damage borrows a chip clack and attacking is silent.
   Needs a second CC0 pack.
-- The library is sized for a 1280x720 window and does not grow on a larger one,
-  which is part of the "every window size" item rather than its own bug.
+- The graveyard and library are sized by the rail's width and do not grow on a
+  larger window, which is part of the "every window size" item rather than its
+  own bug.
+- Exile is a count rather than a card, because the rail fits two piles and no
+  more.
 - Nothing on the table can be reached from the keyboard.
 - Everything is tuned for roughly a 1280x720 window. Other sizes work but have
   not been gone through.

@@ -1944,3 +1944,52 @@ real rather than only in a unit test, because a failed experiment in the console
 left exactly that value in storage; the next load came back at full volume.
 
 562 tests, typecheck clean.
+
+### A matched pair in the rail, and concede where it cannot move (2026-08-07)
+
+Two asks: the graveyard the same height as the library, and concede fixed in
+the top-left corner above the player name.
+
+The second is the third home concede has had, and this one is final. It was at
+the end of the action bar, which put it under whichever confirm button happened
+to be showing - the button that ends the game moving *to* where the cursor had
+just been. Pinning it above the piles fixed that and left one thing still able
+to shift it: the rail's own middle grows during a game as commander damage rows
+appear. The top of the rail is the only place in the column with nothing above
+it, so it is now the same pixel on turn one and turn thirty.
+
+The first ask needed the arrangement to change, not just a number. Stacked, two
+piles at the library's 82px width want 264px of rail height; there are about
+157px going once the name, life total, mana line, a commander damage row and the
+gaps have taken theirs. Side by side, they are 62px each - half a 132px rail -
+which 5:7 turns into 87px of card. So the pair went side by side and the library
+came *down* from 82px to 62px, which is the honest cost of the two matching. It
+is width this column is short of, not height.
+
+`flex: 1 1 0` on both columns is what does it: each card is 100% of its column
+and both are 5:7, so one number decides both heights and neither can drift. The
+empty graveyard is a card-shaped dashed slot rather than the word "empty", so
+the library does not jump the first time a creature trades. The count moved off
+the label and onto a badge, because "Graveyard (12)" is two lines at 62px and a
+label that wraps in one column and not the other pushes that column's card down.
+
+Exile paid for the room: it is a one-line name-and-count chip above the pair
+now, still opening the same look-through overlay. It is the one of the three you
+can go a whole game without opening.
+
+One thing found by measuring rather than by looking: the count badge sits 4px
+outside the card's corner, which was harmless until the piles became the last
+thing in the rail. Four pixels of overflow turns the rail's `overflow-y: auto`
+into a real scrollbar, which takes 10px off the rail's width, which shrinks both
+piles from 62px to 57px. The badge is tucked inside the corner now.
+
+Verified in the browser by measurement - the preview pane does not composite
+frames in this session, so nothing here was checked by eye. Both seats measure
+62x87 for graveyard and library, level to the pixel, with the whole worst case
+loaded at once (concede, name, life, mana, a commander damage row, the loss
+banner, the exile chip and a filled graveyard): rail content 320px in a 320px
+rail, no scrollbar. A full bot game was then played with a watcher recording any
+tick where the two piles differed in size or position - none, across the game,
+including the turn a real card (Valiant Guard) landed in the graveyard.
+
+562 tests, typecheck clean.
