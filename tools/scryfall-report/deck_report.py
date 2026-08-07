@@ -59,6 +59,22 @@ ENTRY = re.compile(r"^(\d+)\s*x?\s+(.+?)\s*(?:\((?:[^)]*)\)\s*[\w-]*)?\s*$")
 # whole point is that the output is a list of things to build.
 # ---------------------------------------------------------------------------
 BLOCKERS = [
+    # --- keyword mechanics and whole-card shapes, first: these override
+    # anything else on the card, because a card with Suspend on it is not
+    # addable however ordinary the rest of its text is.
+    (r"^(Suspend|Devour|Bestow|Cascade|Convoke|Delve|Escape|Evoke|Kicker|Madness|Flashback|Dredge|Buyback|Embalm|Eternalize|Unearth|Cycling|Morph|Disturb|Adapt|Mutate)\b|\bgains? infect\b|\binfect\b",
+     "Keyword mechanics the engine does not implement",
+     "each is its own rules system - Suspend, Devour, Bestow, Infect and friends"),
+    (r"would be put into (your|a) graveyard.*instead|it puts twice that many|that many plus one|would (be put|get|create).*instead",
+     "Replacement effects",
+     "nothing in the engine can intercept an event and change it on the way through"),
+    (r"^Skip your |maximum hand size|^You may play an additional land|play lands from your graveyard|^You may play ",
+     "Static rules changes",
+     "cards that edit the rules of the turn itself have nowhere to live"),
+    (r"without paying its mana cost|for its (mana )?cost|As an additional cost",
+     "Alternative and additional casting costs",
+     "casting.ts pays the printed cost and nothing else"),
+
     (r"\{T\}: Add|^Add \{|^Add one mana|\{T\}, .*: Add",
      "Mana abilities on nonland permanents, and colourless mana",
      "Color is W|U|B|R|G and addMana takes a Color, so a mana rock cannot be written at all"),
@@ -80,6 +96,27 @@ BLOCKERS = [
     (r"for up to (a|one|two|three|\d+) |put one onto the battlefield and the rest",
      "Searching for more than one card at a time",
      "searchLibrary finds exactly one card and sends it to one destination"),
+    (r"put that card on top|on top of (your|their) library",
+     "Tutoring to the top of the library",
+     "searchLibrary's destinations are hand and battlefield only"),
+    (r"^Choose one|^Choose two|^• |^\* ",
+     "Modal spells written as a bullet list",
+     "the DSL has a modal effect; gen_fixtures has no pattern for the 'Choose one -' template"),
+    (r"counters? on target|put a \+1/\+1 counter on target",
+     "Counters placed on a chosen target",
+     "addCounter always applies to the card the ability is printed on"),
+    (r"\bmill\b|\bmills\b",
+     "Mill",
+     "nothing can move cards from a library to a graveyard"),
+    (r"Activate only|Cast this spell only",
+     "Timing and activation restrictions",
+     "an ability is either activatable or it is not; there is no condition on it"),
+    (r"\bpay (any amount of|X) life\b|Pay \d+ life",
+     "Paying life as a cost",
+     "costs are mana and tapping"),
+    (r"^Attacking .* get |you control with .* (have|has|get)|creatures you control get .* and (have|gain)",
+     "Statics that are conditional or restricted",
+     "staticBuff is an unconditional +N/+N, optionally narrowed by subtype"),
     (r"\bSacrifice\b|\bsacrifices\b|\bsacrificed\b",
      "Sacrifice, as a cost and as an effect",
      "not modelled at all"),
@@ -89,7 +126,7 @@ BLOCKERS = [
     (r"\bdiscard",
      "Discard",
      "no effect can move a card from a hand to a graveyard"),
-    (r"\bequal to\b|\bfor each\b|\btimes\b",
+    (r"\bequal to\b|\bfor each\b|\btimes\b|-X/-X|\+X/\+X|\bX (creature|1/1|target)",
      "Dynamic amounts",
      "every number in the DSL is a literal, so 'equal to its power' cannot be written"),
     (r"\bgains? (flying|trample|haste|vigilance|lifelink|deathtouch|first strike|double strike|indestructible|hexproof|menace|reach)|\b(have|has) (flying|trample|haste|vigilance|lifelink|deathtouch|indestructible|hexproof)",
@@ -169,13 +206,49 @@ def blocker_for(line):
 # one small engine feature and one generator pattern, not three systems.
 # ---------------------------------------------------------------------------
 TRIGGER_WRAPPERS = [
-    (r"^When(?:ever)? (?:this creature|this permanent|this artifact|this enchantment|~) enters,\s*(.+)$",
+    (r"^When(?:ever)? (?:this creature|this permanent|this artifact|this enchantment|this land|~) enters,\s*(.+)$",
      "enters-battlefield"),
     (r"^When(?:ever)? (?:this creature|this permanent|~) dies,\s*(.+)$", "dies"),
     (r"^When(?:ever)? (?:this creature|~) attacks,\s*(.+)$", "attacks"),
     (r"^When(?:ever)? another creature you control enters,\s*(.+)$", "permanent-enters"),
-    (r"^When(?:ever)? a land enters(?: the battlefield)?(?: under your control)?,\s*(.+)$", "landfall"),
+    (r"^When(?:ever)? a land you control enters(?: the battlefield)?,\s*(.+)$", "landfall"),
 ]
+
+# Trigger shapes that are perfectly ordinary Magic and that the engine has no
+# event for. Kept apart from BLOCKERS so they are named as *events to add*
+# rather than as whatever their effect happens to mention - "whenever you gain
+# life, put a +1/+1 counter on each Pest" is a missing trigger, not a missing
+# counter system, and this deck is built on that one trigger.
+UNSUPPORTED_TRIGGERS = [
+    (r"^When(?:ever)? you gain life,", "you gain life"),
+    (r"^When(?:ever)? .* is dealt damage,", "a permanent is dealt damage"),
+    (r"^When(?:ever)? .* leaves the battlefield", "a permanent leaves the battlefield"),
+    (r"^When(?:ever)? (a|an|another) .*(you control|a player controls)? dies,", "a permanent other than this one dies"),
+    (r"^When(?:ever)? (a|an) .* you control attacks,", "a permanent other than this one attacks"),
+    (r"^When(?:ever)? a land enters,", "a land enters under any player's control"),
+    (r"^When(?:ever)? (a|an|another) [A-Za-z, ]+ enters,", "another permanent enters, narrowed by type"),
+]
+# Deliberately no catch-all here. An over-broad "whenever anything happens"
+# entry swallowed Arasta of the Endless Web, whose trigger is an opponent
+# casting a spell and which belongs under Cast triggers - a named gap that
+# other cards in the same list share. A line that reaches the end unmatched is
+# reported as unrecognised, which is a worse answer to read and a better one to
+# have.
+
+
+# "Morbid - ", "Landfall - ", "Magecraft - ", "Infusion - ". Ability words are
+# italic flavour with no rules meaning at all; leaving them on the front of a
+# line stops every pattern below from matching and sends genuinely ordinary
+# triggers into "unrecognised".
+ABILITY_WORD = re.compile(r"^[A-Z][A-Za-z' ]{2,20}\s*[-—]\s*(?=[A-Z])")
+# "Choose one -" opens a modal spell and is rules text, not flavour. It matches
+# the shape of an ability word exactly, and stripping it leaves a bullet list
+# with nothing to say what the bullets are for.
+NOT_AN_ABILITY_WORD = re.compile(r"^Choose (one|two|three)\b", re.I)
+
+
+def strip_ability_word(line):
+    return line if NOT_AN_ABILITY_WORD.match(line) else ABILITY_WORD.sub("", line)
 
 
 # Wording the DSL already covers, written a different way.
@@ -203,26 +276,40 @@ def normalise(text):
     return out
 
 
+def tidy(text):
+    """A sentence, capitalised and full-stopped, the way SPELL_RULES expects it."""
+    sentence = text.strip()
+    if not sentence:
+        return ""
+    sentence = sentence[0].upper() + sentence[1:]
+    return sentence if sentence.endswith(".") else sentence + "."
+
+
 def effect_is_expressible(text):
     """True if this sentence is something SPELL_RULES already builds."""
-    sentence = normalise(text.strip())
-    if not sentence:
-        return False
-    sentence = sentence[0].upper() + sentence[1:]
-    if not sentence.endswith("."):
-        sentence += "."
-    for pattern, build in gen.SPELL_RULES:
-        match = re.match(pattern, sentence)
-        if match:
-            built = build(match)
-            return built is not None and "None" not in built
-    # The two trigger effects gen_fixtures hard-codes rather than listing in
-    # SPELL_RULES, so they count as expressible too.
-    return bool(re.match(r"^(You gain \d+ life|Draw a card)\.$", sentence))
+    # Both forms, because normalising is not free: rewriting "put that card into
+    # your hand" to "put it into your hand" broke Profane Tutor, whose exact
+    # wording SPELL_RULES already matched. A normalisation that helps one card
+    # must not be allowed to hide another.
+    for sentence in (tidy(text), tidy(normalise(text))):
+        if not sentence:
+            continue
+        for pattern, build in gen.SPELL_RULES:
+            match = re.match(pattern, sentence)
+            if match:
+                built = build(match)
+                if built is not None and "None" not in built:
+                    return True
+        # The two trigger effects gen_fixtures hard-codes rather than listing in
+        # SPELL_RULES, so they count as expressible too.
+        if re.match(r"^(You gain \d+ life|Draw a card)\.$", sentence):
+            return True
+    return False
 
 
-def analyse_line(line):
+def analyse_line(raw_line):
     """(title, why) for one oracle line the generator refused."""
+    line = strip_ability_word(raw_line)
     for pattern, event in TRIGGER_WRAPPERS:
         match = re.match(pattern, line, re.I)
         if not match:
@@ -241,8 +328,20 @@ def analyse_line(line):
         # The wrapper is fine, the effect is not. Diagnose the effect.
         return blocker_for(core)
 
-    # Not a trigger. If the line only failed because of how it is worded, that
-    # is a pattern to add to gen_fixtures rather than anything to build.
+    # Not a trigger the engine has. Before blaming the effect, check whether the
+    # whole card shape is the problem - a keyword mechanic or a replacement
+    # effect on the card overrides everything else about it.
+    for pattern, title, why in BLOCKERS[:4]:
+        if re.search(pattern, line, re.I):
+            return title, why
+
+    for pattern, event in UNSUPPORTED_TRIGGERS:
+        if re.match(pattern, line, re.I):
+            return ("Trigger event the engine does not have: %s" % event,
+                    "triggeredAbilities know five events; this is a sixth")
+
+    # If the line only failed because of how it is worded, that is a pattern to
+    # add to gen_fixtures rather than anything to build.
     if effect_is_expressible(line):
         return ("Generator gap - wording variant of an effect the DSL already has",
                 "the engine can do this today; gen_fixtures matches one templating of it "
@@ -272,10 +371,17 @@ def load_oracle():
             card = json.loads(row)
             if card.get("layout") in NON_CARD_LAYOUTS:
                 continue
-            # Alchemy rebalances are digital-only and shadow their paper
-            # originals under names like "A-Lightning Bolt".
-            games = card.get("games")
-            if games and "paper" not in games:
+            # Alchemy rebalances are digital-only cards that shadow their paper
+            # originals, and Scryfall names them "A-Lightning Bolt".
+            #
+            # Filtering these by `games` instead was the obvious move and was
+            # wrong: oracle-cards picks one *representative printing* per card,
+            # and for Bayou that is Vintage Masters and for Sylvan Tutor it is
+            # Masters Edition IV - both MTGO-only sets. Both cards are perfectly
+            # legal in paper, and both came back from the first run of a real
+            # decklist as "no such card", which is the worst possible way for
+            # this tool to be wrong.
+            if card["name"].startswith("A-"):
                 continue
             full.setdefault(card["name"].lower(), card)
             # "Fire // Ice" is listed under its full name; people type either
@@ -340,12 +446,25 @@ def classify(card):
         return "blocked", [(card.get("mana_cost") or "", "X, hybrid or phyrexian mana in the cost",
                             "parse_mana_cost refuses anything but digits and WUBRG")]
 
+    # ADDABLE has to mean "the generator will emit this", and the generator only
+    # emits creatures, instants and sorceries. Without this guard Bayou came
+    # back addable: it has no rules text at all, so `interpret` was perfectly
+    # happy with it - while emit() would have written it out as a creature with
+    # no power or toughness, and the engine grants mana abilities from explicit
+    # activatedAbilities rather than from the land types on a card. A tool that
+    # promises a land it cannot deliver is worse than one that admits it.
     if "Instant" in type_line or "Sorcery" in type_line:
         if gen.spell_effect(card) is not None:
             return "addable", None
-    else:
+    elif "Creature" in type_line:
         if gen.interpret(card) is not None:
             return "addable", None
+    else:
+        kind = type_line.split("—")[0].strip() or type_line
+        return "blocked", [(type_line,
+                            "Card types the generator does not emit: %s" % kind,
+                            "gen_fixtures writes creatures, instants and sorceries; lands, "
+                            "artifacts and enchantments have no emit path at all")]
 
     lines = oracle_lines(card)
     if not lines:
