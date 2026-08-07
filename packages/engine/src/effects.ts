@@ -14,6 +14,7 @@ import { damageCreature, damagePlayer } from "./damage.js";
 import { effectivePower } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
 import { enteredBattlefield, putOntoBattlefield } from "./permanents.js";
+import { gainLife } from "./life.js";
 
 /**
  * Applies a resolved (non-permanent) effect: spell/ability damage, draw,
@@ -52,7 +53,7 @@ export function applyEffect(
           }
         }
       }
-      if (hasLifelink && totalDealt > 0) controller.life += totalDealt;
+      if (hasLifelink && totalDealt > 0) gainLife(state, controllerId, totalDealt);
       if (totalDealt > 0) {
         log(state, `${cardName(state, sourceInstanceId)} deals ${totalDealt} damage`);
         if (hasLifelink) log(state, `${controllerId} gains ${totalDealt} life (lifelink)`);
@@ -71,10 +72,10 @@ export function applyEffect(
     case "gainLife": {
       for (const target of targets) {
         if (target.kind === "player") {
-          requirePlayer(state, target.playerId).life += effect.amount;
+          gainLife(state, target.playerId, effect.amount);
         }
       }
-      if (targets.length === 0) controller.life += effect.amount;
+      if (targets.length === 0) gainLife(state, controllerId, effect.amount);
       log(state, `${controllerId} gains ${effect.amount} life`);
       return;
     }
@@ -117,13 +118,19 @@ export function applyEffect(
       return;
     }
     case "addCounterToEachOther": {
-      // "each other [subtype] you control" - untargeted, so it sweeps the controller's
-      // battlefield rather than reading `targets`, and skips the source itself.
+      // "each [subtype] you control" - untargeted, so it sweeps the controller's
+      // battlefield rather than reading `targets`. The source is skipped unless
+      // the card says otherwise: most of this family says "each *other*
+      // creature", but Blech says "each Pest ... you control" and is a Pest.
       for (const instance of controller.battlefield) {
-        if (instance.instanceId === sourceInstanceId) continue;
+        if (instance.instanceId === sourceInstanceId && !effect.includesSelf) continue;
         const def = state.cardDefinitions[instance.definitionId];
         if (!def?.types.includes("Creature")) continue;
-        if (effect.subtype && !def.subtypes?.includes(effect.subtype)) continue;
+        // Any one of the named subtypes is enough - "each Pest, Bat, Insect,
+        // Snake, and Spider you control" is five separate ways to qualify.
+        if (effect.subtypes?.length && !effect.subtypes.some((s) => def.subtypes?.includes(s))) {
+          continue;
+        }
         instance.plusOneCounters += effect.amount;
       }
       return;

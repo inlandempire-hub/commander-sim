@@ -1,5 +1,6 @@
 import type { CardInstance, GameState } from "./types.js";
 import { log, requireDefinition, requirePlayer } from "./state.js";
+import { gainLife } from "./life.js";
 import { effectivePower, effectiveToughness } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
 import { pushOntoStack } from "./permanents.js";
@@ -249,7 +250,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       // lifelink for the attacker and took no commander damage either.
       const { dealt } = damagePlayer(state, defender, power);
       if (attackerHasLifelink && dealt > 0) {
-        requirePlayer(state, attackerFound.instance.controllerId).life += dealt;
+        gainLife(state, attackerFound.instance.controllerId, dealt);
       }
       if (attackerFound.instance.isCommander && dealt > 0) {
         defender.commanderDamageTaken[attackerInstanceId] =
@@ -299,7 +300,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       const { dealt: dealtToAttacker } = damageCreature(state, attackerFound.instance, blockerPower);
       if (blockerHasDeathtouch && dealtToAttacker > 0) anyBlockerDeathtouchDamage = true;
       if (blockerHasLifelink && dealtToAttacker > 0) {
-        requirePlayer(state, blockerFound.instance.controllerId).life += dealtToAttacker;
+        gainLife(state, blockerFound.instance.controllerId, dealtToAttacker);
       }
     }
     if (anyBlockerDeathtouchDamage) attackerFound.instance.deathtouchDamage = true;
@@ -319,7 +320,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       // blockers, and over them to the player if it tramples. Only what
       // prevention swallowed is missing from it.
       const dealt = power - preventedByBlockers - (remainingPower - trampledThrough);
-      if (dealt > 0) requirePlayer(state, attackerFound.instance.controllerId).life += dealt;
+      if (dealt > 0) gainLife(state, attackerFound.instance.controllerId, dealt);
     }
   }
 }

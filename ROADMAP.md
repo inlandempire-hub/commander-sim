@@ -2289,3 +2289,66 @@ Nothing left on this list finishes more than three cards at a time, and most of
 the remaining 75 are blocked by two or three separate things. The cheap
 structural wins are done; from here it is closer to card-by-card work, which is
 what the user expected.
+
+## Step 4: conditional taplands, and "whenever you gain life" (2026-08-07)
+
+Three features were asked for; two were built and one was refused after reading
+the cards, which is written out below because the refusal is the more useful
+half.
+
+### Conditional taplands - Deathcap Glade, Undergrowth Stadium, Woodland Cemetery
+
+`entersTappedUnless` beside the existing `entersTapped`: the permanent enters
+tapped by default and the condition is the exception, which is the way the cards
+are worded and priced. A closed list of three shapes rather than a predicate
+language - "two or more other lands", "two or more opponents", "a Swamp or a
+Forest" - because those three cover every dual in the format and a fourth costs
+nothing to add the day one needs it.
+
+The condition is checked with the permanent already on the battlefield, which is
+why "other lands" says *other*: counting itself would have Deathcap Glade enter
+untapped off a single land, one turn early. The subtype check reads the type
+line, so Bayou satisfies "a Swamp or a Forest" without naming a single dual.
+
+### "Whenever you gain life" - Blech, Loafing Pest and Pest Mascot
+
+A sixth trigger event, and one new function: `gainLife` in life.ts. Six places
+used to do `player.life += n` directly - the gainLife effect, lifelink on a
+damage effect, and four separate paths through combat damage - and a trigger
+wired into only some of them would be worse than none: it would work when you
+cast a lifegain spell and silently do nothing when a lifelinker connected, which
+is the harder case to notice and the commoner one in play. All six go through
+the one door now.
+
+It fires once per life-gain *event*, not per point: gaining 7 life puts one
+counter on Pest Mascot.
+
+`addCounterToEachOther` grew `subtypes` (plural) and `includesSelf`. Blech reads
+"each Pest, Bat, Insect, Snake, and Spider you control" - five subtypes, and no
+"other", and Blech is a Pest, so it counts itself. The Oxford comma is a genuine
+trap there: splitting that list on commas alone leaves "and Spider" as a
+subtype, which matches nothing on any card, and Blech would quietly have covered
+four types instead of five.
+
+### Modal spells: refused, and why
+
+Asked for, and the honest answer is that building it finishes **none** of the
+three cards the report attributed to it. Read against Scryfall: Golgari Charm's
+third mode is Regenerate; both of Return of the Wildspeaker's modes want dynamic
+amounts ("the greatest power among non-Human creatures you control"); and
+Scheming Symmetry is not modal at all - "Choose two target players" has no dash
+and no bullets, and was being filed under modal by a pattern that only looked at
+the first two words.
+
+So the report was fixed instead. A bullet is a *mode*, and what matters is
+whether its contents can be expressed - it now diagnoses each bullet by its
+body, and the modal heading is reserved for the real "Choose one -" templating.
+Golgari Charm now correctly reports Regenerate as its blocker, and Scheming
+Symmetry stopped claiming to be a modal spell.
+
+`audit_triggers.py` learned the new event; without that it reported both new
+cards as missing a trigger *and* having invented one - contradicting itself
+about the same card, which is how an audit gets ignored.
+
+**The list is at 30 of 100.** 856 fixtures, both audits clean. 639 tests,
+typecheck clean.

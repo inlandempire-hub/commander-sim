@@ -19,6 +19,40 @@ import { moveCard, requireDefinition } from "./state.js";
  * either primitive stayed in `stack.ts` the two files would import each other.
  */
 
+/**
+ * Whether a permanent that would enter tapped gets to enter untapped instead.
+ *
+ * Only ever consulted for a card that carries `entersTappedUnless`; everything
+ * else enters tapped exactly as `entersTapped` says. Returning false is the
+ * safe direction - a tapland that enters tapped when it should not is a minor
+ * annoyance, where one entering untapped is a free card.
+ */
+function entersUntapped(state: GameState, instance: CardInstance, def: CardDefinition): boolean {
+  const condition = def.entersTappedUnless;
+  if (!condition) return false;
+  const controller = state.players.find((p) => p.id === instance.controllerId);
+  if (!controller) return false;
+
+  switch (condition.kind) {
+    case "controls-other-lands": {
+      const others = controller.battlefield.filter(
+        (card) =>
+          card.instanceId !== instance.instanceId &&
+          state.cardDefinitions[card.definitionId]?.types.includes("Land"),
+      );
+      return others.length >= condition.count;
+    }
+    case "opponents":
+      return state.players.length - 1 >= condition.count;
+    case "controls-subtype":
+      // "a Swamp or a Forest" - any one of them, and a dual counts for both.
+      return controller.battlefield.some((card) => {
+        const other = state.cardDefinitions[card.definitionId];
+        return condition.subtypes.some((subtype) => other?.subtypes?.includes(subtype));
+      });
+  }
+}
+
 export function pushOntoStack(
   state: GameState,
   sourceInstanceId: string,
@@ -76,7 +110,13 @@ export function enteredBattlefield(
   // Either the card says so on its face, or whatever put it here said so (a
   // ramp spell fetching a land onto the battlefield tapped). Not exclusive:
   // a land that enters tapped anyway still enters tapped when fetched.
-  if (options.tapped || def.entersTapped) instance.tapped = true;
+  //
+  // The condition is checked with the permanent already on the battlefield,
+  // which is why "two or more *other* lands" says other - counting itself would
+  // make Deathcap Glade untapped off a single land, one turn too early.
+  if (options.tapped || (def.entersTapped && !entersUntapped(state, instance, def))) {
+    instance.tapped = true;
+  }
 
   // Triggers printed on the permanent that just arrived.
   for (const trigger of def.triggeredAbilities ?? []) {

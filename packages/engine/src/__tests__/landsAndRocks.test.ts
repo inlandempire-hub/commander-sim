@@ -221,13 +221,27 @@ describe("what the generator refused", () => {
    * either wrongly accepted at some point while this was built, or is the
    * obvious next thing somebody would be tempted to add by hand.
    */
-  it("has no conditional taplands", () => {
-    // "Enters tapped unless you control two or more other lands" written as
-    // flatly tapped is a strictly worse card than the one printed.
+  it("never writes a conditional tapland as a flat one", () => {
+    // These three were refused outright until the condition existed, because
+    // "enters tapped unless you control two or more other lands" written as
+    // flatly tapped is a strictly worse card than the one printed. They are in
+    // now - and the thing that must never happen is one of them carrying
+    // `entersTapped` with no condition attached.
     const state = mainPhase();
-    for (const id of ["woodland-cemetery", "deathcap-glade", "overgrown-tomb", "undergrowth-stadium"]) {
-      expect(state.cardDefinitions[id], id).toBeUndefined();
+    for (const id of ["woodland-cemetery", "deathcap-glade", "undergrowth-stadium"]) {
+      const def = state.cardDefinitions[id];
+      expect(def, id).toBeDefined();
+      expect(def!.entersTapped, id).toBe(true);
+      expect(def!.entersTappedUnless, id).toBeDefined();
     }
+  });
+
+  it("still refuses the shapes it cannot express", () => {
+    // Overgrown Tomb is "As this land enters, you *may pay 2 life*" - an
+    // optional cost on arrival, not a condition on the board, and a different
+    // problem entirely.
+    const state = mainPhase();
+    expect(state.cardDefinitions["overgrown-tomb"]).toBeUndefined();
   });
 
   it("has no land whose lifegain trigger is really somebody else's arrival", () => {

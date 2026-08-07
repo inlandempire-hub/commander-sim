@@ -113,7 +113,26 @@ export type Effect =
    * matching creature the effect's controller has on the battlefield, always
    * excluding the effect's own source.
    */
-  | { kind: "addCounterToEachOther"; amount: number; subtype?: string }
+  | {
+      kind: "addCounterToEachOther";
+      amount: number;
+      /**
+       * Any one of these subtypes will do - "each Pest, Bat, Insect, Snake, and
+       * Spider you control" (Blech, Loafing Pest). A single subtype was enough
+       * until a card named five.
+       */
+      subtypes?: string[];
+      /**
+       * Whether the permanent the effect came from counts as one of them.
+       *
+       * The default is no, because the wording that needs this effect is
+       * usually "each *other* creature you control". Blech says "each Pest ...
+       * you control" with no "other", and Blech is a Pest - so it counts
+       * itself, and leaving this off would make the card visibly worse than it
+       * reads.
+       */
+      includesSelf?: boolean;
+    }
   /**
    * "Double this creature's power until end of turn" (Tifa Lockhart's
    * landfall trigger). Applies to the effect's own source, and stacks: each
@@ -199,6 +218,19 @@ export type Effect =
       tapped?: boolean;
     };
 
+/**
+ * The conditions real taplands actually print. Deliberately a closed list
+ * rather than a general predicate language: three shapes cover every dual in
+ * the format, and a fourth can be added the day a card needs it.
+ */
+export type EntersUntappedCondition =
+  /** "unless you control two or more other lands" - Deathcap Glade. */
+  | { kind: "controls-other-lands"; count: number }
+  /** "unless you have two or more opponents" - Undergrowth Stadium. */
+  | { kind: "opponents"; count: number }
+  /** "unless you control a Swamp or a Forest" - Woodland Cemetery. */
+  | { kind: "controls-subtype"; subtypes: string[] };
+
 export interface TriggeredAbility {
   /**
    * `enters-battlefield`, `attacks` and `dies` all watch the card the ability
@@ -210,7 +242,20 @@ export interface TriggeredAbility {
    * arrives - so they gained life exactly once, at the one moment their own
    * text excludes, and never again.
    */
-  event: "enters-battlefield" | "attacks" | "dies" | "landfall" | "permanent-enters";
+  event:
+    | "enters-battlefield"
+    | "attacks"
+    | "dies"
+    | "landfall"
+    | "permanent-enters"
+    /**
+     * "Whenever you gain life." Watches the *controller* of the permanent the
+     * ability is printed on, so it fires however the life arrived - a spell, a
+     * land, lifelink in combat - rather than needing every source to know about
+     * it. See gainLife in life.ts, which is the one door all life gain goes
+     * through for exactly that reason.
+     */
+    | "gain-life";
   effect: Effect;
   /**
    * `permanent-enters` only. Whose permanents this watches: "controller" for
@@ -329,6 +374,16 @@ export interface CardDefinition {
    * flatly tapped - it would be strictly worse than the card really is.
    */
   entersTapped?: boolean;
+  /**
+   * "This land enters tapped **unless** ..." - the drawback most nonbasic duals
+   * carry, and the reason those cards were refused until now. Writing one as
+   * flatly tapped makes it strictly worse than the printed card, so a condition
+   * was the only honest way to have them at all.
+   *
+   * Checked as the permanent arrives; if the condition holds it enters
+   * untapped, otherwise `entersTapped` applies as usual.
+   */
+  entersTappedUnless?: EntersUntappedCondition;
   triggeredAbilities?: TriggeredAbility[];
   activatedAbilities?: ActivatedAbility[];
   /** What resolving this spell does, for instants/sorceries. */

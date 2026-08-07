@@ -332,7 +332,7 @@ function useValueAbility(state: GameState, me: Player): BotAction | null {
     if (!couldAfford(state, me.id, cost)) continue;
 
     if (ability.effect.kind === "addCounterToEachOther") {
-      const subtype = ability.effect.subtype;
+      const subtype = ability.effect.subtypes?.[0];
       const beneficiaries = me.battlefield.filter((c) => {
         if (c.instanceId === instance.instanceId) return false;
         const other = definitionOf(state, c);

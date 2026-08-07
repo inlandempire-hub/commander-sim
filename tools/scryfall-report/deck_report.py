@@ -105,7 +105,11 @@ BLOCKERS = [
     (r"put that card on top|on top of (your|their) library",
      "Tutoring to the top of the library",
      "searchLibrary's destinations are hand and battlefield only"),
-    (r"^Choose one|^Choose two|^• |^\* ",
+    # The dash is load-bearing: real modal templating is "Choose one —" followed
+    # by bullets. Scheming Symmetry opens "Choose two target players." with no
+    # dash and is not modal at all - it was being filed under modal, which would
+    # have had somebody build modal spells expecting to get it.
+    (r"^Choose (one|two|three)\s*[-—]",
      "Modal spells written as a bullet list",
      "the DSL has a modal effect; gen_fixtures has no pattern for the 'Choose one -' template"),
     (r"counters? on target|put a \+1/\+1 counter on target",
@@ -346,6 +350,16 @@ def analyse_line(raw_line):
     completes none of them.
     """
     line = strip_ability_word(raw_line)
+
+    # A bullet is a *mode*, and what matters is whether its contents can be
+    # expressed. Tagging every bullet "modal" and stopping there is what made
+    # the report claim modal spells would finish three cards, when checking the
+    # three by hand showed it finishes none: Golgari Charm's third mode is
+    # Regenerate, both of Return of the Wildspeaker's want dynamic amounts, and
+    # Scheming Symmetry is not modal at all. The bullet is never the blocker.
+    if re.match(r"^[•*]\s*", line):
+        body = re.sub(r"^[•*]\s*", "", line)
+        return [] if effect_is_expressible(body) else _analyse_single(body)
 
     # A trigger the engine does not have, whose effect is also unsupported, is
     # two gaps on one line.

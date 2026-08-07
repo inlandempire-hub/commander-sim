@@ -33,7 +33,7 @@ from pathlib import Path
 DATA = Path(__file__).parent / "data" / "oracle-cards.jsonl.gz"
 
 # The events packages/engine/src/types.ts actually models.
-MODELLED = {"enters-battlefield", "attacks", "dies", "landfall", "permanent-enters"}
+MODELLED = {"enters-battlefield", "attacks", "dies", "landfall", "permanent-enters", "gain-life"}
 
 
 def load_scryfall():
@@ -155,6 +155,12 @@ def classify(clause, card_name):
 
     if re.search(r"leaves the battlefield", c):
         return None, "leaves-the-battlefield trigger - not modelled"
+    # "Whenever you gain life" became a real event on 2026-08-07, for Blech,
+    # Loafing Pest and Pest Mascot. Checked before the catch-all below, which
+    # otherwise reports a correctly modelled trigger as both missing *and*
+    # invented - the audit contradicting itself about the same card.
+    if re.search(r"^whenever you gain life", c):
+        return "gain-life", None
     if re.search(r"you (cast|draw|gain|lose)", c):
         return None, "watches you casting/drawing/gaining - not modelled"
     if "becomes tapped" in c or "becomes the target" in c:

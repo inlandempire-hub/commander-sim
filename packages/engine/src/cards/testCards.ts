@@ -1908,7 +1908,7 @@ export const AGENT_PHIL_COULSON: CardDefinition = {
   toughness: 2,
   keywords: ["Vigilance"],
   activatedAbilities: [
-    { cost: { tap: true }, effect: { kind: "addCounterToEachOther", amount: 1, subtype: "Hero" } },
+    { cost: { tap: true }, effect: { kind: "addCounterToEachOther", amount: 1, subtypes: ["Hero"] } },
   ],
   canBeCommander: true,
   tier: "scripted",
@@ -10840,6 +10840,87 @@ export const COMMAND_TOWER: CardDefinition = {
   tier: "vanilla",
 };
 
+
+/* ---------------------------------------------------------------------------
+ * Conditional taplands, and "whenever you gain life" (2026-08-07)
+ *
+ * The taplands enter tapped *unless* something is true, which is the whole
+ * drawback the card is priced around - writing one as flatly tapped makes it
+ * strictly worse than the printed card, which is why these three were refused
+ * until the condition existed.
+ *
+ * Blech and Pest Mascot are the deck's engine. Note Blech says "each Pest, Bat,
+ * Insect, Snake, and Spider you control" with no "other", and Blech is a Pest,
+ * so it counts itself - hence `includesSelf`.
+ * ------------------------------------------------------------------------- */
+
+export const DEATHCAP_GLADE: CardDefinition = {
+  id: "deathcap-glade",
+  name: "Deathcap Glade",
+  scryfallId: "78897104-80e1-4d8a-9958-145b40f679e8",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  entersTappedUnless: { kind: "controls-other-lands", count: 2 },
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const UNDERGROWTH_STADIUM: CardDefinition = {
+  id: "undergrowth-stadium",
+  name: "Undergrowth Stadium",
+  scryfallId: "f25aa8aa-e2f7-4634-8a96-2082e76c6503",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  entersTappedUnless: { kind: "opponents", count: 2 },
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const WOODLAND_CEMETERY: CardDefinition = {
+  id: "woodland-cemetery",
+  name: "Woodland Cemetery",
+  scryfallId: "4d6f6c96-f813-4864-b4e1-b2a0aa8be1e8",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  entersTappedUnless: { kind: "controls-subtype", subtypes: ["Swamp", "Forest"] },
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const PEST_MASCOT: CardDefinition = {
+  id: "pest-mascot",
+  name: "Pest Mascot",
+  scryfallId: "d882beb9-6766-4818-afbb-f6fd7a2d5b70",
+  types: ["Creature"],
+  subtypes: ["Pest", "Ape"],
+  manaCost: { generic: 1, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 2,
+  toughness: 3,
+  keywords: ["Trample"],
+  triggeredAbilities: [{ event: "gain-life", effect: { kind: "addCounter", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const BLECH_LOAFING_PEST: CardDefinition = {
+  id: "blech-loafing-pest",
+  name: "Blech, Loafing Pest",
+  scryfallId: "f588fa50-7cc5-41ba-90df-2d252eb5c785",
+  types: ["Creature"],
+  subtypes: ["Pest"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 1, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 3,
+  toughness: 4,
+  triggeredAbilities: [{ event: "gain-life", effect: { kind: "addCounterToEachOther", amount: 1, subtypes: ["Pest", "Bat", "Insect", "Snake", "Spider"], includesSelf: true } }],
+  canBeCommander: true,
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -11693,5 +11774,10 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     BOGWATER_LUMARET,
     BIRDS_OF_PARADISE,
     COMMAND_TOWER,
+    DEATHCAP_GLADE,
+    UNDERGROWTH_STADIUM,
+    WOODLAND_CEMETERY,
+    PEST_MASCOT,
+    BLECH_LOAFING_PEST,
   ].map((def) => [def.id, def]),
 );

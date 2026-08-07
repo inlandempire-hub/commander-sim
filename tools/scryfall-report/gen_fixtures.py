@@ -126,6 +126,30 @@ TAP_ADD = re.compile(r"^\{T\}: Add ((?:\{[WUBRGC]\})+)\.$")
 TAP_ADD_EITHER = re.compile(r"^\{T\}: Add \{([WUBRGC])\}(?:, \{([WUBRGC])\},)? or \{([WUBRGC])\}\.$")
 ENTERS_TAPPED = re.compile(r"^This (?:land|permanent|artifact|creature|enchantment) enters tapped\.$")
 
+# "This land enters tapped unless ..." - the drawback most nonbasic duals carry.
+# Three conditions cover every one of them in the format; a fourth gets added
+# the day a card needs it, rather than inventing a predicate language now.
+ENTERS_TAPPED_UNLESS_LANDS = re.compile(
+    r"^This land enters tapped unless you control (two|three|\d+) or more other lands\.$"
+)
+ENTERS_TAPPED_UNLESS_OPPONENTS = re.compile(
+    r"^This land enters tapped unless you have (two|three|\d+) or more opponents\.$"
+)
+ENTERS_TAPPED_UNLESS_SUBTYPE = re.compile(
+    r"^This land enters tapped unless you control an? ([A-Za-z]+)(?: or an? ([A-Za-z]+))?\.$"
+)
+
+# "Whenever you gain life, put a +1/+1 counter on this creature." (Pest Mascot)
+GAIN_LIFE_COUNTER_SELF = re.compile(
+    r"^Whenever you gain life, put a \+1/\+1 counter on this creature\.$"
+)
+# "Whenever you gain life, put a +1/+1 counter on each Pest, Bat, Insect, Snake,
+# and Spider you control." (Blech, Loafing Pest) - note "each", not "each
+# other": Blech is a Pest and counts itself.
+GAIN_LIFE_COUNTER_EACH = re.compile(
+    r"^Whenever you gain life, put a \+1/\+1 counter on each ([A-Za-z, ]+?) you control\.$"
+)
+
 # "{T}: Add one mana of any color." and Command Tower's restricted version.
 # Both become five abilities, one per colour - the same trick as "Add {B} or
 # {G}", because activatedAbilities is already a list. The restricted one marks
@@ -154,6 +178,42 @@ SAC_FOR_BASIC = re.compile(
     r"^Sacrifice this (?:creature|land|permanent): Search your library for a basic land card, "
     r"put (?:it|that card) onto the battlefield( tapped)?, then shuffle\.$"
 )
+
+
+def enters_tapped_condition(line):
+    """The `entersTappedUnless` clause for a conditional tapland, or None."""
+    lands = ENTERS_TAPPED_UNLESS_LANDS.match(line)
+    if lands:
+        return '{ kind: "controls-other-lands", count: %d }' % number(lands.group(1))
+    opponents = ENTERS_TAPPED_UNLESS_OPPONENTS.match(line)
+    if opponents:
+        return '{ kind: "opponents", count: %d }' % number(opponents.group(1))
+    subtype = ENTERS_TAPPED_UNLESS_SUBTYPE.match(line)
+    if subtype:
+        names = [g for g in subtype.groups() if g]
+        return '{ kind: "controls-subtype", subtypes: [%s] }' % ", ".join('"%s"' % n for n in names)
+    return None
+
+
+def gain_life_trigger(line):
+    """A "whenever you gain life" trigger, or None."""
+    if GAIN_LIFE_COUNTER_SELF.match(line):
+        return '{ event: "gain-life", effect: { kind: "addCounter", amount: 1 } }'
+    each = GAIN_LIFE_COUNTER_EACH.match(line)
+    if each:
+        # "Pest, Bat, Insect, Snake, and Spider" -> the five subtypes. The
+        # Oxford comma is the catch: splitting on commas first leaves "and
+        # Spider" as a subtype, and "and Spider" matches nothing on any card.
+        parts = re.split(r",\s*|\s+and\s+", each.group(1))
+        subtypes = [re.sub(r"^and\s+", "", s.strip()) for s in parts if s.strip()]
+        subtypes = [s for s in subtypes if s]
+        if not subtypes:
+            return None
+        return (
+            '{ event: "gain-life", effect: { kind: "addCounterToEachOther", amount: 1, '
+            'subtypes: [%s], includesSelf: true } }' % ", ".join('"%s"' % s for s in subtypes)
+        )
+    return None
 
 
 def enters_trigger(line):
@@ -213,6 +273,7 @@ def interpret_permanent(card):
     activated = []
     triggers = []
     enters_tapped = False
+    enters_tapped_unless = None
 
     subtypes = card["type_line"].split("—")[-1].strip().split() if "—" in card["type_line"] else []
     if "Land" in card["type_line"]:
@@ -223,6 +284,18 @@ def interpret_permanent(card):
     for line in [l.strip() for l in text.split("\n") if l.strip()]:
         if ENTERS_TAPPED.match(line):
             enters_tapped = True
+            continue
+
+        condition = enters_tapped_condition(line)
+        if condition:
+            # It still enters tapped by default; the condition is the exception.
+            enters_tapped = True
+            enters_tapped_unless = condition
+            continue
+
+        gain = gain_life_trigger(line)
+        if gain:
+            triggers.append(gain)
             continue
 
         tap_add = TAP_ADD.match(line)
@@ -264,7 +337,7 @@ def interpret_permanent(card):
         # A land or an enchantment can say "whenever another creature you
         # control enters" just as a creature can - Seraph Sanctuary does - and
         # it must not become the permanent's own arrival on either path.
-        trigger = enters_trigger(line)
+        trigger = enters_trigger(line) or gain_life_trigger(line)
         if trigger:
             triggers.append(trigger)
             continue
@@ -279,10 +352,10 @@ def interpret_permanent(card):
     # not in any list yet.
     if not activated and not triggers:
         return None
-    return activated, triggers, enters_tapped
+    return activated, triggers, enters_tapped, enters_tapped_unless
 
 
-def emit_permanent(card, activated, triggers, enters_tapped):
+def emit_permanent(card, activated, triggers, enters_tapped, enters_tapped_unless=None):
     """A CardDefinition for a land, artifact or enchantment - no power/toughness."""
     head = card["type_line"].split("—")[0]
     types = [t for t in ("Land", "Artifact", "Enchantment") if t in head]
@@ -310,6 +383,8 @@ def emit_permanent(card, activated, triggers, enters_tapped):
     lines.append("  colorIdentity: [%s]," % ", ".join('"%s"' % c for c in card.get("color_identity") or []))
     if enters_tapped:
         lines.append("  entersTapped: true,")
+    if enters_tapped_unless:
+        lines.append("  entersTappedUnless: %s," % enters_tapped_unless)
     if triggers:
         lines.append("  triggeredAbilities: [%s]," % ", ".join(triggers))
     if activated:
@@ -518,7 +593,7 @@ def interpret(card):
 
     lines, uncounterable = lift_cant_be_countered([l.strip() for l in text.split("\n") if l.strip()])
     for line in lines:
-        trigger = enters_trigger(line)
+        trigger = enters_trigger(line) or gain_life_trigger(line)
         if trigger:
             triggers.append(trigger)
             continue

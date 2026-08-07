@@ -78,10 +78,15 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       )} this turn.`;
     case "addCounter":
       return `Put ${effect.amount} +1/+1 ${plural(effect.amount, "counter")} on this creature.`;
-    case "addCounterToEachOther":
-      return `Put ${effect.amount} +1/+1 ${plural(effect.amount, "counter")} on each other ${
-        effect.subtype ?? "creature"
-      } you control.`;
+    case "addCounterToEachOther": {
+      // "each other Hero you control" vs "each Pest, Bat, Insect, Snake, and
+      // Spider you control" - the "other" is dropped when the source counts
+      // itself, because that is the word the real cards use to mean it.
+      const who = effect.subtypes?.length ? effect.subtypes.join(", ") : "creature";
+      return `Put ${effect.amount} +1/+1 ${plural(effect.amount, "counter")} on each${
+        effect.includesSelf ? "" : " other"
+      } ${who} you control.`;
+    }
     case "doublePower":
       return "Double this creature's power until end of turn.";
     case "destroy":
@@ -162,6 +167,8 @@ function describeTrigger(
       return `When this creature dies, ${lowerFirst(body)}`;
     case "landfall":
       return `Landfall - whenever a land enters the battlefield under your control, ${lowerFirst(body)}`;
+    case "gain-life":
+      return `Whenever you gain life, ${lowerFirst(body)}`;
     case "permanent-enters": {
       // Worded to match the printed card, because these variants really do
       // play differently and the panel is where you find that out: what is
