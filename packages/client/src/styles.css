@@ -1932,6 +1932,26 @@ body {
 /* The header controls are secondary, so they take a muted slate face rather
    than a colour of their own - raised like everything else, but not competing
    with the two buttons that act on the game. */
+/*
+ * The volume slider, sized to sit in the header beside the sound switch.
+ *
+ * Deliberately small. It is a preference you set once and then forget, not a
+ * mixing desk - and the header is a strip of secondary controls above a board
+ * that is the actual thing being looked at.
+ *
+ * `accent-color` rather than a rebuilt track and thumb: the native control
+ * already knows how to be dragged, clicked, focused and driven from the
+ * keyboard, and every one of those is a thing a hand-built one loses.
+ */
+.table__volume {
+  flex: 0 0 auto;
+  width: 84px;
+  height: 18px;
+  margin: 0 2px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .table__particles {
   --btn-face: #39445a;
   --btn-edge: #232b3b;

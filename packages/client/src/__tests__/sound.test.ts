@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { SAMPLES, cueForLogLine, pickIndex, type Cue } from "../sound.js";
+import {
+  DEFAULT_VOLUME,
+  MAX_VOLUME,
+  SAMPLES,
+  cueForLogLine,
+  parseVolume,
+  pickIndex,
+  type Cue,
+} from "../sound.js";
 
 /**
  * The audio itself cannot be tested here - there is no Web Audio in node, and
@@ -144,5 +152,44 @@ describe("pickIndex", () => {
         expect(index).toBeLessThan(count);
       }
     }
+  });
+});
+
+describe("parseVolume", () => {
+  it("uses the default when nothing has been stored", () => {
+    expect(parseVolume(null)).toBe(DEFAULT_VOLUME);
+  });
+
+  it("uses the default rather than silence for an empty string", () => {
+    // Number("") is 0, which is finite and would quietly mute the game - the
+    // one failure here that nobody would think to look for.
+    expect(parseVolume("")).toBe(DEFAULT_VOLUME);
+    expect(parseVolume("   ")).toBe(DEFAULT_VOLUME);
+  });
+
+  it("uses the default for anything that is not a number", () => {
+    expect(parseVolume("loud")).toBe(DEFAULT_VOLUME);
+    expect(parseVolume("NaN")).toBe(DEFAULT_VOLUME);
+  });
+
+  it("reads a stored level back", () => {
+    expect(parseVolume("0.35")).toBeCloseTo(0.35);
+    expect(parseVolume("0")).toBe(0);
+  });
+
+  it("clamps into the range the bus allows", () => {
+    expect(parseVolume("5")).toBe(MAX_VOLUME);
+    expect(parseVolume("-2")).toBe(0);
+  });
+
+  it("leaves headroom above the loudest single cue", () => {
+    // Every cue has its own gain, tuned against the others; the master sits
+    // below 1 so several landing together compress rather than clip.
+    expect(MAX_VOLUME).toBeLessThan(1);
+    expect(MAX_VOLUME).toBeGreaterThan(Math.max(...Object.values(SAMPLES).map((s) => s.gain)));
+  });
+
+  it("starts at the top of its range, so the slider begins where the game was", () => {
+    expect(DEFAULT_VOLUME).toBe(MAX_VOLUME);
   });
 });

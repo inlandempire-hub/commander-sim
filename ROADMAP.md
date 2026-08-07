@@ -1918,3 +1918,29 @@ the library measures 82x115 on both seats and survives an injected
 commander-damage row without the rail scrolling; and choosing Manuale in the lab
 snapped 800 to 700, applied italic live, saved, survived a reload and reached
 the Pass and Concede buttons on the table.
+
+### A volume slider (2026-08-07)
+
+Beside the sound switch in the header, and only there when sound is on - a
+volume control on a muted game is a control that does nothing, and the first
+thing anyone does with one of those is drag it and conclude the audio is broken.
+
+It moves the master bus, not the per-cue balance, so turning it up makes the
+whole table louder without a chip clack suddenly drowning a card being played.
+The bus tops out at 0.9 rather than 1: every cue already has its own gain tuned
+against the others, and the headroom is what lets several landing together
+compress instead of clip.
+
+Two details worth the words. The gain is *ramped* (`setTargetAtTime`, 30ms)
+rather than assigned, because a gain node jumping mid-sample clicks and dragging
+a slider is dozens of jumps a second. And letting go plays a card, since the
+only way to judge a level is against the thing it applies to.
+
+Reading the stored level is deliberately forgiving, and the one case worth
+naming is the empty string: `Number("")` is 0, which is perfectly finite and
+would silently mute the game - a bug nobody thinks to look for, where a game
+that is louder than expected is obvious in a second. That path got tested for
+real rather than only in a unit test, because a failed experiment in the console
+left exactly that value in storage; the next load came back at full volume.
+
+562 tests, typecheck clean.

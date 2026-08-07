@@ -118,6 +118,19 @@ export function cueForLogLine(line: string): Cue | undefined {
 /* --- playing it ------------------------------------------------------------ */
 
 const STORAGE_KEY = "mtg-sim.sound";
+const VOLUME_KEY = "mtg-sim.sound-volume";
+
+/**
+ * The loudest the master bus goes, and the default.
+ *
+ * Below 1 rather than at it: every cue already has its own gain in SAMPLES,
+ * tuned against the others, and leaving headroom above the sum means several
+ * landing together compress rather than clip. The slider moves this, not the
+ * per-cue balance - so turning it up makes the whole table louder without a
+ * chip clack suddenly drowning a card being played.
+ */
+export const MAX_VOLUME = 0.9;
+export const DEFAULT_VOLUME = MAX_VOLUME;
 
 /**
  * How many samples may overlap. Past this the oldest is dropped rather than
@@ -130,6 +143,7 @@ const MAX_VOICES = 6;
 const DETUNE = 0.06;
 
 let enabled = readEnabled();
+let volume = readVolume();
 let context: AudioContext | undefined;
 let master: GainNode | undefined;
 const buffers = new Map<string, AudioBuffer | null>();
@@ -142,6 +156,57 @@ function readEnabled(): boolean {
     return window.localStorage.getItem(STORAGE_KEY) !== "off";
   } catch {
     return true;
+  }
+}
+
+/**
+ * Reads a stored volume, forgivingly.
+ *
+ * Anything unreadable lands on the default rather than on silence: a game that
+ * has quietly muted itself because of a bad storage value is a bug nobody
+ * thinks to look for, where a game that is louder than expected is obvious in
+ * one second.
+ */
+export function parseVolume(raw: string | null): number {
+  // The empty-string check is not paranoia: `Number("")` is 0, which is a
+  // perfectly finite number and would silently mute the game.
+  if (raw === null || raw.trim() === "") return DEFAULT_VOLUME;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return DEFAULT_VOLUME;
+  return Math.min(MAX_VOLUME, Math.max(0, value));
+}
+
+function readVolume(): number {
+  if (typeof window === "undefined") return DEFAULT_VOLUME;
+  try {
+    return parseVolume(window.localStorage.getItem(VOLUME_KEY));
+  } catch {
+    return DEFAULT_VOLUME;
+  }
+}
+
+/** 0 to MAX_VOLUME. */
+export function soundVolume(): number {
+  return volume;
+}
+
+/**
+ * Sets the level, live.
+ *
+ * Ramped rather than assigned: a gain node jumping to a new value mid-sample
+ * clicks, and dragging a slider is dozens of jumps a second. 30ms is under the
+ * threshold where the change reads as gradual and long enough to smooth the
+ * step.
+ */
+export function setSoundVolume(next: number): void {
+  volume = Math.min(MAX_VOLUME, Math.max(0, next));
+  if (master && context) {
+    master.gain.setTargetAtTime(volume, context.currentTime, 0.03);
+  }
+  try {
+    window.localStorage.setItem(VOLUME_KEY, String(volume));
+  } catch {
+    // Storage blocked. The level still applies for this session.
   }
 }
 
@@ -171,7 +236,7 @@ function audio(): { ctx: AudioContext; out: GainNode } | undefined {
   if (!context) {
     context = new Ctor();
     master = context.createGain();
-    master.gain.value = 0.9;
+    master.gain.value = volume;
     master.connect(context.destination);
   }
   if (context.state === "suspended") void context.resume();

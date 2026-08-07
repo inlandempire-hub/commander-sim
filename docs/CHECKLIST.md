@@ -451,6 +451,17 @@ than a synthesiser - Kenney's Casino Audio, CC0.
 - [ ] **Attacking has no sound at all**, for the same reason. Deliberate, not
       missing.
 
+### Volume
+
+- [ ] There is a slider beside the sound button, and it starts at full.
+- [ ] Dragging it changes the level **as you drag**, not on release.
+- [ ] Letting go plays a card, so you can hear what you have just set.
+- [ ] Dragging it does not click or crackle.
+- [ ] All the way down is silent.
+- [ ] The level survives a reload.
+- [ ] Muting with the button hides the slider; turning sound back on brings it
+      back at the level you left it.
+
 ### The rail
 
 - [ ] The library is roughly three times the size it was, and you can actually

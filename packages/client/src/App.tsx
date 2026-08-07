@@ -15,7 +15,16 @@ import {
 } from "@mtg-commander-sim/engine";
 import type { GameController } from "./gameController.js";
 import { PlayerBoard } from "./components/PlayerBoard.js";
-import { cueForLogLine, play, primeSounds, setSoundEnabled, soundEnabled } from "./sound.js";
+import {
+  MAX_VOLUME,
+  cueForLogLine,
+  play,
+  primeSounds,
+  setSoundEnabled,
+  setSoundVolume,
+  soundEnabled,
+  soundVolume,
+} from "./sound.js";
 import { StackView } from "./components/StackView.js";
 import { ActionBar, ConcedeButton } from "./components/ActionBar.js";
 import { CardDetail } from "./components/CardDetail.js";
@@ -130,6 +139,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   /** A modal spell waiting on you to choose which mode you're casting. */
   const [pendingMode, setPendingMode] = useState<{ ownerId: string; instanceId: string } | null>(null);
   const [sound, setSound] = useState(soundEnabled);
+  const [volume, setVolume] = useState(soundVolume);
   const [particles, setParticles] = useState(particlesEnabled);
   /**
    * Something the interface itself wants to say - almost always "you cannot do
@@ -757,6 +767,37 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           >
             {sound ? "Sound on" : "Sound off"}
           </button>
+          {/*
+              The level, beside the switch that turns it on.
+              
+              Only when sound is on: a volume slider on a muted game is a
+              control that does nothing, and the first thing anyone does with
+              one of those is drag it and conclude the sound is broken.
+
+              `input` moves the gain live so you hear the level as you drag;
+              `change` fires once on release and plays a card, because the
+              only way to judge a level is against the thing it applies to.
+              The gain is ramped rather than assigned - see setSoundVolume.
+          */}
+          {sound && (
+            <input
+              type="range"
+              className="table__volume"
+              min={0}
+              max={MAX_VOLUME}
+              step={0.05}
+              value={volume}
+              title={`Volume ${Math.round((volume / MAX_VOLUME) * 100)}%`}
+              aria-label="Volume"
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                setVolume(next);
+                setSoundVolume(next);
+              }}
+              onPointerUp={() => play("card")}
+              onKeyUp={() => play("card")}
+            />
+          )}
           <button
             type="button"
             className="table__particles"
