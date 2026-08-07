@@ -99,6 +99,14 @@ Delete `fixtures.json` afterwards; it's a scratch file.
       classic mistake; the card simply won't exist.
 - [ ] `npm test` and `npm run typecheck` clean.
 - [ ] `audit_fixtures.py` reports no problems.
+- [ ] **`audit_triggers.py` reports no problems.** Not the same check.
+      `audit_fixtures.py` compares printed characteristics - cost, power,
+      toughness, type line - and a wrong trigger is not a characteristic, so it
+      passes that audit cleanly. This is the one that catches a card written to
+      fire at the wrong moment: "whenever *another* creature you control enters"
+      modelled as "when *this* enters" pays out exactly once, at the one moment
+      the card's own text excludes. Eight cards shipped that way once, and
+      Bogwater Lumaret nearly did again.
 - [ ] If the card went into an archetype deck in `archetypes.ts`, the deck still
       totals 99 non-commander cards.
 - [ ] `ROADMAP.md` updated with what was added and why.

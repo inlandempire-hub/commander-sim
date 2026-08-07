@@ -261,6 +261,17 @@ export interface ActivatedAbilityCost {
 export interface ActivatedAbility {
   cost: ActivatedAbilityCost;
   effect: Effect;
+  /**
+   * "Add one mana of any color **in your commander's color identity**."
+   *
+   * A card that produces a free choice of colour is written as one ability per
+   * colour - which is what `activatedAbilities` already is, and needs no new
+   * concept. Command Tower is the same shape with a restriction on top, so this
+   * flag marks the five and the engine refuses whichever ones the identity does
+   * not allow. Without it a Command Tower in a Golgari deck would tap for white,
+   * which is not the card.
+   */
+  requiresCommanderIdentity?: boolean;
 }
 
 /**

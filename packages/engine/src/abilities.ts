@@ -1,6 +1,6 @@
 import type { GameState, StackTarget } from "./types.js";
 import { findInstance, log, requireDefinition, requirePlayer } from "./state.js";
-import { canPayManaCost, payManaCost } from "./mana.js";
+import { canPayManaCost, identityAllows, payManaCost } from "./mana.js";
 import { applyEffect } from "./effects.js";
 import { pushOntoStack } from "./permanents.js";
 import { sacrificePermanent } from "./sba.js";
@@ -42,6 +42,9 @@ export function activateAbility(
   }
   if (ability.cost.mana && !canPayManaCost(player, ability.cost.mana)) {
     throw new Error(`${playerId} cannot pay the activation cost of ${def.name}`);
+  }
+  if (!identityAllows(state, playerId, ability)) {
+    throw new Error(`${def.name} cannot make that colour in this deck`);
   }
   if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) {
     // You may not pay life you do not have. Paying down to exactly 0 is legal

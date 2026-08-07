@@ -95,6 +95,45 @@ export function isFreeManaAbility(
 }
 
 /**
+ * The colours of every commander this player owns, in any zone.
+ *
+ * Commander is the only format where a card's legal colours depend on another
+ * card, and Command Tower is the card that makes the engine care: it taps for
+ * any colour "in your commander's color identity", so the same land produces
+ * different mana in different decks. Read from the commanders themselves rather
+ * than from the deck, because the commander is the rule.
+ */
+export function commanderColorIdentity(state: GameState, playerId: string): Color[] {
+  const player = requirePlayer(state, playerId);
+  const colors = new Set<Color>();
+  for (const zone of [player.command, player.battlefield, player.graveyard, player.hand, player.library, player.exile]) {
+    for (const instance of zone) {
+      if (!instance.isCommander) continue;
+      for (const color of requireDefinition(state, instance.definitionId).colorIdentity) {
+        colors.add(color);
+      }
+    }
+  }
+  return ALL_COLORS.filter((color) => colors.has(color));
+}
+
+/**
+ * Whether this ability may be activated at all right now, as far as colour
+ * identity is concerned. Only Command Tower's family is ever restricted.
+ */
+export function identityAllows(
+  state: GameState,
+  playerId: string,
+  ability: ActivatedAbility,
+): boolean {
+  if (!ability.requiresCommanderIdentity) return true;
+  if (ability.effect.kind !== "addMana") return true;
+  const color = ability.effect.color;
+  if (color === "C") return true;
+  return commanderColorIdentity(state, playerId).includes(color);
+}
+
+/**
  * What a player's mana pool WOULD look like if they tapped every untapped
  * mana-producing permanent they control (in addition to whatever's already
  * floating). Used to decide "is there any point asking this player to act" -
@@ -112,6 +151,7 @@ export function potentialAvailableMana(state: GameState, playerId: string): Mana
     if (def.types.includes("Creature") && instance.summoningSickness) continue;
     for (const ability of def.activatedAbilities ?? []) {
       if (!isFreeManaAbility(ability)) continue;
+      if (!identityAllows(state, playerId, ability)) continue;
       addMana(pool, ability.effect.color, ability.effect.amount);
     }
   }

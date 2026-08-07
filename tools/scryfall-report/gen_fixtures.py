@@ -62,16 +62,24 @@ loose pattern quietly wrote it as a plain ETB.
 Anything resembling one of these that does not match exactly is refused by
 ENTERS_TRIGGERISH below rather than guessed at.
 """
-# "When this creature enters, you gain 2 life."
-SELF_ENTERS_GAIN = re.compile(r"^When this creature enters, you gain (\d+) life\.$")
-SELF_ENTERS_DRAW = re.compile(r"^When this creature enters, draw a card\.$")
+# Every card-writing path in this file goes through `enters_trigger` below, so
+# these are written once and cover creatures, lands, artifacts and enchantments
+# alike. There used to be a second, narrower copy for permanents; two copies of
+# a rule this easy to get wrong is one copy too many.
+SELF = r"(?:creature|land|permanent|artifact|enchantment)"
+
+# "When this creature enters, you gain 2 life." / "When this land enters, ..."
+SELF_ENTERS_GAIN = re.compile(r"^When this %s enters, you gain (\d+) life\.$" % SELF)
+SELF_ENTERS_DRAW = re.compile(r"^When this %s enters, draw a card\.$" % SELF)
 # "Whenever another creature you control enters, you gain 1 life." - Kor Skyfisher family.
 OTHERS_ENTERS_GAIN = re.compile(
     r"^Whenever another creature you control enters, you gain (\d+) life\.$"
 )
-# "Whenever this creature or another creature you control enters, ..." - Kor Celebrant.
+# "Whenever this creature or another creature you control enters, ..." - Kor
+# Celebrant, and Bogwater Lumaret, which is the card that proved the old loose
+# pattern was still live in the creature path.
 SELF_OR_OTHERS_ENTERS_GAIN = re.compile(
-    r"^Whenever this creature or another creature you control enters, you gain (\d+) life\.$"
+    r"^Whenever this %s or another creature you control enters, you gain (\d+) life\.$" % SELF
 )
 # "Whenever another creature enters, you gain 1 life." - Soul Warden, watching
 # every player's side of the table rather than only its controller's.
@@ -118,22 +126,15 @@ TAP_ADD = re.compile(r"^\{T\}: Add ((?:\{[WUBRGC]\})+)\.$")
 TAP_ADD_EITHER = re.compile(r"^\{T\}: Add \{([WUBRGC])\}(?:, \{([WUBRGC])\},)? or \{([WUBRGC])\}\.$")
 ENTERS_TAPPED = re.compile(r"^This (?:land|permanent|artifact|creature|enchantment) enters tapped\.$")
 
-# The permanent's *own* arrival, and nothing else.
-#
-# The loose `GAIN_LIFE` pattern used for creatures - "When...enters, you gain N
-# life." - is not safe here, and proving it took one run: it matched Seraph
-# Sanctuary's "Whenever an *Angel you control* enters, you gain 1 life" and
-# Staff of the Death Magus's "Whenever you *cast a black spell* or a Swamp you
-# control enters, you gain 1 life". Both would have been written as
-# enters-battlefield triggers, so both would have paid out exactly once, on the
-# one occasion the real card does nothing. That is the same mistake documented
-# on TriggeredAbility in types.ts, which cost eight cards last time.
-SELF_ETB_GAIN = re.compile(
-    r"^When this (?:land|permanent|artifact|enchantment|creature) enters, you gain (\d+) life\.$"
+# "{T}: Add one mana of any color." and Command Tower's restricted version.
+# Both become five abilities, one per colour - the same trick as "Add {B} or
+# {G}", because activatedAbilities is already a list. The restricted one marks
+# all five, and the engine refuses whichever the commander's colours disallow.
+TAP_ADD_ANY = re.compile(r"^\{T\}: Add one mana of any color\.$")
+TAP_ADD_ANY_IN_IDENTITY = re.compile(
+    r"^\{T\}: Add one mana of any color in your commander's color identity\.$"
 )
-SELF_ETB_DRAW = re.compile(
-    r"^When this (?:land|permanent|artifact|enchantment|creature) enters, draw a card\.$"
-)
+
 
 
 # Fetchlands, and the one shape they all share:
@@ -183,8 +184,16 @@ def enters_trigger(line):
     return None
 
 
-def mana_ability(color, amount=1):
-    return '{ cost: { tap: true }, effect: { kind: "addMana", color: "%s", amount: %d } }' % (color, amount)
+def mana_ability(color, amount=1, identity_only=False):
+    return (
+        '{ cost: { tap: true }, effect: { kind: "addMana", color: "%s", amount: %d }%s }'
+        % (color, amount, ", requiresCommanderIdentity: true" if identity_only else "")
+    )
+
+
+def any_color_abilities(identity_only=False):
+    """One ability per colour. A choice of five, written as five."""
+    return [mana_ability(c, 1, identity_only) for c in ("W", "U", "B", "R", "G")]
 
 
 def interpret_permanent(card):
@@ -231,6 +240,13 @@ def interpret_permanent(card):
                 activated.append(mana_ability(color))
             continue
 
+        if TAP_ADD_ANY.match(line):
+            activated.extend(any_color_abilities())
+            continue
+        if TAP_ADD_ANY_IN_IDENTITY.match(line):
+            activated.extend(any_color_abilities(identity_only=True))
+            continue
+
         fetch = FETCH.match(line)
         if fetch:
             life = int(fetch.group(1))
@@ -244,13 +260,16 @@ def interpret_permanent(card):
             )
             continue
 
-        gain = SELF_ETB_GAIN.match(line)
-        if gain:
-            triggers.append('{ event: "enters-battlefield", effect: { kind: "gainLife", amount: %s } }' % gain.group(1))
+        # The same shared parser the creature path uses, and the same guard.
+        # A land or an enchantment can say "whenever another creature you
+        # control enters" just as a creature can - Seraph Sanctuary does - and
+        # it must not become the permanent's own arrival on either path.
+        trigger = enters_trigger(line)
+        if trigger:
+            triggers.append(trigger)
             continue
-        if SELF_ETB_DRAW.match(line):
-            triggers.append('{ event: "enters-battlefield", effect: { kind: "draw", amount: 1 } }')
-            continue
+        if ENTERS_TRIGGERISH.match(line):
+            return None
 
         return None  # a line we can't express - skip the whole card
 
@@ -529,6 +548,25 @@ def interpret(card):
                 'cardType: "Land", basicLandOnly: true, destination: "battlefield"%s } }'
                 % (", tapped: true" if sac.group(1) else "")
             )
+            continue
+
+        # Mana creatures. Same three shapes the permanent path reads, sharing
+        # the same builders - a creature that taps for mana is not a different
+        # kind of mana ability from a land that does.
+        tap_add = TAP_ADD.match(line)
+        if tap_add:
+            symbols = re.findall(r"\{([WUBRGC])\}", tap_add.group(1))
+            if len(set(symbols)) != 1:
+                return None
+            activated.append(mana_ability(symbols[0], len(symbols)))
+            continue
+        either = TAP_ADD_EITHER.match(line)
+        if either:
+            for color in [g for g in either.groups() if g]:
+                activated.append(mana_ability(color))
+            continue
+        if TAP_ADD_ANY.match(line):
+            activated.extend(any_color_abilities())
             continue
 
         parts = [p.strip().lower() for p in line.split(",") if p.strip()]

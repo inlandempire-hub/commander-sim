@@ -318,66 +318,18 @@ def effect_is_expressible(text):
 
 
 def supported_permanent_line(line):
-    """True if gen_fixtures' permanent path handles this line on its own."""
+    """True if gen_fixtures handles this line on its own."""
+    # The enters-triggers go through gen.enters_trigger rather than being listed
+    # here, so this cannot drift from the generator's own idea of which shapes
+    # it handles - which is the whole reason that family became one function
+    # shared by every card-writing path.
+    if gen.enters_trigger(line):
+        return True
     return any(
         pattern.match(line)
-        for pattern in (gen.TAP_ADD, gen.TAP_ADD_EITHER, gen.ENTERS_TAPPED,
-                        gen.SELF_ETB_GAIN, gen.SELF_ETB_DRAW)
-    )
-
-
-def analyse_line(raw_line):
-    """
-    Every reason one oracle line is refused, as a list of (title, why).
-
-    A list rather than one answer, because a single line routinely needs two
-    separate things and reporting only the first makes the whole work queue lie.
-    "At the beginning of your end step, create a 1/1 green Insect token" needs
-    a turn-based trigger *and* token creation; counted as one, it says adding
-    turn-based triggers would finish the card, and it would not. That
-    over-count is what made "9 cards" out of a capability that on its own
-    completes none of them.
-    """
-    line = strip_ability_word(raw_line)
-
-    # A trigger the engine does not have, whose effect is also unsupported, is
-    # two gaps on one line.
-    for pattern, event in UNSUPPORTED_TRIGGERS:
-        match = re.match(pattern, line, re.I)
-        if not match:
-            continue
-        reasons = [("Trigger event the engine does not have: %s" % event,
-                    "triggeredAbilities know five events; this is a sixth")]
-        reasons.extend(effect_reasons(line[match.end():].strip(" ,")))
-        return reasons
-
-    if re.match(r"^At the beginning of", line, re.I):
-        reasons = [("Turn-based triggers (upkeep, end step, each combat)",
-                    "trigger events are only enters-battlefield, attacks, dies, landfall, "
-                    "permanent-enters")]
-        rest = re.sub(r"^At the beginning of [^,]+,\s*", "", line, flags=re.I)
-        reasons.extend(effect_reasons(rest))
-        return reasons
-
-    return _analyse_single(line)
-
-
-def effect_reasons(text):
-    """What is wrong with the effect half of a trigger, if anything."""
-    if not text or effect_is_expressible(re.sub(r"^you may\s+", "", text, flags=re.I)):
-        return []
-    reasons = _analyse_single(text)
-    # An effect that is only unrecognised adds nothing useful beside a named
-    # trigger gap - the trigger is the finding.
-    return [r for r in reasons if r[0] != UNRECOGNISED[0]]
-
-
-def supported_permanent_line(line):
-    """True if gen_fixtures' permanent path handles this line on its own."""
-    return any(
-        pattern.match(line)
-        for pattern in (gen.TAP_ADD, gen.TAP_ADD_EITHER, gen.ENTERS_TAPPED,
-                        gen.SELF_ETB_GAIN, gen.SELF_ETB_DRAW)
+        for pattern in (gen.TAP_ADD, gen.TAP_ADD_EITHER, gen.TAP_ADD_ANY,
+                        gen.TAP_ADD_ANY_IN_IDENTITY, gen.ENTERS_TAPPED,
+                        gen.FETCH, gen.SAC_FOR_BASIC)
     )
 
 

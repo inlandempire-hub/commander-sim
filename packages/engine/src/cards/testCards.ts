@@ -10804,6 +10804,42 @@ export const BOGWATER_LUMARET: CardDefinition = {
   tier: "scripted",
 };
 
+
+/* ---------------------------------------------------------------------------
+ * Mana of any colour (2026-08-07)
+ *
+ * A choice of five colours, written as five abilities - which is what
+ * `activatedAbilities` already is, so no new engine concept was needed. Command
+ * Tower is the same shape with `requiresCommanderIdentity` on each half, and
+ * the engine refuses the ones the commander's colours do not allow. Without
+ * that a Command Tower in a Golgari deck taps for white, which is not the card.
+ * ------------------------------------------------------------------------- */
+
+export const BIRDS_OF_PARADISE: CardDefinition = {
+  id: "birds-of-paradise",
+  name: "Birds of Paradise",
+  scryfallId: "492c2f9a-51e7-4e0f-9899-23bf43ea988b",
+  types: ["Creature"],
+  subtypes: ["Bird"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 0,
+  toughness: 1,
+  keywords: ["Flying"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const COMMAND_TOWER: CardDefinition = {
+  id: "command-tower",
+  name: "Command Tower",
+  scryfallId: "0548fb60-c843-4f8f-a029-6f10efc63a41",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 }, requiresCommanderIdentity: true }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 }, requiresCommanderIdentity: true }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, requiresCommanderIdentity: true }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 }, requiresCommanderIdentity: true }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 }, requiresCommanderIdentity: true }],
+  tier: "vanilla",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -11655,5 +11691,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WOODED_FOOTHILLS,
     SAKURA_TRIBE_ELDER,
     BOGWATER_LUMARET,
+    BIRDS_OF_PARADISE,
+    COMMAND_TOWER,
   ].map((def) => [def.id, def]),
 );

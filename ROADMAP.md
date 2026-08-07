@@ -2234,3 +2234,58 @@ tap abilities 3. Nothing else finishes more than 2. **The remaining 77 cards are
 mostly blocked by two or three things each**, so progress from here is slower
 per card than the first two steps were, and any queue that suggests otherwise is
 miscounting.
+
+## Step 3: mana of any colour, and the trigger bug removed from every path (2026-08-07)
+
+### One parser for enters-triggers, shared by every path that writes a card
+
+The user's call after Bogwater Lumaret: fix it everywhere rather than patching
+the path it turned up in. There were two copies of the rule - a full family on
+the creature path and a narrower self-only pair on the permanent path - which is
+one copy too many for a rule this easy to get wrong.
+
+Now there is one `enters_trigger`, used by creatures, lands, artifacts and
+enchantments alike, with one guard (`ENTERS_TRIGGERISH`) that refuses anything
+resembling the family without matching it exactly. The self patterns cover every
+permanent type, so "When this **land** enters, you gain 2 life" and "When this
+**creature** enters..." are the same shape to the same code. Instants and
+sorceries have no triggers at all, so all three writing paths are covered.
+
+`deck_report.py` asks `gen_fixtures.enters_trigger` rather than keeping its own
+list, so the report cannot drift from what the generator will actually do.
+
+Verified on both paths at once: Seraph Sanctuary ("whenever an *Angel you
+control* enters") and Staff of the Death Magus ("whenever you *cast a black
+spell*...") are refused; Adventurer's Inn, Radiant Fountain and Jungle Hollow
+still work; Bogwater Lumaret and Kor Celebrant come out as controller-watchers
+with `includesSelf`, Soul Warden and Essence Warden as any-player watchers.
+`audit_triggers.py` is clean across all 851 fixtures.
+
+`docs/ADDING-CARDS.md` now requires `audit_triggers.py` in the checklist, with
+the reason spelled out: `audit_fixtures.py` compares printed characteristics and
+a wrong trigger is not a characteristic, so it passes that audit cleanly.
+
+### Mana of any colour
+
+A choice of five colours is written as five abilities - which is what
+`activatedAbilities` already is, the same trick "{T}: Add {B} or {G}" uses, and
+no new engine concept. Auto-tap then picks whichever colour a spell needs for
+free, because it already chooses among sources by colour.
+
+Command Tower is that shape with a restriction, and it is the only place in the
+engine where one card's legality depends on another: it taps for any colour "in
+your commander's color identity", so the same land makes different mana in
+different decks. `ActivatedAbility.requiresCommanderIdentity` marks the five
+halves and `identityAllows` refuses the ones the commander's colours do not
+cover - checked at activation, and in both places that count mana without
+spending it, so a Golgari deck is never told it has white available. Identity is
+read from the commander cards themselves in whatever zone they are in, because
+the commander is the rule rather than the deck list.
+
+**Birds of Paradise and Command Tower are in. The list is at 25 of 100.** 851
+fixtures, both audits clean. 620 tests, typecheck clean.
+
+Nothing left on this list finishes more than three cards at a time, and most of
+the remaining 75 are blocked by two or three separate things. The cheap
+structural wins are done; from here it is closer to card-by-card work, which is
+what the user expected.

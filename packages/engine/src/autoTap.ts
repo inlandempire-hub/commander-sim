@@ -1,6 +1,6 @@
 import { ALL_COLORS, type CardInstance, type Color, type GameState, type ManaColor, type ManaCost, type ManaPool, type Player, type StackTarget } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
-import { addMana, applyCommanderTax, canPayManaCostFromPool, isFreeManaAbility, potentialAvailableMana } from "./mana.js";
+import { addMana, applyCommanderTax, canPayManaCostFromPool, identityAllows, isFreeManaAbility, potentialAvailableMana } from "./mana.js";
 import { activateAbility } from "./abilities.js";
 import { castSpell, type CastOptions } from "./casting.js";
 
@@ -45,6 +45,10 @@ export function manaSources(state: GameState, player: Player): ManaSource[] {
       // not a source auto-tap may spend on your behalf. Tapping a fetchland to
       // "make mana" would cost a land and a life and produce nothing.
       if (!isFreeManaAbility(ability)) return;
+      // Command Tower's five halves: only the ones the commander's colours
+      // allow are real sources. Tapping it for white in a Golgari deck is not
+      // the card.
+      if (!identityAllows(state, player.id, ability)) return;
       sources.push({ instance, abilityIndex, color: ability.effect.color, amount: ability.effect.amount });
     });
   }
