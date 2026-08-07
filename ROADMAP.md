@@ -1686,27 +1686,34 @@ scale has really been measuring, in retrospect:
 
 ### What 10 needs
 
+**Revised 2026-08-07.** Three of the four below were closed by the user, not
+because they were done but because they buy nothing here: this is a private tool
+for two known people on similar desktop screens, so window-size tuning and
+keyboard access are solving for users who do not exist, and reduced motion is
+covered well enough by the motion and effects switches that already exist. They
+are struck through rather than deleted so nobody re-derives them as gaps.
+
+The fourth, the deck builder, stands - but it is **blocked rather than
+outstanding**. The implemented pool has almost nothing a real deck would want,
+so the builder currently sees no use at all, and polishing a surface nobody
+opens is the wrong order. Growing the card pool comes first; see "Why the pool
+has no staples" below.
+
 Four items, and deliberately none of them are animation:
 
 - [ ] **The deck builder brought up to the table's standard.** It is the one
       surface that still looks like a form: native selects and checkboxes,
-      default focus rings, no felt, none of the raised controls. Half the time
-      before a game is spent in there and it currently reads as a different
-      application.
-- [ ] **Every window size, not just this one.** The table is one viewport tall
-      and never scrolls, which is right, but the card sizes, rail width and log
-      height are tuned for roughly 1280x720. Needs checking and fixing at a
-      laptop's 1366x768 and at a large monitor, where the cards should get
-      bigger rather than the felt.
-- [ ] **Reduced motion as an equal path, not a stripped one.** The
-      `prefers-reduced-motion` branch currently switches animations off, which
-      leaves several things that were *only* communicated by motion saying
-      nothing at all - the clash, the flight, the flourish. Each needs a still
-      equivalent.
-- [ ] **Keyboard and focus.** Nothing on the table can be reached without a
-      mouse. Not an accessibility checkbox so much as the last thing separating
-      this from a finished application: a client where the only way to pass
-      priority is to find a button with the pointer is not done.
+      default focus rings, no felt, none of the raised controls. **Blocked, not
+      deferred** (2026-08-07): the implemented pool has nothing a real deck
+      wants, so the builder sees no use at all today. Card pool first.
+- [x] ~~**Every window size, not just this one.**~~ **Closed 2026-08-07, not
+      done.** Two intended users, both on similar desktop screens. Revisit only
+      if that changes.
+- [x] ~~**Reduced motion as an equal path, not a stripped one.**~~ **Closed
+      2026-08-07, not done.** Judged overkill as customisation: the on/off
+      switches for motion and effects are all that is wanted here.
+- [x] ~~**Keyboard and focus.**~~ **Closed 2026-08-07, not done.** Both users
+      have a mouse or a trackpad.
 
 Everything above is work on surfaces that already exist rather than new
 systems, which is what makes it the last stretch rather than another phase.
@@ -1993,3 +2000,91 @@ tick where the two piles differed in size or position - none, across the game,
 including the turn a real card (Valiant Guard) landed in the graveyard.
 
 562 tests, typecheck clean.
+
+## Why the pool has no staples (2026-08-07)
+
+The user's read on the deck builder - "there are basically no really decent
+cards that will ever see play in a competitive PvP deck, so the builder is
+seeing no use at all" - is correct, and worth writing down properly because the
+cause is not card selection.
+
+The pool is **817 cards**: 551 vanilla, 266 scripted. 639 of them are creatures,
+92 instants, 68 sorceries, and **five are lands - the five basics**. There is
+not one nonbasic land, and barely a handful of artifacts or enchantments.
+
+That shape comes straight from `gen_fixtures.py`, which refuses any card whose
+text the effect DSL cannot express *exactly* rather than approximating it. That
+rule is right and should stay. The consequence is that the DSL's edges are the
+pool's edges - and the DSL is missing precisely the things staples are made of:
+
+- **Colourless mana.** `Color` is `W|U|B|R|G` and `addMana` takes a `Color`, so
+  there is no way to write a mana rock at all. No Sol Ring, no signets, no Mind
+  Stone - the single most-played card in the format is not expressible.
+- **Turn-based triggers.** The five events are `enters-battlefield`, `attacks`,
+  `dies`, `landfall` and `permanent-enters`. Nothing fires at upkeep, at end
+  step, or on a spell being cast, which rules out most value engines (Phyrexian
+  Arena, Rhystic Study, Smothering Tithe).
+- **Mass removal.** No "destroy all creatures" of any kind. No Wrath of God, no
+  Damnation, no Blasphemous Act - a whole axis of the game is missing, and its
+  absence is part of why games here are decided by attacking.
+- **Sacrifice**, as a cost or as an effect.
+- **Attach** - no Equipment and no Auras.
+- **Nonbasic lands** - needs enters-tapped and any-colour mana at minimum.
+- **Discard.**
+- **Dynamic amounts.** Every number in the DSL is fixed, so "equal to its power"
+  or "for each creature you control" cannot be written. This is what blocks
+  Swords to Plowshares as much as anything else.
+- **Statics beyond +N/+N.** `staticBuff` only touches power and toughness, so
+  no keyword granting and no cost reduction.
+
+Against that, a real amount **is** already expressible and simply has not been
+picked: targeted destroy and exile, card draw, counterspells, land-search ramp,
+ETB value creatures (draw, destroy, return from graveyard), anthems and token
+makers. A batch of genuinely playable cards could be added today without
+touching the engine - it just would not include a mana rock or a wrath.
+
+So the work splits cleanly in two, and the order is the open question: cards the
+engine can already hold, or the engine systems that unlock the rest.
+
+## Growing the pool, deck-list-led (2026-08-07)
+
+The order-of-work question above was answered by the user, and none of the three
+options offered were it:
+
+> all these approaches massively delay the capability to add a functional
+> competitive deck to the sim, which is its entire purpose. I want to give you a
+> deck list, you tell me what cards are supported, then we work to support all
+> other cards in the deck list. This will then mean engines are built to support
+> more cards in future deck lists, and cards in deck lists may overlap. Once
+> that list is done, we can move onto another deck list.
+
+That is the process now. A real decklist is the unit of work, not a colour and
+not a system. Engine features get built because a card in the list in front of
+us needs them, and the overlap between lists is what makes each one cheaper than
+the last. The aim is that all five of the bot's archetype decks end up as
+functional archetype decks, so a newly built deck can be tested against each and
+its strengths and weaknesses read off. The pool grows in whichever colours the
+current list happens to be.
+
+**`tools/scryfall-report/deck_report.py`** is the tool for it - see that
+folder's README. A list goes in; out comes IMPLEMENTED / ADDABLE / BLOCKED /
+UNKNOWN per card, and then the blockers grouped into a work queue ordered by how
+many cards in that list each one unblocks.
+
+The important thing it does is take triggered abilities apart into wrapper and
+effect. "When this creature dies, draw a card" is refused today, and it looks
+like a missing system until you notice the effect has existed for months and
+only the *trigger pattern* is absent from `gen_fixtures` - an afternoon in a
+Python file, not engine work. The report calls those **generator gaps** and
+keeps them out of the engine queue. On the first list put through it, three
+cards that read as three missing systems (Eternal Witness, Ravenous Chupacabra,
+Solemn Simulacrum) turned out to need one small engine feature - optional "you
+may" triggers - and one target restriction between them.
+
+It reuses `gen_fixtures.interpret` and `gen_fixtures.spell_effect` rather than
+reimplementing the rules, so ADDABLE means the generator will genuinely emit the
+card. Two indexing bugs were fixed while building it, both of which would have
+produced confidently wrong answers: art-series rows in the bulk data are named
+"Lightning Bolt // Lightning Bolt" and were shadowing the real cards, and a
+modal double-faced card was answering to "Rampant Growth" because half-names
+were indexed in the same pass as full names.

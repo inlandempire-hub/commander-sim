@@ -45,3 +45,46 @@ verdict.
 | `complexity_tier` | Heuristic, `1 - vanilla` / `2 - simple` / `3 - moderate` / `4 - complex` |
 | `complexity_flags` | Which specific heuristic(s) drove the score, for auditing |
 | `already_implemented` | `True` if this card's engine id already exists in `packages/engine/src/cards/testCards.ts` |
+
+## `deck_report.py` - what a decklist needs before it can be played
+
+    py -X utf8 tools/scryfall-report/deck_report.py mydeck.txt
+    py -X utf8 tools/scryfall-report/deck_report.py mydeck.txt --verbose
+
+The tool for the deck-led way of growing the pool, agreed 2026-08-07: a real
+decklist goes in, and out comes what the engine can already play, what it could
+play if someone generated the fixture, and what is actually blocked - with the
+blockers grouped into an engine work queue ordered by how many cards in *this
+list* each one unblocks.
+
+Takes the same "N Card Name" text every Magic tool writes, and the same text the
+client's own importer reads (`packages/client/src/deckbuilder/deckText.ts`).
+Section headers, blank lines, comments and set/collector suffixes are ignored.
+
+Four verdicts per card:
+
+| Verdict | Meaning |
+|---|---|
+| `IMPLEMENTED` | a fixture already exists in `testCards.ts` |
+| `ADDABLE` | the DSL expresses it exactly; generating it is card work, not engine work |
+| `BLOCKED` | something is missing, and the report names what and quotes the line |
+| `UNKNOWN` | no such card in the cached bulk data - a typo, or stale data |
+
+**The three-way split is not a judgement call.** It imports `gen_fixtures` and
+runs the card through the same `interpret` / `spell_effect` the generator uses,
+so a card this calls ADDABLE is a card the generator will actually emit. If the
+two ever disagree that is a bug here.
+
+The *reason* a blocked card is blocked is the heuristic part, and it is the
+reason the tool is worth having. It takes triggered abilities apart into their
+wrapper and their effect, because those fail for completely different reasons
+and cost completely different amounts to fix - "when this dies, draw a card"
+uses an effect the DSL has had for months and is refused only because
+`gen_fixtures` has no pattern for it. Those are reported as **generator gaps**,
+separately from real missing systems. On the first list run through it, three
+cards that looked like missing systems were one small engine feature and one
+Python pattern between them.
+
+Every diagnosis prints the oracle line that caused it, so the call can be
+checked rather than trusted, and anything it cannot place is reported as
+unrecognised rather than guessed at.
