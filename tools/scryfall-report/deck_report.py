@@ -327,8 +327,108 @@ def supported_permanent_line(line):
 
 
 def analyse_line(raw_line):
-    """(title, why) for one oracle line the generator refused."""
+    """
+    Every reason one oracle line is refused, as a list of (title, why).
+
+    A list rather than one answer, because a single line routinely needs two
+    separate things and reporting only the first makes the whole work queue lie.
+    "At the beginning of your end step, create a 1/1 green Insect token" needs
+    a turn-based trigger *and* token creation; counted as one, it says adding
+    turn-based triggers would finish the card, and it would not. That
+    over-count is what made "9 cards" out of a capability that on its own
+    completes none of them.
+    """
     line = strip_ability_word(raw_line)
+
+    # A trigger the engine does not have, whose effect is also unsupported, is
+    # two gaps on one line.
+    for pattern, event in UNSUPPORTED_TRIGGERS:
+        match = re.match(pattern, line, re.I)
+        if not match:
+            continue
+        reasons = [("Trigger event the engine does not have: %s" % event,
+                    "triggeredAbilities know five events; this is a sixth")]
+        reasons.extend(effect_reasons(line[match.end():].strip(" ,")))
+        return reasons
+
+    if re.match(r"^At the beginning of", line, re.I):
+        reasons = [("Turn-based triggers (upkeep, end step, each combat)",
+                    "trigger events are only enters-battlefield, attacks, dies, landfall, "
+                    "permanent-enters")]
+        rest = re.sub(r"^At the beginning of [^,]+,\s*", "", line, flags=re.I)
+        reasons.extend(effect_reasons(rest))
+        return reasons
+
+    return _analyse_single(line)
+
+
+def effect_reasons(text):
+    """What is wrong with the effect half of a trigger, if anything."""
+    if not text or effect_is_expressible(re.sub(r"^you may\s+", "", text, flags=re.I)):
+        return []
+    reasons = _analyse_single(text)
+    # An effect that is only unrecognised adds nothing useful beside a named
+    # trigger gap - the trigger is the finding.
+    return [r for r in reasons if r[0] != UNRECOGNISED[0]]
+
+
+def supported_permanent_line(line):
+    """True if gen_fixtures' permanent path handles this line on its own."""
+    return any(
+        pattern.match(line)
+        for pattern in (gen.TAP_ADD, gen.TAP_ADD_EITHER, gen.ENTERS_TAPPED,
+                        gen.SELF_ETB_GAIN, gen.SELF_ETB_DRAW)
+    )
+
+
+def analyse_line(raw_line):
+    """
+    Every reason one oracle line is refused, as a list of (title, why).
+
+    A list rather than one answer, because a single line routinely needs two
+    separate things and reporting only the first makes the whole work queue lie.
+    "At the beginning of your end step, create a 1/1 green Insect token" needs
+    a turn-based trigger *and* token creation; counted as one, it says adding
+    turn-based triggers would finish the card, and it would not. That
+    over-count is what made "9 cards" out of a capability that on its own
+    completes none of them.
+    """
+    line = strip_ability_word(raw_line)
+
+    # A trigger the engine does not have, whose effect is also unsupported, is
+    # two gaps on one line.
+    for pattern, event in UNSUPPORTED_TRIGGERS:
+        match = re.match(pattern, line, re.I)
+        if not match:
+            continue
+        reasons = [("Trigger event the engine does not have: %s" % event,
+                    "triggeredAbilities know five events; this is a sixth")]
+        reasons.extend(effect_reasons(line[match.end():].strip(" ,")))
+        return reasons
+
+    if re.match(r"^At the beginning of", line, re.I):
+        reasons = [("Turn-based triggers (upkeep, end step, each combat)",
+                    "trigger events are only enters-battlefield, attacks, dies, landfall, "
+                    "permanent-enters")]
+        rest = re.sub(r"^At the beginning of [^,]+,\s*", "", line, flags=re.I)
+        reasons.extend(effect_reasons(rest))
+        return reasons
+
+    return _analyse_single(line)
+
+
+def effect_reasons(text):
+    """What is wrong with the effect half of a trigger, if anything."""
+    if not text or effect_is_expressible(re.sub(r"^you may\s+", "", text, flags=re.I)):
+        return []
+    reasons = _analyse_single(text)
+    # An effect that is only unrecognised adds nothing useful beside a named
+    # trigger gap - the trigger is the finding.
+    return [r for r in reasons if r[0] != UNRECOGNISED[0]]
+
+
+def _analyse_single(line):
+    """One line's reasons, when it is not one of the two multi-reason shapes."""
     for pattern, event in TRIGGER_WRAPPERS:
         match = re.match(pattern, line, re.I)
         if not match:
@@ -338,34 +438,29 @@ def analyse_line(raw_line):
         core = re.sub(r"^you may\s+", "", effect, flags=re.I)
         if effect_is_expressible(core):
             if optional:
-                return ("Optional triggers (\"you may\")",
-                        "triggered abilities always resolve; making one mandatory would change "
-                        "the card, so these are refused rather than approximated")
-            return ("Generator gap - %s triggers whose effect the DSL already has" % event,
-                    "the engine can do this today; gen_fixtures only has patterns for ETB "
-                    "gain-life and ETB draw, so everything else is skipped")
-        # The wrapper is fine, the effect is not. Diagnose the effect.
-        return blocker_for(core)
+                return [("Optional triggers (\"you may\")",
+                         "triggered abilities always resolve; making one mandatory would change "
+                         "the card, so these are refused rather than approximated")]
+            return [("Generator gap - %s triggers whose effect the DSL already has" % event,
+                     "the engine can do this today; gen_fixtures only has patterns for ETB "
+                     "gain-life and ETB draw, so everything else is skipped")]
+        # The wrapper is a trigger the engine has; only the effect is missing.
+        return [blocker_for(core)]
 
-    # Not a trigger the engine has. Before blaming the effect, check whether the
-    # whole card shape is the problem - a keyword mechanic or a replacement
-    # effect on the card overrides everything else about it.
+    # Before blaming the effect, check whether the whole card shape is the
+    # problem - a keyword mechanic or a replacement effect overrides everything
+    # else about the card.
     for pattern, title, why in BLOCKERS[:4]:
         if re.search(pattern, line, re.I):
-            return title, why
-
-    for pattern, event in UNSUPPORTED_TRIGGERS:
-        if re.match(pattern, line, re.I):
-            return ("Trigger event the engine does not have: %s" % event,
-                    "triggeredAbilities know five events; this is a sixth")
+            return [(title, why)]
 
     # If the line only failed because of how it is worded, that is a pattern to
     # add to gen_fixtures rather than anything to build.
     if effect_is_expressible(line):
-        return ("Generator gap - wording variant of an effect the DSL already has",
-                "the engine can do this today; gen_fixtures matches one templating of it "
-                "and refuses the others")
-    return blocker_for(line)
+        return [("Generator gap - wording variant of an effect the DSL already has",
+                 "the engine can do this today; gen_fixtures matches one templating of it "
+                 "and refuses the others")]
+    return [blocker_for(line)]
 
 
 # ---------------------------------------------------------------------------
@@ -450,14 +545,37 @@ def oracle_lines(card):
     return lines
 
 
+def face_reasons(face):
+    """Everything blocking one face of a multi-faced card, beyond being a face."""
+    text = gen.strip_reminder(face.get("oracle_text"))
+    text = text.replace(face.get("name", ""), "this permanent")
+    out = []
+    for line in [l.strip() for l in text.split("\n") if l.strip()]:
+        parts = [p.strip().lower() for p in line.split(",") if p.strip()]
+        if parts and all(p in gen.SUPPORTED_KEYWORDS for p in parts):
+            continue
+        if supported_permanent_line(line) or effect_is_expressible(line):
+            continue
+        for title, why in analyse_line(line):
+            out.append((line, title, why))
+    return out
+
+
 def classify(card):
     """('addable', None) or ('blocked', [(line, title, why), ...])."""
     type_line = card.get("type_line", "")
 
-    # A face-down category the generator never handles: multi-faced cards.
+    # Multi-faced cards. Being two-faced is one blocker; each face then has its
+    # own text, and reporting only the first made this the top line of the
+    # report claiming six completions when five of the six also want sacrifice,
+    # or dynamic amounts, or a mechanic that does not exist. Only Bala Ged
+    # Recovery is otherwise ready.
     if card.get("card_faces") and "//" in card.get("name", ""):
-        return "blocked", [(type_line, "Multi-faced cards (split, transform, adventure)",
-                            "a CardDefinition is one face")]
+        reasons = [(type_line, "Multi-faced cards (split, transform, adventure)",
+                    "a CardDefinition is one face")]
+        for face in card["card_faces"]:
+            reasons.extend(face_reasons(face))
+        return "blocked", reasons
     if "Planeswalker" in type_line:
         return "blocked", [(type_line, "Planeswalkers", "not a supported card type")]
 
@@ -508,8 +626,8 @@ def classify(card):
             continue
         if supported_permanent_line(line):
             continue
-        title, why = analyse_line(line)
-        reasons.append((line, title, why))
+        for title, why in analyse_line(line):
+            reasons.append((line, title, why))
     if not reasons:
         return "blocked", [(type_line, "Card types the generator does not emit",
                             "gen_fixtures emits creatures, instants and sorceries")]
@@ -596,12 +714,42 @@ def main():
         print()
 
     if work:
+        # What building one thing would actually *finish*, as against how many
+        # cards merely mention it.
+        #
+        # These two numbers are wildly different and the second one is a trap.
+        # Turn-based triggers were named by 9 cards and would have completed
+        # none of them on their own: every one of the nine also wants tokens, or
+        # a condition, or a dynamic amount. Sorting a work queue by mentions
+        # picks the item that looks biggest rather than the one that pays.
+        completions = defaultdict(list)
+        for count, name, reasons in buckets["BLOCKED"]:
+            titles = {title for _, title, _why in reasons}
+            if len(titles) == 1:
+                completions[titles.pop()].append(name)
+
         print("=" * 78)
-        print("ENGINE WORK QUEUE - what to build, most cards unblocked first")
+        print("WHAT WOULD ACTUALLY FINISH A CARD")
+        print("=" * 78)
+        print("Cards whose remaining blockers all carry this one name. Necessary, not")
+        print("sufficient: one *name* can still hide more than one job. Path of Ancestry's")
+        print("single line wants any-colour mana AND a scry trigger, and both land here.")
+        print("Read the card before promising the number.")
+        if not completions:
+            print("  Nothing on this list is one capability away.")
+        for title, cards in sorted(completions.items(), key=lambda kv: -len(kv[1])):
+            print()
+            print("%s  -> finishes %d" % (title, len(cards)))
+            print("    " + ", ".join(cards))
+
+        print()
+        print("=" * 78)
+        print("EVERYTHING MENTIONED - not the same thing, see above")
         print("=" * 78)
         for title, cards in sorted(work.items(), key=lambda kv: -len(kv[1])):
+            finishes = len(completions.get(title, []))
             print()
-            print("%s  (%d cards)" % (title, len(cards)))
+            print("%s  (%d cards mention it, finishes %d)" % (title, len(cards), finishes))
             print("    why: %s" % whys[title])
             for card_name, line in cards[:8]:
                 print("    %-30s %s" % (card_name, line[:60]))

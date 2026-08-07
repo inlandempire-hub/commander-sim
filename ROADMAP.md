@@ -2201,3 +2201,36 @@ leaving that to a second script somebody has to remember to run.
 
 **The Blech list is at 23 of 100**, from 15. 849 fixtures, both audits clean.
 608 tests, typecheck clean.
+
+### The work queue was measuring the wrong thing (2026-08-07)
+
+After step 2 the queue said turn-based triggers were the biggest item, named by
+9 cards. Building them would have completed **none** of those 9: every one also
+wants tokens, or a condition, or a dynamic amount. The queue was counting how
+many cards *mention* a capability, which is not the same as how many it would
+finish, and sorting by it picks the item that looks biggest rather than the one
+that pays.
+
+Two fixes, both about not over-claiming:
+
+- **One line can need two things.** "At the beginning of your end step, create a
+  1/1 green Insect token" is a missing trigger *and* missing tokens. The
+  analysis returns every reason for a line now rather than the first.
+- **A multi-faced card has faces.** The report stopped at "this is two-faced"
+  and so claimed six completions; five of those six also need sacrifice, or
+  dynamic amounts, or a mechanic that does not exist. Only Bala Ged Recovery was
+  ever one feature away. Each face is read now, and the six dropped off the
+  completions list entirely.
+
+The report leads with **what would actually finish a card** and keeps the
+mention counts below it, labelled as the different thing they are. Even the
+completion list is honest about its own limit: one *name* can hide more than one
+job - Path of Ancestry's single line wants any-colour mana and a scry trigger,
+and both land under the same heading.
+
+What it says now, for this list: any-colour mana finishes 5, conditional
+taplands 3, mana abilities with a rider 3, modal spells 3, X costs 3, non-mana
+tap abilities 3. Nothing else finishes more than 2. **The remaining 77 cards are
+mostly blocked by two or three things each**, so progress from here is slower
+per card than the first two steps were, and any queue that suggests otherwise is
+miscounting.
