@@ -3825,3 +3825,46 @@ body {
     max-height: 40vh;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Which ability, for a permanent that has more than one
+   --------------------------------------------------------------------------- */
+
+.ability-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Left-aligned and full width, because these are sentences of rules text
+   rather than labels - "{B/G}, {T}: Add {B}{G}." reads as a line off the card,
+   and centring it would make it look like a button that happens to be wordy. */
+.ability-picker__option {
+  --btn-face: #39445a;
+  --btn-edge: #232b3b;
+  --btn-ink: var(--text);
+  width: 100%;
+  text-align: left;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.ability-picker__option:hover {
+  --btn-face: #47536d;
+}
+
+.ability-picker__cancel {
+  align-self: flex-end;
+  --btn-face: transparent;
+  --btn-edge: var(--border);
+  --btn-ink: var(--text-dim);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}

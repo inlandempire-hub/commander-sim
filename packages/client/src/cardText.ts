@@ -253,7 +253,12 @@ function colorWord(color: Color): string {
   return { W: "white", U: "blue", B: "black", R: "red", G: "green" }[color];
 }
 
-function describeActivated(
+/**
+ * One activated ability's printed line. Exported because the ability picker
+ * lists them, and a menu that described abilities its own way would eventually
+ * disagree with the card panel about what a card does.
+ */
+export function describeActivated(
   ability: ActivatedAbility,
   definitions: Definitions,
   self: CardDefinition,
@@ -272,7 +277,20 @@ function describeActivated(
   const restriction = ability.activateOnlyIf
     ? ` Activate only if ${describeCondition(ability.activateOnlyIf)}.`
     : "";
-  return `${cost}: ${describeEffect(ability.effect, definitions)}${pain}${restriction}`;
+  // "Add one mana of any color in your commander's color identity" is printed
+  // as one line; the engine holds it as five. Saying which five it is drawn
+  // from is what stops the panel reading as a plain "Add {W}".
+  const from = ability.colorFrom
+    ? ability.colorFrom === "commander-identity"
+      ? " (any colour in your commander's colour identity)"
+      : " (any colour a land an opponent controls could produce)"
+    : "";
+  const spend = ability.producesRestrictedMana
+    ? ` Spend this mana only to cast a legendary spell${
+        ability.producesRestrictedMana.grantsUncounterable ? ", and that spell can't be countered" : ""
+      }.`
+    : "";
+  return `${cost}: ${describeEffect(ability.effect, definitions)}${from}${pain}${spend}${restriction}`;
 }
 
 /**

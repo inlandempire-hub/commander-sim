@@ -161,6 +161,17 @@ TAP_ADD_ANY = re.compile(r"^\{T\}: Add one mana of any color\.$")
 TAP_ADD_ANY_IN_IDENTITY = re.compile(
     r"^\{T\}: Add one mana of any color in your commander's color identity\.$"
 )
+# Exotic Orchard. Still five abilities; the engine filters them against the
+# opponent's board every time rather than against the commander's colours.
+TAP_ADD_ANY_OPPONENT_LANDS = re.compile(
+    r"^\{T\}: Add one mana of any color that a land an opponent controls could produce\.$"
+)
+# Delighted Halfling. The mana is any colour but is not interchangeable with the
+# rest of the pool, so it needs the restriction written onto every half.
+TAP_ADD_ANY_LEGENDARY = re.compile(
+    r"^\{T\}: Add one mana of any color\. Spend this mana only to cast a legendary spell"
+    r"(, and that spell can't be countered)?\.$"
+)
 
 # The two riders a mana ability can carry, both written as their own sentence
 # after the ability:
@@ -297,16 +308,17 @@ def enters_trigger(line):
     return None
 
 
-def mana_ability(color, amount=1, identity_only=False, riders=""):
+def mana_ability(color, amount=1, color_from=None, riders=""):
+    source = ', colorFrom: "%s"' % color_from if color_from else ""
     return (
         '{ cost: { tap: true }, effect: { kind: "addMana", color: "%s", amount: %d }%s%s }'
-        % (color, amount, ", requiresCommanderIdentity: true" if identity_only else "", riders)
+        % (color, amount, source, riders)
     )
 
 
-def any_color_abilities(identity_only=False, riders=""):
+def any_color_abilities(color_from=None, riders=""):
     """One ability per colour. A choice of five, written as five."""
-    return [mana_ability(c, 1, identity_only, riders) for c in ("W", "U", "B", "R", "G")]
+    return [mana_ability(c, 1, color_from, riders) for c in ("W", "U", "B", "R", "G")]
 
 
 def only_if_condition(clause):
@@ -420,7 +432,21 @@ def mana_abilities(line):
     if TAP_ADD_ANY.match(core):
         return any_color_abilities(riders=riders)
     if TAP_ADD_ANY_IN_IDENTITY.match(core):
-        return any_color_abilities(identity_only=True, riders=riders)
+        return any_color_abilities("commander-identity", riders=riders)
+    if TAP_ADD_ANY_OPPONENT_LANDS.match(core):
+        return any_color_abilities("opponent-lands", riders=riders)
+
+    legendary = TAP_ADD_ANY_LEGENDARY.match(core)
+    if legendary:
+        # The "can't be countered" half is optional on the wording and is only
+        # written out when the card actually says it, rather than being assumed
+        # to travel with the restriction.
+        restriction = '{ kind: "legendary-spell"%s }' % (
+            ", grantsUncounterable: true" if legendary.group(1) else ""
+        )
+        return any_color_abilities(
+            riders=riders + ", producesRestrictedMana: %s" % restriction,
+        )
 
     filter_land = FILTER_LAND.match(core)
     if filter_land:

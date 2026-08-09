@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  activatableAbilities,
   attackProblem,
   blockProblem,
   canMulliganAgain,
@@ -40,6 +41,8 @@ import { CardInspect } from "./components/CardInspect.js";
 import { ManaPipLayer } from "./components/ManaPipLayer.js";
 import { ParticleLayer } from "./components/ParticleLayer.js";
 import { StopSettings } from "./components/StopSettings.js";
+import { AbilityPicker, type AbilityOption } from "./components/AbilityPicker.js";
+import { describeActivated } from "./cardText.js";
 import { burstsForFlight, spellColor } from "./particles.js";
 import { findInstance } from "./cardLookup.js";
 import {
@@ -152,6 +155,13 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     null,
   );
   const [showStops, setShowStops] = useState(false);
+  /** A permanent with more than one usable ability, waiting on which one. */
+  const [abilityChoice, setAbilityChoice] = useState<{
+    ownerId: string;
+    instanceId: string;
+    cardName: string;
+    options: AbilityOption[];
+  } | null>(null);
   /**
    * Where the game should stop and ask. Read from storage once, on the first
    * render, rather than in an effect - an effect would play the first step of
@@ -510,20 +520,61 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     const owner = state!.players.find((p) => p.id === ownerId)!;
     const instance = owner.battlefield.find((c) => c.instanceId === instanceId);
     const def = instance ? state!.cardDefinitions[instance.definitionId] : undefined;
-    const ability = def?.activatedAbilities?.[0];
-    if (ability && targetSelectorOf(ability.effect)) {
-      setPendingTarget({
+    if (!def) return;
+
+    /*
+     * Which ability, when a permanent has more than one usable right now.
+     *
+     * This used to activate index 0 unconditionally, which was survivable while
+     * the only multi-ability cards were dual lands - the auto-tapper picks the
+     * right half of those when paying for a spell, so nobody clicked them. It
+     * stopped being survivable once a card's interesting half was not its
+     * first: Swarmyard's regenerate, Twilight Mire's filter modes, Delighted
+     * Halfling's restricted mana were all in the pool and unreachable.
+     */
+    const usable = activatableAbilities(state!, ownerId, instanceId);
+    if (usable.length === 0) return;
+    if (usable.length > 1) {
+      setAbilityChoice({
         ownerId,
-        sourceInstanceId: instanceId,
-        cardName: def!.name,
-        effect: ability!.effect,
-        kind: "ability",
-        abilityIndex: 0,
+        instanceId,
+        cardName: def.name,
+        options: usable.map((index) => ({
+          index,
+          text: describeActivated(def.activatedAbilities![index]!, state!.cardDefinitions, def),
+        })),
       });
       return;
     }
 
-    controller.activateAbility(ownerId, instanceId, 0);
+    activateChosenAbility(ownerId, instanceId, usable[0]!);
+  }
+
+  /**
+   * Runs one specific ability: straight to the engine, or into the targeting
+   * flow first if it needs something to point at. Shared by the single-ability
+   * path and the picker, so both behave identically once the choice is made.
+   */
+  function activateChosenAbility(ownerId: string, instanceId: string, abilityIndex: number) {
+    const owner = state!.players.find((p) => p.id === ownerId)!;
+    const instance = owner.battlefield.find((c) => c.instanceId === instanceId);
+    const def = instance ? state!.cardDefinitions[instance.definitionId] : undefined;
+    const ability = def?.activatedAbilities?.[abilityIndex];
+    if (!ability || !def) return;
+
+    if (targetSelectorOf(ability.effect)) {
+      setPendingTarget({
+        ownerId,
+        sourceInstanceId: instanceId,
+        cardName: def.name,
+        effect: ability.effect,
+        kind: "ability",
+        abilityIndex,
+      });
+      return;
+    }
+
+    controller.activateAbility(ownerId, instanceId, abilityIndex);
   }
 
   /** Recursion: the chosen target is a card sitting in a graveyard. */
@@ -949,6 +1000,19 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             onFullControlChange={setFullControl}
             onClose={() => setShowStops(false)}
             onReset={() => changeStops(defaultStops())}
+          />
+        )}
+
+        {abilityChoice && (
+          <AbilityPicker
+            cardName={abilityChoice.cardName}
+            options={abilityChoice.options}
+            onChoose={(index) => {
+              const { ownerId, instanceId } = abilityChoice;
+              setAbilityChoice(null);
+              activateChosenAbility(ownerId, instanceId, index);
+            }}
+            onCancel={() => setAbilityChoice(null)}
           />
         )}
 

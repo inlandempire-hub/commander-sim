@@ -91,7 +91,7 @@ describe("Command Tower", () => {
     const state = mainPhase();
     const abilities = requireDefinition(state, "command-tower").activatedAbilities ?? [];
     expect(abilities).toHaveLength(5);
-    for (const ability of abilities) expect(ability.requiresCommanderIdentity).toBe(true);
+    for (const ability of abilities) expect(ability.colorFrom).toBe("commander-identity");
   });
 
   it("taps for a colour the commander has", () => {

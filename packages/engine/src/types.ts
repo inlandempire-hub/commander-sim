@@ -354,20 +354,50 @@ export interface ActivatedAbilityCost {
   sacrificeSelf?: boolean;
 }
 
+/**
+ * Where the set of colours an "any colour" ability may produce comes from, when
+ * it is not simply free choice.
+ *
+ * A card producing a free choice of colour is written as one ability per colour
+ * - which is what `activatedAbilities` already is, and needs no new concept.
+ * These two are that same shape with a filter over it: the five halves are all
+ * written out, and the engine refuses whichever ones are not currently
+ * available. Without it a Command Tower in a Golgari deck would tap for white,
+ * which is not the card.
+ */
+export type ManaColorSource =
+  /** "...of any color in your commander's color identity." - Command Tower. */
+  | "commander-identity"
+  /** "...of any color that a land an opponent controls could produce." - Exotic Orchard. */
+  | "opponent-lands";
+
+/**
+ * "Spend this mana only to cast a legendary spell, and that spell can't be
+ * countered." - Delighted Halfling.
+ *
+ * Mana that is not interchangeable with the rest of the pool, which is why it
+ * cannot simply be added to it. Kept as a closed list for the same reason every
+ * other condition here is: one card needs one shape, and inventing a general
+ * restriction language now would mean accepting wordings nothing can evaluate.
+ */
+export type ManaSpendRestriction = {
+  kind: "legendary-spell";
+  /** "...and that spell can't be countered." Applies to whatever this mana helped pay for. */
+  grantsUncounterable?: boolean;
+};
+
 export interface ActivatedAbility {
   cost: ActivatedAbilityCost;
   effect: Effect;
+  /** Narrows which of an "any colour" ability's five halves are legal right now. */
+  colorFrom?: ManaColorSource;
   /**
-   * "Add one mana of any color **in your commander's color identity**."
-   *
-   * A card that produces a free choice of colour is written as one ability per
-   * colour - which is what `activatedAbilities` already is, and needs no new
-   * concept. Command Tower is the same shape with a restriction on top, so this
-   * flag marks the five and the engine refuses whichever ones the identity does
-   * not allow. Without it a Command Tower in a Golgari deck would tap for white,
-   * which is not the card.
+   * Marks the mana this ability produces as spendable only on certain spells.
+   * It goes into `Player.restrictedMana` rather than the ordinary pool, so
+   * nothing that counts a player's mana can accidentally spend it on anything
+   * else.
    */
-  requiresCommanderIdentity?: boolean;
+  producesRestrictedMana?: ManaSpendRestriction;
   /**
    * "Activate only if you control a Swamp." - Tainted Wood, Wastewood Verge,
    * Sapseep Forest.
@@ -551,6 +581,16 @@ export interface StackObject {
   targets: StackTarget[];
   /** True for permanent spells resolving onto the battlefield rather than triggered/instant/sorcery effects. */
   isPermanentSpell: boolean;
+  /**
+   * "This spell can't be countered" for *this* casting.
+   *
+   * Set from the card's own `cantBeCountered`, and also by the mana that paid
+   * for it - Delighted Halfling's "that spell can't be countered". That second
+   * source is why this lives on the stack object rather than being read off the
+   * card at resolution: the same commander cast with ordinary mana is
+   * counterable as normal, so it is a property of the cast, not of the card.
+   */
+  cantBeCountered?: boolean;
 }
 
 /**
@@ -605,6 +645,13 @@ export interface LogEntry {
 
 export type ManaPool = Partial<Record<Color, number>> & { generic?: number };
 
+/** One lump of mana in the pool that carries a condition on what it may pay for. */
+export interface RestrictedMana {
+  color: ManaColor;
+  amount: number;
+  restriction: ManaSpendRestriction;
+}
+
 export interface Player {
   id: string;
   life: number;
@@ -617,6 +664,16 @@ export interface Player {
   exile: CardInstance[];
   command: CardInstance[];
   manaPool: ManaPool;
+  /**
+   * Mana that may only be spent on certain spells - see `ManaSpendRestriction`.
+   *
+   * Deliberately beside the pool rather than inside it. `ManaPool` is a count
+   * per colour and every affordability check in the engine reads it as
+   * interchangeable; a restricted mana added there would be spent on the first
+   * thing that fitted, which is the one thing the card says it cannot do.
+   * Emptied with the pool at end of turn.
+   */
+  restrictedMana: RestrictedMana[];
   /** How many times each of this player's commanders has been cast from the command zone this game (for commander tax). */
   commanderCastCount: Record<string, number>;
   hasLost: boolean;

@@ -1,12 +1,67 @@
 import type { GameState, StackTarget } from "./types.js";
 import { findInstance, log, requireDefinition, requirePlayer } from "./state.js";
-import { canPayManaCost, identityAllows, payManaCost } from "./mana.js";
+import {
+  canPayManaCost,
+  canPayManaCostFromPool,
+  colorAllowed,
+  payManaCost,
+  potentialAvailableMana,
+} from "./mana.js";
 import { controllerMeets } from "./conditions.js";
 import { damagePlayer } from "./damage.js";
 import { applyEffect } from "./effects.js";
 import { pushOntoStack } from "./permanents.js";
 import { sacrificePermanent } from "./sba.js";
+import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
 import { attemptWardPayments } from "./ward.js";
+
+/**
+ * Which of a permanent's activated abilities its controller could use right
+ * now, as indices into `activatedAbilities`.
+ *
+ * Exists because a permanent with more than one ability has to be asked which,
+ * and the interface must only ever offer the ones that would actually work -
+ * a menu listing "Add {B}" on a Tainted Wood with no Swamp out is a menu that
+ * lies. Sharing one answer with `activateAbility` is what keeps the offer and
+ * the refusal in step.
+ *
+ * Mana is judged against what the player could still produce rather than what
+ * is floating, because activating through the client taps lands on your behalf.
+ */
+export function activatableAbilities(
+  state: GameState,
+  playerId: string,
+  instanceId: string,
+): number[] {
+  const found = findInstance(state, instanceId);
+  if (!found || found.instance.zone !== "battlefield") return [];
+  const { instance } = found;
+  if (instance.controllerId !== playerId) return [];
+  const def = state.cardDefinitions[instance.definitionId];
+  if (!def) return [];
+
+  const player = requirePlayer(state, playerId);
+  const potential = potentialAvailableMana(state, playerId);
+  const usable: number[] = [];
+
+  (def.activatedAbilities ?? []).forEach((ability, index) => {
+    if (ability.cost.tap) {
+      if (instance.tapped) return;
+      if (def.types.includes("Creature") && instance.summoningSickness) return;
+    }
+    if (ability.cost.mana && !canPayManaCostFromPool(potential, ability.cost.mana)) return;
+    if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) return;
+    if (!colorAllowed(state, playerId, ability)) return;
+    if (!controllerMeets(state, playerId, ability.activateOnlyIf)) return;
+    // An ability that needs a target and has none is not a usable ability - it
+    // would only walk the player into a targeting prompt with nothing to click.
+    const selector = targetSelectorOf(ability.effect);
+    if (selector && legalTargetsFor(state, selector, playerId).length === 0) return;
+    usable.push(index);
+  });
+
+  return usable;
+}
 
 /**
  * Activates a permanent's activated ability by index. Mana abilities resolve
@@ -45,7 +100,7 @@ export function activateAbility(
   if (ability.cost.mana && !canPayManaCost(player, ability.cost.mana)) {
     throw new Error(`${playerId} cannot pay the activation cost of ${def.name}`);
   }
-  if (!identityAllows(state, playerId, ability)) {
+  if (!colorAllowed(state, playerId, ability)) {
     throw new Error(`${def.name} cannot make that colour in this deck`);
   }
   // "Activate only if you control a Swamp." Checked before anything is paid,
@@ -79,7 +134,17 @@ export function activateAbility(
   const isManaAbility =
     ability.effect.kind === "addMana" || ability.effect.kind === "addManaCombination";
   if (isManaAbility) {
-    applyEffect(state, playerId, instanceId, ability.effect, targets);
+    if (ability.producesRestrictedMana && ability.effect.kind === "addMana") {
+      // Kept out of the ordinary pool entirely - see `Player.restrictedMana`.
+      // Nothing that counts a player's mana can then spend it on the wrong thing.
+      player.restrictedMana.push({
+        color: ability.effect.color,
+        amount: ability.effect.amount,
+        restriction: ability.producesRestrictedMana,
+      });
+    } else {
+      applyEffect(state, playerId, instanceId, ability.effect, targets);
+    }
     /*
      * "Add {B}. This land deals 1 damage to you."
      *

@@ -19,6 +19,7 @@ export function createPlayer(id: string): Player {
     exile: [],
     command: [],
     manaPool: {},
+    restrictedMana: [],
     commanderCastCount: {},
     hasLost: false,
     damagePrevention: 0,

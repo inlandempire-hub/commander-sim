@@ -1,6 +1,6 @@
 import type { CardDefinition, Effect, GameState, ManaCost, StackTarget } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
-import { applyCommanderTax, payManaCost, canPayManaCost } from "./mana.js";
+import { applyCommanderTax, canPayManaCostFromPool, payManaCostFor, spendablePool } from "./mana.js";
 import { pushOntoStack, putOntoBattlefield } from "./permanents.js";
 import { isValidTarget, targetSelectorOf } from "./targeting.js";
 import { attemptWardPayments } from "./ward.js";
@@ -103,10 +103,20 @@ export function castSpell(
     }
   }
 
-  if (!canPayManaCost(player, cost)) {
+  // Restricted mana counts here and nowhere else: this is the only place that
+  // knows *what* is being cast, which is the whole question its restriction
+  // asks. See spendablePool in mana.ts.
+  if (!canPayManaCostFromPool(spendablePool(player, def), cost)) {
     throw new Error(`${playerId} cannot afford to cast ${def.name}`);
   }
-  payManaCost(player, cost);
+  const restrictionsUsed = payManaCostFor(player, cost, def);
+  /*
+   * "...and that spell can't be countered." A property of this casting rather
+   * than of the card, so it is recorded on the spell on the stack: the same
+   * Blech cast without Delighted Halfling's mana is counterable as normal.
+   */
+  const uncounterable =
+    def.cantBeCountered === true || restrictionsUsed.some((used) => used.grantsUncounterable === true);
 
   moveCard(state, instanceId, "stack");
   log(state, `${playerId} casts ${def.name}`);
@@ -123,7 +133,7 @@ export function castSpell(
     return;
   }
 
-  pushOntoStack(state, instanceId, playerId, effect, targets, isPermanentSpell);
+  pushOntoStack(state, instanceId, playerId, effect, targets, isPermanentSpell, uncounterable);
 
   state.passesInSuccession = 0;
 }

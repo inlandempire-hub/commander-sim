@@ -111,7 +111,16 @@ def audit(fixtures, by_name):
         # cantBeCountered is a flag rather than a keyword, so the keyword check
         # above can't see it. Verify it both ways: a fixture claiming it must
         # have the line, and a card that has the line must not silently lose it.
-        says_uncounterable = "can't be countered" in (card.get("oracle_text") or "")
+        # Only when the card says *it* can't be countered. Delighted Halfling
+        # says "that spell can't be countered" about whatever its mana pays for,
+        # which is a property of the other spell and not of the Halfling - it is
+        # a 1/2 creature spell that any counterspell answers. Matching the bare
+        # phrase read that as the card protecting itself.
+        oracle = card.get("oracle_text") or ""
+        says_uncounterable = bool(
+            re.search(r"(?:^|\.\s)This spell can't be countered", oracle)
+            or re.search(r"^%s can't be countered" % re.escape(card["name"]), oracle, re.M)
+        )
         if bool(fixture.get("cantBeCountered")) != says_uncounterable:
             issues.append(
                 "cantBeCountered: fixture %s, Scryfall oracle text %s"

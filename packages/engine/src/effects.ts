@@ -242,8 +242,11 @@ export function applyEffect(
         // targeting restriction (see CardDefinition.cantBeCountered).
         const spellCard = findInstance(state, obj.sourceInstanceId);
         const spellDef = spellCard ? state.cardDefinitions[spellCard.instance.definitionId] : undefined;
-        if (spellDef?.cantBeCountered) {
-          log(state, `${spellDef.name} can't be countered`);
+        // Read off the stack object rather than the card, because it is not
+        // always a property of the card: Delighted Halfling's mana makes
+        // whatever it paid for uncounterable for that casting only.
+        if (obj.cantBeCountered) {
+          log(state, `${spellDef?.name ?? "that spell"} can't be countered`);
           continue;
         }
 

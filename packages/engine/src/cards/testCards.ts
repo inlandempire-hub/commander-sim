@@ -10836,7 +10836,7 @@ export const COMMAND_TOWER: CardDefinition = {
   scryfallId: "0548fb60-c843-4f8f-a029-6f10efc63a41",
   types: ["Land"],
   colorIdentity: [],
-  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 }, requiresCommanderIdentity: true }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 }, requiresCommanderIdentity: true }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, requiresCommanderIdentity: true }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 }, requiresCommanderIdentity: true }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 }, requiresCommanderIdentity: true }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 }, colorFrom: "commander-identity" }],
   tier: "vanilla",
 };
 
@@ -10995,6 +10995,30 @@ export const SAPSEEP_FOREST: CardDefinition = {
   entersTapped: true,
   activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }, { cost: { tap: true, mana: { generic: 0, colors: { G: 1 } } }, effect: { kind: "gainLife", amount: 1 }, activateOnlyIf: { kind: "controls-color", color: "G", count: 2 } }],
   tier: "vanilla",
+};
+
+export const EXOTIC_ORCHARD: CardDefinition = {
+  id: "exotic-orchard",
+  name: "Exotic Orchard",
+  scryfallId: "8853ff94-bf44-4cfd-9d3a-0743c361fb0d",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 }, colorFrom: "opponent-lands" }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 }, colorFrom: "opponent-lands" }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, colorFrom: "opponent-lands" }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 }, colorFrom: "opponent-lands" }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 }, colorFrom: "opponent-lands" }],
+  tier: "vanilla",
+};
+
+export const DELIGHTED_HALFLING: CardDefinition = {
+  id: "delighted-halfling",
+  name: "Delighted Halfling",
+  scryfallId: "9158f904-bf34-4cc0-9a6c-34893da29f22",
+  types: ["Creature"],
+  subtypes: ["Halfling", "Citizen"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 2,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 }, producesRestrictedMana: { kind: "legendary-spell", grantsUncounterable: true } }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 }, producesRestrictedMana: { kind: "legendary-spell", grantsUncounterable: true } }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, producesRestrictedMana: { kind: "legendary-spell", grantsUncounterable: true } }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 }, producesRestrictedMana: { kind: "legendary-spell", grantsUncounterable: true } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 }, producesRestrictedMana: { kind: "legendary-spell", grantsUncounterable: true } }],
+  tier: "scripted",
 };
 
 
@@ -11863,5 +11887,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     TWILIGHT_MIRE,
     SWARMYARD,
     SAPSEEP_FOREST,
+    EXOTIC_ORCHARD,
+    DELIGHTED_HALFLING,
   ].map((def) => [def.id, def]),
 );

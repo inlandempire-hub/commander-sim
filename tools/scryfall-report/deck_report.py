@@ -78,9 +78,16 @@ BLOCKERS = [
     # Plain "{T}: Add {G}", "{T}: Add {C}{C}" and "{T}: Add {B} or {G}" are all
     # supported as of 2026-08-07 and are filtered out before diagnosis - see
     # `supported_permanent_line`. What is left here is the shapes that are not.
-    (r"Add one mana of any color|Add one mana of any type|could produce",
-     "Mana abilities that produce a choice of any colour",
-     "addMana names one colour; 'any colour' is a choice nothing can make yet"),
+    # "Add one mana of any color" on its own has worked since Birds of Paradise
+    # - five abilities, one per colour - and so has "in your commander's color
+    # identity" (Command Tower) and "that a land an opponent controls could
+    # produce" (Exotic Orchard). This heading used to swallow all of those and
+    # claimed to be what blocked three cards; none of them was blocked by it.
+    # What is left is any-colour narrowed by something nothing can evaluate.
+    (r"Add one mana of any type|Add one mana of any color(?!\.| in your commander's color identity\.|"
+     r" that a land an opponent controls could produce\.| \. Spend this mana only to cast a legendary spell)",
+     "Mana of any colour, narrowed by something the engine cannot ask",
+     "colorFrom covers the commander's identity and an opponent's lands; any other qualifier does not exist"),
     (r"\{T\}: Add [^.]*\. (?!This (?:land|creature|permanent|artifact) deals \d+ damage to you\.|Activate only if )",
      "Mana abilities with a rider the generator cannot read",
      "the painland rider and 'activate only if you control ...' both generate; anything else on the end of a mana ability does not"),
@@ -701,9 +708,11 @@ def main():
         print("WHAT WOULD ACTUALLY FINISH A CARD")
         print("=" * 78)
         print("Cards whose remaining blockers all carry this one name. Necessary, not")
-        print("sufficient: one *name* can still hide more than one job. Path of Ancestry's")
-        print("single line wants any-colour mana AND a scry trigger, and both land here.")
-        print("Read the card before promising the number.")
+        print("sufficient: one *name* can still hide more than one job, and a heading")
+        print("names a shape rather than the work. 'Any colour mana' claimed three cards")
+        print("and blocked none of them - two wanted something else entirely and the")
+        print("third, Path of Ancestry, wants a scry trigger tied to how its mana is")
+        print("spent. Read every card against Scryfall before promising the number.")
         if not completions:
             print("  Nothing on this list is one capability away.")
         for title, cards in sorted(completions.items(), key=lambda kv: -len(kv[1])):

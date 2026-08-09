@@ -2418,3 +2418,58 @@ cards in exactly the panel you use to decide whether to play them.
 
 **The list is at 37 of 100.** 863 fixtures, both audits clean. 691 tests,
 typecheck clean.
+
+## Step 6 - "any colour mana", which was not the blocker at all
+
+Asked for as three cards. Read against Scryfall, **none of the three was blocked
+by any-colour mana**, which the engine has had since Birds of Paradise:
+
+- **Exotic Orchard** asks the *opponent's* board which colours it may make.
+- **Delighted Halfling** makes mana that is not interchangeable with the rest of
+  the pool - "spend this mana only to cast a legendary spell".
+- **Path of Ancestry**'s mana half *is* Command Tower and already worked; what
+  blocks it is the rest of the line, a scry trigger fired by how its mana was
+  spent. Refused, and the report now says so.
+
+That is the fourth time a heading has named a shape rather than the work. The
+report's own preamble now says it in those words, with this as the example.
+
+**Exotic Orchard** extends the Command Tower pattern rather than adding a
+concept: still five abilities, one per colour, filtered at activation - only the
+source of the filter changed, so `requiresCommanderIdentity` became
+`colorFrom: "commander-identity" | "opponent-lands"`. Two Orchards facing each
+other would ask each other forever, so colour-sourced abilities are skipped when
+answering; that gives the right board answer (neither makes anything) without
+modelling the loop.
+
+**Delighted Halfling** needed mana with a spend restriction, which is a change
+to the most-used structure in the engine. It is deliberately *beside* the pool
+rather than in it: `ManaPool` is a count per colour and every affordability
+check reads it as interchangeable, so a restricted mana added there would be
+spent on the first thing that fitted - the one thing the card forbids. Only
+`castSpell` can see it, because casting is the only place that knows what is
+being cast.
+
+`isFreeManaAbility` had to learn about it too, and this is the one place in the
+whole mana system where the failure would have been *over*-counting rather than
+under: the game would have believed the Halfling could pay for anything, offered
+a spell on the strength of it, and then refused the cast.
+
+"...and that spell can't be countered" lives on the stack object, not the card.
+It is a property of the casting: the same commander cast with ordinary mana is
+counterable as normal.
+
+**The ability picker.** Clicking a permanent activated its *first* ability,
+always. Survivable while the only multi-ability cards were dual lands, since the
+auto-tapper picks the right half when paying for a spell and nobody clicks them.
+It stopped being survivable the moment a card's interesting half was not its
+first - Swarmyard's regenerate, Twilight Mire's three filter modes, Delighted
+Halfling's restricted mana were all in the pool and unreachable by hand.
+
+Only abilities that would actually work are listed, from one shared
+`activatableAbilities` in the engine. A menu that offers something then refused
+is worse than no menu, and a test asserts every index it offers activates
+without throwing.
+
+**The list is at 39 of 100.** 865 fixtures, both audits clean. 717 tests,
+typecheck clean.

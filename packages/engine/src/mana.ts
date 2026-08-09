@@ -1,4 +1,16 @@
-import type { ActivatedAbility, Color, Effect, GameState, ManaColor, ManaCost, ManaPool, Player } from "./types.js";
+import type {
+  ActivatedAbility,
+  CardDefinition,
+  Color,
+  Effect,
+  GameState,
+  ManaColor,
+  ManaCost,
+  ManaPool,
+  ManaSpendRestriction,
+  Player,
+  RestrictedMana,
+} from "./types.js";
 import { ALL_COLORS } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 import { controllerMeets } from "./conditions.js";
@@ -105,6 +117,118 @@ export function addMana(pool: ManaPool, color: ManaColor, amount: number): void 
 
 export function emptyManaPool(player: Player): void {
   player.manaPool = {};
+  player.restrictedMana = [];
+}
+
+/**
+ * Whether a lump of restricted mana may be spent on this card.
+ *
+ * Deliberately answers "no" when there is no card, which is what every path
+ * other than casting passes: an activated ability's cost is not a spell, so
+ * Delighted Halfling's mana can never pay for one.
+ */
+export function restrictionAllows(
+  restriction: ManaSpendRestriction,
+  def: CardDefinition | undefined,
+): boolean {
+  if (!def) return false;
+  switch (restriction.kind) {
+    case "legendary-spell":
+      // A land is not a spell, and nothing else about "legendary spell" needs
+      // saying: it is any card with the supertype, cast.
+      return (def.supertypes?.includes("Legendary") ?? false) && !def.types.includes("Land");
+  }
+}
+
+/**
+ * What this player could actually spend on this particular card: the ordinary
+ * pool, plus any restricted mana this card is allowed to use.
+ *
+ * Everything that asks "can they afford it" without knowing what is being cast
+ * keeps reading `manaPool` alone, and so keeps under-counting rather than
+ * over-counting. A spell not offered is a nuisance; a spell offered, half paid
+ * for and then refused is a lost turn.
+ */
+export function spendablePool(player: Player, def?: CardDefinition): ManaPool {
+  if (player.restrictedMana.length === 0) return player.manaPool;
+  const pool: ManaPool = { ...player.manaPool };
+  for (const lump of player.restrictedMana) {
+    if (!restrictionAllows(lump.restriction, def)) continue;
+    addMana(pool, lump.color, lump.amount);
+  }
+  return pool;
+}
+
+/**
+ * Pays a cost for a specific card, spending restricted mana first.
+ *
+ * Restricted first because it is the only thing that mana can be spent on -
+ * holding it back to pay with a general mana instead would waste it for no
+ * gain, and no player would ever choose that. Returns the restrictions actually
+ * drawn on, because one of them ("that spell can't be countered") changes what
+ * the spell does once it is on the stack.
+ */
+export function payManaCostFor(
+  player: Player,
+  cost: ManaCost,
+  def?: CardDefinition,
+): ManaSpendRestriction[] {
+  if (!canPayManaCostFromPool(spendablePool(player, def), cost)) {
+    throw new Error(`${player.id} cannot pay mana cost`);
+  }
+  const usable = player.restrictedMana.filter((lump) => restrictionAllows(lump.restriction, def));
+  if (usable.length === 0) {
+    payManaCost(player, cost);
+    return [];
+  }
+
+  /*
+   * Spent in two stages: the restricted mana covers whatever part of the cost
+   * it can, then the ordinary pool pays what is left through the same
+   * `payManaCost` every other cost goes through. A second full payment routine
+   * that understood restrictions would be the obvious place for the two to
+   * drift apart over something like which colour covered the generic part.
+   *
+   * Within the restricted stage, coloured pips are covered before hybrids and
+   * hybrids before generic - most demanding first, because a mana that can only
+   * pay one of the three is wasted if a looser part of the cost takes it.
+   */
+  const remaining: ManaCost = {
+    generic: cost.generic,
+    colors: { ...cost.colors },
+    hybrid: cost.hybrid?.map((symbol) => [...symbol]),
+  };
+  const used = new Set<ManaSpendRestriction>();
+
+  const take = (lump: RestrictedMana): boolean => {
+    if (lump.amount <= 0) return false;
+    lump.amount -= 1;
+    used.add(lump.restriction);
+    return true;
+  };
+
+  for (const color of ALL_COLORS) {
+    while ((remaining.colors[color] ?? 0) > 0) {
+      const lump = usable.find((l) => l.color === color && l.amount > 0);
+      if (!lump || !take(lump)) break;
+      remaining.colors[color] = (remaining.colors[color] ?? 0) - 1;
+    }
+  }
+  if (remaining.hybrid) {
+    remaining.hybrid = remaining.hybrid.filter((symbol) => {
+      const lump = usable.find((l) => l.color !== "C" && symbol.includes(l.color as Color) && l.amount > 0);
+      return !(lump && take(lump));
+    });
+  }
+  while (remaining.generic > 0) {
+    const lump = usable.find((l) => l.amount > 0);
+    if (!lump || !take(lump)) break;
+    remaining.generic -= 1;
+  }
+
+  player.restrictedMana = player.restrictedMana.filter((lump) => lump.amount > 0);
+  payManaCost(player, remaining);
+  return [...used];
 }
 
 /**
@@ -132,6 +256,11 @@ export function isFreeManaAbility(
     ability.cost.mana === undefined &&
     ability.cost.payLife === undefined &&
     ability.cost.sacrificeSelf !== true &&
+    // Mana that can only be spent on certain spells is not general-purpose
+    // mana, and this is the one place where counting it would over-count rather
+    // than under-count: the game would believe Delighted Halfling could pay for
+    // anything, offer a spell on the strength of it, and then refuse to cast it.
+    ability.producesRestrictedMana === undefined &&
     ability.effect.kind === "addMana"
   );
 }
@@ -160,19 +289,53 @@ export function commanderColorIdentity(state: GameState, playerId: string): Colo
 }
 
 /**
- * Whether this ability may be activated at all right now, as far as colour
- * identity is concerned. Only Command Tower's family is ever restricted.
+ * Every colour a land any opponent controls could produce right now.
+ *
+ * Exotic Orchard reads the table rather than the deck, so this is recomputed on
+ * every activation - the answer changes as the opponent plays lands, and an
+ * Orchard facing an empty board makes nothing at all.
+ *
+ * Abilities that are themselves colour-sourced are skipped. Two Exotic Orchards
+ * facing each other would otherwise ask each other what they produce forever;
+ * skipping them gives the right answer for that corner (neither makes anything
+ * unless some other land does) without needing to model the loop.
  */
-export function identityAllows(
+export function opponentLandColors(state: GameState, playerId: string): Color[] {
+  const colors = new Set<Color>();
+  for (const player of state.players) {
+    if (player.id === playerId) continue;
+    for (const instance of player.battlefield) {
+      const def = state.cardDefinitions[instance.definitionId];
+      if (!def?.types.includes("Land")) continue;
+      for (const ability of def.activatedAbilities ?? []) {
+        if (ability.colorFrom) continue;
+        if (ability.effect.kind !== "addMana") continue;
+        // Colourless is not a colour, so a Wastes offers this nothing.
+        if (ability.effect.color !== "C") colors.add(ability.effect.color);
+      }
+    }
+  }
+  return ALL_COLORS.filter((color) => colors.has(color));
+}
+
+/**
+ * Whether this ability may be activated at all right now, as far as the colour
+ * it makes is concerned. Only the "any colour, but..." family is ever narrowed.
+ */
+export function colorAllowed(
   state: GameState,
   playerId: string,
   ability: ActivatedAbility,
 ): boolean {
-  if (!ability.requiresCommanderIdentity) return true;
+  if (!ability.colorFrom) return true;
   if (ability.effect.kind !== "addMana") return true;
   const color = ability.effect.color;
   if (color === "C") return true;
-  return commanderColorIdentity(state, playerId).includes(color);
+  const available =
+    ability.colorFrom === "commander-identity"
+      ? commanderColorIdentity(state, playerId)
+      : opponentLandColors(state, playerId);
+  return available.includes(color);
 }
 
 /**
@@ -192,7 +355,7 @@ export function abilityAvailable(
   playerId: string,
   ability: ActivatedAbility,
 ): boolean {
-  if (!identityAllows(state, playerId, ability)) return false;
+  if (!colorAllowed(state, playerId, ability)) return false;
   return controllerMeets(state, playerId, ability.activateOnlyIf);
 }
 

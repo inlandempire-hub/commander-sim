@@ -48,6 +48,7 @@ export function pushOntoStack(
   effect: Effect,
   targets: StackTarget[],
   isPermanentSpell: boolean,
+  cantBeCountered = false,
 ): StackObject {
   const obj: StackObject = {
     id: `s${state.nextStackObjectId++}`,
@@ -56,6 +57,7 @@ export function pushOntoStack(
     effect,
     targets,
     isPermanentSpell,
+    cantBeCountered,
   };
   state.stack.push(obj);
   return obj;
