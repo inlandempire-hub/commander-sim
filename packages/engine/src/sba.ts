@@ -2,6 +2,7 @@ import type { GameState } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition } from "./state.js";
 import { pushOntoStack } from "./permanents.js";
 import { effectiveToughness } from "./counters.js";
+import { useRegenerationShield } from "./regeneration.js";
 
 const COMMANDER_DAMAGE_THRESHOLD = 21;
 
@@ -71,7 +72,24 @@ export function checkStateBasedActions(state: GameState): void {
         // Deathtouch: any nonzero damage from a deathtouch source is lethal regardless of amount.
         const lethalDeathtouchDamage = instance.deathtouchDamage && instance.damageMarked > 0;
         const lethalDamage = !indestructible && (lethalNormalDamage || lethalDeathtouchDamage);
-        if (toughness <= 0 || lethalDamage) {
+        /*
+         * Toughness 0 or less is checked first and is not destruction - the
+         * creature is simply put into its graveyard (rule 704.5a), so
+         * regeneration cannot save it. That is the whole reason -N/-N is the
+         * removal of choice against a regenerating deck, and writing the shield
+         * check above this line would have quietly turned Swarmyard into
+         * protection from a board wipe it does nothing against.
+         */
+        if (toughness <= 0) {
+          moveDyingCreatureToItsZone(state, instance.instanceId, instance.isCommander);
+          changed = true;
+          continue;
+        }
+        if (lethalDamage) {
+          if (useRegenerationShield(state, instance)) {
+            changed = true;
+            continue;
+          }
           moveDyingCreatureToItsZone(state, instance.instanceId, instance.isCommander);
           changed = true;
         }

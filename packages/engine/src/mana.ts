@@ -1,10 +1,12 @@
 import type { ActivatedAbility, Color, Effect, GameState, ManaColor, ManaCost, ManaPool, Player } from "./types.js";
 import { ALL_COLORS } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
+import { controllerMeets } from "./conditions.js";
 
 export function manaValue(cost: ManaCost): number {
   const pips = ALL_COLORS.reduce((sum, c) => sum + (cost.colors[c] ?? 0), 0);
-  return cost.generic + pips;
+  // A hybrid symbol counts 1 whichever half of it gets paid.
+  return cost.generic + pips + (cost.hybrid?.length ?? 0);
 }
 
 /** The commander tax rule: +{2} generic per previous cast from the command zone this game. */
@@ -15,15 +17,46 @@ export function applyCommanderTax(cost: ManaCost, timesPreviouslyCast: number): 
   };
 }
 
-/** Whether `cost` is payable out of a given mana pool, without mutating anything. */
-export function canPayManaCostFromPool(pool: ManaPool, cost: ManaCost): boolean {
+/**
+ * Pays the coloured pips and then every hybrid symbol, returning what is left
+ * in the pool - or null if some requirement could not be met.
+ *
+ * Hybrids are taken after the fixed pips, most-constrained first, each from
+ * whichever of its own colours the pool holds most of. That ordering matters
+ * with more than one hybrid symbol in a cost: paying {B/G} out of the single
+ * black mana you were holding for the {B} pip beside it would fail a cost you
+ * could actually afford. It is still greedy rather than a real solver, which is
+ * exact for one symbol and can only ever be wrong in the safe direction - it
+ * reports a cost unpayable, never payable when it is not.
+ */
+function payColoredPart(pool: ManaPool, cost: ManaCost): ManaPool | null {
   const remaining = { ...pool };
   for (const color of ALL_COLORS) {
     const need = cost.colors[color] ?? 0;
     const have = remaining[color] ?? 0;
-    if (have < need) return false;
+    if (have < need) return null;
     remaining[color] = have - need;
   }
+
+  // Fewest ways to pay it first, so a {B/G} is not spent on mana that the
+  // {W/U/B/R/G} beside it was the only claimant for.
+  const hybrids = [...(cost.hybrid ?? [])].sort((a, b) => a.length - b.length);
+  for (const symbol of hybrids) {
+    const best = symbol
+      .filter((color) => (remaining[color] ?? 0) > 0)
+      .sort((a, b) => (remaining[b] ?? 0) - (remaining[a] ?? 0))[0];
+    // A hybrid symbol must be paid with one of its own colours. Colourless
+    // mana cannot cover it, which is the whole difference from generic.
+    if (!best) return null;
+    remaining[best] = (remaining[best] ?? 0) - 1;
+  }
+  return remaining;
+}
+
+/** Whether `cost` is payable out of a given mana pool, without mutating anything. */
+export function canPayManaCostFromPool(pool: ManaPool, cost: ManaCost): boolean {
+  const remaining = payColoredPart(pool, cost);
+  if (!remaining) return false;
   const leftover = ALL_COLORS.reduce((sum, c) => sum + (remaining[c] ?? 0), 0) + (remaining.generic ?? 0);
   return leftover >= cost.generic;
 }
@@ -37,10 +70,12 @@ export function payManaCost(player: Player, cost: ManaCost): void {
   if (!canPayManaCost(player, cost)) {
     throw new Error(`${player.id} cannot pay mana cost`);
   }
-  for (const color of ALL_COLORS) {
-    const need = cost.colors[color] ?? 0;
-    player.manaPool[color] = (player.manaPool[color] ?? 0) - need;
-  }
+  // Same routine that decided this was payable, so the mana actually taken can
+  // never disagree with the mana the check counted on.
+  const afterColored = payColoredPart(player.manaPool, cost);
+  if (!afterColored) throw new Error(`${player.id} cannot pay mana cost`);
+  player.manaPool = afterColored;
+
   let genericRemaining = cost.generic;
   // Spend leftover colored mana first, then generic-pool mana.
   for (const color of ALL_COLORS) {
@@ -81,6 +116,13 @@ export function emptyManaPool(player: Player): void {
  * and sacrifices itself to produce no mana at all, and counting it would have
  * the game offer you spells you cannot cast, then tap a land to nothing trying
  * to pay for one.
+ *
+ * A painland is deliberately still free by this test. "Add {B}. This land deals
+ * 1 damage to you" hurts, but it is not a *cost*: the mana arrives either way,
+ * so a Llanowar Wastes that did not count would leave its coloured halves
+ * invisible to auto-tap and the land would only ever make colourless. The
+ * damage is handled where it belongs, by preferring a painless source when one
+ * would do just as well - see `chooseSource`.
  */
 export function isFreeManaAbility(
   ability: ActivatedAbility,
@@ -134,6 +176,27 @@ export function identityAllows(
 }
 
 /**
+ * Every reason an ability might not be activatable that has nothing to do with
+ * paying for it: the colour identity restriction, and "activate only if you
+ * control a Swamp".
+ *
+ * Kept in one function because it has to give the same answer in three places
+ * that would otherwise drift - the activation itself, the auto-tapper's list of
+ * sources, and the count of mana a player could theoretically produce. A
+ * restriction the counter does not know about is worse than one nothing
+ * enforces: the game offers you a spell, taps your lands towards it, and then
+ * refuses the land that was supposed to pay for it.
+ */
+export function abilityAvailable(
+  state: GameState,
+  playerId: string,
+  ability: ActivatedAbility,
+): boolean {
+  if (!identityAllows(state, playerId, ability)) return false;
+  return controllerMeets(state, playerId, ability.activateOnlyIf);
+}
+
+/**
  * What a player's mana pool WOULD look like if they tapped every untapped
  * mana-producing permanent they control (in addition to whatever's already
  * floating). Used to decide "is there any point asking this player to act" -
@@ -151,7 +214,7 @@ export function potentialAvailableMana(state: GameState, playerId: string): Mana
     if (def.types.includes("Creature") && instance.summoningSickness) continue;
     for (const ability of def.activatedAbilities ?? []) {
       if (!isFreeManaAbility(ability)) continue;
-      if (!identityAllows(state, playerId, ability)) continue;
+      if (!abilityAvailable(state, playerId, ability)) continue;
       addMana(pool, ability.effect.color, ability.effect.amount);
     }
   }

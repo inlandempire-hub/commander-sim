@@ -144,6 +144,9 @@ function runAutomaticStepActions(state: GameState): void {
       state.attackers = {};
       state.blockers = {};
       state.blockersDeclared = false;
+      for (const player of state.players) {
+        for (const instance of player.battlefield) instance.removedFromCombat = false;
+      }
       break;
     }
     case "cleanup": {
@@ -154,6 +157,9 @@ function runAutomaticStepActions(state: GameState): void {
           instance.temporaryPowerBonus = 0; // "until end of turn" effects wear off here
           instance.temporaryToughnessBonus = 0;
           instance.damagePrevention = 0;
+          // "The next time it would be destroyed *this turn*" - an unused
+          // regeneration shield does not carry into the next turn.
+          instance.regenerationShields = 0;
         }
         // Unspent prevention expires with the turn too - "prevent the next 3
         // damage this turn" is not a shield you get to keep.

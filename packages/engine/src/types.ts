@@ -51,11 +51,24 @@ export type Keyword =
 export interface ManaCost {
   generic: number;
   colors: Partial<Record<Color, number>>;
+  /**
+   * Hybrid symbols - "{B/G}" is one entry, `["B", "G"]`, paid with either.
+   *
+   * Not a coloured pip and not generic, which is why it needs its own field:
+   * a hybrid symbol *must* be paid with one of its own colours (so colourless
+   * mana can never cover it), but which one is the payer's choice at the time.
+   * It counts 1 towards mana value however it is paid.
+   */
+  hybrid?: Color[][];
 }
 
 export type TargetSelector =
   | { kind: "any-target" }
-  | { kind: "creature" }
+  /**
+   * "Target creature", or - with `subtypes` - "target Insect, Rat, Spider, or
+   * Squirrel" (Swarmyard). Any one of the listed subtypes qualifies.
+   */
+  | { kind: "creature"; subtypes?: string[] }
   | { kind: "player" }
   | { kind: "opponent-of-controller" }
   /** "Target spell" - a spell on the stack, as opposed to a triggered or activated ability. */
@@ -91,6 +104,17 @@ export type Effect =
   | { kind: "damage"; amount: number; target: TargetSelector }
   | { kind: "draw"; amount: number }
   | { kind: "addMana"; color: ManaColor; amount: number }
+  /**
+   * One activation producing mana of more than one colour - "Add {B}{G}", the
+   * middle option on every filter land.
+   *
+   * Separate from `addMana` rather than widening it, because `addMana` carries
+   * a single colour everywhere it is read: the auto-tapper's source list, the
+   * pip that flies to the mana pool, the bot's "can I afford this". Widening it
+   * would have touched all of those to serve one shape; a second kind leaves
+   * every existing reader alone and simply is not offered to them.
+   */
+  | { kind: "addManaCombination"; mana: Array<{ color: ManaColor; amount: number }> }
   | { kind: "gainLife"; amount: number }
   /**
    * "Prevent the next N damage that would be dealt to any target this turn"
@@ -144,6 +168,18 @@ export type Effect =
   | { kind: "destroy"; target: TargetSelector }
   /** "Exile target creature." Bypasses Indestructible, since exile isn't destruction. */
   | { kind: "exile"; target: TargetSelector }
+  /**
+   * "Regenerate target creature" - a shield, not a prevention effect.
+   *
+   * The next time the creature would be *destroyed* this turn it is not:
+   * instead it taps, leaves combat, and has its marked damage healed. The word
+   * destroyed is doing real work there. A creature whose toughness has been
+   * reduced to 0 is not destroyed, it is put into the graveyard as a
+   * state-based action, so regeneration does nothing at all against -X/-X -
+   * which is exactly why this is a shield on the destruction path rather than
+   * an extra life the creature carries around.
+   */
+  | { kind: "regenerate"; target: TargetSelector }
   /** "Create N X tokens." `tokenDefinitionId` must name a definition flagged `isToken`. */
   | { kind: "createToken"; count: number; tokenDefinitionId: string }
   /**
@@ -219,17 +255,32 @@ export type Effect =
     };
 
 /**
- * The conditions real taplands actually print. Deliberately a closed list
- * rather than a general predicate language: three shapes cover every dual in
- * the format, and a fourth can be added the day a card needs it.
+ * A question about the asking player's board. Deliberately a closed list rather
+ * than a general predicate language: four shapes cover every card in the pool,
+ * and a fifth can be added the day one needs it.
+ *
+ * Shared by two features that ask the same question at different moments - a
+ * tapland as it arrives, and an activation restriction every time somebody
+ * reaches for the ability. See conditions.ts.
  */
-export type EntersUntappedCondition =
-  /** "unless you control two or more other lands" - Deathcap Glade. */
+export type BoardCondition =
+  /** "you control two or more other lands" - Deathcap Glade. */
   | { kind: "controls-other-lands"; count: number }
-  /** "unless you have two or more opponents" - Undergrowth Stadium. */
+  /** "you have two or more opponents" - Undergrowth Stadium. */
   | { kind: "opponents"; count: number }
-  /** "unless you control a Swamp or a Forest" - Woodland Cemetery. */
-  | { kind: "controls-subtype"; subtypes: string[] };
+  /**
+   * "you control a Swamp or a Forest" - Woodland Cemetery, Wastewood Verge.
+   * `count` defaults to 1, and any one of the listed subtypes qualifies.
+   */
+  | { kind: "controls-subtype"; subtypes: string[]; count?: number }
+  /**
+   * "you control two or more green permanents" - Sapseep Forest. Colour, not
+   * colour identity: a Forest is a colourless permanent. See `cardColors`.
+   */
+  | { kind: "controls-color"; color: Color; count: number };
+
+/** The tapland half of `BoardCondition`, named for where it reads. */
+export type EntersUntappedCondition = BoardCondition;
 
 export interface TriggeredAbility {
   /**
@@ -317,6 +368,29 @@ export interface ActivatedAbility {
    * which is not the card.
    */
   requiresCommanderIdentity?: boolean;
+  /**
+   * "Activate only if you control a Swamp." - Tainted Wood, Wastewood Verge,
+   * Sapseep Forest.
+   *
+   * A restriction on activating, not a cost and not a target requirement: it is
+   * re-checked every time somebody reaches for the ability, and nothing is paid
+   * when it fails. Everything that counts a player's available mana without
+   * spending it has to honour this too, or the game offers you spells you
+   * cannot actually pay for and then taps a land to nothing trying.
+   */
+  activateOnlyIf?: BoardCondition;
+  /**
+   * "Add {B}. This land deals 1 damage to you." - the painland rider, and the
+   * whole reason those lands are playable at all rather than strictly better
+   * duals.
+   *
+   * The damage is dealt by the permanent to the ability's controller, as the
+   * ability resolves. This is still a mana ability, so that resolution is
+   * immediate and does not use the stack - which is what makes a rider on the
+   * ability the honest shape rather than a second effect somebody has to
+   * remember to run.
+   */
+  damageToController?: number;
 }
 
 /**
@@ -437,6 +511,28 @@ export interface CardInstance {
    * marks no deathtouch, and counts towards no commander damage.
    */
   damagePrevention: number;
+  /**
+   * Regeneration shields waiting to be used - "the next time this creature
+   * would be destroyed this turn, instead...".
+   *
+   * A count rather than a flag, because two regenerations really do save a
+   * creature twice. Cleared in the cleanup step with the rest of the
+   * until-end-of-turn state, and on any zone change like every other instance
+   * field. See the `regenerate` effect in types.ts for what it does and does
+   * not save a creature from.
+   */
+  regenerationShields: number;
+  /**
+   * Taken out of combat mid-combat, which today only regeneration does.
+   *
+   * A flag rather than deleting the creature out of `attackers`/`blockers`,
+   * because those maps are the record of what was *declared* and combat leans
+   * on that: an attacker stays blocked even after every blocker has left, and
+   * assigns nothing to the defending player (rule 509.1h). Erasing the entry
+   * would quietly turn a regenerated blocker into a free hit on its controller
+   * in the second damage step. Cleared at end of combat.
+   */
+  removedFromCombat: boolean;
   isCommander: boolean;
   summoningSickness: boolean;
 }

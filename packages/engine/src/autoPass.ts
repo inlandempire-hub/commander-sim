@@ -2,6 +2,7 @@ import type { Effect, GameState, ManaCost } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 import { applyCommanderTax, canPayManaCostFromPool, potentialAvailableMana } from "./mana.js";
 import { canCastAtSorcerySpeed } from "./casting.js";
+import { controllerMeets } from "./conditions.js";
 import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
 
 const EMPTY_COST: ManaCost = { generic: 0, colors: {} };
@@ -80,8 +81,12 @@ export function hasAnyLegalAction(state: GameState, playerId: string): boolean {
     const def = requireDefinition(state, instance.definitionId);
     if (def.types.includes("Creature") && instance.summoningSickness) continue;
     for (const ability of def.activatedAbilities ?? []) {
-      if (ability.effect.kind === "addMana") continue; // a mana ability alone isn't a meaningful action
+      // A mana ability alone isn't a meaningful action, whichever shape it is.
+      if (ability.effect.kind === "addMana" || ability.effect.kind === "addManaCombination") continue;
       if (!canPayManaCostFromPool(potentialMana, ability.cost.mana ?? EMPTY_COST)) continue;
+      // "Activate only if you control a Swamp" - an ability you may not
+      // activate is not an action, and offering it stops the turn for nothing.
+      if (!controllerMeets(state, playerId, ability.activateOnlyIf)) continue;
       // Life is a cost like any other: an ability you cannot pay for is not an
       // action, and offering it stops the turn for something you can't do.
       if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) continue;

@@ -868,8 +868,13 @@ abilities resolve immediately and do nothing but add mana; no trigger observes
 the tap. Four of the tests cover exactly this.
 
 Still greedy rather than a real cost solver: with mono-coloured decks every
-source makes the deck's one colour, so greedy is optimal. Hybrid or
-multi-colour costs would need proper solving.
+source makes the deck's one colour, so greedy is optimal. A cost carrying
+several hybrid symbols would need proper solving; one is handled exactly.
+
+It also cannot plan a mana ability that itself costs mana - Twilight Mire, the
+filter lands. Those are simply not counted, which undercounts a player's mana
+rather than overcounting it, so the failure is a spell not offered rather than
+one offered and then unpayable. Activating them by hand works.
 
 ### Card detail panel
 
@@ -2351,4 +2356,65 @@ cards as missing a trigger *and* having invented one - contradicting itself
 about the same card, which is how an audit gets ignored.
 
 **The list is at 30 of 100.** 856 fixtures, both audits clean. 639 tests,
+typecheck clean.
+
+## Step 5 - the mana base: riders, restrictions, filters and regeneration
+
+Six cards asked for, four features delivered, and a seventh card fell out free.
+
+**Painlands and Elves of Deep Shadow** - "{T}: Add {B}. This land deals 1 damage
+to you." The damage is a rider on the *ability*, not part of the effect: the
+same `addMana` on a Forest must not hurt anybody. It goes through the ordinary
+damage path, so a prevention shield covers it exactly as it covers a burn spell.
+
+A painland stays a *free* mana source, deliberately. The damage is not a cost -
+the mana arrives either way - and excluding it would have left Llanowar Wastes
+tapping for nothing but colourless. It is handled where it belongs instead:
+`chooseSource` takes a painless source when one would do just as well, so
+auto-tap only shoots you when it has to.
+
+**Activation restrictions** - "Activate only if you control a Swamp." The
+important half is not the refusal; it is that `potentialAvailableMana`,
+`manaSources` and `hasAnyLegalAction` all honour it. A restriction only the
+activation knew about is *worse* than one nothing enforces: the game offers you
+a black spell, taps lands towards it, then refuses the land meant to pay for it.
+
+That question - "does this player control a Swamp?" - is the same one a tapland
+asks as it arrives, so both now go through one `meetsBoardCondition`
+(`conditions.ts`). Two answers to one question is a bug waiting for the day they
+disagree.
+
+**Sapseep Forest** came free with the restriction, and carries the trap in it:
+"two or more **green permanents**" is about colour, and a Forest is a
+*colourless* permanent whose colour *identity* is green. Reading identity would
+switch the card on a turn or two early in a deck that plays nothing but green.
+
+**Twilight Mire** needed two things nothing had: a hybrid symbol in a cost, and
+one activation producing two different colours. Hybrid is its own field on
+`ManaCost` because it is neither a pip nor generic - it must be paid with one of
+its own colours, so colourless can never cover it. Hybrids are taken
+most-constrained-first, or a {B/G} would eat the black mana the {B} beside it
+was the only claimant for.
+
+It is the first card in the pool whose mana ability costs mana, so
+`potentialAvailableMana` cannot count it. Undercounting is the safe direction
+and it is left there rather than guessed at - a real cost solver is the fix, not
+another special case.
+
+**Regeneration** - a shield on the *destruction* path, which is the whole
+subtlety. A creature whose toughness has been reduced to 0 is not destroyed, it
+is put into the graveyard as a state-based action (704.5a), so regeneration does
+nothing against -N/-N. Writing that check the other way round would quietly have
+made Swarmyard protection from a board wipe it does nothing against.
+
+Removal from combat is a flag, not a deletion from `state.blockers`. That map is
+the record of what was *declared*, and an attacker stays blocked once blocked
+even after every blocker has left (509.1h) - erasing the entry would have handed
+the attacking player a free hit for the defender having regenerated.
+
+Also fixed: the card panel never rendered the "unless" on a conditional tapland,
+so Deathcap Glade read as flatly "This land enters tapped" - understating three
+cards in exactly the panel you use to decide whether to play them.
+
+**The list is at 37 of 100.** 863 fixtures, both audits clean. 691 tests,
 typecheck clean.

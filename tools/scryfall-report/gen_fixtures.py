@@ -135,8 +135,11 @@ ENTERS_TAPPED_UNLESS_LANDS = re.compile(
 ENTERS_TAPPED_UNLESS_OPPONENTS = re.compile(
     r"^This land enters tapped unless you have (two|three|\d+) or more opponents\.$"
 )
+# Capitalised for the same reason `ONLY_IF_SUBTYPE` is - "unless you control a
+# basic land" would otherwise become the subtype "basic" and never be true, so
+# the land would enter tapped forever.
 ENTERS_TAPPED_UNLESS_SUBTYPE = re.compile(
-    r"^This land enters tapped unless you control an? ([A-Za-z]+)(?: or an? ([A-Za-z]+))?\.$"
+    r"^This land enters tapped unless you control an? ([A-Z][a-z]+)(?: or an? ([A-Z][a-z]+))?\.$"
 )
 
 # "Whenever you gain life, put a +1/+1 counter on this creature." (Pest Mascot)
@@ -157,6 +160,56 @@ GAIN_LIFE_COUNTER_EACH = re.compile(
 TAP_ADD_ANY = re.compile(r"^\{T\}: Add one mana of any color\.$")
 TAP_ADD_ANY_IN_IDENTITY = re.compile(
     r"^\{T\}: Add one mana of any color in your commander's color identity\.$"
+)
+
+# The two riders a mana ability can carry, both written as their own sentence
+# after the ability:
+#   "{T}: Add {B} or {G}. This land deals 1 damage to you."   (painlands)
+#   "{T}: Add {B}. Activate only if you control a Swamp."     (Tainted Wood)
+# Peeled off before the ability itself is read, so one rider does not need a
+# second copy of every mana pattern to go with it.
+PAIN_RIDER = re.compile(
+    r"\s*This (?:land|creature|permanent|artifact) deals (\d+) damage to you\.$"
+)
+ONLY_IF_RIDER = re.compile(r"\s*Activate only if (.+?)\.$")
+
+# The conditions an "Activate only if" rider names. Same closed set the taplands
+# use, and deliberately so - both are asking the engine one question about the
+# board, and the day they stop agreeing is the day one of them is wrong.
+#
+# The subtype has to be capitalised, because in oracle text a real subtype
+# always is. Without that, "activate only if you control a commander" reads as
+# the subtype "commander", matches no card in the game, and the ability becomes
+# one that can never be activated - a card silently turned into a blank.
+ONLY_IF_SUBTYPE = re.compile(r"^you control an? ([A-Z][a-z]+)(?: or an? ([A-Z][a-z]+))?$")
+ONLY_IF_SUBTYPE_COUNT = re.compile(r"^you control (two|three|\d+) or more ([A-Z][a-z]+)s$")
+ONLY_IF_COLOR_COUNT = re.compile(
+    r"^you control (two|three|\d+) or more (white|blue|black|red|green) permanents$"
+)
+
+COLOR_WORDS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+
+# Filter lands: "{B/G}, {T}: Add {B}{B}, {B}{G}, or {G}{G}."
+#
+# One printed ability with three outputs, written as three - the same trick as
+# "Add {B} or {G}", for the same reason. The {B/G} in the cost is a real hybrid
+# symbol: it must be paid with black or green, and colourless mana can never
+# cover it.
+FILTER_LAND = re.compile(
+    r"^\{([WUBRGC])/([WUBRGC])\}, \{T\}: Add "
+    r"((?:\{[WUBRGC]\})+), ((?:\{[WUBRGC]\})+), or ((?:\{[WUBRGC]\})+)\.$"
+)
+
+# "{G}, {T}: You gain 1 life." - Sapseep Forest, whose whole card is that
+# ability plus the restriction rider on the end of it.
+ACTIVATED_GAIN_LIFE = re.compile(
+    r"^((?:\{[^}]+\})+), \{T\}: You gain (\d+) life\.$"
+)
+
+# "{T}: Regenerate target Insect, Rat, Spider, or Squirrel." - Swarmyard.
+TAP_REGENERATE = re.compile(
+    r"^\{T\}: Regenerate target ([A-Za-z]+)(?:, ([A-Za-z]+))?(?:, ([A-Za-z]+))?"
+    r"(?:, or ([A-Za-z]+))?\.$"
 )
 
 
@@ -244,16 +297,151 @@ def enters_trigger(line):
     return None
 
 
-def mana_ability(color, amount=1, identity_only=False):
+def mana_ability(color, amount=1, identity_only=False, riders=""):
     return (
-        '{ cost: { tap: true }, effect: { kind: "addMana", color: "%s", amount: %d }%s }'
-        % (color, amount, ", requiresCommanderIdentity: true" if identity_only else "")
+        '{ cost: { tap: true }, effect: { kind: "addMana", color: "%s", amount: %d }%s%s }'
+        % (color, amount, ", requiresCommanderIdentity: true" if identity_only else "", riders)
     )
 
 
-def any_color_abilities(identity_only=False):
+def any_color_abilities(identity_only=False, riders=""):
     """One ability per colour. A choice of five, written as five."""
-    return [mana_ability(c, 1, identity_only) for c in ("W", "U", "B", "R", "G")]
+    return [mana_ability(c, 1, identity_only, riders) for c in ("W", "U", "B", "R", "G")]
+
+
+def only_if_condition(clause):
+    """The `activateOnlyIf` condition for an "Activate only if ..." rider, or None."""
+    color = ONLY_IF_COLOR_COUNT.match(clause)
+    if color:
+        return '{ kind: "controls-color", color: "%s", count: %d }' % (
+            COLOR_WORDS[color.group(2)],
+            number(color.group(1)),
+        )
+    counted = ONLY_IF_SUBTYPE_COUNT.match(clause)
+    if counted:
+        return '{ kind: "controls-subtype", subtypes: ["%s"], count: %d }' % (
+            counted.group(2),
+            number(counted.group(1)),
+        )
+    subtype = ONLY_IF_SUBTYPE.match(clause)
+    if subtype:
+        names = [g for g in subtype.groups() if g]
+        return '{ kind: "controls-subtype", subtypes: [%s] }' % ", ".join('"%s"' % n for n in names)
+    return None
+
+
+def split_riders(line):
+    """
+    Peels the trailing rider sentences off an ability line.
+
+    Returns (core, riders, ok). `ok` is False when a rider was recognised as a
+    rider but its wording could not be read - "activate only as a sorcery", a
+    timing restriction rather than a board one. That has to refuse the card
+    rather than fall through, because dropping the restriction silently would
+    make the ability strictly better than the printed card.
+    """
+    riders = ""
+    ok = True
+
+    only_if = ONLY_IF_RIDER.search(line)
+    if only_if:
+        condition = only_if_condition(only_if.group(1))
+        if condition is None:
+            return line, "", False
+        riders += ", activateOnlyIf: %s" % condition
+        line = line[: only_if.start()]
+
+    pain = PAIN_RIDER.search(line)
+    if pain:
+        riders += ", damageToController: %s" % pain.group(1)
+        line = line[: pain.start()]
+
+    return line.strip(), riders, ok
+
+
+def gain_life_ability(line):
+    """"{G}, {T}: You gain 1 life. Activate only if ...", or None."""
+    core, riders, ok = split_riders(line)
+    if not ok:
+        return False
+    match = ACTIVATED_GAIN_LIFE.match(core)
+    if not match:
+        return None
+    cost = ts_mana_cost(match.group(1))
+    if cost is None:
+        return None  # hybrid or {X} in the activation cost
+    return (
+        '{ cost: { tap: true, mana: %s }, effect: { kind: "gainLife", amount: %s }%s }'
+        % (cost, match.group(2), riders)
+    )
+
+
+def regenerate_ability(line):
+    """"{T}: Regenerate target Insect, Rat, Spider, or Squirrel.", or None."""
+    match = TAP_REGENERATE.match(line)
+    if not match:
+        return None
+    subtypes = [g for g in match.groups() if g]
+    return (
+        '{ cost: { tap: true }, effect: { kind: "regenerate", target: '
+        '{ kind: "creature", subtypes: [%s] } } }' % ", ".join('"%s"' % s for s in subtypes)
+    )
+
+
+def mana_abilities(line):
+    """
+    Every activated ability a mana line produces, or None if it isn't one.
+
+    Shared by the creature path and the permanent path, because a creature that
+    taps for mana is not a different kind of mana ability from a land that does
+    - and a pattern that lived on only one of them is how Elves of Deep Shadow
+    and Llanowar Wastes came to need the same feature twice.
+
+    Returns `False` (not None) for a line that *is* a mana ability but whose
+    rider could not be read, so the caller refuses the card instead of trying
+    the next pattern on it.
+    """
+    core, riders, ok = split_riders(line)
+    if not ok:
+        return False
+
+    tap_add = TAP_ADD.match(core)
+    if tap_add:
+        symbols = re.findall(r"\{([WUBRGC])\}", tap_add.group(1))
+        # "Add {C}{C}" is one ability producing two, not two abilities.
+        if len(set(symbols)) != 1:
+            return None
+        return [mana_ability(symbols[0], len(symbols), riders=riders)]
+
+    either = TAP_ADD_EITHER.match(core)
+    if either:
+        return [mana_ability(c, riders=riders) for c in either.groups() if c]
+
+    if TAP_ADD_ANY.match(core):
+        return any_color_abilities(riders=riders)
+    if TAP_ADD_ANY_IN_IDENTITY.match(core):
+        return any_color_abilities(identity_only=True, riders=riders)
+
+    filter_land = FILTER_LAND.match(core)
+    if filter_land:
+        hybrid = '{ generic: 0, colors: {}, hybrid: [["%s", "%s"]] }' % (
+            filter_land.group(1),
+            filter_land.group(2),
+        )
+        abilities = []
+        for output in filter_land.group(3, 4, 5):
+            symbols = re.findall(r"\{([WUBRGC])\}", output)
+            parts = []
+            for color in dict.fromkeys(symbols):
+                parts.append('{ color: "%s", amount: %d }' % (color, symbols.count(color)))
+            abilities.append(
+                '{ cost: { tap: true, mana: %s }, effect: '
+                '{ kind: "addManaCombination", mana: [%s] }%s }'
+                % (hybrid, ", ".join(parts), riders)
+            )
+        return abilities
+
+    return None
 
 
 def interpret_permanent(card):
@@ -298,26 +486,23 @@ def interpret_permanent(card):
             triggers.append(gain)
             continue
 
-        tap_add = TAP_ADD.match(line)
-        if tap_add:
-            symbols = re.findall(r"\{([WUBRGC])\}", tap_add.group(1))
-            # "Add {C}{C}" is one ability producing two, not two abilities.
-            if len(set(symbols)) != 1:
-                return None
-            activated.append(mana_ability(symbols[0], len(symbols)))
+        mana = mana_abilities(line)
+        if mana is False:
+            return None  # a rider on a mana ability that could not be read
+        if mana:
+            activated.extend(mana)
             continue
 
-        either = TAP_ADD_EITHER.match(line)
-        if either:
-            for color in [g for g in either.groups() if g]:
-                activated.append(mana_ability(color))
+        regenerate = regenerate_ability(line)
+        if regenerate:
+            activated.append(regenerate)
             continue
 
-        if TAP_ADD_ANY.match(line):
-            activated.extend(any_color_abilities())
-            continue
-        if TAP_ADD_ANY_IN_IDENTITY.match(line):
-            activated.extend(any_color_abilities(identity_only=True))
+        lifegain = gain_life_ability(line)
+        if lifegain is False:
+            return None
+        if lifegain:
+            activated.append(lifegain)
             continue
 
         fetch = FETCH.match(line)
@@ -625,23 +810,26 @@ def interpret(card):
             )
             continue
 
-        # Mana creatures. Same three shapes the permanent path reads, sharing
-        # the same builders - a creature that taps for mana is not a different
-        # kind of mana ability from a land that does.
-        tap_add = TAP_ADD.match(line)
-        if tap_add:
-            symbols = re.findall(r"\{([WUBRGC])\}", tap_add.group(1))
-            if len(set(symbols)) != 1:
-                return None
-            activated.append(mana_ability(symbols[0], len(symbols)))
+        # Mana creatures, through the same parser the permanent path uses -
+        # Elves of Deep Shadow is Llanowar Wastes with legs, and the rider on
+        # it is word for word the same rider.
+        mana = mana_abilities(line)
+        if mana is False:
+            return None
+        if mana:
+            activated.extend(mana)
             continue
-        either = TAP_ADD_EITHER.match(line)
-        if either:
-            for color in [g for g in either.groups() if g]:
-                activated.append(mana_ability(color))
+
+        regenerate = regenerate_ability(line)
+        if regenerate:
+            activated.append(regenerate)
             continue
-        if TAP_ADD_ANY.match(line):
-            activated.extend(any_color_abilities())
+
+        lifegain = gain_life_ability(line)
+        if lifegain is False:
+            return None
+        if lifegain:
+            activated.append(lifegain)
             continue
 
         parts = [p.strip().lower() for p in line.split(",") if p.strip()]

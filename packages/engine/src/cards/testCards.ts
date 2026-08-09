@@ -10921,6 +10921,83 @@ export const BLECH_LOAFING_PEST: CardDefinition = {
   tier: "scripted",
 };
 
+export const ELVES_OF_DEEP_SHADOW: CardDefinition = {
+  id: "elves-of-deep-shadow",
+  name: "Elves of Deep Shadow",
+  scryfallId: "6040ba5e-7042-4095-9000-89bcb8ce1ea6",
+  types: ["Creature"],
+  subtypes: ["Elf", "Druid"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, damageToController: 1 }],
+  tier: "scripted",
+};
+
+export const LLANOWAR_WASTES: CardDefinition = {
+  id: "llanowar-wastes",
+  name: "Llanowar Wastes",
+  scryfallId: "266316d3-3bbc-4283-aab8-69629855909f",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, damageToController: 1 }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 }, damageToController: 1 }],
+  tier: "vanilla",
+};
+
+export const TAINTED_WOOD: CardDefinition = {
+  id: "tainted-wood",
+  name: "Tainted Wood",
+  scryfallId: "3da7ab6b-b10a-4786-b1eb-92de7e66690e",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, activateOnlyIf: { kind: "controls-subtype", subtypes: ["Swamp"] } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 }, activateOnlyIf: { kind: "controls-subtype", subtypes: ["Swamp"] } }],
+  tier: "vanilla",
+};
+
+export const WASTEWOOD_VERGE: CardDefinition = {
+  id: "wastewood-verge",
+  name: "Wastewood Verge",
+  scryfallId: "5ceacc7d-d407-4f82-af58-9bdf8426924e",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, activateOnlyIf: { kind: "controls-subtype", subtypes: ["Swamp", "Forest"] } }],
+  tier: "vanilla",
+};
+
+export const TWILIGHT_MIRE: CardDefinition = {
+  id: "twilight-mire",
+  name: "Twilight Mire",
+  scryfallId: "3cc8186b-b46f-46c0-8dfb-9e423e430048",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }, { cost: { tap: true, mana: { generic: 0, colors: {}, hybrid: [["B", "G"]] } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 2 }] } }, { cost: { tap: true, mana: { generic: 0, colors: {}, hybrid: [["B", "G"]] } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 1 }, { color: "G", amount: 1 }] } }, { cost: { tap: true, mana: { generic: 0, colors: {}, hybrid: [["B", "G"]] } }, effect: { kind: "addManaCombination", mana: [{ color: "G", amount: 2 }] } }],
+  tier: "vanilla",
+};
+
+export const SWARMYARD: CardDefinition = {
+  id: "swarmyard",
+  name: "Swarmyard",
+  scryfallId: "b89329f2-d386-40a7-9098-6d80beeb8843",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }, { cost: { tap: true }, effect: { kind: "regenerate", target: { kind: "creature", subtypes: ["Insect", "Rat", "Spider", "Squirrel"] } } }],
+  tier: "vanilla",
+};
+
+export const SAPSEEP_FOREST: CardDefinition = {
+  id: "sapseep-forest",
+  name: "Sapseep Forest",
+  scryfallId: "81d3099d-4f22-425c-8955-903b6cfb88d3",
+  types: ["Land"],
+  subtypes: ["Forest"],
+  colorIdentity: ["G"],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }, { cost: { tap: true, mana: { generic: 0, colors: { G: 1 } } }, effect: { kind: "gainLife", amount: 1 }, activateOnlyIf: { kind: "controls-color", color: "G", count: 2 } }],
+  tier: "vanilla",
+};
+
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -11779,5 +11856,12 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WOODLAND_CEMETERY,
     PEST_MASCOT,
     BLECH_LOAFING_PEST,
+    ELVES_OF_DEEP_SHADOW,
+    LLANOWAR_WASTES,
+    TAINTED_WOOD,
+    WASTEWOOD_VERGE,
+    TWILIGHT_MIRE,
+    SWARMYARD,
+    SAPSEEP_FOREST,
   ].map((def) => [def.id, def]),
 );

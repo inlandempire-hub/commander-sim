@@ -31,8 +31,12 @@ describe("lands and mana rocks", () => {
     expect(textOf("bayou")).not.toContain("enters tapped");
   });
 
-  it("calls a nonland permanent a permanent", () => {
-    expect(textOf("charcoal-diamond")).toContain("This permanent enters tapped.");
+  it("calls a card by its own type, as the card does", () => {
+    // Scryfall prints "This artifact enters tapped." on Charcoal Diamond, not
+    // "This permanent" - the renderer used to flatten every nonland to
+    // "permanent", which read as a house style rather than the card.
+    expect(textOf("charcoal-diamond")).toContain("This artifact enters tapped.");
+    expect(textOf("golgari-guildgate")).toContain("This land enters tapped.");
   });
 
   it("renders colourless mana", () => {
@@ -47,6 +51,55 @@ describe("lands and mana rocks", () => {
 
   it("renders a land's enters-the-battlefield trigger", () => {
     expect(textOf("radiant-fountain")).toContain("2 life");
+  });
+
+  it("says what a conditional tapland's condition is", () => {
+    /*
+     * "This land enters tapped." on its own is the wrong card. Deathcap Glade
+     * is priced as a dual that comes in untapped from turn three onward, and a
+     * panel that only shows the drawback understates it exactly as badly as
+     * leaving the drawback off would overstate Golgari Guildgate.
+     */
+    expect(textOf("deathcap-glade")).toContain(
+      "This land enters tapped unless you control 2 or more other lands.",
+    );
+    expect(textOf("woodland-cemetery")).toContain(
+      "This land enters tapped unless you control a Swamp or a Forest.",
+    );
+    expect(textOf("undergrowth-stadium")).toContain(
+      "This land enters tapped unless you have 2 or more opponents.",
+    );
+  });
+
+  it("says a painland hurts, in the card's own words", () => {
+    // The printed wording names the card's type: "This land deals 1 damage to
+    // you" on Llanowar Wastes, "This creature" on Elves of Deep Shadow.
+    expect(textOf("llanowar-wastes")).toContain("{T}: Add {B}. This land deals 1 damage to you.");
+    expect(textOf("elves-of-deep-shadow")).toContain("This creature deals 1 damage to you.");
+    // And says nothing of the sort about the colourless half, which is free.
+    expect(textOf("llanowar-wastes")).toContain("{T}: Add {C}.");
+  });
+
+  it("says when a restricted ability may be used", () => {
+    expect(textOf("tainted-wood")).toContain("Activate only if you control a Swamp.");
+    expect(textOf("wastewood-verge")).toContain(
+      "Activate only if you control a Swamp or a Forest.",
+    );
+    expect(textOf("sapseep-forest")).toContain(
+      "Activate only if you control 2 or more green permanents.",
+    );
+  });
+
+  it("renders a filter land's cost as one hybrid symbol", () => {
+    const text = textOf("twilight-mire");
+    expect(text).toContain("{B/G}, {T}: Add {B}{G}.");
+    expect(text).toContain("{B/G}, {T}: Add {B}{B}.");
+  });
+
+  it("lists the types a regenerate ability may point at", () => {
+    expect(textOf("swarmyard")).toContain(
+      "Regenerate target Insect, Rat, Spider, or Squirrel.",
+    );
   });
 
   it("describes every land in the pool rather than leaving one blank", () => {

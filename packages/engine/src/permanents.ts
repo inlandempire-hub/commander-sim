@@ -8,6 +8,7 @@ import type {
   TriggeredAbility,
 } from "./types.js";
 import { moveCard, requireDefinition } from "./state.js";
+import { meetsBoardCondition } from "./conditions.js";
 
 /**
  * The two ways an object arrives somewhere and may set triggers off: onto the
@@ -26,31 +27,18 @@ import { moveCard, requireDefinition } from "./state.js";
  * else enters tapped exactly as `entersTapped` says. Returning false is the
  * safe direction - a tapland that enters tapped when it should not is a minor
  * annoyance, where one entering untapped is a free card.
+ *
+ * The permanent itself is excluded from the count, because this is asked with
+ * it already on the battlefield - see the note at the call site.
  */
 function entersUntapped(state: GameState, instance: CardInstance, def: CardDefinition): boolean {
-  const condition = def.entersTappedUnless;
-  if (!condition) return false;
-  const controller = state.players.find((p) => p.id === instance.controllerId);
-  if (!controller) return false;
-
-  switch (condition.kind) {
-    case "controls-other-lands": {
-      const others = controller.battlefield.filter(
-        (card) =>
-          card.instanceId !== instance.instanceId &&
-          state.cardDefinitions[card.definitionId]?.types.includes("Land"),
-      );
-      return others.length >= condition.count;
-    }
-    case "opponents":
-      return state.players.length - 1 >= condition.count;
-    case "controls-subtype":
-      // "a Swamp or a Forest" - any one of them, and a dual counts for both.
-      return controller.battlefield.some((card) => {
-        const other = state.cardDefinitions[card.definitionId];
-        return condition.subtypes.some((subtype) => other?.subtypes?.includes(subtype));
-      });
-  }
+  if (!def.entersTappedUnless) return false;
+  return meetsBoardCondition(
+    state,
+    instance.controllerId,
+    def.entersTappedUnless,
+    instance.instanceId,
+  );
 }
 
 export function pushOntoStack(

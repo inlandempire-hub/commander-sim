@@ -1,6 +1,8 @@
 import type { GameState, StackTarget } from "./types.js";
 import { findInstance, log, requireDefinition, requirePlayer } from "./state.js";
 import { canPayManaCost, identityAllows, payManaCost } from "./mana.js";
+import { controllerMeets } from "./conditions.js";
+import { damagePlayer } from "./damage.js";
 import { applyEffect } from "./effects.js";
 import { pushOntoStack } from "./permanents.js";
 import { sacrificePermanent } from "./sba.js";
@@ -46,6 +48,12 @@ export function activateAbility(
   if (!identityAllows(state, playerId, ability)) {
     throw new Error(`${def.name} cannot make that colour in this deck`);
   }
+  // "Activate only if you control a Swamp." Checked before anything is paid,
+  // and re-checked on every activation rather than remembered - the board this
+  // asks about changes constantly.
+  if (!controllerMeets(state, playerId, ability.activateOnlyIf)) {
+    throw new Error(`${def.name}'s ability cannot be activated right now`);
+  }
   if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) {
     // You may not pay life you do not have. Paying down to exactly 0 is legal
     // and loses the game to the usual state-based action - that is the real
@@ -68,9 +76,23 @@ export function activateAbility(
    */
   if (ability.cost.sacrificeSelf) sacrificePermanent(state, instanceId);
 
-  const isManaAbility = ability.effect.kind === "addMana";
+  const isManaAbility =
+    ability.effect.kind === "addMana" || ability.effect.kind === "addManaCombination";
   if (isManaAbility) {
     applyEffect(state, playerId, instanceId, ability.effect, targets);
+    /*
+     * "Add {B}. This land deals 1 damage to you."
+     *
+     * Applied here rather than inside the effect because it belongs to the
+     * ability, not to adding mana - the same `addMana` effect on a Forest must
+     * not hurt anybody. It lands after the mana, which is the printed order,
+     * and it goes through the ordinary damage path so a prevention shield
+     * covers it exactly as it would cover a burn spell.
+     */
+    if (ability.damageToController) {
+      const dealt = damagePlayer(state, player, ability.damageToController).dealt;
+      if (dealt > 0) log(state, `${def.name} deals ${dealt} damage to ${playerId}`);
+    }
   } else {
     if (targets.length > 0 && !attemptWardPayments(state, playerId, targets)) {
       // Ward's cost went unpaid - the ability is countered (fizzles). The tap/mana cost already

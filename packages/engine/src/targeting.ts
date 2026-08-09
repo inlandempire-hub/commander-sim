@@ -41,7 +41,12 @@ export function isValidTarget(
       if (target.kind !== "card") return false;
       const found = findInstance(state, target.instanceId);
       if (!found || found.instance.zone !== "battlefield") return false;
-      if (!requireDefinition(state, found.instance.definitionId).types.includes("Creature")) return false;
+      const def = requireDefinition(state, found.instance.definitionId);
+      if (!def.types.includes("Creature")) return false;
+      // "target Insect, Rat, Spider, or Squirrel" - any one of them qualifies.
+      if (selector.subtypes?.length && !selector.subtypes.some((s) => def.subtypes?.includes(s))) {
+        return false;
+      }
       return !isProtectedByHexproof(state, target.instanceId, controllerId);
     }
     case "permanent": {
@@ -121,6 +126,7 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "returnFromGraveyard":
     case "returnFromExile":
     case "preventDamage":
+    case "regenerate":
       return effect.target;
     // `pump` is the one optional case: "target creature gets +2/+2" targets,
     // but "{G}: this creature gets +2/+2" is the same effect with no target,

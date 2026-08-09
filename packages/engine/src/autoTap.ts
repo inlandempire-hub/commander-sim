@@ -1,6 +1,6 @@
 import { ALL_COLORS, type CardInstance, type Color, type GameState, type ManaColor, type ManaCost, type ManaPool, type Player, type StackTarget } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
-import { addMana, applyCommanderTax, canPayManaCostFromPool, identityAllows, isFreeManaAbility, potentialAvailableMana } from "./mana.js";
+import { abilityAvailable, addMana, applyCommanderTax, canPayManaCostFromPool, isFreeManaAbility, potentialAvailableMana } from "./mana.js";
 import { activateAbility } from "./abilities.js";
 import { castSpell, type CastOptions } from "./casting.js";
 
@@ -30,6 +30,8 @@ export interface ManaSource {
   abilityIndex: number;
   color: ManaColor;
   amount: number;
+  /** A painland's coloured halves: usable, but not for free. See `chooseSource`. */
+  damageToController: number;
 }
 
 export function manaSources(state: GameState, player: Player): ManaSource[] {
@@ -47,9 +49,16 @@ export function manaSources(state: GameState, player: Player): ManaSource[] {
       if (!isFreeManaAbility(ability)) return;
       // Command Tower's five halves: only the ones the commander's colours
       // allow are real sources. Tapping it for white in a Golgari deck is not
-      // the card.
-      if (!identityAllows(state, player.id, ability)) return;
-      sources.push({ instance, abilityIndex, color: ability.effect.color, amount: ability.effect.amount });
+      // the card. Same gate covers "activate only if you control a Swamp" -
+      // Tainted Wood makes no coloured mana at all until a Swamp is out.
+      if (!abilityAvailable(state, player.id, ability)) return;
+      sources.push({
+        instance,
+        abilityIndex,
+        color: ability.effect.color,
+        amount: ability.effect.amount,
+        damageToController: ability.damageToController ?? 0,
+      });
     });
   }
   return sources;
@@ -72,26 +81,44 @@ export function couldAfford(state: GameState, playerId: string, cost: ManaCost):
  * first, since a source producing a colour the cost actually needs is strictly
  * more useful than one that only helps with the generic portion. With the
  * current mono-coloured pools every source produces the deck's one colour, so
- * greedy is optimal; hybrid or multi-colour requirements would need proper
- * solving (see the limitations note in ROADMAP.md).
+ * greedy is optimal; a cost with several hybrid symbols in it would still need
+ * proper solving (see the limitations note in ROADMAP.md).
+ *
+ * Within equally useful sources it takes the painless one. A painland is a real
+ * source and has to stay one - excluding it would leave Llanowar Wastes tapping
+ * for nothing but colourless - but shooting yourself for mana a Forest could
+ * have made is a decision no player would take, and this is making the decision
+ * on their behalf.
  */
 function chooseSource(sources: ManaSource[], pool: ManaPool, cost: ManaCost): ManaSource | null {
   if (canPayManaCostFromPool(pool, cost)) return null;
   if (sources.length === 0) return null;
 
-  const shortfallColors = ALL_COLORS.filter(
+  const shortfallColors: ManaColor[] = ALL_COLORS.filter(
     (color) => (pool[color] ?? 0) < (cost.colors[color] ?? 0),
   );
+  /*
+   * A hybrid symbol never shows up as a pip shortfall, because it is not a pip.
+   * Without this, a cost of "{B/G}, {T}" that the pool cannot cover would fall
+   * through to "anything untapped helps with the generic part" and start
+   * tapping colourless rocks that can never pay it. Any colour named by a
+   * hybrid symbol is worth having when the cost is still unpayable.
+   */
+  if (shortfallColors.length === 0 && cost.hybrid?.length) {
+    for (const symbol of cost.hybrid) {
+      for (const color of symbol) {
+        if (!shortfallColors.includes(color)) shortfallColors.push(color);
+      }
+    }
+  }
 
-  const preferred =
-    shortfallColors.length > 0
-      ? // A colourless source is never in shortfallColors, which is exactly
-        // right: it can only ever help with the generic part of a cost.
-        sources.find((s) => (shortfallColors as ManaColor[]).includes(s.color))
-      : // Colour requirements are met; anything untapped now helps with the generic part.
-        sources[0];
+  // A colourless source is never in shortfallColors, which is exactly right:
+  // it can only ever help with the generic part of a cost.
+  const useful =
+    shortfallColors.length > 0 ? sources.filter((s) => shortfallColors.includes(s.color)) : sources;
 
-  return preferred ?? sources[0] ?? null;
+  const painless = useful.find((s) => s.damageToController === 0);
+  return painless ?? useful[0] ?? sources[0] ?? null;
 }
 
 /**

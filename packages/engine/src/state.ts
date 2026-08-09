@@ -87,6 +87,8 @@ export function createCardInstance(
     temporaryPowerBonus: 0,
     temporaryToughnessBonus: 0,
     damagePrevention: 0,
+    regenerationShields: 0,
+    removedFromCombat: false,
     isCommander: options.isCommander ?? false,
     summoningSickness: true,
   };
@@ -146,6 +148,8 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.temporaryPowerBonus = 0; // likewise, until-end-of-turn pumps don't follow a card between zones
   instance.temporaryToughnessBonus = 0;
   instance.damagePrevention = 0; // a shield protects the object it was cast on, not the new one this became
+  instance.regenerationShields = 0; // likewise - a regenerated creature that later leaves keeps nothing
+  instance.removedFromCombat = false;
   instance.controllerId = owner.id; // zone changes return control to the owner
   instance.summoningSickness = destination === "battlefield";
 

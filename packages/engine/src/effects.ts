@@ -15,6 +15,7 @@ import { effectivePower } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
 import { enteredBattlefield, putOntoBattlefield } from "./permanents.js";
 import { gainLife } from "./life.js";
+import { useRegenerationShield } from "./regeneration.js";
 
 /**
  * Applies a resolved (non-permanent) effect: spell/ability damage, draw,
@@ -67,6 +68,15 @@ export function applyEffect(
     }
     case "addMana": {
       addMana(controller.manaPool, effect.color, effect.amount);
+      return;
+    }
+    case "addManaCombination": {
+      // "Add {B}{G}" - one activation, two colours. Each part goes through the
+      // same door a single-colour add does, so colourless still lands in the
+      // generic bucket rather than needing a second rule about it here.
+      for (const part of effect.mana) {
+        addMana(controller.manaPool, part.color, part.amount);
+      }
       return;
     }
     case "gainLife": {
@@ -143,6 +153,16 @@ export function applyEffect(
       source.instance.temporaryPowerBonus += effectivePower(state, source.instance);
       return;
     }
+    case "regenerate": {
+      for (const target of targets) {
+        if (target.kind !== "card") continue;
+        const found = findInstance(state, target.instanceId);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        found.instance.regenerationShields += 1;
+        log(state, `${cardName(state, target.instanceId)} is regenerated`);
+      }
+      return;
+    }
     case "destroy":
     case "exile": {
       for (const target of targets) {
@@ -153,6 +173,10 @@ export function applyEffect(
         if (effect.kind === "destroy") {
           const def = state.cardDefinitions[found.instance.definitionId];
           if (def?.keywords?.includes("Indestructible")) continue;
+          // A regeneration shield is spent here rather than at the graveyard,
+          // because it replaces the destruction itself: the creature never
+          // dies, so nothing watching for a death sees anything happen.
+          if (useRegenerationShield(state, found.instance)) continue;
         }
 
         // The commander replacement effect applies to both: a commander that

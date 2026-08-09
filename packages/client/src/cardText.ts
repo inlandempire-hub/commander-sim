@@ -1,6 +1,8 @@
 import type {
   ActivatedAbility,
+  BoardCondition,
   CardDefinition,
+  Color,
   Effect,
   TargetSelector,
   TriggeredAbility,
@@ -29,7 +31,11 @@ export function describeTarget(selector: TargetSelector): string {
     case "any-target":
       return "any target";
     case "creature":
-      return "target creature";
+      // "target Insect, Rat, Spider, or Squirrel" - the printed wording lists
+      // the types instead of saying creature at all.
+      return selector.subtypes?.length
+        ? `target ${listOr(selector.subtypes)}`
+        : "target creature";
     case "player":
       return "target player";
     case "opponent-of-controller":
@@ -47,6 +53,13 @@ export function describeTarget(selector: TargetSelector): string {
         ? `target ${selector.cardType.toLowerCase()} card you own in exile`
         : "target card you own in exile";
   }
+}
+
+/** "a Swamp or a Forest", "Insect, Rat, Spider, or Squirrel" - the printed list form. */
+function listOr(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} or ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, or ${items[items.length - 1]}`;
 }
 
 /** Capitalises a sentence that may start with a target phrase ("target creature gets..."). */
@@ -70,6 +83,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Draw ${effect.amount} ${plural(effect.amount, "card")}.`;
     case "addMana":
       return `Add ${`{${effect.color}}`.repeat(effect.amount)}.`;
+    case "addManaCombination":
+      return `Add ${effect.mana
+        .map((part) => `{${part.color}}`.repeat(part.amount))
+        .join("")}.`;
     case "gainLife":
       return `You gain ${effect.amount} life.`;
     case "preventDamage":
@@ -93,6 +110,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Destroy ${describeTarget(effect.target)}.`;
     case "exile":
       return `Exile ${describeTarget(effect.target)}.`;
+    case "regenerate":
+      return `Regenerate ${describeTarget(effect.target)}.`;
     case "createToken": {
       const token = definitions[effect.tokenDefinitionId];
       const name = token ? tokenName(token) : effect.tokenDefinitionId;
@@ -197,12 +216,63 @@ function article(noun: string): string {
   return /^[aeiou]/i.test(noun) ? "an" : "a";
 }
 
-function describeActivated(ability: ActivatedAbility, definitions: Definitions): string {
+/**
+ * "you control a Swamp or a Forest", "two or more other lands" - a board
+ * condition as the cards print it.
+ *
+ * Shared by the tapland clause and the activation restriction because they are
+ * the same condition type, and a card that read one way in one place and
+ * another in the other would be its own small bug report.
+ */
+function describeCondition(condition: BoardCondition): string {
+  switch (condition.kind) {
+    case "controls-other-lands":
+      return `you control ${condition.count} or more other lands`;
+    case "opponents":
+      return `you have ${condition.count} or more opponents`;
+    case "controls-subtype": {
+      const what = listOr(condition.subtypes.map((s) => `a ${s}`));
+      return condition.count && condition.count > 1
+        ? `you control ${condition.count} or more ${listOr(condition.subtypes)}s`
+        : `you control ${what}`;
+    }
+    case "controls-color":
+      return `you control ${condition.count} or more ${colorWord(condition.color)} permanents`;
+  }
+}
+
+/** "land", "creature", "permanent" - what a card calls itself in its own text. */
+function selfNoun(def: CardDefinition): string {
+  for (const type of ["Land", "Creature", "Artifact", "Enchantment"] as const) {
+    if (def.types.includes(type)) return type.toLowerCase();
+  }
+  return "permanent";
+}
+
+function colorWord(color: Color): string {
+  return { W: "white", U: "blue", B: "black", R: "red", G: "green" }[color];
+}
+
+function describeActivated(
+  ability: ActivatedAbility,
+  definitions: Definitions,
+  self: CardDefinition,
+): string {
   const costs: string[] = [];
   if (ability.cost.mana) costs.push(formatManaCost(ability.cost.mana));
   if (ability.cost.tap) costs.push("{T}");
   const cost = costs.length > 0 ? costs.join(", ") : "{0}";
-  return `${cost}: ${describeEffect(ability.effect, definitions)}`;
+  // Both riders print after the effect, in the order the real cards use: what
+  // the ability does, what it costs you, and last when you may use it at all.
+  // The painland names its own card type - "This land deals 1 damage to you" on
+  // Llanowar Wastes, "This creature" on Elves of Deep Shadow.
+  const pain = ability.damageToController
+    ? ` This ${selfNoun(self)} deals ${ability.damageToController} damage to you.`
+    : "";
+  const restriction = ability.activateOnlyIf
+    ? ` Activate only if ${describeCondition(ability.activateOnlyIf)}.`
+    : "";
+  return `${cost}: ${describeEffect(ability.effect, definitions)}${pain}${restriction}`;
 }
 
 /**
@@ -226,7 +296,14 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
   // a strictly better card than it is, which is worse than saying nothing about
   // the card at all.
   if (def.entersTapped) {
-    lines.push(`This ${def.types.includes("Land") ? "land" : "permanent"} enters tapped.`);
+    // The "unless" is the difference between a real dual and a strictly worse
+    // one, so leaving it off understated three cards in the panel that is meant
+    // to be how you decide whether to play them.
+    const noun = selfNoun(def);
+    const unless = def.entersTappedUnless
+      ? ` unless ${describeCondition(def.entersTappedUnless)}`
+      : "";
+    lines.push(`This ${noun} enters tapped${unless}.`);
   }
 
   if (def.staticBuff) {
@@ -240,7 +317,7 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
     lines.push(describeTrigger(trigger, definitions, def));
   }
   for (const ability of def.activatedAbilities ?? []) {
-    lines.push(describeActivated(ability, definitions));
+    lines.push(describeActivated(ability, definitions, def));
   }
   if (def.castEffect) lines.push(describeEffect(def.castEffect, definitions));
 

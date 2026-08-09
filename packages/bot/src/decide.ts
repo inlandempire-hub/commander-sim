@@ -1,4 +1,5 @@
 import {
+  abilityAvailable,
   isValidTarget,
   manaValue,
   type CardDefinition,
@@ -319,10 +320,20 @@ function useValueAbility(state: GameState, me: Player): BotAction | null {
     if (def.types.includes("Creature") && instance.summoningSickness) continue;
 
     const abilityIndex = def.activatedAbilities?.findIndex((ability) => {
-      if (ability.effect.kind === "addMana") return false; // mana is tapped for on demand, not speculatively
+      // Mana is tapped for on demand, not speculatively - either shape of it.
+      if (ability.effect.kind === "addMana") return false;
+      if (ability.effect.kind === "addManaCombination") return false;
       // Anything that needs a target is handled by removeSomething, which picks one.
       if (ability.effect.kind === "damage") return false;
       if (ability.effect.kind === "destroy" || ability.effect.kind === "exile") return false;
+      /*
+       * Regeneration is a response, not a play. Nothing in the bot knows how to
+       * hold a shield for the moment something would die, and spending a tap on
+       * a pre-emptive one every turn would be worse than never using it - so it
+       * is left out until the bot can tell that a creature is about to be lost.
+       */
+      if (ability.effect.kind === "regenerate") return false;
+      if (!abilityAvailable(state, me.id, ability)) return false;
       return true;
     });
     if (abilityIndex === undefined || abilityIndex < 0) continue;

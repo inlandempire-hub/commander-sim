@@ -226,6 +226,11 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
   for (const [attackerInstanceId, defendingPlayerId] of Object.entries(state.attackers)) {
     const attackerFound = findOnAnyBattlefield(state, attackerInstanceId);
     if (!attackerFound) continue;
+    // A creature taken out of combat deals no combat damage and is dealt none -
+    // today only regeneration does this, and only ever between two damage
+    // steps. It stays in `state.attackers` so that whatever blocked it is still
+    // recorded as having blocked it.
+    if (attackerFound.instance.removedFromCombat) continue;
     const attackerDef = requireDefinition(state, attackerFound.instance.definitionId);
     const power = effectivePower(state, attackerFound.instance);
     const attackerHasDeathtouch = attackerDef.keywords?.includes("Deathtouch") ?? false;
@@ -240,7 +245,10 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
     const wasBlocked = declaredBlockerIds.length > 0;
     const blockers = declaredBlockerIds
       .map((id) => findOnAnyBattlefield(state, id))
-      .filter((found): found is NonNullable<typeof found> => found !== undefined);
+      .filter((found): found is NonNullable<typeof found> => found !== undefined)
+      // A regenerated blocker has left combat, but `wasBlocked` above still
+      // counts it - the attacker remains blocked and hits nobody.
+      .filter((found) => !found.instance.removedFromCombat);
 
     if (!wasBlocked) {
       if (!attackerStrikesNow || power <= 0) continue;
