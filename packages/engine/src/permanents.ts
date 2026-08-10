@@ -5,9 +5,10 @@ import type {
   GameState,
   StackObject,
   StackTarget,
+  TriggerCondition,
   TriggeredAbility,
 } from "./types.js";
-import { moveCard, requireDefinition } from "./state.js";
+import { cardName, moveCard, requireDefinition } from "./state.js";
 import { meetsBoardCondition } from "./conditions.js";
 
 /**
@@ -111,7 +112,7 @@ export function enteredBattlefield(
   // Triggers printed on the permanent that just arrived.
   for (const trigger of def.triggeredAbilities ?? []) {
     if (trigger.event === "enters-battlefield") {
-      pushOntoStack(state, instance.instanceId, instance.controllerId, trigger.effect, [], false);
+      pushTrigger(state, instance.instanceId, instance.controllerId, trigger);
     }
   }
 
@@ -126,34 +127,187 @@ export function enteredBattlefield(
    * its own arrival sets its own ability off. Every card of this shape says
    * "another" except Kor Celebrant, which says "this creature or another".
    */
+  fireWatchers(state, "permanent-enters", describeSubject(state, instance, def));
+
+  // A land arriving is also a landfall event. Landfall is a watcher event in
+  // its own right rather than a `permanent-enters` with `watchFor: {type:
+  // "Land"}`, because it is also fired by `playLand` - which puts a land onto
+  // the battlefield without going through here.
+  if (def.types.includes("Land")) fireLandfall(state, instance.controllerId);
+}
+
+/**
+ * What a watcher gets to look at.
+ *
+ * Captured as a plain record rather than read off the `CardInstance` at scan
+ * time, because a death is scanned *after* the card has left the battlefield -
+ * and `moveCard` clears its counters on the way out, so "did it have a +1/+1
+ * counter on it" is a question that can only be answered before the move.
+ */
+export interface TriggerSubject {
+  instanceId: string;
+  controllerId: string;
+  def: CardDefinition;
+  hadCounters: boolean;
+  isToken: boolean;
+}
+
+export function describeSubject(
+  state: GameState,
+  instance: CardInstance,
+  def?: CardDefinition,
+): TriggerSubject {
+  const definition = def ?? requireDefinition(state, instance.definitionId);
+  return {
+    instanceId: instance.instanceId,
+    controllerId: instance.controllerId,
+    def: definition,
+    hadCounters: instance.plusOneCounters > 0,
+    isToken: definition.isToken === true,
+  };
+}
+
+/**
+ * Every permanent on the table gets to see one event happen to one other
+ * permanent, and fires if it was watching for that.
+ *
+ * Both watcher events share this so they cannot drift apart: "whenever a
+ * creature you control enters" and "whenever a creature you control dies" mean
+ * the same thing by "you control" and by "creature", and a second copy of the
+ * loop would be a second place for that to be got wrong.
+ *
+ * `alsoSelf` exists because a dying permanent is no longer on the battlefield
+ * to be scanned. Blood Artist ("this creature or another creature dies") and
+ * Meltstrider Eulogist ("a creature you control ... dies", which does not say
+ * another) both watch their own deaths, so the dying card is offered its own
+ * triggers explicitly.
+ */
+export function fireWatchers(
+  state: GameState,
+  event: "permanent-enters" | "permanent-dies",
+  subject: TriggerSubject,
+  alsoSelf?: CardInstance,
+): void {
+  const watchers: CardInstance[] = [];
+  for (const player of state.players) watchers.push(...player.battlefield);
+  if (alsoSelf) watchers.push(alsoSelf);
+
+  for (const watcher of watchers) {
+    const watcherDef = requireDefinition(state, watcher.definitionId);
+    for (const trigger of watcherDef.triggeredAbilities ?? []) {
+      if (trigger.event !== event) continue;
+      if (!matchesWatchFor(trigger.watchFor, subject)) continue;
+      if (watcher.instanceId === subject.instanceId && !trigger.includesSelf) continue;
+      if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== subject.controllerId) {
+        continue;
+      }
+      pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger);
+    }
+  }
+}
+
+/**
+ * "Whenever a land enters" - fired both by a land played for the turn and by
+ * one put onto the battlefield some other way (a fetchland, a ramp spell).
+ *
+ * `watches` decides whose lands count. It used to be hardcoded to the
+ * controller's, which is right for every card that says "a land *you control*
+ * enters" and silently wrong for Lifegift, which says "a land enters" and
+ * should see an opponent's fetchland too.
+ */
+export function fireLandfall(state: GameState, landControllerId: string): void {
   for (const player of state.players) {
     for (const watcher of player.battlefield) {
       const watcherDef = requireDefinition(state, watcher.definitionId);
       for (const trigger of watcherDef.triggeredAbilities ?? []) {
-        if (trigger.event !== "permanent-enters") continue;
-        if (!matchesWatchFor(trigger.watchFor, def)) continue;
-        if (watcher.instanceId === instance.instanceId && !trigger.includesSelf) continue;
-        if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== instance.controllerId) {
+        if (trigger.event !== "landfall") continue;
+        if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== landControllerId) {
           continue;
         }
-        pushOntoStack(state, watcher.instanceId, watcher.controllerId, trigger.effect, [], false);
+        pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger);
       }
     }
   }
 }
 
 /**
- * Whether an arriving permanent is the kind a watcher is looking for.
+ * Whether the permanent the event happened to is the kind a watcher is looking
+ * for.
  *
  * This used to be a single hard-coded "is it a creature?" gate above the loop,
  * which quietly meant no card could ever watch anything else.
  */
 export function matchesWatchFor(
   watchFor: TriggeredAbility["watchFor"],
-  def: CardDefinition,
+  subject: TriggerSubject,
 ): boolean {
   if (!watchFor) return true;
-  if (watchFor.type && !def.types.includes(watchFor.type)) return false;
-  if (watchFor.subtype && !(def.subtypes ?? []).includes(watchFor.subtype)) return false;
+  if (watchFor.type && !subject.def.types.includes(watchFor.type)) return false;
+  if (watchFor.subtype && !(subject.def.subtypes ?? []).includes(watchFor.subtype)) return false;
+  if (watchFor.withCounter && !subject.hadCounters) return false;
+  if (watchFor.nontoken && subject.isToken) return false;
   return true;
+}
+
+/**
+ * Puts a triggered ability on the stack, carrying the two things that make a
+ * trigger more than an effect: its "you may", and its intervening-if.
+ *
+ * Every site that fires a trigger goes through here rather than calling
+ * `pushOntoStack` directly, so no event can quietly forget to check the
+ * condition - which is the shape of bug that would show up as a card working
+ * everywhere except the one place its trigger was fired from.
+ */
+export function pushTrigger(
+  state: GameState,
+  sourceInstanceId: string,
+  controllerId: string,
+  trigger: TriggeredAbility,
+): StackObject | null {
+  // Rule 603.4, first check: an intervening-if that is false right now means
+  // the ability never goes on the stack at all.
+  if (trigger.onlyIf && !triggerConditionMet(state, controllerId, trigger.onlyIf)) return null;
+
+  const obj = pushOntoStack(state, sourceInstanceId, controllerId, trigger.effect, [], false);
+  if (trigger.optional) {
+    obj.optional = true;
+    obj.prompt = `${cardName(state, sourceInstanceId)}: ${describeOptionalEffect(trigger.effect)}`;
+  }
+  if (trigger.onlyIf) obj.onlyIf = trigger.onlyIf;
+  return obj;
+}
+
+/** Rule 603.4's condition, checked when the trigger fires and again when it resolves. */
+export function triggerConditionMet(
+  state: GameState,
+  controllerId: string,
+  condition: TriggerCondition,
+): boolean {
+  switch (condition.kind) {
+    case "creature-died-this-turn":
+      return state.creatureDeathsThisTurn > 0;
+    case "not":
+      return !meetsBoardCondition(state, controllerId, condition.condition);
+  }
+}
+
+/**
+ * The question a "you may" asks, in the card's own words.
+ *
+ * Written here rather than in the client's `cardText` renderer for the same
+ * reason `describeSearch` is: the engine is what knows a choice is pending, and
+ * a prompt built at the point of asking cannot fall out of step with what
+ * saying yes will actually do.
+ */
+function describeOptionalEffect(effect: Effect): string {
+  switch (effect.kind) {
+    case "draw":
+      return effect.amount === 1 ? "draw a card?" : `draw ${effect.amount} cards?`;
+    case "gainLife":
+      return `gain ${effect.amount} life?`;
+    case "addCounter":
+      return effect.amount === 1 ? "put a +1/+1 counter on it?" : `put ${effect.amount} +1/+1 counters on it?`;
+    default:
+      return "use this ability?";
+  }
 }

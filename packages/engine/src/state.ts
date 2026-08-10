@@ -43,6 +43,8 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     blockers: {},
     blockersDeclared: false,
     pendingSearch: null,
+    pendingConfirmation: null,
+    creatureDeathsThisTurn: 0,
     mulligan: null,
     cardDefinitions,
     nextInstanceId: 1,

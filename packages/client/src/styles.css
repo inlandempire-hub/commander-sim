@@ -3868,3 +3868,47 @@ body {
   font-size: 11px;
   cursor: pointer;
 }
+
+/* ---------------------------------------------------------------------------
+   "You may" - the yes/no a trigger stops to ask
+   --------------------------------------------------------------------------- */
+
+/* Side by side and equally weighted. Declining is a real answer, not a
+   cancel: refusing Deathreap Ritual's draw on your last card is the correct
+   play, and styling No as a get-me-out-of-here would quietly argue against
+   it. */
+.confirm-trigger__buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.confirm-trigger__yes,
+.confirm-trigger__no {
+  flex: 1;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.confirm-trigger__yes {
+  --btn-face: #3c6b4a;
+  --btn-edge: #26452f;
+  --btn-ink: var(--text);
+}
+
+.confirm-trigger__yes:hover {
+  --btn-face: #4a805b;
+}
+
+.confirm-trigger__no {
+  --btn-face: #39445a;
+  --btn-edge: #232b3b;
+  --btn-ink: var(--text);
+}
+
+.confirm-trigger__no:hover {
+  --btn-face: #47536d;
+}

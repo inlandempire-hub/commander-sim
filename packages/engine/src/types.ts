@@ -282,49 +282,101 @@ export type BoardCondition =
 /** The tapland half of `BoardCondition`, named for where it reads. */
 export type EntersUntappedCondition = BoardCondition;
 
-export interface TriggeredAbility {
+/**
+ * What sets a triggered ability off.
+ *
+ * Three families, and knowing which one a card belongs to is the thing that
+ * gets written wrong:
+ *
+ * - **Self**: `enters-battlefield`, `attacks`, `dies` watch the card the
+ *   ability is printed on and nothing else.
+ * - **Watcher**: `landfall`, `permanent-enters`, `permanent-dies` sit on the
+ *   battlefield and watch other permanents come and go. Eight lifegain
+ *   creatures ("Whenever another creature you control enters, you gain 1 life")
+ *   were once written as `enters-battlefield`, which fires only when the card
+ *   itself arrives - so they gained life exactly once, at the one moment their
+ *   own text excludes, and never again.
+ * - **Turn-based**: `upkeep`, `first-main`, `begin-combat`, `end-step` are
+ *   fired by the turn machine as it reaches each step. `watches` decides
+ *   whether that means every player's ("At the beginning of each end step") or
+ *   only the controller's ("At the beginning of your upkeep").
+ */
+export type TriggerEvent =
+  | "enters-battlefield"
+  | "attacks"
+  | "dies"
+  | "landfall"
+  | "permanent-enters"
   /**
-   * `enters-battlefield`, `attacks` and `dies` all watch the card the ability
-   * is printed on. `landfall` and `permanent-enters` watch the battlefield.
-   *
-   * The distinction matters and was got wrong: eight lifegain creatures
-   * ("Whenever another creature you control enters, you gain 1 life") were
-   * written as `enters-battlefield`, which fires only when the card itself
-   * arrives - so they gained life exactly once, at the one moment their own
-   * text excludes, and never again.
+   * "Whenever a creature you control dies." The mirror of `permanent-enters`,
+   * and it reads the same three narrowing fields, so a card watching for
+   * arrivals and one watching for deaths are written the same way.
    */
-  event:
-    | "enters-battlefield"
-    | "attacks"
-    | "dies"
-    | "landfall"
-    | "permanent-enters"
-    /**
-     * "Whenever you gain life." Watches the *controller* of the permanent the
-     * ability is printed on, so it fires however the life arrived - a spell, a
-     * land, lifelink in combat - rather than needing every source to know about
-     * it. See gainLife in life.ts, which is the one door all life gain goes
-     * through for exactly that reason.
-     */
-    | "gain-life";
+  | "permanent-dies"
+  /**
+   * "Whenever you gain life." Watches the *controller* of the permanent the
+   * ability is printed on, so it fires however the life arrived - a spell, a
+   * land, lifelink in combat - rather than needing every source to know about
+   * it. See gainLife in life.ts, which is the one door all life gain goes
+   * through for exactly that reason.
+   */
+  | "gain-life"
+  | "upkeep"
+  /**
+   * "At the beginning of your first main phase" - the precombat main only.
+   * There are two main phases in a turn and the postcombat one must not fire
+   * this a second time, which is why it is not simply "main".
+   */
+  | "first-main"
+  | "begin-combat"
+  | "end-step";
+
+/**
+ * The "if ..." in "At the beginning of each end step, **if a creature died this
+ * turn**, you may draw a card" - rule 603.4's intervening-if.
+ *
+ * Not the same thing as an ordinary condition, and the difference is visible in
+ * play: it is checked twice, once when the trigger would go on the stack and
+ * again as it resolves, and the ability does nothing if it has stopped being
+ * true in between. A condition checked only once would let a Deathreap Ritual
+ * trigger survive its own creature being exiled in response.
+ */
+export type TriggerCondition =
+  /** Deathreap Ritual's morbid. Counts deaths anywhere, not just the controller's. */
+  | { kind: "creature-died-this-turn" }
+  /** Ophiomancer: "if you control no Snakes". A `BoardCondition` read as a negation. */
+  | { kind: "not"; condition: BoardCondition };
+
+export interface TriggeredAbility {
+  event: TriggerEvent;
   effect: Effect;
   /**
-   * `permanent-enters` only. Whose permanents this watches: "controller" for
-   * "another creature *you control* enters", which is the common case, or
-   * "any" for "another creature enters" (Soul Warden, Essence Warden), which
-   * watches every player's side of the table.
+   * Watcher events: whose permanents this watches - "controller" for "another
+   * creature *you control* enters", which is the common case, or "any" for
+   * "another creature enters" (Soul Warden, Essence Warden), which watches
+   * every player's side of the table.
+   *
+   * Turn-based events: whose step it is. "controller" is "at the beginning of
+   * your upkeep", "any" is "at the beginning of each upkeep". Getting this
+   * wrong doubles or halves how often the card does anything, so it is written
+   * out on every turn-based ability rather than defaulted.
+   *
+   * Landfall is a watcher event and honours this too: it used to be hardcoded
+   * to the controller, which is right for every card that says "a land *you
+   * control* enters" and wrong for Lifegift, which says "a land enters".
    */
   watches?: "controller" | "any";
   /**
-   * `permanent-enters` only. Whether the watcher's own arrival counts.
+   * Watcher events only. Whether the watcher itself counts.
    *
    * Almost every card of this shape says "*another* creature", so this
    * defaults to false. Kor Celebrant is the one that says "this creature or
-   * another creature you control", and needs it true.
+   * another creature you control", and Blood Artist says "this creature or
+   * another creature dies".
    */
   includesSelf?: boolean;
   /**
-   * `permanent-enters` only. Which permanents set it off.
+   * Watcher events only. Which permanents set it off.
    *
    * Most of this family watch creatures, but not all: Tanglespan Lookout is
    * "whenever an Aura you control enters, draw a card", and was written as an
@@ -332,7 +384,30 @@ export interface TriggeredAbility {
    * card does not do, and never drew one for an Aura. Omitting this watches
    * every permanent, which no card in the pool currently wants; write it out.
    */
-  watchFor?: { type?: CardType; subtype?: string };
+  watchFor?: {
+    type?: CardType;
+    subtype?: string;
+    /**
+     * "a creature you control **with a +1/+1 counter on it**" - Meltstrider
+     * Eulogist. Read at the moment of the event, which for a death means the
+     * counters it had on the battlefield: `moveCard` clears them on the way to
+     * the graveyard, so a check made afterwards would never once be true.
+     */
+    withCounter?: boolean;
+    /** "a **nontoken** creature you control dies" - Blight Mound. */
+    nontoken?: boolean;
+  };
+  /**
+   * "You may". The trigger still goes on the stack; its controller is asked on
+   * resolution and may decline.
+   *
+   * Not treated as free upside and taken automatically. "You may draw a card"
+   * is a real decision when your library is nearly empty, and an engine that
+   * drew for you would hand you a loss you never agreed to.
+   */
+  optional?: boolean;
+  /** Rule 603.4's intervening-if. See `TriggerCondition`. */
+  onlyIf?: TriggerCondition;
 }
 
 export interface ActivatedAbilityCost {
@@ -591,6 +666,46 @@ export interface StackObject {
    * counterable as normal, so it is a property of the cast, not of the card.
    */
   cantBeCountered?: boolean;
+  /**
+   * A "you may" trigger, copied off the ability when it went on the stack.
+   *
+   * Read at resolution rather than looked up again on the card, for the same
+   * reason as `cantBeCountered`: by the time this resolves the permanent that
+   * made it may be in a graveyard, and the trigger still resolves.
+   */
+  optional?: boolean;
+  /**
+   * The intervening-if, likewise copied. Rule 603.4 checks it a second time on
+   * resolution, and a trigger whose condition has stopped being true simply
+   * does nothing.
+   */
+  onlyIf?: TriggerCondition;
+  /** What to put in the yes/no prompt for an `optional` trigger. */
+  prompt?: string;
+}
+
+/**
+ * A "you may" waiting on a yes or no.
+ *
+ * Modelled on `PendingSearch` rather than resolved by guessing, and gated in
+ * the same places: while this is set nobody gets priority and no step advances,
+ * because the game is genuinely part-way through resolving something.
+ */
+export interface PendingConfirmation {
+  playerId: string;
+  /** The card that asked, so the client can show it beside the question. */
+  sourceInstanceId: string;
+  /** The question in the card's own words - "You may gain 1 life". */
+  prompt: string;
+  /**
+   * The trigger itself, already off the stack.
+   *
+   * Held whole rather than re-read from the card, because a "may" that is
+   * answered later must do exactly what the object on the stack said - the
+   * permanent that printed it may have died in the meantime, and abilities on
+   * the stack are independent of their source.
+   */
+  object: StackObject;
 }
 
 /**
@@ -743,6 +858,21 @@ export interface GameState {
    * and no step advances - the game is mid-spell. Cleared by `resolveSearch`.
    */
   pendingSearch: PendingSearch | null;
+  /**
+   * A "you may" trigger waiting on a yes or no. Gated exactly like
+   * `pendingSearch`: no priority, no step advance. Cleared by
+   * `resolveConfirmation`.
+   */
+  pendingConfirmation: PendingConfirmation | null;
+  /**
+   * How many creatures have died this turn, for morbid ("if a creature died
+   * this turn"). Reset in cleanup with everything else that lasts a turn.
+   *
+   * A count rather than a flag because it costs nothing and the next card of
+   * this family that wants "if two or more creatures died" would otherwise
+   * need the whole thing rewritten.
+   */
+  creatureDeathsThisTurn: number;
   /**
    * Opening hands still being decided. Null for the whole of a normal game -
    * it is only ever set between dealing and the first untap step, and clearing

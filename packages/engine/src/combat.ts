@@ -3,7 +3,7 @@ import { log, requireDefinition, requirePlayer } from "./state.js";
 import { gainLife } from "./life.js";
 import { effectivePower, effectiveToughness } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
-import { pushOntoStack } from "./permanents.js";
+import { pushTrigger } from "./permanents.js";
 
 /**
  * Combat damage happens in two sub-steps once anything has First or Double
@@ -136,7 +136,7 @@ export function declareAttackers(state: GameState, playerId: string, declaration
     const def = requireDefinition(state, instance.definitionId);
     for (const trigger of def.triggeredAbilities ?? []) {
       if (trigger.event === "attacks") {
-        pushOntoStack(state, instance.instanceId, playerId, trigger.effect, [], false);
+        pushTrigger(state, instance.instanceId, playerId, trigger);
       }
     }
   }

@@ -9,6 +9,7 @@ import {
   declareAttackers,
   declareBlockers,
   resolveSearch,
+  resolveConfirmation,
   takeMulligan,
   keepHand,
   putOnBottom,
@@ -79,6 +80,9 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       return;
     case "resolveSearch":
       resolveSearch(state, playerId, message.instanceId);
+      return;
+    case "resolveConfirmation":
+      resolveConfirmation(state, playerId, message.accept);
       return;
     case "passPriority":
       passPriority(state, playerId);

@@ -105,6 +105,9 @@ function perform(controller: GameController, playerId: string, action: BotAction
     case "resolveSearch":
       controller.resolveSearch(playerId, action.instanceId);
       return;
+    case "resolveConfirmation":
+      controller.resolveConfirmation(playerId, action.accept);
+      return;
     case "takeMulligan":
       controller.takeMulligan(playerId);
       return;

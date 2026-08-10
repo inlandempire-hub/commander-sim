@@ -15,6 +15,8 @@ export type BotAction =
   | { kind: "declareBlockers"; declarations: BlockerDeclaration[] }
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */
   | { kind: "resolveSearch"; instanceId: string | null }
+  /** Answering a "you may" trigger that stopped mid-resolution. */
+  | { kind: "resolveConfirmation"; accept: boolean }
   /** Settling an opening hand, before the game has begun. */
   | { kind: "takeMulligan" }
   | { kind: "keepHand" }

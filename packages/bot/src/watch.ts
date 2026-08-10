@@ -104,6 +104,8 @@ function describe(state: GameState, seat: string, action: BotAction): string | n
       return action.instanceId
         ? `${seat} searches and takes ${nameOf(state, action.instanceId)}.`
         : `${seat} searches and takes nothing.`;
+    case "resolveConfirmation":
+      return action.accept ? `${seat} takes the optional trigger.` : `${seat} declines the optional trigger.`;
     case "takeMulligan":
       return `${seat} mulligans.`;
     case "keepHand":

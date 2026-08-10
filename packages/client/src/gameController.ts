@@ -29,6 +29,11 @@ export interface GameController {
    * while a search is pending.
    */
   resolveSearch(playerId: string, instanceId: string | null): void;
+  /**
+   * Answers a "you may" trigger. Gated exactly like `resolveSearch` - the game
+   * is mid-resolution and nobody has priority until this comes back.
+   */
+  resolveConfirmation(playerId: string, accept: boolean): void;
   /** Opening hands, before the game starts. See the engine's mulligan.ts. */
   takeMulligan(playerId: string): void;
   keepHand(playerId: string): void;

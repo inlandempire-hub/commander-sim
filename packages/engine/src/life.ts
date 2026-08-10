@@ -1,6 +1,6 @@
 import type { GameState } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
-import { pushOntoStack } from "./permanents.js";
+import { pushTrigger } from "./permanents.js";
 
 /**
  * Gaining life, and the one door it all goes through.
@@ -34,7 +34,7 @@ export function gainLife(state: GameState, playerId: string, amount: number): vo
     const def = requireDefinition(state, instance.definitionId);
     for (const trigger of def.triggeredAbilities ?? []) {
       if (trigger.event !== "gain-life") continue;
-      pushOntoStack(state, instance.instanceId, playerId, trigger.effect, [], false);
+      pushTrigger(state, instance.instanceId, playerId, trigger);
     }
   }
 }

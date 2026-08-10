@@ -37,6 +37,28 @@ import { PASS, type BotAction } from "./types.js";
 const WORTH_A_REMOVAL_SPELL = 8;
 
 /**
+ * Whether to take a "you may" trigger.
+ *
+ * Yes, with one exception that matters: a draw is refused when the library
+ * cannot pay for it. Every card of this family in the pool is upside, so the
+ * default is to accept - but drawing from an empty library is an immediate
+ * loss under state-based actions, and a bot that says yes to Deathreap Ritual
+ * on its last card decks itself for one card it did not need.
+ *
+ * Deliberately reads the effect off the pending object rather than looking the
+ * ability up on the card again: the permanent that printed it may already be
+ * in a graveyard, and the trigger still resolves.
+ */
+function shouldAcceptTrigger(state: GameState, botPlayerId: string): boolean {
+  const pending = state.pendingConfirmation;
+  if (!pending) return false;
+  const me = state.players.find((p) => p.id === botPlayerId);
+  const effect = pending.object.effect;
+  if (effect.kind === "draw" && me) return me.library.length >= effect.amount;
+  return true;
+}
+
+/**
  * Decides the single next thing the bot should do, given the game state as
  * the bot is allowed to see it.
  *
@@ -62,6 +84,11 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
   // priority at all.
   if (state.pendingSearch?.playerId === botPlayerId) {
     return { kind: "resolveSearch", instanceId: chooseSearchResult(state, botPlayerId) };
+  }
+
+  // Same for a "you may" trigger of the bot's own.
+  if (state.pendingConfirmation?.playerId === botPlayerId) {
+    return { kind: "resolveConfirmation", accept: shouldAcceptTrigger(state, botPlayerId) };
   }
 
   // Opening hands come before even that: the game has not started, nobody has

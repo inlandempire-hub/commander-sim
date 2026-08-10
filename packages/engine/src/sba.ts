@@ -1,6 +1,6 @@
 import type { GameState } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition } from "./state.js";
-import { pushOntoStack } from "./permanents.js";
+import { describeSubject, fireWatchers, pushTrigger } from "./permanents.js";
 import { effectiveToughness } from "./counters.js";
 import { useRegenerationShield } from "./regeneration.js";
 
@@ -21,16 +21,39 @@ function moveDyingCreatureToItsZone(state: GameState, instanceId: string, isComm
   if (diedFromBattlefield) {
     log(state, `${def?.name ?? "A creature"} dies${isCommander ? " (returned to the command zone)" : ""}`);
   }
+
+  /*
+   * What the dying permanent looked like, captured while it is still on the
+   * battlefield.
+   *
+   * `moveCard` clears its +1/+1 counters on the way out, so a watcher asking
+   * "did a creature *with a counter on it* die" cannot be answered after the
+   * move - it would be false every single time, and Meltstrider Eulogist would
+   * simply never draw a card.
+   */
+  const subject =
+    diedFromBattlefield && found ? describeSubject(state, found.instance, def) : null;
+  const dyingInstance = found?.instance;
+
   moveCard(state, instanceId, isCommander ? "command" : "graveyard");
 
   // "Dies" means specifically "was put into a graveyard from the battlefield",
   // so a commander redirected to the command zone still counts as having died.
   if (!diedFromBattlefield || !controllerId) return;
+
+  if (def?.types.includes("Creature")) state.creatureDeathsThisTurn += 1;
+
   for (const trigger of def?.triggeredAbilities ?? []) {
     if (trigger.event === "dies") {
-      pushOntoStack(state, instanceId, controllerId, trigger.effect, [], false);
+      pushTrigger(state, instanceId, controllerId, trigger);
     }
   }
+
+  // Everything else that was watching for a death. The dying card is handed in
+  // separately because it is no longer on the battlefield to be scanned, and
+  // some cards of this family ("this creature or another creature dies") watch
+  // their own.
+  if (subject && dyingInstance) fireWatchers(state, "permanent-dies", subject, dyingInstance);
 }
 
 /**

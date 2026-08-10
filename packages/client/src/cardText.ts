@@ -5,6 +5,7 @@ import type {
   Color,
   Effect,
   TargetSelector,
+  TriggerCondition,
   TriggeredAbility,
 } from "@mtg-commander-sim/engine";
 import { matchesWatchFor } from "@mtg-commander-sim/engine";
@@ -80,7 +81,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
     case "damage":
       return `Deal ${effect.amount} damage to ${describeTarget(effect.target)}.`;
     case "draw":
-      return `Draw ${effect.amount} ${plural(effect.amount, "card")}.`;
+      // "Draw a card", not "Draw 1 card" - no printed card says the latter.
+      return effect.amount === 1 ? "Draw a card." : `Draw ${effect.amount} cards.`;
     case "addMana":
       return `Add ${`{${effect.color}}`.repeat(effect.amount)}.`;
     case "addManaCombination":
@@ -165,10 +167,53 @@ function tokenName(token: CardDefinition): string {
 
 /** "creature", "Aura", "permanent" - what a watcher is looking out for. */
 function watchedNoun(watchFor: TriggeredAbility["watchFor"]): string {
-  if (!watchFor) return "permanent";
-  if (watchFor.subtype) return watchFor.subtype;
-  if (watchFor.type) return watchFor.type.toLowerCase();
-  return "permanent";
+  const base = watchFor?.subtype ?? watchFor?.type?.toLowerCase() ?? "permanent";
+  // "nontoken creature" is printed as one noun phrase, so it belongs here
+  // rather than as a clause tacked on the end.
+  return watchFor?.nontoken ? `nontoken ${base}` : base;
+}
+
+/** "a creature you control with a +1/+1 counter on it" - the whole subject. */
+function watchedSubject(ability: TriggeredAbility, self: CardDefinition): string {
+  const noun = watchedNoun(ability.watchFor);
+  const whose = (ability.watches ?? "controller") === "any" ? noun : `${noun} you control`;
+  /*
+   * "another" only if this card is itself the kind of thing it watches.
+   * Tanglespan Lookout is a Satyr watching Auras, so it reads "an Aura you
+   * control"; Soul Warden is a creature watching creatures, so "another".
+   */
+  const selfQualifies = matchesWatchFor(ability.watchFor, {
+    instanceId: "",
+    controllerId: "",
+    def: self,
+    // The card is being asked about in the abstract, off the battlefield, so
+    // there is no instance to have counters. A watcher narrowed to "with a
+    // +1/+1 counter on it" reads "another" anyway - Meltstrider Eulogist is a
+    // creature watching creatures, whatever counters happen to be about.
+    hadCounters: true,
+    isToken: self.isToken === true,
+  });
+  /*
+   * "another" is what a card says when its own arrival or death does *not*
+   * count. When it does count, the card simply says "a creature you control" -
+   * both Kor Celebrant's "this creature or another creature you control" and
+   * Meltstrider Eulogist's plain "a creature you control" mean exactly that,
+   * and one wording covers both without claiming a distinction the DSL does
+   * not carry.
+   */
+  const subject =
+    !ability.includesSelf && selfQualifies ? `another ${whose}` : `${article(whose)} ${whose}`;
+  return ability.watchFor?.withCounter ? `${subject} with a +1/+1 counter on it` : subject;
+}
+
+/** "if a creature died this turn" - rule 603.4's intervening-if, as printed. */
+function describeTriggerCondition(condition: TriggerCondition): string {
+  switch (condition.kind) {
+    case "creature-died-this-turn":
+      return "if a creature died this turn";
+    case "not":
+      return `if ${describeCondition(condition.condition).replace(/^you control /, "you control no ")}`;
+  }
 }
 
 function describeTrigger(
@@ -177,34 +222,47 @@ function describeTrigger(
   self: CardDefinition,
 ): string {
   const body = describeEffect(ability.effect, definitions);
+  // "you may draw a card" rather than "draw a card" - the difference is the
+  // whole reason the game stops and asks.
+  // "you may gain 1 life", not "you may you gain 1 life": the effect text
+  // already reads as a sentence about you, so its own "you" is dropped.
+  const plain = lowerFirst(body);
+  const effectText = ability.optional ? `you may ${plain.replace(/^you /, "")}` : plain;
+  // The intervening-if sits between the trigger and the effect, exactly where
+  // the card prints it: "At the beginning of each end step, if a creature died
+  // this turn, you may draw a card."
+  const tail = ability.onlyIf ? `${describeTriggerCondition(ability.onlyIf)}, ${effectText}` : effectText;
+  // "each" when it watches every player's step, "your" when only its own.
+  const whoseStep = (ability.watches ?? "controller") === "any" ? "each" : "your";
+
   switch (ability.event) {
     case "enters-battlefield":
-      return `When this permanent enters the battlefield, ${lowerFirst(body)}`;
+      return `When this permanent enters the battlefield, ${tail}`;
     case "attacks":
-      return `Whenever this creature attacks, ${lowerFirst(body)}`;
+      return `Whenever this creature attacks, ${tail}`;
     case "dies":
-      return `When this creature dies, ${lowerFirst(body)}`;
+      return `When this creature dies, ${tail}`;
     case "landfall":
-      return `Landfall - whenever a land enters the battlefield under your control, ${lowerFirst(body)}`;
+      return (ability.watches ?? "controller") === "any"
+        ? `Whenever a land enters the battlefield, ${tail}`
+        : `Landfall - whenever a land enters the battlefield under your control, ${tail}`;
     case "gain-life":
-      return `Whenever you gain life, ${lowerFirst(body)}`;
-    case "permanent-enters": {
+      return `Whenever you gain life, ${tail}`;
+    case "permanent-enters":
       // Worded to match the printed card, because these variants really do
       // play differently and the panel is where you find that out: what is
       // watched, whose it has to be, and whether this card counts itself.
-      const noun = watchedNoun(ability.watchFor);
-      const whose = (ability.watches ?? "controller") === "any" ? noun : `${noun} you control`;
-      // "another" only if this card is itself the kind of thing it watches.
-      // Tanglespan Lookout is a Satyr watching Auras, so it reads "an Aura you
-      // control"; Soul Warden is a creature watching creatures, so "another".
-      const selfQualifies = matchesWatchFor(ability.watchFor, self);
-      const subject = ability.includesSelf
-        ? `this ${noun} or another ${whose}`
-        : selfQualifies
-          ? `another ${whose}`
-          : `${article(whose)} ${whose}`;
-      return `Whenever ${subject} enters the battlefield, ${lowerFirst(body)}`;
-    }
+      return `Whenever ${watchedSubject(ability, self)} enters the battlefield, ${tail}`;
+    case "permanent-dies":
+      return `Whenever ${watchedSubject(ability, self)} dies, ${tail}`;
+    case "upkeep":
+      return `At the beginning of ${whoseStep} upkeep, ${tail}`;
+    case "first-main":
+      return `At the beginning of ${whoseStep === "each" ? "each" : "your"} first main phase, ${tail}`;
+    case "begin-combat":
+      return `At the beginning of combat on ${whoseStep === "each" ? "each" : "your"} turn, ${tail}`;
+    case "end-step":
+      return `At the beginning of ${whoseStep} end step, ${tail}`;
   }
 }
 

@@ -58,6 +58,8 @@ function toClientMessage(action: BotAction): ClientMessage | null {
       return { type: "declareBlockers", declarations: action.declarations };
     case "resolveSearch":
       return { type: "resolveSearch", instanceId: action.instanceId };
+    case "resolveConfirmation":
+      return { type: "resolveConfirmation", accept: action.accept };
     case "takeMulligan":
       return { type: "takeMulligan" };
     case "keepHand":

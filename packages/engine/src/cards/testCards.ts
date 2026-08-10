@@ -11022,6 +11022,87 @@ export const DELIGHTED_HALFLING: CardDefinition = {
 };
 
 
+/*
+ * Triggers that are not about something entering the battlefield.
+ *
+ * Every one of these was blocked by the generator, not by the engine: attacks
+ * triggers, landfall, life gain and card draw had all worked for weeks, and
+ * gen_fixtures.py simply had no pattern pairing them up. Shopkeeper's Bane is
+ * the clearest case - "whenever this creature attacks, you gain 2 life" needed
+ * nothing built at all.
+ *
+ * The genuinely new shapes are the death watcher (Meltstrider Eulogist), the
+ * turn-based trigger with an intervening-if (Deathreap Ritual), and "you may"
+ * (Lifegift, Deathreap Ritual), which stops the game and asks rather than
+ * taking the upside on your behalf.
+ */
+
+export const DEATHREAP_RITUAL: CardDefinition = {
+  id: "deathreap-ritual",
+  name: "Deathreap Ritual",
+  scryfallId: "4980879b-87a4-4e5a-9f29-9136f022d849",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  triggeredAbilities: [{ event: "end-step", watches: "any", onlyIf: { kind: "creature-died-this-turn" }, optional: true, effect: { kind: "draw", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const EUMIDIAN_TERRABOTANIST: CardDefinition = {
+  id: "eumidian-terrabotanist",
+  name: "Eumidian Terrabotanist",
+  scryfallId: "64fb2981-86ed-478a-89cd-c6bb078a5bc7",
+  types: ["Creature"],
+  subtypes: ["Insect", "Druid"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 3,
+  triggeredAbilities: [{ event: "landfall", watches: "controller", effect: { kind: "gainLife", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const LIFEGIFT: CardDefinition = {
+  id: "lifegift",
+  name: "Lifegift",
+  scryfallId: "27eaba1c-3137-4419-bf90-eb287a7c736e",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  triggeredAbilities: [{ event: "landfall", watches: "any", optional: true, effect: { kind: "gainLife", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const MELTSTRIDER_EULOGIST: CardDefinition = {
+  id: "meltstrider-eulogist",
+  name: "Meltstrider Eulogist",
+  scryfallId: "df61aa0c-effc-4d57-be19-876a82c41d33",
+  types: ["Creature"],
+  subtypes: ["Insect", "Soldier"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "permanent-dies", watches: "controller", includesSelf: true, watchFor: { type: "Creature", withCounter: true }, effect: { kind: "draw", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const SHOPKEEPERS_BANE: CardDefinition = {
+  id: "shopkeepers-bane",
+  name: "Shopkeeper's Bane",
+  scryfallId: "97f7fbb9-228c-4a74-975b-38d3b6cecb32",
+  types: ["Creature"],
+  subtypes: ["Badger", "Pest"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 4,
+  toughness: 2,
+  keywords: ["Trample"],
+  triggeredAbilities: [{ event: "attacks", effect: { kind: "gainLife", amount: 2 } }],
+  tier: "scripted",
+};
+
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -11889,5 +11970,10 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     SAPSEEP_FOREST,
     EXOTIC_ORCHARD,
     DELIGHTED_HALFLING,
+    EUMIDIAN_TERRABOTANIST,
+    SHOPKEEPERS_BANE,
+    MELTSTRIDER_EULOGIST,
+    LIFEGIFT,
+    DEATHREAP_RITUAL,
   ].map((def) => [def.id, def]),
 );

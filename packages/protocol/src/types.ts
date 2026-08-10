@@ -14,6 +14,8 @@ export type ClientMessage =
   | { type: "declareBlockers"; declarations: BlockerDeclaration[] }
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */
   | { type: "resolveSearch"; instanceId: string | null }
+  /** Answering a "you may" trigger that stopped mid-resolution. */
+  | { type: "resolveConfirmation"; accept: boolean }
   | { type: "takeMulligan" }
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }

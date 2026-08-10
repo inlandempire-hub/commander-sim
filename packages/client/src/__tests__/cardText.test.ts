@@ -111,3 +111,50 @@ describe("lands and mana rocks", () => {
     }
   });
 });
+
+/**
+ * The trigger families added on 2026-08-10. Each expectation is the printed
+ * card, near enough that a reader can hold the two side by side - which is the
+ * only way this renderer is ever checked for being *right* rather than merely
+ * non-empty.
+ */
+describe("triggers that are not about entering the battlefield", () => {
+  it("names whose step a turn-based trigger watches", () => {
+    // "Morbid - At the beginning of each end step, if a creature died this
+    // turn, you may draw a card."
+    expect(textOf("deathreap-ritual")).toContain(
+      "At the beginning of each end step, if a creature died this turn, you may draw a card.",
+    );
+  });
+
+  it("renders a death watcher with its counter filter", () => {
+    // "Whenever a creature you control with a +1/+1 counter on it dies, draw a card."
+    expect(textOf("meltstrider-eulogist")).toContain(
+      "Whenever a creature you control with a +1/+1 counter on it dies, draw a card.",
+    );
+  });
+
+  it("says 'you may' where the card does", () => {
+    // Lifegift: "Whenever a land enters, you may gain 1 life." Not "you may
+    // you gain 1 life" - the effect text already speaks about you.
+    expect(textOf("lifegift")).toContain("you may gain 1 life.");
+    expect(textOf("lifegift")).not.toContain("you may you");
+  });
+
+  it("distinguishes a landfall that watches every player from one that does not", () => {
+    // Lifegift says "a land enters"; Eumidian Terrabotanist says "a land you
+    // control enters", and the difference is whether an opponent's fetchland
+    // pays you.
+    expect(textOf("lifegift")).toContain("Whenever a land enters the battlefield,");
+    expect(textOf("eumidian-terrabotanist")).toContain("under your control");
+  });
+
+  it("renders an attacks trigger whose effect is not a counter", () => {
+    expect(textOf("shopkeepers-bane")).toContain("Whenever this creature attacks, you gain 2 life.");
+  });
+
+  it("writes 'draw a card', which is what cards actually print", () => {
+    expect(textOf("tanglespan-lookout")).toContain("draw a card.");
+    expect(textOf("tanglespan-lookout")).not.toContain("draw 1 card");
+  });
+});

@@ -280,31 +280,141 @@ def gain_life_trigger(line):
     return None
 
 
+"""
+A triggered ability, read as two halves that are matched separately.
+
+Until 2026-08-10 this file matched whole lines: one pattern per (trigger,
+effect) pair, so "when this creature enters, you gain 2 life" and "whenever
+this creature attacks, you gain 2 life" were two unrelated regexes and the
+second one simply did not exist. The engine could play Shopkeeper's Bane
+perfectly - attacks triggers and life gain had both worked for weeks - and the
+generator refused it purely because nobody had written that pair down.
+
+Splitting the line at the comma fixes that shape of gap for good: every trigger
+clause now composes with every effect the DSL can express, so adding one new
+clause adds it for all of them at once.
+"""
+
+# The ability word some cards print in italics before the real text - "Landfall
+# — ", "Morbid — ". It has no rules meaning at all (rule 207.2c), so it is
+# stripped rather than parsed. Scryfall writes a true em dash.
+ABILITY_WORD = re.compile(r"^[A-Z][a-z]+(?: [a-z]+)? — ")
+
+# Each entry is (pattern, trigger fields). The pattern matches only the "When
+# ..." clause; whatever follows the comma is handed to `trigger_effect`.
+#
+# `watchFor` is written out rather than left off on every watcher: omitting it
+# watches *every* permanent, which no card of this shape means, and which
+# Tanglespan Lookout got wrong once.
+TRIGGER_CLAUSES = [
+    (r"When this %s enters" % SELF, '{ event: "enters-battlefield"'),
+    (r"When this %s dies" % SELF, '{ event: "dies"'),
+    (r"Whenever this creature attacks", '{ event: "attacks"'),
+    # "Whenever you gain life" is deliberately absent: `gain_life_trigger` owns
+    # it, because its effects (counters on this creature, counters on each of
+    # five subtypes) are shapes nothing else uses. Two matchers for one clause
+    # would mean whichever ran first quietly decided the answer.
+    # Watchers on something else entering.
+    (r"Whenever this %s or another creature you control enters" % SELF,
+     '{ event: "permanent-enters", watches: "controller", includesSelf: true, watchFor: { type: "Creature" }'),
+    (r"Whenever another creature you control enters",
+     '{ event: "permanent-enters", watches: "controller", watchFor: { type: "Creature" }'),
+    (r"Whenever another creature enters",
+     '{ event: "permanent-enters", watches: "any", watchFor: { type: "Creature" }'),
+    # Landfall. "a land you control" is its controller's only; "a land" with no
+    # qualifier is every player's, which is Lifegift and nothing else so far.
+    (r"Whenever a land you control enters", '{ event: "landfall", watches: "controller"'),
+    (r"Whenever a land enters", '{ event: "landfall", watches: "any"'),
+    # Watchers on a death. Ordered longest-first so the narrowed forms are not
+    # swallowed by the plain one.
+    (r"Whenever a creature you control with a \+1/\+1 counter on it dies",
+     '{ event: "permanent-dies", watches: "controller", includesSelf: true, '
+     'watchFor: { type: "Creature", withCounter: true }'),
+    (r"Whenever a nontoken creature you control dies",
+     '{ event: "permanent-dies", watches: "controller", includesSelf: true, '
+     'watchFor: { type: "Creature", nontoken: true }'),
+    (r"Whenever this creature or another creature dies",
+     '{ event: "permanent-dies", watches: "any", includesSelf: true, watchFor: { type: "Creature" }'),
+    (r"Whenever a creature you control dies",
+     '{ event: "permanent-dies", watches: "controller", includesSelf: true, watchFor: { type: "Creature" }'),
+    # Turn-based. "each" is every player's step, "your" only the controller's -
+    # the difference is how often the card does anything, so both are written.
+    (r"At the beginning of each upkeep", '{ event: "upkeep", watches: "any"'),
+    (r"At the beginning of your upkeep", '{ event: "upkeep", watches: "controller"'),
+    (r"At the beginning of each end step", '{ event: "end-step", watches: "any"'),
+    (r"At the beginning of your end step", '{ event: "end-step", watches: "controller"'),
+    (r"At the beginning of your first main phase", '{ event: "first-main", watches: "controller"'),
+    (r"At the beginning of combat on your turn", '{ event: "begin-combat", watches: "controller"'),
+]
+TRIGGER_CLAUSES = [(re.compile(r"^%s, " % p), fields) for p, fields in TRIGGER_CLAUSES]
+
+# Rule 603.4's intervening-if, which sits between the clause and the effect.
+TRIGGER_ONLY_IF = [
+    (re.compile(r"^if a creature died this turn, "), '{ kind: "creature-died-this-turn" }'),
+]
+
+# What a trigger can do. Only shapes with no target and no choice beyond the
+# "you may" - a trigger that needs a target needs targeting support the
+# triggered path does not have yet, and emitting one would put an ability on
+# the stack that can never resolve.
+TRIGGER_EFFECTS = [
+    # "you gain 1 life" and "gain 1 life" are the same effect: the second is
+    # what is left after "you may " is peeled off the front of Lifegift.
+    (re.compile(r"^(?:you )?gain (\d+) life\.$"), lambda m: '{ kind: "gainLife", amount: %s }' % m.group(1)),
+    (re.compile(r"^draw a card\.$"), lambda m: '{ kind: "draw", amount: 1 }'),
+    (re.compile(r"^draw (\w+) cards\.$"),
+     lambda m: '{ kind: "draw", amount: %d }' % WORD_NUMBERS[m.group(1)]
+     if m.group(1) in WORD_NUMBERS else None),
+    (re.compile(r"^put a \+1/\+1 counter on this creature\.$"),
+     lambda m: '{ kind: "addCounter", amount: 1 }'),
+]
+
+
+def trigger_effect(text):
+    """The TS for the effect half of a trigger line, or None if unreadable."""
+    for pattern, build in TRIGGER_EFFECTS:
+        match = pattern.match(text)
+        if match:
+            return build(match)
+    return None
+
+
 def enters_trigger(line):
-    """The TS for a lifegain/draw-on-enters trigger, or None if this isn't one.
+    """The TS for a triggered ability, or None if this line is not one.
 
-    `watchFor` is written out rather than left off on every watcher: omitting it
-    watches *every* permanent, which no card of this shape means, and which
-    Tanglespan Lookout got wrong once.
+    Named for what it used to handle. Kept because four call sites use it and
+    renaming it is a change to those files rather than to this behaviour.
     """
-    gain = SELF_ENTERS_GAIN.match(line)
-    if gain:
-        return '{ event: "enters-battlefield", effect: { kind: "gainLife", amount: %s } }' % gain.group(1)
-    if SELF_ENTERS_DRAW.match(line):
-        return '{ event: "enters-battlefield", effect: { kind: "draw", amount: 1 } }'
+    line = ABILITY_WORD.sub("", line)
+    for pattern, fields in TRIGGER_CLAUSES:
+        match = pattern.match(line)
+        if not match:
+            continue
+        rest = line[match.end():]
 
-    for pattern, includes_self, watches in (
-        (SELF_OR_OTHERS_ENTERS_GAIN, True, "controller"),
-        (OTHERS_ENTERS_GAIN, False, "controller"),
-        (ANY_ENTERS_GAIN, False, "any"),
-    ):
-        watcher = pattern.match(line)
-        if watcher:
-            return (
-                '{ event: "permanent-enters", watches: "%s", %swatchFor: { type: "Creature" }, '
-                'effect: { kind: "gainLife", amount: %s } }'
-                % (watches, "includesSelf: true, " if includes_self else "", watcher.group(1))
-            )
+        only_if = ""
+        for cond_pattern, cond_ts in TRIGGER_ONLY_IF:
+            cond = cond_pattern.match(rest)
+            if cond:
+                only_if = ", onlyIf: %s" % cond_ts
+                rest = rest[cond.end():]
+                break
+
+        # "you may draw a card" - the game stops and asks rather than taking it.
+        optional = ""
+        if rest.startswith("you may "):
+            optional = ", optional: true"
+            rest = rest[len("you may "):]
+            # Recapitalise nothing - the effect patterns are all lowercase
+            # because they always follow a comma.
+
+        effect = trigger_effect(rest)
+        if effect is None:
+            # A clause we know followed by an effect we do not. Refusing here
+            # rather than falling through is what stops a card keeping its
+            # trigger and silently losing what the trigger does.
+            return None
+        return "%s%s%s, effect: %s }" % (fields, only_if, optional, effect)
     return None
 
 

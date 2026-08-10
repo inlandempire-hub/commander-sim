@@ -4,6 +4,7 @@ import {
   declareAttackers,
   declareBlockers,
   resolveSearch,
+  resolveConfirmation,
   takeMulligan,
   keepHand,
   putOnBottom,
@@ -57,6 +58,9 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
       return;
     case "resolveSearch":
       resolveSearch(state, playerId, action.instanceId);
+      return;
+    case "resolveConfirmation":
+      resolveConfirmation(state, playerId, action.accept);
       return;
     case "passPriority":
       passPriority(state, playerId);

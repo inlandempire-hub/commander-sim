@@ -33,7 +33,10 @@ from pathlib import Path
 DATA = Path(__file__).parent / "data" / "oracle-cards.jsonl.gz"
 
 # The events packages/engine/src/types.ts actually models.
-MODELLED = {"enters-battlefield", "attacks", "dies", "landfall", "permanent-enters", "gain-life"}
+MODELLED = {
+    "enters-battlefield", "attacks", "dies", "landfall", "permanent-enters", "gain-life",
+    "permanent-dies", "upkeep", "first-main", "begin-combat", "end-step",
+}
 
 
 def load_scryfall():
@@ -103,8 +106,19 @@ def classify(clause, card_name):
     # "Soul Warden" in older templating, "this creature" in newer.
     self_ref = r"(this creature|this permanent|this artifact|this enchantment|%s)" % re.escape(card_name.lower())
 
+    # Turn-based triggers became real events on 2026-08-10 (Deathreap Ritual).
+    # The draw step is deliberately still not one: no card in the pool wants
+    # it, and an event nothing ever fires is worse than no event.
     if re.match(r"^at the beginning of", c) or re.match(r"^at end of", c):
-        return None, "timing trigger (upkeep/draw/end step) - engine has no phase triggers"
+        if "upkeep" in c:
+            return "upkeep", None
+        if "end step" in c or re.match(r"^at end of turn", c):
+            return "end-step", None
+        if "first main phase" in c:
+            return "first-main", None
+        if "combat on" in c:
+            return "begin-combat", None
+        return None, "timing trigger the engine has no event for (draw step, upkeep of a chosen player)"
 
     if "enters" in c:
         # Both templatings: "a land enters the battlefield under your control"
@@ -113,6 +127,10 @@ def classify(clause, card_name):
         if (
             re.search(r"a land enters the battlefield under your control", c)
             or re.search(r"a land you control enters", c)
+            # Lifegift says just "whenever a land enters", meaning every
+            # player's. Still landfall - `watches` is what differs, and
+            # that is checked against the fixture separately.
+            or re.search(r"whenever a land enters", c)
             or "landfall" in c
         ):
             return "landfall", None
@@ -151,7 +169,12 @@ def classify(clause, card_name):
     if re.search(r"\bdies\b", c):
         if re.search(r"^when(ever)?\s+%s\s+dies" % self_ref, c):
             return "dies", None
-        return None, "watches other creatures dying - not modelled"
+        # Watching *other* permanents die became a real event on 2026-08-10
+        # (Meltstrider Eulogist), mirroring `permanent-enters`. Anything
+        # whose filter the engine cannot express is still refused, below.
+        if re.search(r"whenever (a|an|another|one or more|this \w+ or another) .*dies", c):
+            return "permanent-dies", None
+        return None, "watches other creatures dying in a way the filter cannot express"
 
     if re.search(r"leaves the battlefield", c):
         return None, "leaves-the-battlefield trigger - not modelled"

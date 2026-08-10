@@ -1,7 +1,8 @@
-import type { GameState, Phase, Step } from "./types.js";
-import { drawCard } from "./state.js";
+import type { GameState, Phase, Step, TriggerEvent } from "./types.js";
+import { drawCard, requireDefinition } from "./state.js";
 import { emptyManaPool } from "./mana.js";
 import { combatHasFirstStrike, dealCombatDamage } from "./combat.js";
+import { pushTrigger } from "./permanents.js";
 
 const TURN_SEQUENCE: Array<{ phase: Phase; step: Step }> = [
   { phase: "beginning", step: "untap" },
@@ -107,6 +108,52 @@ function startNextTurn(state: GameState): void {
   state.step = "untap";
 }
 
+/**
+ * The four steps a card can say "at the beginning of" and mean it.
+ *
+ * Keyed on phase *and* step, not step alone: a turn has two main phases and
+ * both of them are `step: "main"`, so "at the beginning of your first main
+ * phase" written against the step would fire twice a turn. Ripples of Undeath
+ * milling six cards instead of three is the sort of thing that reads as the
+ * card being wrong rather than the turn machine.
+ */
+const TURN_TRIGGER_EVENTS: Array<{ phase: Phase; step: Step; event: TriggerEvent }> = [
+  { phase: "beginning", step: "upkeep", event: "upkeep" },
+  { phase: "precombat-main", step: "main", event: "first-main" },
+  { phase: "combat", step: "begin-combat", event: "begin-combat" },
+  { phase: "ending", step: "end", event: "end-step" },
+];
+
+/**
+ * Fires everything that triggers "at the beginning of" the step just reached.
+ *
+ * Whose step it is decides which abilities care: `watches: "controller"` is "at
+ * the beginning of *your* upkeep" and only fires on its controller's turn,
+ * `watches: "any"` is "at the beginning of *each* upkeep" and fires on
+ * everyone's. Ophiomancer makes a Snake on every player's upkeep and Braids
+ * only on her controller's, so the distinction is not decoration.
+ *
+ * The active player's abilities go on the stack first (rule 603.3b, APNAP),
+ * which is what `state.players` ordered from `activePlayerIndex` gives.
+ */
+function fireTurnTriggers(state: GameState): void {
+  const match = TURN_TRIGGER_EVENTS.find((t) => t.phase === state.phase && t.step === state.step);
+  if (!match) return;
+  const activePlayerId = state.players[state.activePlayerIndex]!.id;
+
+  for (let offset = 0; offset < state.players.length; offset++) {
+    const player = state.players[(state.activePlayerIndex + offset) % state.players.length]!;
+    for (const instance of [...player.battlefield]) {
+      const def = requireDefinition(state, instance.definitionId);
+      for (const trigger of def.triggeredAbilities ?? []) {
+        if (trigger.event !== match.event) continue;
+        if ((trigger.watches ?? "controller") === "controller" && player.id !== activePlayerId) continue;
+        pushTrigger(state, instance.instanceId, player.id, trigger);
+      }
+    }
+  }
+}
+
 function runAutomaticStepActions(state: GameState): void {
   const activePlayer = state.players[state.activePlayerIndex]!;
 
@@ -166,9 +213,17 @@ function runAutomaticStepActions(state: GameState): void {
         player.damagePrevention = 0;
         emptyManaPool(player);
       }
+      // "If a creature died *this turn*" - the turn ends here, so the count
+      // does too. Cleanup rather than untap because a card could ask about it
+      // during an opponent's end step, which is still this turn.
+      state.creatureDeathsThisTurn = 0;
       break;
     }
     default:
       break;
   }
+
+  // After the step's automatic actions, so an upkeep trigger goes on the stack
+  // above nothing and a draw-step trigger sees the card already drawn.
+  fireTurnTriggers(state);
 }

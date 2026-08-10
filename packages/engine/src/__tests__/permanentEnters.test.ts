@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeTestGame } from "../testHelpers.js";
 import { createCardInstance, createGameState } from "../state.js";
 import { matchesWatchFor, putOntoBattlefield } from "../permanents.js";
+import type { TriggerSubject } from "../permanents.js";
 import { resolveTopOfStack } from "../stack.js";
 import { applyEffect } from "../effects.js";
 import { TEST_CARD_DEFINITIONS } from "../cards/testCards.js";
@@ -245,7 +246,7 @@ describe("watchers that look for something other than a creature", () => {
 });
 
 describe("matchesWatchFor", () => {
-  const creature: CardDefinition = {
+  const definition: CardDefinition = {
     id: "c",
     name: "C",
     types: ["Creature"],
@@ -253,23 +254,43 @@ describe("matchesWatchFor", () => {
     colorIdentity: [],
     tier: "vanilla",
   };
+  // What the watcher gets to look at. Built by hand here rather than from a
+  // real instance, because these cases are about the filter and nothing else.
+  const subject = (over: Partial<TriggerSubject> = {}): TriggerSubject => ({
+    instanceId: "i1",
+    controllerId: "mike",
+    def: definition,
+    hadCounters: false,
+    isToken: false,
+    ...over,
+  });
 
   it("matches everything when no filter is given", () => {
-    expect(matchesWatchFor(undefined, creature)).toBe(true);
+    expect(matchesWatchFor(undefined, subject())).toBe(true);
   });
 
   it("matches on card type", () => {
-    expect(matchesWatchFor({ type: "Creature" }, creature)).toBe(true);
-    expect(matchesWatchFor({ type: "Enchantment" }, creature)).toBe(false);
+    expect(matchesWatchFor({ type: "Creature" }, subject())).toBe(true);
+    expect(matchesWatchFor({ type: "Enchantment" }, subject())).toBe(false);
   });
 
   it("matches on subtype", () => {
-    expect(matchesWatchFor({ subtype: "Soldier" }, creature)).toBe(true);
-    expect(matchesWatchFor({ subtype: "Aura" }, creature)).toBe(false);
+    expect(matchesWatchFor({ subtype: "Soldier" }, subject())).toBe(true);
+    expect(matchesWatchFor({ subtype: "Aura" }, subject())).toBe(false);
   });
 
   it("requires both when both are given", () => {
-    expect(matchesWatchFor({ type: "Creature", subtype: "Soldier" }, creature)).toBe(true);
-    expect(matchesWatchFor({ type: "Enchantment", subtype: "Soldier" }, creature)).toBe(false);
+    expect(matchesWatchFor({ type: "Creature", subtype: "Soldier" }, subject())).toBe(true);
+    expect(matchesWatchFor({ type: "Enchantment", subtype: "Soldier" }, subject())).toBe(false);
+  });
+
+  it("narrows to permanents that had a +1/+1 counter", () => {
+    expect(matchesWatchFor({ withCounter: true }, subject({ hadCounters: true }))).toBe(true);
+    expect(matchesWatchFor({ withCounter: true }, subject({ hadCounters: false }))).toBe(false);
+  });
+
+  it("narrows to nontoken permanents", () => {
+    expect(matchesWatchFor({ nontoken: true }, subject({ isToken: false }))).toBe(true);
+    expect(matchesWatchFor({ nontoken: true }, subject({ isToken: true }))).toBe(false);
   });
 });

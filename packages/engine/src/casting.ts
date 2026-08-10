@@ -156,10 +156,6 @@ export function playLand(state: GameState, playerId: string, instanceId: string)
   if (!canCastAtSorcerySpeed(state, playerId)) throw new Error("Lands can only be played at sorcery speed");
   if (player.landsPlayedThisTurn >= 1) throw new Error(`${playerId} has already played a land this turn`);
 
-  // Via putOntoBattlefield rather than moveCard, so a land carrying an
-  // enters-the-battlefield trigger fires it like any other permanent would.
-  putOntoBattlefield(state, instanceId);
-  player.landsPlayedThisTurn += 1;
   /*
    * Logged like every other action, which it was not until now.
    *
@@ -169,21 +165,23 @@ export function playLand(state: GameState, playerId: string, instanceId: string)
    * place to answer. The client also drives its sound cues off log lines, so a
    * land going down was silent purely because there was no line to read.
    *
-   * Before the landfall triggers below, so the log reads in the order things
-   * happened rather than reporting the consequence ahead of the cause.
+   * Before the land actually arrives, so the log reads in the order things
+   * happened rather than reporting a landfall trigger ahead of its cause.
    */
   log(state, `${playerId} plays ${def.name}`);
 
-  // Landfall: any permanent this player controls declaring it triggers whenever a land
-  // enters the battlefield under their control - not just the land itself.
-  for (const permanent of player.battlefield) {
-    const permanentDef = requireDefinition(state, permanent.definitionId);
-    for (const trigger of permanentDef.triggeredAbilities ?? []) {
-      if (trigger.event === "landfall") {
-        pushOntoStack(state, permanent.instanceId, playerId, trigger.effect, [], false);
-      }
-    }
-  }
+  /*
+   * Via putOntoBattlefield rather than moveCard, so a land carrying an
+   * enters-the-battlefield trigger fires it like any other permanent would.
+   *
+   * Landfall used to be a second loop written out here, which meant it only
+   * ever fired for a land *played* from hand. A land put onto the battlefield
+   * any other way - a fetchland cracking, Sakura-Tribe Elder, a ramp spell -
+   * arrived in total silence, even though the rules make no distinction. It now
+   * lives in `enteredBattlefield`, the one door every land goes through.
+   */
+  putOntoBattlefield(state, instanceId);
+  player.landsPlayedThisTurn += 1;
 
   state.passesInSuccession = 0;
 }

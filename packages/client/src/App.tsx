@@ -42,6 +42,7 @@ import { ManaPipLayer } from "./components/ManaPipLayer.js";
 import { ParticleLayer } from "./components/ParticleLayer.js";
 import { StopSettings } from "./components/StopSettings.js";
 import { AbilityPicker, type AbilityOption } from "./components/AbilityPicker.js";
+import { ConfirmTrigger } from "./components/ConfirmTrigger.js";
 import { describeActivated } from "./cardText.js";
 import { burstsForFlight, spellColor } from "./particles.js";
 import { findInstance } from "./cardLookup.js";
@@ -370,6 +371,12 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
         pendingSearch.candidateInstanceIds.includes(card.instanceId),
       )
     : [];
+
+  // Same rule for a "you may" trigger: only the seat it belongs to is asked.
+  const pendingConfirmation =
+    state.pendingConfirmation && controller.canControlPlayer(state.pendingConfirmation.playerId)
+      ? state.pendingConfirmation
+      : undefined;
 
   /*
    * An opening hand waiting on this client. Same rule as a pending search: the
@@ -966,6 +973,13 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             onChoose={(instanceId) => controller.resolveSearch(pendingSearch.playerId, instanceId)}
             onDecline={() => controller.resolveSearch(pendingSearch.playerId, null)}
             onHover={handleHover}
+          />
+        )}
+
+        {pendingConfirmation && (
+          <ConfirmTrigger
+            prompt={pendingConfirmation.prompt}
+            onAnswer={(accept) => controller.resolveConfirmation(pendingConfirmation.playerId, accept)}
           />
         )}
 
