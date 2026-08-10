@@ -279,3 +279,26 @@ describe("rituals, top-of-library tutors and a rider somebody else answers", () 
     expect(text).not.toContain("Search your library for a basic land");
   });
 });
+
+/**
+ * Replacement effects read as replacements, not as things that happen after.
+ */
+describe("replacement effects", () => {
+  it("keeps the 'if an effect would ... instead' shape", () => {
+    const text = textOf("doubling-season");
+    expect(text).toContain("If an effect would create one or more tokens under your control");
+    expect(text).toContain("twice that many");
+    expect(text).toContain("instead");
+  });
+
+  it("says which permanents a narrowed one covers", () => {
+    // "an artifact or creature you control" - printed as "a permanent" this
+    // would read as Doubling Season with a body attached.
+    expect(textOf("winding-constrictor")).toContain("artifact or creature you control");
+    expect(textOf("winding-constrictor")).toContain("that many plus 1");
+  });
+
+  it("does not print a narrowing Doubling Season never had", () => {
+    expect(textOf("doubling-season")).toContain("a permanent you control");
+  });
+});

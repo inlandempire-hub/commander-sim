@@ -11257,6 +11257,59 @@ export const ASSASSINS_TROPHY: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "If an effect would create one or more tokens under your control, it creates
+ * twice that many of those tokens instead.
+ *  If an effect would put one or more counters on a permanent you control, it
+ * puts twice that many of those counters on that permanent instead."
+ *
+ * Both lines, both replacements. No `cardTypes` on the counter half because
+ * the card says "a permanent you control" and means it.
+ */
+export const DOUBLING_SEASON: CardDefinition = {
+  id: "doubling-season",
+  name: "Doubling Season",
+  scryfallId: "f2c4f80e-84a0-463b-82c3-5c6503809351",
+  types: ["Enchantment"],
+  manaCost: { generic: 4, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  replacementEffects: [
+    { kind: "tokens-created", multiply: 2 },
+    { kind: "counters-placed", multiply: 2 },
+  ],
+  tier: "weird",
+};
+
+/**
+ * "If one or more counters would be put on an artifact or creature you
+ * control, that many plus one of each of those kinds of counters are put on
+ * that permanent instead.
+ *  If you would get one or more counters, you get that many plus one of each
+ * of those kinds of counters instead."
+ *
+ * The first line is here. The second concerns counters put on a *player* -
+ * poison, energy, experience - and this engine has no such thing: there is no
+ * counter of any kind that can go on a player, so no game state it can reach
+ * makes that line do anything. It is left unmodelled deliberately rather than
+ * approximated onto something else, and this note is the record of that.
+ *
+ * The type list is load-bearing. Without it the Snake would also pump an
+ * enchantment, which is Doubling Season's job and not this card's.
+ */
+export const WINDING_CONSTRICTOR: CardDefinition = {
+  id: "winding-constrictor",
+  name: "Winding Constrictor",
+  scryfallId: "107c8aa8-c8f8-4cbf-821b-bd2cb33354f0",
+  types: ["Creature"],
+  subtypes: ["Snake"],
+  manaCost: { generic: 0, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 2,
+  toughness: 3,
+  replacementEffects: [{ kind: "counters-placed", add: 1, cardTypes: ["Artifact", "Creature"] }],
+  tier: "weird",
+};
+
 
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
@@ -12139,5 +12192,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     DARK_RITUAL,
     SYLVAN_TUTOR,
     ASSASSINS_TROPHY,
+    DOUBLING_SEASON,
+    WINDING_CONSTRICTOR,
   ].map((def) => [def.id, def]),
 );

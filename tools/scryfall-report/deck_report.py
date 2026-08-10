@@ -65,9 +65,15 @@ BLOCKERS = [
     (r"^(Suspend|Devour|Bestow|Cascade|Convoke|Delve|Escape|Evoke|Kicker|Madness|Flashback|Dredge|Buyback|Embalm|Eternalize|Unearth|Cycling|Morph|Disturb|Adapt|Mutate)\b|\bgains? infect\b|\binfect\b",
      "Keyword mechanics the engine does not implement",
      "each is its own rules system - Suspend, Devour, Bestow, Infect and friends"),
-    (r"would be put into (your|a) graveyard.*instead|it puts twice that many|that many plus one|would (be put|get|create).*instead",
-     "Replacement effects",
-     "nothing in the engine can intercept an event and change it on the way through"),
+    # Narrowed 2026-08-10. Two events can be replaced now - counters going onto
+    # a permanent, and tokens being created - because those are the only two any
+    # card in this pool replaces. Anything else still has nowhere to hook, so
+    # this names the events rather than the mechanism.
+    (r"would be put into (your|a) graveyard.*instead|would draw.*instead|would deal.*instead"
+     r"|would gain.*life.*instead|would lose.*instead|would be dealt.*instead",
+     "Replacement effects on an event the engine cannot intercept",
+     "counters being placed and tokens being created can be replaced (see replacements.ts); "
+     "damage, draws, life changes and zone changes cannot"),
     (r"^Skip your |maximum hand size|^You may play an additional land|play lands from your graveyard|^You may play ",
      "Static rules changes",
      "cards that edit the rules of the turn itself have nowhere to live"),

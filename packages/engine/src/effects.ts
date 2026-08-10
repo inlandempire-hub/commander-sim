@@ -17,6 +17,7 @@ import { enteredBattlefield, putOntoBattlefield } from "./permanents.js";
 import { gainLife } from "./life.js";
 import { useRegenerationShield } from "./regeneration.js";
 import { sacrificePermanent } from "./sba.js";
+import { countersPlaced, tokensCreated } from "./replacements.js";
 
 /**
  * Applies a resolved (non-permanent) effect: spell/ability damage, draw,
@@ -125,12 +126,12 @@ export function applyEffect(
       if (cardTargets.length === 0) {
         // No explicit target (e.g. a triggered ability buffing its own source) - counters go on the source itself.
         const source = findInstance(state, sourceInstanceId);
-        if (source) source.instance.plusOneCounters += effect.amount;
+        if (source) source.instance.plusOneCounters += countersPlaced(state, source.instance, effect.amount);
         return;
       }
       for (const target of cardTargets) {
         const found = findInstance(state, target.instanceId);
-        if (found) found.instance.plusOneCounters += effect.amount;
+        if (found) found.instance.plusOneCounters += countersPlaced(state, found.instance, effect.amount);
       }
       return;
     }
@@ -148,7 +149,7 @@ export function applyEffect(
         if (effect.subtypes?.length && !effect.subtypes.some((s) => def.subtypes?.includes(s))) {
           continue;
         }
-        instance.plusOneCounters += effect.amount;
+        instance.plusOneCounters += countersPlaced(state, instance, effect.amount);
       }
       return;
     }
@@ -195,7 +196,12 @@ export function applyEffect(
       return;
     }
     case "createToken": {
-      for (let i = 0; i < effect.count; i++) {
+      // Doubling Season and its family. Asked once for the whole event, not
+      // per token - "would create one or more tokens" is a single event, so
+      // two Doubling Seasons make four Insects rather than compounding oddly
+      // inside the loop.
+      const count = tokensCreated(state, controllerId, effect.count);
+      for (let i = 0; i < count; i++) {
         const token = createCardInstance(state, effect.tokenDefinitionId, controllerId, "battlefield");
         /*
          * A token enters the battlefield like anything else, so it goes

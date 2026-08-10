@@ -356,6 +356,41 @@ export type BoardCondition =
    */
   | { kind: "controls-color"; color: Color; count: number };
 
+/**
+ * "If an effect would X instead" - a replacement effect.
+ *
+ * Deliberately not a general "intercept any event" mechanism. The real rules
+ * let a replacement modify almost anything, and building that would mean every
+ * effect in the engine routing through an event bus. Two events cover every
+ * card of this shape in the pool, and both are single lines in effects.ts:
+ * counters being put on a permanent, and tokens being created.
+ *
+ * `multiply` and `add` are both allowed on one entry because a card can print
+ * either - Doubling Season multiplies, Winding Constrictor adds - and no card
+ * prints both at once. Applying order is decided in replacements.ts.
+ */
+export type ReplacementEffect =
+  /**
+   * "If an effect would put one or more counters on a permanent you control,
+   * it puts twice that many ... instead" (Doubling Season), or "that many plus
+   * one" (Winding Constrictor, narrowed to artifacts and creatures).
+   */
+  | {
+      kind: "counters-placed";
+      /** Doubling Season. Applied after every `add`, see replacements.ts. */
+      multiply?: number;
+      /** Winding Constrictor. */
+      add?: number;
+      /**
+       * Which permanents qualify. Omitted means every permanent you control,
+       * which is what Doubling Season says; Winding Constrictor names two
+       * types and would wrongly pump an enchantment without this.
+       */
+      cardTypes?: CardType[];
+    }
+  /** "If an effect would create one or more tokens under your control, it creates twice that many instead." */
+  | { kind: "tokens-created"; multiply: number };
+
 /** The tapland half of `BoardCondition`, named for where it reads. */
 export type EntersUntappedCondition = BoardCondition;
 
@@ -618,6 +653,14 @@ export interface CardDefinition {
    * still needs the real thing. See ROADMAP.md.
    */
   staticBuff?: { power: number; toughness: number; subtype?: string };
+  /**
+   * "If an effect would ... instead" - the replacement-effect family. See
+   * replacements.ts for how they combine and why the order is what it is.
+   *
+   * Only on the battlefield, and only ever the controller's own things: every
+   * card of this shape in the pool says "you control" or "under your control".
+   */
+  replacementEffects?: ReplacementEffect[];
   /** Tokens cease to exist the moment they leave the battlefield, rather than moving zones. */
   isToken?: boolean;
   /**

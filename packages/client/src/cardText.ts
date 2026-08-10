@@ -4,6 +4,7 @@ import type {
   CardDefinition,
   Color,
   Effect,
+  ReplacementEffect,
   TargetSelector,
   TriggerCondition,
   TriggeredAbility,
@@ -510,6 +511,10 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
     );
   }
 
+  for (const replacement of def.replacementEffects ?? []) {
+    lines.push(describeReplacement(replacement));
+  }
+
   for (const trigger of def.triggeredAbilities ?? []) {
     lines.push(describeTrigger(trigger, definitions, def));
   }
@@ -519,6 +524,35 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
   if (def.castEffect) lines.push(describeEffect(def.castEffect, definitions));
 
   return lines;
+}
+
+/**
+ * A replacement effect in the card's own words.
+ *
+ * Written as the cards write it - "if an effect would ... instead" - because
+ * the shape of the sentence is what tells a player it is a replacement and not
+ * a trigger. "Doubles your tokens" reads like something that happens after.
+ */
+function describeReplacement(replacement: ReplacementEffect): string {
+  if (replacement.kind === "tokens-created") {
+    return (
+      "If an effect would create one or more tokens under your control, it creates " +
+      `${timesWord(replacement.multiply)} that many of those tokens instead.`
+    );
+  }
+  const what = replacement.cardTypes
+    ? `an ${listOr(replacement.cardTypes.map((t) => t.toLowerCase()))} you control`
+    : "a permanent you control";
+  const outcome = replacement.multiply
+    ? `it puts ${timesWord(replacement.multiply)} that many of those counters on that permanent instead.`
+    : `that many plus ${replacement.add} of each of those kinds of counters are put on that permanent instead.`;
+  return `If ${replacement.multiply ? "an effect would put" : "one or more counters would be put on"} ` +
+    `${replacement.multiply ? `one or more counters on ${what}, ` : `${what}, `}${outcome}`;
+}
+
+/** "twice", "three times" - how the cards say a multiplier. */
+function timesWord(multiplier: number): string {
+  return multiplier === 2 ? "twice" : `${multiplier} times`;
 }
 
 /** Converted mana cost / mana value - what the curve is bucketed by. */
