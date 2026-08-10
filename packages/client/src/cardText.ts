@@ -120,8 +120,15 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Regenerate ${describeTarget(effect.target)}.`;
     case "createToken": {
       const token = definitions[effect.tokenDefinitionId];
-      const name = token ? tokenName(token) : effect.tokenDefinitionId;
-      return `Create ${effect.count} ${name} ${plural(effect.count, "token")}.`;
+      if (!token) return `Create ${effect.count} ${effect.tokenDefinitionId}.`;
+      const name = tokenName(token);
+      // "Create a 1/1 black Snake creature token with deathtouch." / "Create
+      // four 1/1 green Insect creature tokens with flying and deathtouch."
+      // `countWord(1)` is "a", which is the article the cards use rather than
+      // a number - "create 1 Snake token" is not a phrase any card prints.
+      return effect.count === 1
+        ? `Create ${countWord(1)} ${name}.`
+        : `Create ${countWord(effect.count)} ${name.replace(" token", " tokens")}.`;
     }
     case "pump": {
       const who = effect.target ? describeTarget(effect.target) : "this creature";
@@ -188,9 +195,35 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
 }
 
 /** "2/2 white Cat" reads better on a token than its full type line does. */
+/**
+ * "1/1 green Insect creature token with flying and deathtouch" - the whole
+ * printed phrase.
+ *
+ * Colour and keywords are not decoration here. Two cards in the pool make a
+ * 1/1 green Insect and a 1/1 green Insect with flying and deathtouch, and
+ * "1/1 Insect" describes both - so the panel would show the same line for two
+ * genuinely different tokens.
+ */
 function tokenName(token: CardDefinition): string {
   const stats = token.power !== undefined ? `${token.power}/${token.toughness} ` : "";
-  return `${stats}${token.name}`;
+  const colors = (token.colorIdentity ?? []).map(colorWord).join(" and ");
+  const body = `${stats}${colors ? `${colors} ` : ""}${token.name} creature`;
+  const keywords = token.keywords ?? [];
+  return keywords.length > 0
+    ? `${body} token with ${listAnd(keywords.map((k) => k.toLowerCase()))}`
+    : `${body} token`;
+}
+
+/** "flying and deathtouch", "flying, deathtouch, and trample". */
+function listAnd(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+/** "a", "two", "four" - cards spell small numbers out. */
+function countWord(n: number): string {
+  return ["zero", "a", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][n] ?? String(n);
 }
 
 /** "creature", "Aura", "permanent" - what a watcher is looking out for. */
@@ -240,7 +273,28 @@ function describeTriggerCondition(condition: TriggerCondition): string {
     case "creature-died-this-turn":
       return "if a creature died this turn";
     case "not":
-      return `if ${describeCondition(condition.condition).replace(/^you control /, "you control no ")}`;
+      return `if ${negateCondition(condition.condition)}`;
+  }
+}
+
+/**
+ * "you control no Snakes" - a board condition read the other way round.
+ *
+ * Built from the condition's own parts rather than by editing the positive
+ * sentence: swapping "you control " for "you control no " turned "you control a
+ * Snake" into "you control no a Snake", which is the sort of thing that reads
+ * as the card being broken.
+ */
+function negateCondition(condition: BoardCondition): string {
+  switch (condition.kind) {
+    case "controls-subtype":
+      return `you control no ${listOr(condition.subtypes.map((s) => `${s}s`))}`;
+    case "controls-color":
+      return `you control no ${colorWord(condition.color)} permanents`;
+    case "controls-other-lands":
+      return "you control no other lands";
+    case "opponents":
+      return "you have no opponents";
   }
 }
 

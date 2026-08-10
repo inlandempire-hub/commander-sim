@@ -145,18 +145,28 @@ BLOCKERS = [
     (r"\bdiscard",
      "Discard",
      "no effect can move a card from a hand to a graveyard"),
-    (r"\bequal to\b|\bfor each\b|\btimes\b|-X/-X|\+X/\+X|\bX (creature|1/1|target)",
+    (r"\bequal to\b|\bfor each\b|\btimes\b|-X/-X|\+X/\+X|\bX (creature|1/1|target)"
+     r"|\bwhere X is\b|\bX \d+/\d+",
      "Dynamic amounts",
      "every number in the DSL is a literal, so 'equal to its power' cannot be written"),
+    # Arachnogenesis. `preventDamage` is one target and a fixed number; this is
+    # every creature that does not share a subtype, for the rest of the turn.
+    # Without this the report credited token creation with finishing the card.
+    (r"[Pp]revent all (?:combat )?damage",
+     "Blanket damage prevention",
+     "preventDamage shields one target for a fixed amount; nothing prevents damage "
+     "from a whole class of creatures for a turn"),
     (r"\bgains? (flying|trample|haste|vigilance|lifelink|deathtouch|first strike|double strike|indestructible|hexproof|menace|reach)|\b(have|has) (flying|trample|haste|vigilance|lifelink|deathtouch|indestructible|hexproof)",
      "Granting keywords",
      "staticBuff only adjusts power and toughness"),
     (r"costs? \{|costs? \d+ less|costs? \d+ more",
      "Cost modification",
      "casting costs are fixed at the card"),
-    (r"^Create |\bcreates? (a|an|one|two|three|\d+)\b.*token",
-     "Token creation for arbitrary tokens",
-     "createToken works but needs a fixture per token, and none exist beyond the current few"),
+    (r'token that\'s a copy|creature tokens? with "|token with "',
+     "Tokens that carry their own rules text, or copy something",
+     "the generator mints a token definition from the printed phrase, but only a "
+     "vanilla body with keywords - a token with a quoted ability, or a copy of a "
+     "permanent, is refused rather than silently flattened"),
     # Plain "This land enters tapped." is supported. What survives to here is
     # the conditional forms, which are a different problem entirely: a condition
     # on the permanent's own arrival.
@@ -210,10 +220,21 @@ UNRECOGNISED = ("Unrecognised - needs reading by hand",
 
 
 def blocker_for(line):
-    for pattern, title, why in BLOCKERS:
-        if re.search(pattern, line, re.I):
-            return title, why
-    return UNRECOGNISED
+    """The first gap this line hits. Kept for callers that want exactly one."""
+    found = blockers_for(line)
+    return found[0]
+
+
+def blockers_for(line):
+    """Every gap this line hits, in list order.
+
+    Deliberately not "the first match". One printed line routinely needs two
+    unrelated systems, and stopping at the first meant the report understated
+    what a card costs - which is how "finishes N" kept promising cards that
+    would still be blocked afterwards.
+    """
+    found = [(title, why) for pattern, title, why in BLOCKERS if re.search(pattern, line, re.I)]
+    return found or [UNRECOGNISED]
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +259,17 @@ TRIGGER_WRAPPERS = [
     (r"^When(?:ever)? (?:this creature|~) attacks,\s*(.+)$", "attacks"),
     (r"^When(?:ever)? another creature you control enters,\s*(.+)$", "permanent-enters"),
     (r"^When(?:ever)? a land you control enters(?: the battlefield)?,\s*(.+)$", "landfall"),
+    # Shipped 2026-08-10. Each of these is a trigger the engine fires, so a card
+    # using one is blocked only by what the trigger does, if anything.
+    (r"^When(?:ever)? a land enters,\s*(.+)$", "landfall watching every player"),
+    (r"^When(?:ever)? you gain life,\s*(.+)$", "gain-life"),
+    (r"^When(?:ever)? (?:a|an|another) [A-Za-z+/1 ,]*?(?:creature|permanent)[A-Za-z+/1 ]*? dies,\s*(.+)$",
+     "permanent-dies"),
+    (r"^When(?:ever)? (?:a|an|another) [A-Za-z, ]+ enters,\s*(.+)$", "permanent-enters"),
+    (r"^At the beginning of (?:each|your) upkeep,\s*(.+)$", "upkeep"),
+    (r"^At the beginning of (?:each|your) end step,\s*(.+)$", "end step"),
+    (r"^At the beginning of your first main phase,\s*(.+)$", "first main phase"),
+    (r"^At the beginning of combat on your turn,\s*(.+)$", "beginning of combat"),
 ]
 
 # Trigger shapes that are perfectly ordinary Magic and that the engine has no
@@ -245,14 +277,20 @@ TRIGGER_WRAPPERS = [
 # rather than as whatever their effect happens to mention - "whenever you gain
 # life, put a +1/+1 counter on each Pest" is a missing trigger, not a missing
 # counter system, and this deck is built on that one trigger.
+# Kept current by hand, and it has gone stale twice. Four entries were removed
+# on 2026-08-10 because the events shipped: watching another permanent die,
+# watching you gain life, landfall watching every player, and watching a
+# permanent enter narrowed by type. While they sat here the report claimed
+# Ophiomancer and Blight Mound needed engine work that already existed.
+#
+# When an event ships, delete its line. A trigger clause the engine can fire is
+# not a blocker - whatever the trigger *does* may still be one, and that is
+# what `effect_reasons` is for.
 UNSUPPORTED_TRIGGERS = [
-    (r"^When(?:ever)? you gain life,", "you gain life"),
     (r"^When(?:ever)? .* is dealt damage,", "a permanent is dealt damage"),
     (r"^When(?:ever)? .* leaves the battlefield", "a permanent leaves the battlefield"),
-    (r"^When(?:ever)? (a|an|another) .*(you control|a player controls)? dies,", "a permanent other than this one dies"),
     (r"^When(?:ever)? (a|an) .* you control attacks,", "a permanent other than this one attacks"),
-    (r"^When(?:ever)? a land enters,", "a land enters under any player's control"),
-    (r"^When(?:ever)? (a|an|another) [A-Za-z, ]+ enters,", "another permanent enters, narrowed by type"),
+    (r"^When(?:ever)? a player (sacrifices|casts|discards)", "a player does something to their own cards"),
 ]
 # Deliberately no catch-all here. An over-broad "whenever anything happens"
 # entry swallowed Arasta of the Endless Web, whose trigger is an opponent
@@ -384,10 +422,14 @@ def analyse_line(raw_line):
         reasons.extend(effect_reasons(line[match.end():].strip(" ,")))
         return reasons
 
+    # Upkeep, end step, first main and beginning of combat all became real
+    # events on 2026-08-10 and are handled as wrappers above. What is left here
+    # is the steps that still have none - the draw step, and anything scoped to
+    # a particular opponent's turn.
     if re.match(r"^At the beginning of", line, re.I):
-        reasons = [("Turn-based triggers (upkeep, end step, each combat)",
-                    "trigger events are only enters-battlefield, attacks, dies, landfall, "
-                    "permanent-enters")]
+        reasons = [("Turn-based triggers the engine has no event for",
+                    "upkeep, end step, first main phase and beginning of combat exist; "
+                    "the draw step and per-opponent scoping do not")]
         rest = re.sub(r"^At the beginning of [^,]+,\s*", "", line, flags=re.I)
         reasons.extend(effect_reasons(rest))
         return reasons
@@ -423,14 +465,14 @@ def _analyse_single(line):
                      "the engine can do this today; gen_fixtures only has patterns for ETB "
                      "gain-life and ETB draw, so everything else is skipped")]
         # The wrapper is a trigger the engine has; only the effect is missing.
-        return [blocker_for(core)]
+        return blockers_for(core)
 
     # Before blaming the effect, check whether the whole card shape is the
     # problem - a keyword mechanic or a replacement effect overrides everything
     # else about the card.
-    for pattern, title, why in BLOCKERS[:4]:
-        if re.search(pattern, line, re.I):
-            return [(title, why)]
+    overriding = [(title, why) for pattern, title, why in BLOCKERS[:4] if re.search(pattern, line, re.I)]
+    if overriding:
+        return overriding
 
     # If the line only failed because of how it is worded, that is a pattern to
     # add to gen_fixtures rather than anything to build.
@@ -438,7 +480,7 @@ def _analyse_single(line):
         return [("Generator gap - wording variant of an effect the DSL already has",
                  "the engine can do this today; gen_fixtures matches one templating of it "
                  "and refuses the others")]
-    return [blocker_for(line)]
+    return blockers_for(line)
 
 
 # ---------------------------------------------------------------------------

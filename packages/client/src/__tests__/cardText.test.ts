@@ -209,3 +209,42 @@ describe("costs and searches, printed in full", () => {
     expect(text).toContain("You gain 1 life.");
   });
 });
+
+/**
+ * Minted tokens.
+ *
+ * A token's colour and keywords are its whole identity - the pool now holds a
+ * 1/1 green Insect and a 1/1 green Insect with flying and deathtouch, and
+ * "1/1 Insect" describes both. The panel has to tell them apart.
+ */
+describe("tokens, as the card prints them", () => {
+  it("names the count, colour, subtype and keywords", () => {
+    // "When this creature enters, create four 1/1 green Insect creature tokens
+    // with flying and deathtouch."
+    expect(textOf("hornet-queen")).toContain(
+      "create four 1/1 green Insect creature tokens with flying and deathtouch.",
+    );
+  });
+
+  it("uses the article for one, not the digit", () => {
+    // "create a 1/1 black Snake creature token with deathtouch" - no card
+    // prints "create 1 Snake token".
+    expect(textOf("ophiomancer")).toContain("create a 1/1 black Snake creature token with deathtouch.");
+  });
+
+  it("negates a board condition in the card's own words", () => {
+    // "if you control no Snakes". Built from the condition's parts - editing
+    // the positive sentence produced "if you control no a Snake".
+    expect(textOf("ophiomancer")).toContain("if you control no Snakes,");
+    expect(textOf("ophiomancer")).not.toContain("no a ");
+  });
+
+  it("describes every token in the pool distinctly", () => {
+    // Two tokens rendering identically is the failure this guards: it would
+    // mean the panel cannot tell you which one a card actually makes.
+    const rendered = Object.values(TEST_CARD_DEFINITIONS)
+      .filter((def) => def.isToken)
+      .map((def) => `${def.power}/${def.toughness} ${(def.colorIdentity ?? []).join("")} ${def.name} ${(def.keywords ?? []).join(",")}`);
+    expect(new Set(rendered).size).toBe(rendered.length);
+  });
+});

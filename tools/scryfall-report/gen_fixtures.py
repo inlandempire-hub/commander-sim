@@ -307,6 +307,117 @@ def gain_life_trigger(line):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Tokens.
+#
+# `createToken` has worked since 2026-08-03, but it takes a
+# `tokenDefinitionId`, and the only definitions in existence were two written
+# by hand (Soldier, Saproling). So "token creation" was never the missing
+# feature - what was missing was a way to *mint* the definition a card names.
+#
+# A token is an ordinary CardDefinition flagged `isToken`, so minting one is
+# reading the noun phrase the card prints and writing that down.
+# ---------------------------------------------------------------------------
+
+TOKEN_COLORS = {"white": "W", "blue": "U", "black": "B", "red": "R", "green": "G"}
+
+# "four 1/1 green Insect creature tokens with flying and deathtouch"
+# "a 1/1 black Snake creature token with deathtouch"
+# "a 1/1 green Insect creature token"
+TOKEN_PHRASE = re.compile(
+    r"^(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) "
+    r"(\d+)/(\d+) "
+    r"((?:(?:white|blue|black|red|green)(?: and )?)+) "
+    r"([A-Z][a-z]+(?: [A-Z][a-z]+)*) creature tokens?"
+    r"(?: with ([a-z, ]+?))?$"
+)
+
+# A token carrying its own rules text - "with \"When this token dies, you gain
+# 1 life.\"" - is refused rather than stripped down to a vanilla body. Every
+# Pest in this deck has one, and a Pest that silently stopped gaining life
+# would be a materially different card.
+TOKEN_HAS_RULES_TEXT = re.compile(r'creature tokens? with "')
+
+
+def mint_token(phrase):
+    """(count, token TS, token id) for a printed token phrase, or None.
+
+    None means "do not write this card": either the phrase is a shape this has
+    never seen, or the token carries rules text, which is refused above.
+    """
+    match = TOKEN_PHRASE.match(phrase.strip())
+    if not match:
+        return None
+    count_word, power, toughness, colors_text, subtypes_text, keywords_text = match.groups()
+    count = WORD_NUMBERS.get(count_word, None)
+    if count is None:
+        try:
+            count = int(count_word)
+        except ValueError:
+            return None
+
+    colors = [TOKEN_COLORS[c] for c in re.split(r"\s+and\s+", colors_text.strip()) if c in TOKEN_COLORS]
+    if not colors:
+        return None
+    subtypes = subtypes_text.split()
+
+    keywords = []
+    if keywords_text:
+        for word in re.split(r",\s*|\s+and\s+", keywords_text.strip()):
+            word = word.strip().lower()
+            if not word:
+                continue
+            if word not in SUPPORTED_KEYWORDS:
+                return None  # a keyword the engine does not enforce
+            keywords.append(SUPPORTED_KEYWORDS[word])
+
+    # The id has to describe the token completely, because two cards making
+    # "a 1/1 green Insect" and "a 1/1 green Insect with flying" must not share
+    # one definition. Colour and keywords are in the name for that reason.
+    parts = ["".join(colors).lower(), "%s%s" % (power, toughness), "-".join(s.lower() for s in subtypes)]
+    if keywords:
+        parts.append("-".join(k.lower().replace(" ", "") for k in keywords))
+    token_id = "token-%s" % "-".join(parts)
+
+    lines = [
+        "export const %s: CardDefinition = {" % const_name(token_id),
+        '  id: "%s",' % token_id,
+        '  name: "%s",' % " ".join(subtypes),
+        '  types: ["Creature"],',
+        "  subtypes: [%s]," % ", ".join('"%s"' % s for s in subtypes),
+        "  colorIdentity: [%s]," % ", ".join('"%s"' % c for c in colors),
+        "  power: %s," % power,
+        "  toughness: %s," % toughness,
+    ]
+    if keywords:
+        lines.append("  keywords: [%s]," % ", ".join('"%s"' % k for k in keywords))
+    lines.append("  isToken: true,")
+    lines.append('  tier: "vanilla",')
+    lines.append("};")
+    return count, "\n".join(lines), token_id
+
+
+# Every token definition any card in this run minted, keyed by id so two cards
+# naming the same token share one definition rather than emitting it twice.
+MINTED_TOKENS = {}
+
+
+def token_effect(phrase):
+    """The `createToken` effect TS for a printed token phrase, or None.
+
+    None refuses the whole card. That is the right answer for a token with its
+    own rules text: TOKEN_PHRASE cannot match the quotation, so a Pest token
+    that gains you life on death is refused rather than quietly minted as a
+    vanilla 1/1 - which would be a different card wearing the same name.
+    """
+    minted = mint_token(phrase)
+    if minted is None:
+        return None
+    count, token_ts, token_id = minted
+    MINTED_TOKENS[token_id] = token_ts
+    return '{ kind: "createToken", count: %d, tokenDefinitionId: "%s" }' % (count, token_id)
+
+
 """
 A triggered ability, read as two halves that are matched separately.
 
@@ -378,6 +489,11 @@ TRIGGER_CLAUSES = [(re.compile(r"^%s, " % p), fields) for p, fields in TRIGGER_C
 # Rule 603.4's intervening-if, which sits between the clause and the effect.
 TRIGGER_ONLY_IF = [
     (re.compile(r"^if a creature died this turn, "), '{ kind: "creature-died-this-turn" }'),
+    # "if you control no Snakes" - Ophiomancer. Written as the negation of
+    # "you control a Snake", which is a condition the engine already asks
+    # everywhere else. The plural is stripped: the subtype is "Snake".
+    (re.compile(r"^if you control no ([A-Z][a-z]+)s, "),
+     lambda m: '{ kind: "not", condition: { kind: "controls-subtype", subtypes: ["%s"] } }' % m.group(1)),
 ]
 
 # What a trigger can do. Only shapes with no target and no choice beyond the
@@ -394,6 +510,10 @@ TRIGGER_EFFECTS = [
      if m.group(1) in WORD_NUMBERS else None),
     (re.compile(r"^put a \+1/\+1 counter on this creature\.$"),
      lambda m: '{ kind: "addCounter", amount: 1 }'),
+    # "create four 1/1 green Insect creature tokens with flying and
+    # deathtouch". The token itself is minted as a side effect and
+    # collected in MINTED_TOKENS for the emitter to write out.
+    (re.compile(r"^create (.+)\.$"), lambda m: token_effect(m.group(1))),
 ]
 
 
@@ -423,7 +543,9 @@ def enters_trigger(line):
         for cond_pattern, cond_ts in TRIGGER_ONLY_IF:
             cond = cond_pattern.match(rest)
             if cond:
-                only_if = ", onlyIf: %s" % cond_ts
+                # Some conditions read a name out of the text, so an entry
+                # may be a builder rather than a fixed string.
+                only_if = ", onlyIf: %s" % (cond_ts(cond) if callable(cond_ts) else cond_ts)
                 rest = rest[cond.end():]
                 break
 
@@ -1226,10 +1348,26 @@ def main():
         if not names:
             names = [line for line in sys.stdin.read().splitlines()]
         print("// Generated by gen_fixtures.py --named")
-        cards = emit_named(names)
+        # Collected while the cards are interpreted, so the cards have to be
+        # built first and printed second.
+        import io
+        buffer = io.StringIO()
+        real_stdout = sys.stdout
+        sys.stdout = buffer
+        try:
+            cards = emit_named(names)
+        finally:
+            sys.stdout = real_stdout
+        for token_ts in MINTED_TOKENS.values():
+            print()
+            print(token_ts)
+        real_stdout.write(buffer.getvalue())
         print()
-        print("// ids: %s" % json.dumps([slugify(c["name"]) for c in cards]))
-        print("// consts: %s" % ", ".join(const_name(c["name"]) for c in cards))
+        ids = list(MINTED_TOKENS.keys()) + [slugify(c["name"]) for c in cards]
+        consts = [const_name(i) for i in MINTED_TOKENS] + [const_name(c["name"]) for c in cards]
+        print()
+        print("// ids: %s" % json.dumps(ids))
+        print("// consts: %s" % ", ".join(consts))
         return
     permanent_type = next(
         (t for flag, t in (("--lands", "Land"), ("--artifacts", "Artifact"),

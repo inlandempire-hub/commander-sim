@@ -11143,6 +11143,76 @@ export const RIVETEERS_OVERLOOK: CardDefinition = {
 };
 
 
+/*
+ * Tokens, and the two cards that needed one minted.
+ *
+ * `createToken` has worked since the Saproling and Soldier were hand-written
+ * months ago. What was missing was never the effect - it was a *definition* to
+ * point it at, because every token in existence had been typed out by hand. The
+ * generator now reads the noun phrase a card prints ("four 1/1 green Insect
+ * creature tokens with flying and deathtouch") and writes the definition down.
+ *
+ * A token id spells out everything about it - colour, stats, subtype, keywords -
+ * so two cards making "a 1/1 green Insect" and "a 1/1 green Insect with flying"
+ * can never collapse into one definition.
+ */
+
+export const TOKEN_G_11_INSECT_FLYING_DEATHTOUCH: CardDefinition = {
+  id: "token-g-11-insect-flying-deathtouch",
+  name: "Insect",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying", "Deathtouch"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_B_11_SNAKE_DEATHTOUCH: CardDefinition = {
+  id: "token-b-11-snake-deathtouch",
+  name: "Snake",
+  types: ["Creature"],
+  subtypes: ["Snake"],
+  colorIdentity: ["B"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Deathtouch"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const HORNET_QUEEN: CardDefinition = {
+  id: "hornet-queen",
+  name: "Hornet Queen",
+  scryfallId: "b2af9184-df81-413b-abcf-331c4471e6d4",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  manaCost: { generic: 4, colors: { G: 3 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Flying", "Deathtouch"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "createToken", count: 4, tokenDefinitionId: "token-g-11-insect-flying-deathtouch" } }],
+  tier: "scripted",
+};
+
+export const OPHIOMANCER: CardDefinition = {
+  id: "ophiomancer",
+  name: "Ophiomancer",
+  scryfallId: "baf793b6-9612-43f3-9f1b-2e53e81cb89f",
+  types: ["Creature"],
+  subtypes: ["Human", "Shaman"],
+  manaCost: { generic: 2, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "upkeep", watches: "any", onlyIf: { kind: "not", condition: { kind: "controls-subtype", subtypes: ["Snake"] } }, effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-b-11-snake-deathtouch" } }],
+  tier: "scripted",
+};
+
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -12017,5 +12087,9 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     DEATHREAP_RITUAL,
     HAYWIRE_MITE,
     RIVETEERS_OVERLOOK,
+    TOKEN_G_11_INSECT_FLYING_DEATHTOUCH,
+    TOKEN_B_11_SNAKE_DEATHTOUCH,
+    HORNET_QUEEN,
+    OPHIOMANCER,
   ].map((def) => [def.id, def]),
 );
