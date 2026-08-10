@@ -336,7 +336,11 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   // Which zone the pending spell wants a target from, so only that zone lights up.
   const pendingSelector = pendingTarget ? targetSelectorOf(pendingTarget.effect) : undefined;
   const pendingSelectorKind = pendingSelector?.kind;
-  const pendingPermanentType = pendingSelector?.kind === "permanent" ? pendingSelector.cardType : undefined;
+  // A list, because a selector may name more than one ("noncreature artifact
+  // or noncreature enchantment"), and every zone it could point at should light
+  // up rather than only the first.
+  const pendingPermanentTypes =
+    pendingSelector?.kind === "permanent" ? pendingSelector.cardTypes : undefined;
 
   /**
    * Who sits at the near edge of the table: the one seat this client drives.
@@ -756,7 +760,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     onGraveyardCardClick: handleGraveyardCardClick,
     selectingGraveyardTarget:
       pendingSelectorKind === "card-in-your-graveyard" && player.id === pendingTarget?.ownerId,
-    selectingPermanentType: pendingPermanentType,
+    selectingPermanentTypes: pendingPermanentTypes,
     canPlay:
       // Only for seats this client actually plays, and only while they hold
       // priority - a highlight during someone else's window would be promising

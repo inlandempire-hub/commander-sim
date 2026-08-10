@@ -72,6 +72,21 @@ def clauses(card):
         line = re.sub(r"^[A-Z][A-Za-z' ]+ [-—] ", "", line.strip())
         for sentence in re.split(r"(?<=[.!])\s+", line):
             s = sentence.strip()
+            # "When you do, ..." is a *reflexive* trigger - it hangs off the
+            # sentence before it rather than standing on its own, so it is
+            # folded into that clause instead of counted as a second one.
+            #
+            # The engine models the pair as a single `sequence`, which is a
+            # real simplification: a reflexive trigger uses the stack, so in
+            # paper an opponent could respond between the two halves. For
+            # Riveteers Overlook there is nothing worth responding to - the
+            # land is already sacrificed by then - but the day a card makes
+            # that window matter, it needs a genuine reflexive trigger and
+            # not a sequence.
+            if re.match(r"^When you do\b", s, re.I):
+                if found:
+                    found[-1] = "%s %s" % (found[-1], s)
+                continue
             if re.match(r"^(When|Whenever|At the beginning|At end of)\b", s, re.I):
                 found.append(s)
     return found

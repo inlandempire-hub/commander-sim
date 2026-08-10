@@ -135,8 +135,10 @@ BLOCKERS = [
      "Statics that are conditional or restricted",
      "staticBuff is an unconditional +N/+N, optionally narrowed by subtype"),
     (r"\bSacrifice\b|\bsacrifices\b|\bsacrificed\b",
-     "Sacrifice, as a cost and as an effect",
-     "not modelled at all"),
+     "Sacrificing something other than the card itself",
+     "sacrificing *this* permanent works both as a cost (every fetchland) "
+     "and as an effect (Riveteers Overlook); choosing which of your "
+     "permanents to give up, and watching an opponent sacrifice one, do not"),
     (r"^Equip|^Enchant |^Enchanted |\battach\b|\bAttached\b|\bequipped\b",
      "Attach - Equipment and Auras",
      "no attachment relationship between permanents exists"),

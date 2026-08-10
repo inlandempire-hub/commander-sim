@@ -53,7 +53,12 @@ export function isValidTarget(
       if (target.kind !== "card") return false;
       const found = findInstance(state, target.instanceId);
       if (!found || found.instance.zone !== "battlefield") return false;
-      if (!requireDefinition(state, found.instance.definitionId).types.includes(selector.cardType)) return false;
+      const def = requireDefinition(state, found.instance.definitionId);
+      // "artifact or enchantment" - any one of the named types qualifies.
+      if (!selector.cardTypes.some((t) => def.types.includes(t))) return false;
+      // "noncreature artifact" excludes an Artifact Creature, which is a legal
+      // target for plain "target artifact" and not for this.
+      if (selector.noncreature && def.types.includes("Creature")) return false;
       return !isProtectedByHexproof(state, target.instanceId, controllerId);
     }
     case "player":
@@ -133,6 +138,23 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     // applying to its own source.
     case "pump":
       return effect.target;
+    /*
+     * A sequence targets if one of its steps does, and the targets chosen for
+     * the whole are handed to every step - which is right while exactly one
+     * step targets, and wrong the moment two do, because they would silently
+     * share one choice.
+     *
+     * Two is refused out loud rather than allowed to look like it works. No
+     * card in the pool needs it; the day one does, a sequence needs per-step
+     * targets rather than a shared list.
+     */
+    case "sequence": {
+      const targeted = effect.effects.map(targetSelectorOf).filter((s) => s !== undefined);
+      if (targeted.length > 1) {
+        throw new Error("A sequence with more than one targeted step is not supported");
+      }
+      return targeted[0];
+    }
     default:
       return undefined;
   }

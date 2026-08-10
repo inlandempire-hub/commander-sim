@@ -74,13 +74,28 @@ export type TargetSelector =
   /** "Target spell" - a spell on the stack, as opposed to a triggered or activated ability. */
   | { kind: "spell" }
   /**
-   * "Target land", "Target artifact", "Target enchantment" - a permanent on the
-   * battlefield of a named type. Creatures keep their own `creature` selector
-   * because nearly every card in the pool uses it; this covers the rest.
-   * Hexproof applies here exactly as it does to creatures - it protects any
-   * permanent, not just creatures.
+   * "Target land", "Target artifact", "Target noncreature artifact or
+   * noncreature enchantment" - a permanent on the battlefield of a named type.
+   * Creatures keep their own `creature` selector because nearly every card in
+   * the pool uses it; this covers the rest. Hexproof applies here exactly as it
+   * does to creatures - it protects any permanent, not just creatures.
+   *
+   * `cardTypes` is a list because Haywire Mite names two of them, and any one
+   * qualifying is what "or" means on the card.
    */
-  | { kind: "permanent"; cardType: CardType }
+  | {
+      kind: "permanent";
+      cardTypes: CardType[];
+      /**
+       * "**noncreature** artifact" - excludes anything that is also a creature.
+       *
+       * A real restriction, not decoration: an Artifact Creature is a legal
+       * target for "target artifact" and not for "target noncreature artifact",
+       * and Haywire Mite is itself an Artifact Creature, so getting this wrong
+       * would let it exile itself in response to its own ability.
+       */
+      noncreature?: boolean;
+    }
   /**
    * "Target creature card in your graveyard", and the other card types the
    * recursion spells name. Omitting `cardType` means "target card", which a
@@ -252,7 +267,32 @@ export type Effect =
       subtypes?: string[];
       destination: "hand" | "battlefield";
       tapped?: boolean;
-    };
+    }
+  /**
+   * "Sacrifice it" as an *effect*, as opposed to a cost.
+   *
+   * Sacrificing has been payable as an activation cost since the fetchlands
+   * (`ActivatedAbilityCost.sacrificeSelf`); this is the other half, where the
+   * sacrifice is the thing the ability does rather than the price of doing it.
+   * Riveteers Overlook sacrifices itself on arrival with nothing paid for it.
+   *
+   * Only "this permanent" so far. "Sacrifice a creature of your choice" needs
+   * the game to stop and ask which, and no card in the pool wants that yet.
+   */
+  | { kind: "sacrifice"; what: "self" }
+  /**
+   * Several effects, in order, as one resolution - "sacrifice it, then search
+   * your library ... and you gain 1 life".
+   *
+   * Not the same as putting several abilities on a card: this is one object
+   * resolving, so it cannot be responded to part-way through, which is what the
+   * card means by writing it as one sentence.
+   *
+   * A step that stops to ask (a library search) suspends the rest, which
+   * `PendingSearch.followUp` carries. Without that the gain-life half would run
+   * *before* the search it is written after.
+   */
+  | { kind: "sequence"; effects: Effect[] };
 
 /**
  * A question about the asking player's board. Deliberately a closed list rather
@@ -717,12 +757,27 @@ export interface PendingConfirmation {
  */
 export interface PendingSearch {
   playerId: string;
+  /**
+   * What is doing the searching. Only needed by `followUp`, which has to know
+   * whose ability it is finishing - a "sacrifice it" left over after a search
+   * would otherwise have no idea what "it" was.
+   */
+  sourceInstanceId: string;
   /** Card instances in that player's library that match the search restriction. */
   candidateInstanceIds: string[];
   destination: "hand" | "battlefield";
   tapped?: boolean;
   /** Printed wording of what's being searched for, for the picker's heading. */
   prompt: string;
+  /**
+   * The rest of a `sequence` that this search interrupted.
+   *
+   * A search is the one effect that stops the game mid-resolution, so anything
+   * written after it on the card has to wait. Riveteers Overlook's "and you
+   * gain 1 life" is on the far side of a shuffle; without this it would happen
+   * first, which is both the wrong order and visible to the player.
+   */
+  followUp?: Effect[];
 }
 
 /**

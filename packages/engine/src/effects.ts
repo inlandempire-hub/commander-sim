@@ -16,6 +16,7 @@ import { isSpellOnStack } from "./targeting.js";
 import { enteredBattlefield, putOntoBattlefield } from "./permanents.js";
 import { gainLife } from "./life.js";
 import { useRegenerationShield } from "./regeneration.js";
+import { sacrificePermanent } from "./sba.js";
 
 /**
  * Applies a resolved (non-permanent) effect: spell/ability damage, draw,
@@ -30,6 +31,12 @@ export function applyEffect(
   sourceInstanceId: string,
   effect: Effect,
   targets: StackTarget[],
+  /**
+   * The rest of a `sequence` still to run, passed down so a search can hold on
+   * to it. Only ever set by the `sequence` case below; every other caller
+   * leaves it off and gets exactly the behaviour it always had.
+   */
+  pendingFollowUp?: Effect[],
 ): void {
   const controller = requirePlayer(state, controllerId);
   const sourceDef = state.cardDefinitions[findInstance(state, sourceInstanceId)?.instance.definitionId ?? ""];
@@ -309,13 +316,44 @@ export function applyEffect(
       // choice. `resolveSearch` finishes the job once they've answered.
       state.pendingSearch = {
         playerId: controllerId,
+        sourceInstanceId,
         candidateInstanceIds: controller.library
           .filter((card) => matchesSearch(state, card, effect))
           .map((card) => card.instanceId),
         destination: effect.destination,
         tapped: effect.tapped,
         prompt: describeSearch(effect),
+        // Carried through by `sequence` below when there is more of the card
+        // left to do after the shuffle.
+        followUp: pendingFollowUp,
       };
+      return;
+    }
+    case "sacrifice": {
+      const source = findInstance(state, sourceInstanceId);
+      // Already gone - somebody destroyed it in response, or this is the second
+      // time round a loop. Sacrificing nothing is not an error.
+      if (!source || source.instance.zone !== "battlefield") return;
+      sacrificePermanent(state, sourceInstanceId);
+      return;
+    }
+    case "sequence": {
+      /*
+       * Each step in order, as one resolution.
+       *
+       * The awkward step is a library search: it does not finish, it stops and
+       * asks. So the remaining steps are handed to the search to run once the
+       * player has answered, and this returns rather than carrying on - which
+       * is the difference between Riveteers Overlook gaining you 1 life after
+       * the shuffle, as printed, and gaining it before you have even chosen a
+       * land.
+       */
+      for (let i = 0; i < effect.effects.length; i++) {
+        const step = effect.effects[i]!;
+        const rest = effect.effects.slice(i + 1);
+        applyEffect(state, controllerId, sourceInstanceId, step, targets, rest);
+        if (state.pendingSearch) return;
+      }
       return;
     }
     case "modal": {
@@ -328,10 +366,28 @@ export function applyEffect(
   }
 }
 
+/** "a Swamp or a Forest", "Swamp, Mountain, or Forest" - the printed list form. */
+function listOr(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} or ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, or ${items[items.length - 1]}`;
+}
+
 /** What a search is looking for, in the card's own words, for the picker heading. */
 function describeSearch(effect: Extract<Effect, { kind: "searchLibrary" }>): string {
+  /*
+   * "a basic Swamp, Mountain, or Forest card" - the two restrictions are not
+   * the same and both belong in the heading.
+   *
+   * This read "a Swamp or Mountain or Forest card" and dropped "basic"
+   * entirely, which is the difference between a fetchland (any card with the
+   * type, so a dual is a legal find) and Riveteers Overlook (basics only).
+   * The picker heading is the only place a player is told which they are
+   * looking at.
+   */
+  const basic = effect.basicLandOnly ? "basic " : "";
   const what = effect.subtypes?.length
-    ? `a ${effect.subtypes.join(" or ")} card`
+    ? `a ${basic}${listOr(effect.subtypes)} card`
     : effect.basicLandOnly
       ? "a basic land card"
       : effect.cardType
@@ -385,8 +441,23 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
   // Shuffle whether or not anything was found - "then shuffle" isn't
   // conditional on the search succeeding, and skipping it would leak the
   // fact that the library holds no match.
+  const followUp = pending.followUp;
+  const sourceInstanceId = pending.sourceInstanceId;
   state.pendingSearch = null;
   shuffleLibrary(state, playerId);
+
+  /*
+   * The rest of whatever this search interrupted - Riveteers Overlook's "and
+   * you gain 1 life", which is printed after the shuffle and now happens after
+   * it.
+   *
+   * Cleared before running, not after: a follow-up containing a second search
+   * sets `pendingSearch` again, and clearing afterwards would wipe the new one
+   * out and strand the game.
+   */
+  if (followUp?.length) {
+    applyEffect(state, playerId, sourceInstanceId, { kind: "sequence", effects: followUp }, []);
+  }
 }
 
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TEST_CARD_DEFINITIONS } from "@mtg-commander-sim/engine";
-import { describeCard } from "../cardText.js";
+import { describeActivated, describeCard } from "../cardText.js";
 
 /**
  * The card panel is the only place a player reads what a card does - there is
@@ -156,5 +156,56 @@ describe("triggers that are not about entering the battlefield", () => {
   it("writes 'draw a card', which is what cards actually print", () => {
     expect(textOf("tanglespan-lookout")).toContain("draw a card.");
     expect(textOf("tanglespan-lookout")).not.toContain("draw 1 card");
+  });
+});
+
+/**
+ * Sacrifice, and a defect it uncovered.
+ *
+ * Every fetchland's panel used to read "{T}: Search your library for a land
+ * card, put it onto the battlefield, then shuffle" - no life, no sacrifice, no
+ * restriction on what it finds. That is a free repeatable unrestricted tutor,
+ * which is a strictly better card than the one being played. Nobody noticed
+ * because nothing asserted the cost was there.
+ */
+describe("costs and searches, printed in full", () => {
+  it("prints a fetchland's whole cost, not just the tap", () => {
+    // "{T}, Pay 1 life, Sacrifice this land: Search your library for a Swamp or
+    // Mountain card, put it onto the battlefield, then shuffle."
+    const text = textOf("bloodstained-mire");
+    expect(text).toContain("{T}, Pay 1 life, Sacrifice this land:");
+    expect(text).toContain("a Swamp or Mountain card");
+  });
+
+  it("prints every fetchland's life payment and sacrifice", () => {
+    // One assertion per card is how the first one got missed. This one catches
+    // any fetch added later that quietly renders as free.
+    for (const def of Object.values(TEST_CARD_DEFINITIONS)) {
+      for (const ability of def.activatedAbilities ?? []) {
+        if (!ability.cost.sacrificeSelf) continue;
+        const line = describeActivated(ability, TEST_CARD_DEFINITIONS, def);
+        expect(line, def.name).toContain("Sacrifice this ");
+        if (ability.cost.payLife !== undefined) {
+          expect(line, def.name).toContain(`Pay ${ability.cost.payLife} life`);
+        }
+      }
+    }
+  });
+
+  it("names both card types and the noncreature restriction", () => {
+    // Haywire Mite: "{G}, Sacrifice this creature: Exile target noncreature
+    // artifact or noncreature enchantment."
+    expect(textOf("haywire-mite")).toContain(
+      "{G}, Sacrifice this creature: Exile target noncreature artifact or noncreature enchantment.",
+    );
+  });
+
+  it("reads a sequenced trigger as one line of prose", () => {
+    // Riveteers Overlook, and "this land" rather than "this permanent" - which
+    // is a phrase no printed card uses.
+    const text = textOf("riveteers-overlook");
+    expect(text).toContain("When this land enters the battlefield, sacrifice it.");
+    expect(text).toContain("a basic Swamp, Mountain, or Forest card");
+    expect(text).toContain("You gain 1 life.");
   });
 });

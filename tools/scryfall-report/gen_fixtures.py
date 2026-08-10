@@ -243,6 +243,33 @@ SAC_FOR_BASIC = re.compile(
     r"put (?:it|that card) onto the battlefield( tapped)?, then shuffle\.$"
 )
 
+# Riveteers Overlook and its cycle:
+#   "When this land enters, sacrifice it. When you do, search your library for a
+#    basic Swamp, Mountain, or Forest card, put it onto the battlefield tapped,
+#    then shuffle and you gain 1 life."
+#
+# The "When you do" is a reflexive trigger, which in practice is just "and then"
+# - nothing can respond between the two halves, so it is one sequence.
+#
+# Note "basic Swamp, Mountain, or Forest": both basicLandOnly *and* subtypes,
+# unlike a fetchland, which asks only for the type and so can take a dual.
+SAC_FOR_BASIC_SUBTYPE_AND_LIFE = re.compile(
+    r"^When this land enters, sacrifice it\. When you do, search your library for a basic "
+    r"([A-Za-z]+)(?:, ([A-Za-z]+),)? or ([A-Za-z]+) card, put it onto the battlefield( tapped)?, "
+    r"then shuffle and you gain (\d+) life\.$"
+)
+
+# "{G}, Sacrifice this creature: Exile target noncreature artifact or
+# noncreature enchantment." - Haywire Mite.
+#
+# The sacrifice half needed nothing built: `sacrificeSelf` has been an
+# activation cost since the fetchlands. What was missing was a target selector
+# that could name two card types and exclude creatures from both.
+SAC_TO_EXILE_NONCREATURE = re.compile(
+    r"^((?:\{[^}]+\})+), Sacrifice this creature: Exile target noncreature ([a-z]+) "
+    r"or noncreature ([a-z]+)\.$"
+)
+
 
 def enters_tapped_condition(line):
     """The `entersTappedUnless` clause for a conditional tapland, or None."""
@@ -641,6 +668,24 @@ def interpret_permanent(card):
             activated.append(lifegain)
             continue
 
+        # A land that eats itself on arrival for a tapped basic and a point of
+        # life. One triggered ability holding a sequence, not an activated one -
+        # nothing is paid and nobody chooses to do it.
+        overlook = SAC_FOR_BASIC_SUBTYPE_AND_LIFE.match(line)
+        if overlook:
+            subtypes = [g for g in overlook.group(1, 2, 3) if g]
+            triggers.append(
+                '{ event: "enters-battlefield", effect: { kind: "sequence", effects: ['
+                '{ kind: "sacrifice", what: "self" }, '
+                '{ kind: "searchLibrary", cardType: "Land", basicLandOnly: true, subtypes: [%s], '
+                'destination: "battlefield"%s }, '
+                '{ kind: "gainLife", amount: %s }] } }'
+                % (", ".join('"%s"' % s for s in subtypes),
+                   ", tapped: true" if overlook.group(4) else "",
+                   overlook.group(5))
+            )
+            continue
+
         fetch = FETCH.match(line)
         if fetch:
             life = int(fetch.group(1))
@@ -801,7 +846,7 @@ SPELL_RULES = [
     # Land/artifact/enchantment destruction. Creatures keep their own selector;
     # every other permanent type goes through `permanent` with a named type.
     (r"^Destroy target (land|artifact|enchantment)\.$",
-     lambda m: '{ kind: "destroy", target: { kind: "permanent", cardType: "%s" } }' % m[1].capitalize()),
+     lambda m: '{ kind: "destroy", target: { kind: "permanent", cardTypes: ["%s"] } }' % m[1].capitalize()),
     (r"^Exile target creature\.$",
      lambda m: '{ kind: "exile", target: { kind: "creature" } }'),
     (r"^~ deals (\d+) damage to any target\.$",
@@ -934,6 +979,19 @@ def interpret(card):
             activated.append(
                 '{ cost: { mana: %s }, effect: { kind: "pump", power: %s, toughness: %s } }'
                 % (cost, pump.group(2), pump.group(3))
+            )
+            continue
+
+        exile_sac = SAC_TO_EXILE_NONCREATURE.match(line)
+        if exile_sac:
+            cost = ts_mana_cost(exile_sac.group(1))
+            if cost is None:
+                return None  # hybrid or {X} in the activation cost
+            types = [exile_sac.group(2).capitalize(), exile_sac.group(3).capitalize()]
+            activated.append(
+                '{ cost: { mana: %s, sacrificeSelf: true }, effect: { kind: "exile", '
+                'target: { kind: "permanent", cardTypes: [%s], noncreature: true } } }'
+                % (cost, ", ".join('"%s"' % t for t in types))
             )
             continue
 

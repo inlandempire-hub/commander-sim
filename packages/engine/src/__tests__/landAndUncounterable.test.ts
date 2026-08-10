@@ -74,7 +74,7 @@ describe("land destruction", () => {
     const inHand = createCardInstance(state, "forest", bob.id, "hand");
 
     expect(
-      isValidTarget(state, { kind: "permanent", cardType: "Land" }, { kind: "card", instanceId: inHand.instanceId }, alice.id),
+      isValidTarget(state, { kind: "permanent", cardTypes: ["Land"] }, { kind: "card", instanceId: inHand.instanceId }, alice.id),
     ).toBe(false);
   });
 
@@ -86,7 +86,7 @@ describe("land destruction", () => {
     const theirs = createCardInstance(state, "forest", bob.id, "battlefield");
     createCardInstance(state, "grizzly-bears", bob.id, "battlefield");
 
-    const targets = legalTargetsFor(state, { kind: "permanent", cardType: "Land" }, alice.id);
+    const targets = legalTargetsFor(state, { kind: "permanent", cardTypes: ["Land"] }, alice.id);
     const ids = targets.map((t) => (t.kind === "card" ? t.instanceId : t.kind));
     expect(ids).toContain(mine.instanceId);
     expect(ids).toContain(theirs.instanceId);

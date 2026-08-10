@@ -10225,7 +10225,7 @@ export const DEMYSTIFY: CardDefinition = {
   types: ["Instant"],
   manaCost: { generic: 0, colors: { W: 1 } },
   colorIdentity: ["W"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Enchantment" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Enchantment"] } },
   tier: "scripted",
 };
 
@@ -10236,7 +10236,7 @@ export const QUIET_PURITY: CardDefinition = {
   types: ["Instant"],
   manaCost: { generic: 0, colors: { W: 1 } },
   colorIdentity: ["W"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Enchantment" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Enchantment"] } },
   tier: "scripted",
 };
 
@@ -10259,7 +10259,7 @@ export const SINKHOLE: CardDefinition = {
   types: ["Sorcery"],
   manaCost: { generic: 0, colors: { B: 2 } },
   colorIdentity: ["B"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Land" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } },
   tier: "scripted",
 };
 
@@ -10270,7 +10270,7 @@ export const RAIN_OF_TEARS: CardDefinition = {
   types: ["Sorcery"],
   manaCost: { generic: 1, colors: { B: 2 } },
   colorIdentity: ["B"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Land" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } },
   tier: "scripted",
 };
 
@@ -10281,7 +10281,7 @@ export const SMELT: CardDefinition = {
   types: ["Instant"],
   manaCost: { generic: 0, colors: { R: 1 } },
   colorIdentity: ["R"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Artifact" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } },
   tier: "scripted",
 };
 
@@ -10292,7 +10292,7 @@ export const SHATTER: CardDefinition = {
   types: ["Instant"],
   manaCost: { generic: 1, colors: { R: 1 } },
   colorIdentity: ["R"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Artifact" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } },
   tier: "scripted",
 };
 
@@ -10303,7 +10303,7 @@ export const STONE_RAIN: CardDefinition = {
   types: ["Sorcery"],
   manaCost: { generic: 2, colors: { R: 1 } },
   colorIdentity: ["R"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Land" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } },
   tier: "scripted",
 };
 
@@ -10314,7 +10314,7 @@ export const CRATERIZE: CardDefinition = {
   types: ["Sorcery"],
   manaCost: { generic: 3, colors: { R: 1 } },
   colorIdentity: ["R"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Land" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } },
   tier: "scripted",
 };
 
@@ -10325,7 +10325,7 @@ export const VOLCANIC_UPHEAVAL: CardDefinition = {
   types: ["Instant"],
   manaCost: { generic: 3, colors: { R: 1 } },
   colorIdentity: ["R"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Land" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } },
   tier: "scripted",
 };
 
@@ -10348,7 +10348,7 @@ export const ICE_STORM: CardDefinition = {
   types: ["Sorcery"],
   manaCost: { generic: 2, colors: { G: 1 } },
   colorIdentity: ["G"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Land" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } },
   tier: "scripted",
 };
 
@@ -10359,7 +10359,7 @@ export const VERDIGRIS: CardDefinition = {
   types: ["Instant"],
   manaCost: { generic: 2, colors: { G: 1 } },
   colorIdentity: ["G"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Artifact" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } },
   tier: "scripted",
 };
 
@@ -10370,7 +10370,7 @@ export const WINTER_S_GRASP: CardDefinition = {
   types: ["Sorcery"],
   manaCost: { generic: 1, colors: { G: 2 } },
   colorIdentity: ["G"],
-  castEffect: { kind: "destroy", target: { kind: "permanent", cardType: "Land" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } },
   tier: "scripted",
 };
 
@@ -11099,6 +11099,46 @@ export const SHOPKEEPERS_BANE: CardDefinition = {
   toughness: 2,
   keywords: ["Trample"],
   triggeredAbilities: [{ event: "attacks", effect: { kind: "gainLife", amount: 2 } }],
+  tier: "scripted",
+};
+
+
+/*
+ * Sacrifice, which turned out to be half-built already.
+ *
+ * Paying a sacrifice as an activation cost has worked since the fetchlands
+ * (`sacrificeSelf`), so Haywire Mite was never blocked by sacrifice at all - it
+ * was blocked by a target selector that could only name one card type and could
+ * not exclude creatures. Haywire Mite is itself an Artifact Creature, and
+ * "noncreature artifact" is what stops it exiling itself.
+ *
+ * Riveteers Overlook is the other half: sacrifice as an *effect*, with nothing
+ * paid for it, and three things happening in one resolution across a library
+ * search that stops the game to ask.
+ */
+
+export const HAYWIRE_MITE: CardDefinition = {
+  id: "haywire-mite",
+  name: "Haywire Mite",
+  scryfallId: "6f813bc3-6d81-4555-8e4b-6ecd9a6757b7",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Insect"],
+  manaCost: { generic: 1, colors: {  } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "gainLife", amount: 2 } }],
+  activatedAbilities: [{ cost: { mana: { generic: 0, colors: { G: 1 } }, sacrificeSelf: true }, effect: { kind: "exile", target: { kind: "permanent", cardTypes: ["Artifact", "Enchantment"], noncreature: true } } }],
+  tier: "scripted",
+};
+
+export const RIVETEERS_OVERLOOK: CardDefinition = {
+  id: "riveteers-overlook",
+  name: "Riveteers Overlook",
+  scryfallId: "65ce9590-87c0-4057-bddb-fadc0de552f6",
+  types: ["Land"],
+  colorIdentity: [],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "sequence", effects: [{ kind: "sacrifice", what: "self" }, { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, subtypes: ["Swamp", "Mountain", "Forest"], destination: "battlefield", tapped: true }, { kind: "gainLife", amount: 1 }] } }],
   tier: "scripted",
 };
 
@@ -11975,5 +12015,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     MELTSTRIDER_EULOGIST,
     LIFEGIFT,
     DEATHREAP_RITUAL,
+    HAYWIRE_MITE,
+    RIVETEERS_OVERLOOK,
   ].map((def) => [def.id, def]),
 );

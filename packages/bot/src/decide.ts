@@ -521,16 +521,21 @@ function destroyAPermanent(state: GameState, me: Player, reserve: ManaCost = NO_
   for (const spell of spells) {
     const effect = spell.definition.castEffect;
     if (effect?.kind !== "destroy" || effect.target.kind !== "permanent") continue;
-    const wantedType = effect.target.cardType;
+    const wantedTypes = effect.target.cardTypes;
+    const excludeCreatures = effect.target.noncreature === true;
 
     for (const opponent of opponents) {
       const legal = opponent.battlefield
-        .filter((c) => definitionOf(state, c)?.types.includes(wantedType))
+        .filter((c) => {
+          const types = definitionOf(state, c)?.types ?? [];
+          if (!wantedTypes.some((t) => types.includes(t))) return false;
+          return !(excludeCreatures && types.includes("Creature"));
+        })
         .filter((c) => !hasKeyword(state, c, "Indestructible"))
         .filter((c) => isValidTarget(state, effect.target, { kind: "card", instanceId: c.instanceId }, me.id));
       if (legal.length === 0) continue;
 
-      if (wantedType === "Land") {
+      if (wantedTypes.includes("Land")) {
         // Past this much mana, one land is a rounding error and the card is
         // better spent elsewhere - or held.
         const lands = opponent.battlefield.filter((c) => definitionOf(state, c)?.types.includes("Land"));

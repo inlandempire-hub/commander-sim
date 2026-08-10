@@ -73,7 +73,7 @@ export interface PlayerBoardProps {
   /** Highlights the graveyard when a spell is waiting to be pointed at a card in it. */
   selectingGraveyardTarget?: boolean;
   /** Set while a "destroy target land/artifact/enchantment" spell is choosing - highlights that group. */
-  selectingPermanentType?: CardType;
+  selectingPermanentTypes?: CardType[];
   /**
    * Whether a card in hand or the command zone can be played right now, for the
    * highlight. Omitted for seats this client doesn't control - the opponent's
@@ -117,7 +117,7 @@ export function PlayerBoard({
   onBattlefieldCardClick,
   onGraveyardCardClick,
   selectingGraveyardTarget,
-  selectingPermanentType,
+  selectingPermanentTypes,
   canPlay,
   onHover,
   onLifeClick,
@@ -135,7 +135,7 @@ export function PlayerBoard({
     return !types.includes("Land") && !types.includes("Creature");
   });
   const targetingClass = (group: CardType): string =>
-    selectingPermanentType === group ? "zone--targeting" : "";
+    selectingPermanentTypes?.includes(group) ? "zone--targeting" : "";
   const assignedBlockerIds = new Set(Object.keys(blockerAssignments));
   const [backArtFailed, setBackArtFailed] = useState(false);
   const backArt = backArtFailed ? null : flipped ? CARD_BACK_FAR : CARD_BACK_NEAR;

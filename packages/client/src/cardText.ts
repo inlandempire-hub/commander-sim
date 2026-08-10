@@ -43,8 +43,12 @@ export function describeTarget(selector: TargetSelector): string {
       return "target opponent";
     case "spell":
       return "target spell";
-    case "permanent":
-      return `target ${selector.cardType.toLowerCase()}`;
+    case "permanent": {
+      // "target noncreature artifact or noncreature enchantment" - the
+      // qualifier goes on each noun, which is how the card prints it.
+      const prefix = selector.noncreature ? "noncreature " : "";
+      return `target ${listOr(selector.cardTypes.map((t) => `${prefix}${t.toLowerCase()}`))}`;
+    }
     case "card-in-your-graveyard":
       return selector.cardType
         ? `target ${selector.cardType.toLowerCase()} card in your graveyard`
@@ -144,12 +148,36 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       // The printed wording: "Choose one - A; or B."
       return `Choose one - ${effect.modes.map((mode) => mode.label).join("; or ")}.`;
     }
+    case "sacrifice":
+      // The noun is filled in by describeCard, which knows the card; on its own
+      // this effect has no idea what type it sits on.
+      return "Sacrifice it.";
+    case "sequence":
+      /*
+       * Joined rather than bulleted, because the card prints it as prose:
+       * "sacrifice it. When you do, search your library ... and you gain 1
+       * life." Each step already ends in a full stop.
+       */
+      return effect.effects.map((step) => describeEffect(step, definitions)).join(" ");
     case "searchLibrary": {
-      const what = effect.basicLandOnly
-        ? "a basic land card"
-        : effect.cardType
-          ? `a ${effect.cardType.toLowerCase()} card`
-          : "a card";
+      /*
+       * The subtypes were dropped here, so every fetchland read "a land card" -
+       * an unrestricted tutor rather than one that can only find two of the
+       * five basic types.
+       *
+       * "basic" and the subtypes are not the same restriction and both are
+       * printed: a fetchland asks for "a Swamp or Mountain card" and can take a
+       * dual, where Riveteers Overlook asks for "a basic Swamp, Mountain, or
+       * Forest card" and cannot.
+       */
+      const basic = effect.basicLandOnly ? "basic " : "";
+      const what = effect.subtypes?.length
+        ? `a ${basic}${listOr(effect.subtypes)} card`
+        : effect.basicLandOnly
+          ? "a basic land card"
+          : effect.cardType
+            ? `a ${effect.cardType.toLowerCase()} card`
+            : "a card";
       const where =
         effect.destination === "hand"
           ? "into your hand"
@@ -237,7 +265,9 @@ function describeTrigger(
 
   switch (ability.event) {
     case "enters-battlefield":
-      return `When this permanent enters the battlefield, ${tail}`;
+      // Named after the card's own type, as the cards print it - "When this
+      // land enters", not "this permanent", which no card says.
+      return `When this ${selfNoun(self)} enters the battlefield, ${tail}`;
     case "attacks":
       return `Whenever this creature attacks, ${tail}`;
     case "dies":
@@ -321,9 +351,21 @@ export function describeActivated(
   definitions: Definitions,
   self: CardDefinition,
 ): string {
+  /*
+   * Every part of the cost, in the order the cards print it: mana, tap, life,
+   * sacrifice.
+   *
+   * The last two were missing entirely until 2026-08-10, which was a real
+   * defect rather than a cosmetic one - every fetchland's panel read
+   * "{T}: Search your library for a land card, put it onto the battlefield,
+   * then shuffle", i.e. a free, repeatable, untapping tutor. The card you were
+   * shown was strictly better than the card you were playing.
+   */
   const costs: string[] = [];
   if (ability.cost.mana) costs.push(formatManaCost(ability.cost.mana));
   if (ability.cost.tap) costs.push("{T}");
+  if (ability.cost.payLife !== undefined) costs.push(`Pay ${ability.cost.payLife} life`);
+  if (ability.cost.sacrificeSelf) costs.push(`Sacrifice this ${selfNoun(self)}`);
   const cost = costs.length > 0 ? costs.join(", ") : "{0}";
   // Both riders print after the effect, in the order the real cards use: what
   // the ability does, what it costs you, and last when you may use it at all.
