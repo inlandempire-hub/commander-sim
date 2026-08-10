@@ -85,7 +85,22 @@ export type TargetSelector =
    */
   | {
       kind: "permanent";
-      cardTypes: CardType[];
+      /**
+       * The types that qualify. **Omitted means any permanent at all** -
+       * Assassin's Trophy says "target permanent", which is every type there
+       * is, and listing them out would silently stop working the day the
+       * engine learns a new card type.
+       */
+      cardTypes?: CardType[];
+      /**
+       * "target permanent **an opponent controls**".
+       *
+       * A real restriction and not decoration: without it Assassin's Trophy
+       * can blow up your own land, which is not a play the card offers. Left
+       * off, the selector means any permanent on the table, which is what
+       * every other card using it says.
+       */
+      controlledBy?: "opponent";
       /**
        * "**noncreature** artifact" - excludes anything that is also a creature.
        *
@@ -265,8 +280,30 @@ export type Effect =
        * fetch that could only take basics would be a materially weaker card.
        */
       subtypes?: string[];
-      destination: "hand" | "battlefield";
+      /**
+       * Where the found card goes.
+       *
+       * `library-top` is the tutor family that finds a card and puts it back
+       * where you have to draw it - Sylvan Tutor, Vampiric Tutor. Worth a
+       * separate destination rather than "hand" because the two are not close:
+       * a card on top costs you your next draw step, which is the whole reason
+       * those tutors cost one mana and the ones that find to hand cost more.
+       *
+       * Note the printed order: "then shuffle and put that card on top". The
+       * shuffle happens *first*, so the card is genuinely on top afterwards -
+       * see `resolveSearch`, which had to grow a second ordering for this.
+       */
+      destination: "hand" | "battlefield" | "library-top";
       tapped?: boolean;
+      /**
+       * Who does the searching. The default is the effect's own controller,
+       * which is every tutor ever printed as its own spell.
+       *
+       * `target-controller` is the rider family, where a spell makes *somebody
+       * else* search: Assassin's Trophy hands its victim a basic land. The
+       * player is read off the effect's first card target.
+       */
+      who?: "controller" | "target-controller";
     }
   /**
    * "Sacrifice it" as an *effect*, as opposed to a cost.
@@ -765,8 +802,16 @@ export interface PendingSearch {
   sourceInstanceId: string;
   /** Card instances in that player's library that match the search restriction. */
   candidateInstanceIds: string[];
-  destination: "hand" | "battlefield";
+  destination: "hand" | "battlefield" | "library-top";
   tapped?: boolean;
+  /**
+   * Whose ability set this search off, which is not always the searcher.
+   *
+   * Assassin's Trophy is cast by one player and searched by another, and the
+   * follow-up belongs to the caster. Without this the "then shuffle" half of
+   * the card would be attributed to whoever happened to be answering.
+   */
+  effectControllerId: string;
   /** Printed wording of what's being searched for, for the picker's heading. */
   prompt: string;
   /**

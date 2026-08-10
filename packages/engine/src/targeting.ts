@@ -54,8 +54,14 @@ export function isValidTarget(
       const found = findInstance(state, target.instanceId);
       if (!found || found.instance.zone !== "battlefield") return false;
       const def = requireDefinition(state, found.instance.definitionId);
-      // "artifact or enchantment" - any one of the named types qualifies.
-      if (!selector.cardTypes.some((t) => def.types.includes(t))) return false;
+      // "artifact or enchantment" - any one of the named types qualifies. No
+      // list at all means "target permanent", which every battlefield card is.
+      if (selector.cardTypes && !selector.cardTypes.some((t) => def.types.includes(t))) return false;
+      // "an opponent controls" - your own board is not a legal target, which is
+      // the difference between Assassin's Trophy and a spell that can misfire.
+      if (selector.controlledBy === "opponent" && found.instance.controllerId === controllerId) {
+        return false;
+      }
       // "noncreature artifact" excludes an Artifact Creature, which is a legal
       // target for plain "target artifact" and not for this.
       if (selector.noncreature && def.types.includes("Creature")) return false;

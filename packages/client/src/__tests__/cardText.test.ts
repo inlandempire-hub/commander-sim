@@ -248,3 +248,34 @@ describe("tokens, as the card prints them", () => {
     expect(new Set(rendered).size).toBe(rendered.length);
   });
 });
+
+/**
+ * The three cards added on 2026-08-10, and the wordings that could go wrong.
+ */
+describe("rituals, top-of-library tutors and a rider somebody else answers", () => {
+  it("prints a ritual in mana symbols, as the card does", () => {
+    // "Add {B}{B}{B}." - three separate pips, not "Add 3 black mana".
+    expect(textOf("dark-ritual")).toContain("Add {B}{B}{B}.");
+  });
+
+  it("keeps the shuffle before the card goes on top", () => {
+    // "Search your library for a creature card, then shuffle and put that card
+    // on top." Printed the other way round it would describe a card that finds
+    // something and then loses it again.
+    const text = textOf("sylvan-tutor");
+    expect(text).toContain("then shuffle and put that card on top");
+    expect(text).not.toContain("on top, then shuffle");
+  });
+
+  it("names the opponent restriction, so the card does not read as unrestricted removal", () => {
+    expect(textOf("assassins-trophy")).toContain("target permanent an opponent controls");
+  });
+
+  it("says whose library the rider searches", () => {
+    // "Its controller may search their library" - printed as "your library"
+    // this would read as though Assassin's Trophy ramped the caster.
+    const text = textOf("assassins-trophy");
+    expect(text).toContain("Its controller may search their library");
+    expect(text).not.toContain("Search your library for a basic land");
+  });
+});

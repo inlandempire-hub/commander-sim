@@ -7,7 +7,7 @@ import {
 } from "@mtg-commander-sim/engine";
 import { decideAction } from "../decide.js";
 import { chooseAttackers, chooseBlockers } from "../combat.js";
-import { nextAction } from "../play.js";
+import { botShouldAct, nextAction } from "../play.js";
 
 const BOT = "Salty Mike";
 const HUMAN = "Deadly Donny";
@@ -467,5 +467,77 @@ describe("the widened card pool", () => {
     const action = decideAction(state, BOT);
     expect(action.kind).toBe("castSpell");
     if (action.kind === "castSpell") expect(action.instanceId).toBe(call.instanceId);
+  });
+});
+
+/**
+ * Questions the bot owes an answer to while somebody else holds priority.
+ *
+ * Nobody has priority part-way through a resolution, so `botShouldAct` cannot
+ * find the bot by asking who holds it. Until Assassin's Trophy this never
+ * showed: every search and every "you may" the bot owned came from its own
+ * spell, and it happened to still be holding priority from before. A spell the
+ * *human* casts that makes the *bot* search left the game stopped dead.
+ */
+describe("waking the bot for a question it owes", () => {
+  function humanHasPriority(): GameState {
+    const state = createGameState([HUMAN, BOT], TEST_CARD_DEFINITIONS);
+    state.phase = "precombat-main";
+    state.step = "main";
+    state.activePlayerIndex = 0;
+    state.priorityPlayerIndex = 0;
+    return state;
+  }
+
+  it("wakes for a search of its own that the human's spell started", () => {
+    const state = humanHasPriority();
+    const land = createCardInstance(state, "forest", BOT, "library");
+    state.pendingSearch = {
+      playerId: BOT,
+      effectControllerId: HUMAN,
+      sourceInstanceId: "whatever",
+      candidateInstanceIds: [land.instanceId],
+      destination: "battlefield",
+      prompt: "Search your library for a basic land card and put it onto the battlefield",
+    };
+
+    expect(botShouldAct(state, BOT)).toBe(true);
+    expect(nextAction(state, BOT)?.kind).toBe("resolveSearch");
+  });
+
+  it("wakes for a 'you may' of its own on the human's turn", () => {
+    const state = humanHasPriority();
+    state.pendingConfirmation = {
+      playerId: BOT,
+      sourceInstanceId: "whatever",
+      prompt: "You may gain 1 life",
+      object: {
+        id: "s1",
+        sourceInstanceId: "whatever",
+        controllerId: BOT,
+        effect: { kind: "gainLife", amount: 1 },
+        targets: [],
+        cantBeCountered: false,
+        isPermanentSpell: false,
+      },
+    };
+
+    expect(botShouldAct(state, BOT)).toBe(true);
+    expect(nextAction(state, BOT)?.kind).toBe("resolveConfirmation");
+  });
+
+  it("stays asleep for a question that belongs to the human", () => {
+    const state = humanHasPriority();
+    state.priorityPlayerIndex = 0;
+    state.pendingSearch = {
+      playerId: HUMAN,
+      effectControllerId: HUMAN,
+      sourceInstanceId: "whatever",
+      candidateInstanceIds: [],
+      destination: "hand",
+      prompt: "Search your library for a card",
+    };
+
+    expect(botShouldAct(state, BOT)).toBe(false);
   });
 });

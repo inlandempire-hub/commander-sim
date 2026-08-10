@@ -35,10 +35,18 @@ FIXTURES_PATH = os.path.normpath(
 #   export const LIGHTNING_BOLT: CardDefinition = {
 #     id: "lightning-bolt",
 #     name: "Lightning Bolt",
+#     scryfallId: "7673784e-db4b-43a1-8d55-1bb9fc1e284f",
+#
+# The scryfallId line is part of the match, and optional. It has to be: the
+# "is this one already stamped?" check below reads the matched text, and while
+# the match stopped at `name:` the answer was always no - so a second run
+# stamped every card a second time and wrote 875 duplicate lines into the
+# fixtures. The stamp is written directly after `name:`, so this is where it is.
 DEFINITION_RE = re.compile(
     r'(export const (\w+): CardDefinition = \{\n'
     r'(\s*)id: "([^"]+)",\n'
     r'\s*name: "([^"]+)",\n)'
+    r'(\s*scryfallId: "[^"]+",\n)?'
 )
 
 
@@ -69,10 +77,10 @@ def main() -> None:
     matched, missing, already = [], [], []
 
     def replace(match: "re.Match") -> str:
-        header, const_name, indent, card_id, card_name = match.groups()
-        if 'scryfallId' in match.group(0):
+        header, const_name, indent, card_id, card_name, existing = match.groups()
+        if existing:
             already.append(card_name)
-            return header
+            return header + existing
         scryfall_id = by_name.get(card_name)
         if scryfall_id is None:
             missing.append((const_name, card_name))

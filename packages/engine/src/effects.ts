@@ -314,10 +314,16 @@ export function applyEffect(
       // Searching stops the game and asks: which card you take is the whole
       // point of a tutor, and the real rules make it the searching player's
       // choice. `resolveSearch` finishes the job once they've answered.
+      const searcherId = searchingPlayerId(state, controllerId, effect, targets);
+      // Nobody to search - Assassin's Trophy's target left the battlefield in
+      // response, so the destroy fizzled and there is no "its controller".
+      if (!searcherId) return;
+      const searcher = requirePlayer(state, searcherId);
       state.pendingSearch = {
-        playerId: controllerId,
+        playerId: searcherId,
+        effectControllerId: controllerId,
         sourceInstanceId,
-        candidateInstanceIds: controller.library
+        candidateInstanceIds: searcher.library
           .filter((card) => matchesSearch(state, card, effect))
           .map((card) => card.instanceId),
         destination: effect.destination,
@@ -366,6 +372,31 @@ export function applyEffect(
   }
 }
 
+/**
+ * Who actually searches, which is not always the player who cast the spell.
+ *
+ * "Its controller may search their library" (Assassin's Trophy) hands the
+ * search to whoever owned the permanent that was just destroyed. That card is
+ * in a graveyard by the time this runs, and control of a card outside the
+ * battlefield always sits with its owner (rule 108.4), so the owner is the
+ * right answer rather than a convenient one. Nothing in this engine can change
+ * control of a permanent either, so the two never diverge on the battlefield.
+ *
+ * Returns null when there is nobody: the target was already gone, so the
+ * destroy did nothing and the rider has no "its controller" to point at.
+ */
+function searchingPlayerId(
+  state: GameState,
+  controllerId: string,
+  effect: Extract<Effect, { kind: "searchLibrary" }>,
+  targets: StackTarget[],
+): string | null {
+  if ((effect.who ?? "controller") === "controller") return controllerId;
+  const cardTarget = targets.find((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card");
+  if (!cardTarget) return null;
+  return findInstance(state, cardTarget.instanceId)?.instance.ownerId ?? null;
+}
+
 /** "a Swamp or a Forest", "Swamp, Mountain, or Forest" - the printed list form. */
 function listOr(items: string[]): string {
   if (items.length <= 1) return items[0] ?? "";
@@ -393,7 +424,12 @@ function describeSearch(effect: Extract<Effect, { kind: "searchLibrary" }>): str
       : effect.cardType
         ? `a ${effect.cardType.toLowerCase()} card`
         : "a card";
-  const where = effect.destination === "battlefield" ? "onto the battlefield" : "into your hand";
+  const where =
+    effect.destination === "battlefield"
+      ? "onto the battlefield"
+      : effect.destination === "library-top"
+        ? "on top of your library"
+        : "into your hand";
   return `Search your library for ${what} and put it ${where}${effect.tapped ? " tapped" : ""}`;
 }
 
@@ -433,9 +469,12 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
     }
     if (pending.destination === "battlefield") {
       putOntoBattlefield(state, instanceId, { tapped: pending.tapped });
-    } else {
+    } else if (pending.destination === "hand") {
       moveCard(state, instanceId, "hand");
     }
+    // "library-top" is deliberately not handled here: the card has to survive
+    // the shuffle below and *then* go on top, which is the order the cards
+    // print ("then shuffle and put that card on top"). See below.
   }
 
   // Shuffle whether or not anything was found - "then shuffle" isn't
@@ -443,8 +482,26 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
   // fact that the library holds no match.
   const followUp = pending.followUp;
   const sourceInstanceId = pending.sourceInstanceId;
+  const effectControllerId = pending.effectControllerId;
+  const destination = pending.destination;
   state.pendingSearch = null;
   shuffleLibrary(state, playerId);
+
+  /*
+   * Sylvan Tutor's ordering, and it is the whole card.
+   *
+   * "Then shuffle and put that card on top" means the shuffle happens first
+   * and the card lands on top of the shuffled library - so you draw it next
+   * turn, guaranteed. Doing it the other way round would put the card on top
+   * and then shuffle it back into a random position, which is not a tutor at
+   * all. The card never left the library, so this is a reorder rather than a
+   * zone change: no zone-change triggers, no counters cleared.
+   */
+  if (destination === "library-top" && instanceId !== null) {
+    const library = requirePlayer(state, playerId).library;
+    const index = library.findIndex((card) => card.instanceId === instanceId);
+    if (index >= 0) library.unshift(...library.splice(index, 1));
+  }
 
   /*
    * The rest of whatever this search interrupted - Riveteers Overlook's "and
@@ -456,7 +513,10 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
    * out and strand the game.
    */
   if (followUp?.length) {
-    applyEffect(state, playerId, sourceInstanceId, { kind: "sequence", effects: followUp }, []);
+    // The rest of the card belongs to whoever cast it, not to whoever answered
+    // the picker. The two are the same for every tutor cast as its own spell,
+    // and different the moment a spell makes somebody else search.
+    applyEffect(state, effectControllerId, sourceInstanceId, { kind: "sequence", effects: followUp }, []);
   }
 }
 

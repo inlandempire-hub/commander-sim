@@ -3,10 +3,12 @@ import {
   isValidTarget,
   manaValue,
   type CardDefinition,
+  type Effect,
   type GameState,
   type ManaCost,
   type Player,
   type StackTarget,
+  type TargetSelector,
 } from "@mtg-commander-sim/engine";
 import { chooseAttackers, chooseBlockers } from "./combat.js";
 import {
@@ -505,13 +507,29 @@ function removeSomething(state: GameState, me: Player, reserve: ManaCost = NO_CO
  * Sits low in the chain deliberately: developing our own board beats attacking
  * theirs at the same cost, so this fires on a turn with nothing better to do.
  */
+/**
+ * The "destroy target permanent" step of a spell, whether that is the whole
+ * spell or the first half of one.
+ *
+ * Assassin's Trophy is a sequence - destroy, then its controller searches - and
+ * without this the bot would refuse to cast it at all, because it only ever
+ * looked for a bare `destroy`. The rider costs the bot nothing to ignore: the
+ * search belongs to the player being blown up, and they answer it themselves.
+ */
+function destroyStepOf(
+  effect: Effect | undefined,
+): (Effect & { kind: "destroy"; target: TargetSelector & { kind: "permanent" } }) | null {
+  const steps = effect?.kind === "sequence" ? effect.effects : effect ? [effect] : [];
+  for (const step of steps) {
+    if (step.kind === "destroy" && step.target.kind === "permanent") {
+      return step as Effect & { kind: "destroy"; target: TargetSelector & { kind: "permanent" } };
+    }
+  }
+  return null;
+}
+
 function destroyAPermanent(state: GameState, me: Player, reserve: ManaCost = NO_COST): BotAction | null {
-  const spells = castableFromHand(
-    state,
-    me,
-    (def) => def.castEffect?.kind === "destroy" && def.castEffect.target.kind === "permanent",
-    reserve,
-  );
+  const spells = castableFromHand(state, me, (def) => destroyStepOf(def.castEffect) !== null, reserve);
   if (spells.length === 0) return null;
   spells.sort((a, b) => manaValue(a.cost) - manaValue(b.cost));
 
@@ -519,8 +537,8 @@ function destroyAPermanent(state: GameState, me: Player, reserve: ManaCost = NO_
   if (opponents.length === 0) return null;
 
   for (const spell of spells) {
-    const effect = spell.definition.castEffect;
-    if (effect?.kind !== "destroy" || effect.target.kind !== "permanent") continue;
+    const effect = destroyStepOf(spell.definition.castEffect);
+    if (!effect) continue;
     const wantedTypes = effect.target.cardTypes;
     const excludeCreatures = effect.target.noncreature === true;
 
@@ -528,14 +546,18 @@ function destroyAPermanent(state: GameState, me: Player, reserve: ManaCost = NO_
       const legal = opponent.battlefield
         .filter((c) => {
           const types = definitionOf(state, c)?.types ?? [];
-          if (!wantedTypes.some((t) => types.includes(t))) return false;
+          // No list at all is "target permanent", so every type qualifies.
+          if (wantedTypes && !wantedTypes.some((t) => types.includes(t))) return false;
           return !(excludeCreatures && types.includes("Creature"));
         })
         .filter((c) => !hasKeyword(state, c, "Indestructible"))
         .filter((c) => isValidTarget(state, effect.target, { kind: "card", instanceId: c.instanceId }, me.id));
       if (legal.length === 0) continue;
 
-      if (wantedTypes.includes("Land")) {
+      // A spell that names Land is land destruction and is judged as tempo. A
+      // spell that names no type at all ("target permanent") is not - it can
+      // hit a land, but spending Assassin's Trophy on one would be a waste.
+      if (wantedTypes?.includes("Land")) {
         // Past this much mana, one land is a rounding error and the card is
         // better spent elsewhere - or held.
         const lands = opponent.battlefield.filter((c) => definitionOf(state, c)?.types.includes("Land"));

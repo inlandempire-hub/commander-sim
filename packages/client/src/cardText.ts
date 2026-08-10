@@ -47,7 +47,13 @@ export function describeTarget(selector: TargetSelector): string {
       // "target noncreature artifact or noncreature enchantment" - the
       // qualifier goes on each noun, which is how the card prints it.
       const prefix = selector.noncreature ? "noncreature " : "";
-      return `target ${listOr(selector.cardTypes.map((t) => `${prefix}${t.toLowerCase()}`))}`;
+      // No type list means "target permanent" - Assassin's Trophy, which names
+      // no type because it hits every one of them.
+      const noun = selector.cardTypes
+        ? listOr(selector.cardTypes.map((t) => `${prefix}${t.toLowerCase()}`))
+        : `${prefix}permanent`;
+      const whose = selector.controlledBy === "opponent" ? " an opponent controls" : "";
+      return `target ${noun}${whose}`;
     }
     case "card-in-your-graveyard":
       return selector.cardType
@@ -167,6 +173,16 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
        */
       return effect.effects.map((step) => describeEffect(step, definitions)).join(" ");
     case "searchLibrary": {
+      /**
+       * "Search your library" against "its controller may search their
+       * library". The second is a rider on somebody else's misfortune, and a
+       * panel that printed it as "your library" would read as though
+       * Assassin's Trophy ramped the caster.
+       */
+      const whoSearches = (e: Extract<Effect, { kind: "searchLibrary" }>): string =>
+        (e.who ?? "controller") === "controller"
+          ? "Search your library"
+          : "Its controller may search their library";
       /*
        * The subtypes were dropped here, so every fetchland read "a land card" -
        * an unrestricted tutor rather than one that can only find two of the
@@ -185,11 +201,20 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
           : effect.cardType
             ? `a ${effect.cardType.toLowerCase()} card`
             : "a card";
+      /*
+       * "then shuffle and put that card on top" is printed in that order for a
+       * reason and reads back in that order too - the card goes on top *after*
+       * the shuffle, so you are guaranteed to draw it. Writing it as "put it on
+       * top, then shuffle" would describe a card that does nothing.
+       */
+      if (effect.destination === "library-top") {
+        return `${whoSearches(effect)} for ${what}, then shuffle and put that card on top.`;
+      }
       const where =
         effect.destination === "hand"
           ? "into your hand"
           : `onto the battlefield${effect.tapped ? " tapped" : ""}`;
-      return `Search your library for ${what}, put it ${where}, then shuffle.`;
+      return `${whoSearches(effect)} for ${what}, put it ${where}, then shuffle.`;
     }
   }
 }

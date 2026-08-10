@@ -2473,3 +2473,80 @@ without throwing.
 
 **The list is at 39 of 100.** 865 fixtures, both audits clean. 717 tests,
 typecheck clean.
+
+## Deck-led pool growth, batches 5 to 8 (2026-08-10)
+
+The four batches after Delighted Halfling went out without a roadmap entry
+between them. Written up together here, briefly for the first three and in full
+for the fourth.
+
+**Triggers that are not about entering the battlefield.** Three families now
+exist rather than one: self (`enters-battlefield`, `attacks`, `dies`), watcher
+(`landfall`, `permanent-enters`, `permanent-dies`) and turn-based (`upkeep`,
+`first-main`, `begin-combat`, `end-step`). With them came optional triggers
+("you may", answered through a new `PendingConfirmation`) and the
+intervening-if, checked twice as rule 603.4 requires. `pushTrigger` is the one
+door every fire site goes through, so no event can quietly skip the condition.
+It also fixed a shipped bug: landfall never fired for a land put onto the
+battlefield by a fetch or a ramp spell, only for one played for the turn.
+
+**Sacrifice, which turned out to be half-built already.** Sacrificing as a
+*cost* had worked since the fetchlands; what was missing was sacrificing as an
+*effect*, and `sequence` - several effects as one resolution, so Riveteers
+Overlook's "and you gain 1 life" happens after its shuffle rather than before.
+Two shipped defects fell out: every fetchland's panel omitted its cost and its
+search restriction, so each read as a free unrestricted tutor.
+
+**Tokens were never the missing feature - the definitions were.**
+`createToken` had worked for months; every token in existence had been typed
+out by hand, so a card naming any other one had nothing to point at. The
+generator now mints a definition from the printed phrase, with the token's id
+spelling out colour, stats, subtype and keywords so two differently-worded
+tokens cannot collapse into one. A token carrying quoted rules text is refused
+rather than flattened.
+
+### Mana from a spell, a library with a top, and a search somebody else makes
+
+**Dark Ritual** needed no engine work at all. `addMana` has existed since the
+first Forest was written and nothing about it had to change - only a
+permanent's tap ability could ever *reach* it, so the generator had no pattern
+for "Add {B}{B}{B}." on a spell and filed the card as unrepresentable.
+
+**Sylvan Tutor** needed `searchLibrary` to have a third destination. The
+ordering is the whole card: "then shuffle and put that card on top" shuffles
+*first*, so the card genuinely ends on top and you draw it. Placing then
+shuffling would scatter it back to a random position, which is not a tutor at
+all - so `resolveSearch` grew a second ordering rather than reusing the
+zone-change path, and the card never leaves the library.
+
+**Assassin's Trophy** needed two things. The `permanent` selector's type list
+became optional, because "target permanent" is every type there is and listing
+them out would break the day the engine learns a new one; and it gained
+`controlledBy: "opponent"`, without which the card can blow up your own land.
+Then `searchLibrary` gained `who: "target-controller"` - a spell one player
+casts and a *different* player answers. The searcher is read off the effect's
+card target; by then the permanent is in a graveyard, where control always sits
+with the owner (rule 108.4), and nothing in this engine changes control of a
+permanent anyway.
+
+**The bot deadlocked on it, and the hole was already there.** `botShouldAct`
+woke the bot for the mulligan and for priority, and nothing else. Nobody holds
+priority part-way through a resolution, so a search the bot owed was found only
+because the bot happened to still be holding priority from before its own spell
+resolved. Assassin's Trophy broke that - the human casts it, the bot searches,
+the human holds priority - and the game stopped dead with a picker nobody could
+see. The same hole was already reachable with an optional trigger of the bot's
+firing on the human's turn. Both pending questions now wake it.
+
+**`add_scryfall_ids.py` was stamping every card twice.** Its "already stamped?"
+check read the matched text, and the match stopped one line above where the
+stamp is written - so the answer was always no. A second run wrote 875 duplicate
+lines into the fixtures.
+
+**The deck report lost two more stale headings.** Top-of-library tutoring is
+gone entirely, and "targets restricted by who controls them" is narrowed to the
+selectors that still cannot do it. That is the sixth and seventh time a heading
+has outlived the gap it named.
+
+**The list is at 51 of 100.** 878 fixtures, both audits clean. 805 tests,
+typecheck clean.

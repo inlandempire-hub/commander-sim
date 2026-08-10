@@ -103,15 +103,23 @@ BLOCKERS = [
     (r"^Destroy all|^Exile all|^Each player sacrifices|^Destroy each",
      "Mass removal (wrath effects)",
      "there is no destroy-all effect of any kind"),
-    (r"an opponent controls|target opponent controls|you don't control",
+    # Narrowed 2026-08-10: "target permanent an opponent controls" shipped with
+    # Assassin's Trophy, so only the selectors that still cannot be narrowed
+    # belong here. Left as it was, this heading would have gone on claiming a
+    # card needed work that already existed - the same way four trigger events
+    # did before it.
+    (r"target creature an opponent controls|target opponent controls|you don't control",
      "Targets restricted by who controls them",
-     "the creature selector is any creature; it cannot be narrowed to an opponent's"),
+     "the *permanent* selector takes controlledBy: opponent; the creature selector does not, "
+     "and nothing expresses \"you don't control\""),
     (r"for up to (a|one|two|three|\d+) |put one onto the battlefield and the rest",
      "Searching for more than one card at a time",
      "searchLibrary finds exactly one card and sends it to one destination"),
-    (r"put that card on top|on top of (your|their) library",
-     "Tutoring to the top of the library",
-     "searchLibrary's destinations are hand and battlefield only"),
+    # Removed 2026-08-10: `searchLibrary` grew a "library-top" destination for
+    # Sylvan Tutor, and it shuffles before it places, which is the ordering the
+    # cards print. A top-of-library tutor the generator still refuses is being
+    # refused for something else on the card, and that something else is what
+    # the report should name.
     # The dash is load-bearing: real modal templating is "Choose one —" followed
     # by bullets. Scheming Symmetry opens "Choose two target players." with no
     # dash and is not modal at all - it was being filed under modal, which would

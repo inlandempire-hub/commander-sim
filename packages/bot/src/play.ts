@@ -37,15 +37,32 @@ export function nextAction(state: GameState, botPlayerId: string): BotAction | n
 }
 
 /**
- * Whether the bot has anything to do right now: it holds priority, or it owes
- * a combat declaration. Harnesses check this before waking the bot up so it
- * isn't recomputing decisions on every unrelated state change.
+ * Whether the bot has anything to do right now: it holds priority, it owes a
+ * combat declaration, or the game has stopped mid-resolution to ask it
+ * something. Harnesses check this before waking the bot up so it isn't
+ * recomputing decisions on every unrelated state change.
  */
 export function botShouldAct(state: GameState, botPlayerId: string): boolean {
   if (state.players.some((p) => p.hasLost)) return false;
   // Opening hands come before anything else and nobody holds priority during
   // them, so the priority check below would never wake the bot up.
   if (state.mulligan?.playerId === botPlayerId) return true;
+  /*
+   * A question the bot owes an answer to, for the same reason: the game is
+   * part-way through resolving something, so *nobody* holds priority and the
+   * check below cannot wake it.
+   *
+   * This used to be covered by accident. Every search and every "you may" the
+   * bot owned came from its own spell or its own trigger, and it happened to
+   * still be holding priority from before the resolution - so the branch below
+   * fired and `decideAction` answered. Assassin's Trophy broke that: the human
+   * casts it, the *bot* searches, and the human is the priority holder. Nobody
+   * would ever wake the bot, and the game stopped dead with a picker nobody
+   * could see. The same hole was already reachable with an optional trigger of
+   * the bot's firing on the human's turn.
+   */
+  if (state.pendingSearch?.playerId === botPlayerId) return true;
+  if (state.pendingConfirmation?.playerId === botPlayerId) return true;
   const holdsPriority = state.players[state.priorityPlayerIndex]?.id === botPlayerId;
   if (holdsPriority) return true;
 

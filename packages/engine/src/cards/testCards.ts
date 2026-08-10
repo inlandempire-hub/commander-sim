@@ -11212,6 +11212,51 @@ export const OPHIOMANCER: CardDefinition = {
   tier: "scripted",
 };
 
+export const DARK_RITUAL: CardDefinition = {
+  id: "dark-ritual",
+  name: "Dark Ritual",
+  scryfallId: "11e12a84-e7be-4afc-a230-c2e644743fa8",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  castEffect: { kind: "addMana", color: "B", amount: 3 },
+  tier: "scripted",
+};
+
+export const SYLVAN_TUTOR: CardDefinition = {
+  id: "sylvan-tutor",
+  name: "Sylvan Tutor",
+  scryfallId: "9dcad208-cbea-458f-af8d-6f5e9ec32df7",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: { kind: "searchLibrary", cardType: "Creature", destination: "library-top" },
+  tier: "scripted",
+};
+
+export const ASSASSINS_TROPHY: CardDefinition = {
+  id: "assassins-trophy",
+  name: "Assassin's Trophy",
+  scryfallId: "aaf258fc-3ba4-4b83-bdbf-10a07e0b6c03",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "destroy", target: { kind: "permanent", controlledBy: "opponent" } },
+      {
+        kind: "searchLibrary",
+        cardType: "Land",
+        basicLandOnly: true,
+        destination: "battlefield",
+        who: "target-controller",
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
 
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
@@ -12091,5 +12136,8 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     TOKEN_B_11_SNAKE_DEATHTOUCH,
     HORNET_QUEEN,
     OPHIOMANCER,
+    DARK_RITUAL,
+    SYLVAN_TUTOR,
+    ASSASSINS_TROPHY,
   ].map((def) => [def.id, def]),
 );

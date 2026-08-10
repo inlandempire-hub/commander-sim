@@ -1008,7 +1008,47 @@ SPELL_RULES = [
      lambda m: '{ kind: "searchLibrary", cardType: "%s", destination: "hand" }' % m[1].capitalize()),
     (r"^Search your library for a card, put that card into your hand, then shuffle\.$",
      lambda m: '{ kind: "searchLibrary", destination: "hand" }'),
+    # Tutors that put the card back on top - Sylvan Tutor, Vampiric Tutor.
+    # "Then shuffle and put that card on top": the shuffle comes first, which is
+    # the whole card, and `resolveSearch` honours that ordering.
+    (r"^Search your library for a (creature|land|artifact|enchantment|instant|sorcery) card, reveal it, then shuffle and put that card on top\.$",
+     lambda m: '{ kind: "searchLibrary", cardType: "%s", destination: "library-top" }' % m[1].capitalize()),
+    (r"^Search your library for a card, then shuffle and put that card on top\.$",
+     lambda m: '{ kind: "searchLibrary", destination: "library-top" }'),
+
+    # Rituals. `addMana` has existed since the first Forest was written; what
+    # was missing was any way to reach it from a spell rather than from a
+    # permanent's tap ability, so Dark Ritual read as unrepresentable.
+    (r"^Add ((?:\{[WUBRGC]\})+)\.$", lambda m: add_mana_effect(m[1])),
+
+    # Removal with a rider the victim answers - Assassin's Trophy. Written as a
+    # sequence because it is one resolution: the destroy cannot be responded to
+    # before the search. `who: "target-controller"` is what hands the search to
+    # the player whose permanent just died rather than to the caster.
+    (r"^Destroy target permanent an opponent controls\. Its controller may search their library for a basic land card, put it onto the battlefield, then shuffle\.$",
+     lambda m: '{ kind: "sequence", effects: ['
+               '{ kind: "destroy", target: { kind: "permanent", controlledBy: "opponent" } }, '
+               '{ kind: "searchLibrary", cardType: "Land", basicLandOnly: true, '
+               'destination: "battlefield", who: "target-controller" }] }'),
 ]
+
+
+def add_mana_effect(symbols):
+    """'{B}{B}{B}' into addMana, or addManaCombination when the colours differ.
+
+    Two kinds rather than one because `addMana` carries a single colour
+    everywhere it is read - the auto-tapper, the pip that flies to the pool, the
+    bot's affordability check - and a ritual that adds three of one colour is
+    exactly the single-colour shape those readers already handle.
+    """
+    counts = {}
+    for symbol in re.findall(r"\{([WUBRGC])\}", symbols):
+        counts[symbol] = counts.get(symbol, 0) + 1
+    if len(counts) == 1:
+        color, amount = next(iter(counts.items()))
+        return '{ kind: "addMana", color: "%s", amount: %d }' % (color, amount)
+    parts = ", ".join('{ color: "%s", amount: %d }' % (c, n) for c, n in sorted(counts.items()))
+    return '{ kind: "addManaCombination", mana: [%s] }' % parts
 
 
 # "This spell can't be countered." is a whole line of its own on every card that
