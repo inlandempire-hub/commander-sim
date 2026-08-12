@@ -36,6 +36,9 @@ export function passPriority(state: GameState, playerId: string): void {
   if (state.pendingConfirmation) {
     throw new Error(`${state.pendingConfirmation.playerId} must answer their trigger first`);
   }
+  if (state.pendingTargetChoices.length > 0) {
+    throw new Error(`${state.pendingTargetChoices[0]!.playerId} must choose a target first`);
+  }
   if (state.players[state.priorityPlayerIndex]?.id !== playerId) {
     throw new Error(`${playerId} does not have priority`);
   }

@@ -1,7 +1,7 @@
 import type { GameState } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition } from "./state.js";
 import { describeSubject, fireWatchers, pushTrigger } from "./permanents.js";
-import { effectiveToughness } from "./counters.js";
+import { effectiveToughness, hasKeyword } from "./counters.js";
 import { useRegenerationShield } from "./regeneration.js";
 
 const COMMANDER_DAMAGE_THRESHOLD = 21;
@@ -90,7 +90,7 @@ export function checkStateBasedActions(state: GameState): void {
         const def = requireDefinition(state, instance.definitionId);
         if (!def.types.includes("Creature")) continue;
         const toughness = effectiveToughness(state, instance);
-        const indestructible = def.keywords?.includes("Indestructible") ?? false;
+        const indestructible = hasKeyword(state, instance, "Indestructible");
         const lethalNormalDamage = instance.damageMarked >= toughness && toughness > 0;
         // Deathtouch: any nonzero damage from a deathtouch source is lethal regardless of amount.
         const lethalDeathtouchDamage = instance.deathtouchDamage && instance.damageMarked > 0;

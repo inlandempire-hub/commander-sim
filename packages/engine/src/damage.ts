@@ -1,5 +1,6 @@
 import type { CardInstance, GameState, Player } from "./types.js";
-import { log } from "./state.js";
+import { log, requireDefinition } from "./state.js";
+import { pushTrigger } from "./permanents.js";
 
 /**
  * The one place damage is actually dealt.
@@ -78,6 +79,24 @@ export function damageCreature(
   if (options.deathtouch && result.dealt > 0) instance.deathtouchDamage = true;
   if (result.prevented > 0) {
     log(state, `${result.prevented} damage to ${cardLabel(state, instance)} prevented`);
+  }
+
+  /*
+   * "Whenever this creature is dealt damage" - Hornet Nest.
+   *
+   * Fired on what actually landed, not on what was attempted: a fully
+   * shielded creature was not dealt damage at all, and a Hornet Nest behind a
+   * Healing Salve makes no Insects. That is the same reading `deathtouch`
+   * above takes, and for the same reason.
+   *
+   * Here rather than in combat because this is the one door all damage goes
+   * through, so a burn spell and a blocker set it off alike.
+   */
+  if (result.dealt > 0) {
+    for (const trigger of requireDefinition(state, instance.definitionId).triggeredAbilities ?? []) {
+      if (trigger.event !== "damaged") continue;
+      pushTrigger(state, instance.instanceId, instance.controllerId, trigger, result.dealt);
+    }
   }
   return result;
 }

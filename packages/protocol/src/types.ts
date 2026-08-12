@@ -29,6 +29,8 @@ export type ClientMessage =
   | { type: "resolveSearch"; instanceId: string | null }
   /** Answering a "you may" trigger that stopped mid-resolution. */
   | { type: "resolveConfirmation"; accept: boolean }
+  /** Pointing a parked triggered ability at one of the targets the engine offered. */
+  | { type: "chooseTriggerTarget"; target: StackTarget }
   | { type: "takeMulligan" }
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }

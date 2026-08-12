@@ -236,12 +236,23 @@ describe("what the generator refused", () => {
     }
   });
 
-  it("still refuses the shapes it cannot express", () => {
-    // Overgrown Tomb is "As this land enters, you *may pay 2 life*" - an
-    // optional cost on arrival, not a condition on the board, and a different
-    // problem entirely.
+  it("has the shockland it used to refuse, with its cost intact", () => {
+    /*
+     * This used to assert Overgrown Tomb was absent: "as this land enters, you
+     * *may pay 2 life*" is an optional cost on arrival rather than a condition
+     * on the board, and `entersTappedUnless` could not express it.
+     *
+     * `entersTappedUnlessPayLife` can, so the assertion is now the opposite
+     * one - and it checks the price rather than merely that the card exists,
+     * because a shockland written as a plain tapland would still be "present"
+     * and would be a strictly worse card than the one being played.
+     */
     const state = mainPhase();
-    expect(state.cardDefinitions["overgrown-tomb"]).toBeUndefined();
+    const tomb = state.cardDefinitions["overgrown-tomb"];
+    expect(tomb).toBeDefined();
+    expect(tomb!.entersTappedUnlessPayLife).toBe(2);
+    // Not a flat tapland, which is what writing it the old way would have made it.
+    expect(tomb!.entersTapped).toBeUndefined();
   });
 
   it("has no land whose lifegain trigger is really somebody else's arrival", () => {

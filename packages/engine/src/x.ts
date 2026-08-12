@@ -32,10 +32,28 @@ export function requiresX(cost: ManaCost | undefined): boolean {
   return (cost?.x ?? 0) > 0;
 }
 
-function value(amount: Amount, chosenX: number): number {
+/**
+ * What the numbers an effect could not know in advance turn out to be.
+ *
+ * Both are settled before the effect goes on the stack and never change
+ * afterwards, which is what lets them be substituted rather than understood.
+ */
+export interface AmountContext {
+  /** The value announced for {X} when the source was cast. */
+  x: number;
+  /**
+   * The number the event carried - how much damage was just dealt, for a
+   * `damaged` trigger. Zero for every event that carries no number, so a card
+   * written with `event-amount` on the wrong trigger does nothing rather than
+   * inventing a figure.
+   */
+  eventAmount?: number;
+}
+
+function value(amount: Amount, values: AmountContext): number {
   if (typeof amount === "number") return amount;
-  const resolved = chosenX;
-  return amount.negate ? -resolved : resolved;
+  if (amount.kind === "event-amount") return values.eventAmount ?? 0;
+  return amount.negate ? -values.x : values.x;
 }
 
 /**
@@ -45,20 +63,22 @@ function value(amount: Amount, chosenX: number): number {
  * effect is not silently left holding a marker. Returns the effect unchanged
  * when there is nothing to substitute, which is every card in the pool but one.
  */
-export function resolveAmounts(effect: Effect, chosenX: number): Effect {
+export function resolveAmounts(effect: Effect, values: AmountContext): Effect {
   switch (effect.kind) {
     case "pumpAll":
       return {
         ...effect,
-        power: value(effect.power, chosenX),
-        toughness: value(effect.toughness, chosenX),
+        power: value(effect.power, values),
+        toughness: value(effect.toughness, values),
       };
+    case "createToken":
+      return { ...effect, count: value(effect.count, values) };
     case "sequence":
-      return { ...effect, effects: effect.effects.map((step) => resolveAmounts(step, chosenX)) };
+      return { ...effect, effects: effect.effects.map((step) => resolveAmounts(step, values)) };
     case "modal":
       return {
         ...effect,
-        modes: effect.modes.map((mode) => ({ ...mode, effect: resolveAmounts(mode.effect, chosenX) })),
+        modes: effect.modes.map((mode) => ({ ...mode, effect: resolveAmounts(mode.effect, values) })),
       };
     default:
       return effect;
@@ -76,5 +96,5 @@ export function resolveAmounts(effect: Effect, chosenX: number): Effect {
  */
 export function requireNumber(amount: Amount, what: string): number {
   if (typeof amount === "number") return amount;
-  throw new Error(`${what} still contains an unresolved X - resolveAmounts was not called`);
+  throw new Error(`${what} still contains an unresolved ${amount.kind} - resolveAmounts was not called`);
 }

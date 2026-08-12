@@ -141,7 +141,7 @@ describe("substituting X into an effect", () => {
   it("replaces the marker with the announced value", () => {
     const substituted = resolveAmounts(
       { kind: "pumpAll", power: { kind: "x", negate: true }, toughness: { kind: "x", negate: true }, scope: "all" },
-      3,
+      { x: 3 },
     );
     expect(substituted).toEqual({ kind: "pumpAll", power: -3, toughness: -3, scope: "all" });
   });
@@ -155,7 +155,7 @@ describe("substituting X into an effect", () => {
           { kind: "pumpAll", power: { kind: "x" }, toughness: { kind: "x" }, scope: "controller" },
         ],
       },
-      2,
+      { x: 2 },
     );
     expect(substituted).toEqual({
       kind: "sequence",

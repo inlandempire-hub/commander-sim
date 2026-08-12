@@ -60,6 +60,8 @@ function toClientMessage(action: BotAction): ClientMessage | null {
       return { type: "resolveSearch", instanceId: action.instanceId };
     case "resolveConfirmation":
       return { type: "resolveConfirmation", accept: action.accept };
+    case "chooseTriggerTarget":
+      return { type: "chooseTriggerTarget", target: action.target };
     case "takeMulligan":
       return { type: "takeMulligan" };
     case "keepHand":

@@ -60,9 +60,13 @@ describe("minted token definitions", () => {
     const ids = Object.keys(TEST_CARD_DEFINITIONS).filter((id) => id.startsWith("token-"));
     const bodies = ids.map((id) => {
       const def = TEST_CARD_DEFINITIONS[id]!;
+      // The abilities are part of the key, and the two Pests are why. Both are
+      // 1/1 black and green Pests with no keywords; the only thing separating
+      // them is that one pays out when it dies and the other when it attacks.
+      // Keyed on the body alone, this test called that a duplicate.
       return `${def.power}/${def.toughness} ${(def.colorIdentity ?? []).join("")} ${(def.subtypes ?? []).join(
         "",
-      )} ${(def.keywords ?? []).join(",")}`;
+      )} ${(def.keywords ?? []).join(",")} ${JSON.stringify(def.triggeredAbilities ?? [])}`;
     });
     expect(new Set(bodies).size).toBe(bodies.length);
   });

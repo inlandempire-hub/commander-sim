@@ -5,6 +5,7 @@ import { canCastAtSorcerySpeed } from "./casting.js";
 import { controllerMeets } from "./conditions.js";
 import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
 import { costWithX, requiresX } from "./x.js";
+import { hasKeyword } from "./counters.js";
 
 const EMPTY_COST: ManaCost = { generic: 0, colors: {} };
 
@@ -140,8 +141,8 @@ export function hasEligibleAttacker(state: GameState, playerId: string): boolean
     if (instance.tapped) return false;
     const def = requireDefinition(state, instance.definitionId);
     if (!def.types.includes("Creature")) return false;
-    if (def.keywords?.includes("Defender")) return false;
-    if (instance.summoningSickness && !def.keywords?.includes("Haste")) return false;
+    if (hasKeyword(state, instance, "Defender")) return false;
+    if (instance.summoningSickness && !hasKeyword(state, instance, "Haste")) return false;
     return true;
   });
 }
@@ -174,6 +175,8 @@ export function mustNotAutoPass(state: GameState, playerId: string): boolean {
   if (state.pendingSearch) return true;
   // Same for a "you may" trigger waiting on a yes or no.
   if (state.pendingConfirmation) return true;
+  // And for a trigger that has not been pointed at anything yet.
+  if (state.pendingTargetChoices.length > 0) return true;
 
   const activePlayerId = state.players[state.activePlayerIndex]?.id;
 

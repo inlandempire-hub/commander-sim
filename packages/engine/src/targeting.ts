@@ -1,5 +1,6 @@
 import type { GameState, StackObject, StackTarget, TargetSelector, Effect } from "./types.js";
 import { findInstance, requireDefinition } from "./state.js";
+import { hasKeyword } from "./counters.js";
 
 /**
  * True if this stack object is a *spell* rather than a triggered or activated
@@ -20,7 +21,7 @@ function isProtectedByHexproof(state: GameState, instanceId: string, controllerI
   const found = findInstance(state, instanceId);
   if (!found) return false;
   if (found.instance.controllerId === controllerId) return false;
-  return requireDefinition(state, found.instance.definitionId).keywords?.includes("Hexproof") ?? false;
+  return hasKeyword(state, found.instance, "Hexproof");
 }
 
 export function isValidTarget(
@@ -139,10 +140,21 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "preventDamage":
     case "regenerate":
       return effect.target;
-    // `pump` is the one optional case: "target creature gets +2/+2" targets,
-    // but "{G}: this creature gets +2/+2" is the same effect with no target,
-    // applying to its own source.
+    /*
+     * The optional cases: the same effect kind is printed both with and
+     * without a target, and which it is has to be read off the card rather
+     * than assumed.
+     *
+     * "Target creature gets +2/+2" targets; "{G}: this creature gets +2/+2"
+     * does not, and applies to its own source. Likewise Duskshell Crawler's
+     * "put a +1/+1 counter on target creature" against "{cost}: put a +1/+1
+     * counter on this creature". `loseLife` is the same question asked by
+     * `who`: "each opponent loses 1 life" names nobody, "target player loses 1
+     * life" names one.
+     */
     case "pump":
+    case "addCounter":
+    case "loseLife":
       return effect.target;
     /*
      * A sequence targets if one of its steps does, and the targets chosen for

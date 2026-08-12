@@ -76,6 +76,45 @@ function shouldAcceptTrigger(state: GameState, botPlayerId: string): boolean {
  * filterGameStateForViewer). The bot must not be able to read hidden zones,
  * and the runners guarantee that so this file never has to think about it.
  */
+/**
+ * Where to point a triggered ability the engine has parked.
+ *
+ * Deliberately crude, and only two cards reach it. A trigger aimed at a player
+ * goes at an opponent - Blood Artist drains them rather than the bot. One aimed
+ * at a permanent goes at the bot's own best creature, which is right for
+ * Duskshell Crawler's +1/+1 counter and would be wrong for a trigger that hurt
+ * what it touched; the day one of those exists this has to read the effect the
+ * way `removeSomething` does rather than assume the target is a gift.
+ *
+ * The engine only parks a choice when there are two or more legal targets, and
+ * guarantees every candidate here is one of them.
+ */
+function chooseTriggerTarget(state: GameState, botPlayerId: string): StackTarget {
+  const candidates = state.pendingTargetChoices[0]!.candidates;
+  const opponent = candidates.find((c) => c.kind === "player" && c.playerId !== botPlayerId);
+  if (opponent) return opponent;
+
+  const mine = candidates
+    .filter((c): c is Extract<StackTarget, { kind: "card" }> => c.kind === "card")
+    .map((c) => ({ target: c as StackTarget, instance: findOnBattlefield(state, c.instanceId) }))
+    .filter((entry) => entry.instance?.controllerId === botPlayerId);
+  if (mine.length > 0) {
+    const best = mine.reduce((a, b) =>
+      creatureValue(state, b.instance!) > creatureValue(state, a.instance!) ? b : a,
+    );
+    return best.target;
+  }
+  return candidates[0]!;
+}
+
+function findOnBattlefield(state: GameState, instanceId: string) {
+  for (const player of state.players) {
+    const found = player.battlefield.find((c) => c.instanceId === instanceId);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 export function decideAction(state: GameState, botPlayerId: string): BotAction {
   const me = state.players.find((p) => p.id === botPlayerId);
   if (!me || me.hasLost) return PASS;
@@ -92,6 +131,11 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
   // Same for a "you may" trigger of the bot's own.
   if (state.pendingConfirmation?.playerId === botPlayerId) {
     return { kind: "resolveConfirmation", accept: shouldAcceptTrigger(state, botPlayerId) };
+  }
+
+  // And for a trigger of the bot's own waiting to be pointed at something.
+  if (state.pendingTargetChoices[0]?.playerId === botPlayerId) {
+    return { kind: "chooseTriggerTarget", target: chooseTriggerTarget(state, botPlayerId) };
   }
 
   // Opening hands come before even that: the game has not started, nobody has

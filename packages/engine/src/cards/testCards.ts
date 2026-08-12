@@ -11359,6 +11359,309 @@ export const THE_MEATHOOK_MASSACRE: CardDefinition = {
 };
 
 
+/*
+ * Ten cards that needed the keyword layer, targeted triggers, surveil, and two
+ * new trigger events. See ROADMAP.md.
+ *
+ * The two Pest tokens below are the first tokens in the pool with rules text of
+ * their own, and they are why "tokens that carry their own rules text" turned
+ * out not to be an engine gap at all: a token definition is an ordinary
+ * CardDefinition, and `triggeredAbilities` on one has always worked. Only the
+ * generator refused them.
+ *
+ * They are deliberately two definitions and not one. Blight Mound's Pest gains
+ * you life when it *dies*; Send in the Pest's gains you life when it *attacks*.
+ * Same body, same colours, different card - and a shared definition would have
+ * given one of them the wrong ability.
+ */
+
+export const TOKEN_BG_11_PEST_DIES_GAIN_LIFE: CardDefinition = {
+  id: "token-bg-11-pest-dies-gain-life",
+  name: "Pest",
+  types: ["Creature"],
+  subtypes: ["Pest"],
+  colorIdentity: ["B", "G"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "gainLife", amount: 1, who: "controller" } }],
+  isToken: true,
+  tier: "scripted",
+};
+
+export const TOKEN_BG_11_PEST_ATTACKS_GAIN_LIFE: CardDefinition = {
+  id: "token-bg-11-pest-attacks-gain-life",
+  name: "Pest",
+  types: ["Creature"],
+  subtypes: ["Pest"],
+  colorIdentity: ["B", "G"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "attacks", effect: { kind: "gainLife", amount: 1, who: "controller" } }],
+  isToken: true,
+  tier: "scripted",
+};
+
+export const TOKEN_G_12_SPIDER_REACH: CardDefinition = {
+  id: "token-g-12-spider-reach",
+  name: "Spider",
+  types: ["Creature"],
+  subtypes: ["Spider"],
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 2,
+  keywords: ["Reach"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+/*
+ * "Permanents you control gain hexproof and indestructible until end of turn."
+ *
+ * Permanents, not creatures - the shield covers your lands and enchantments
+ * too, which is most of the reason the card is played. Zero power and toughness
+ * because the pump is not the point; `pumpAll` is simply where an
+ * until-end-of-turn grant lives, so it wears off in the same cleanup step.
+ */
+export const HEROIC_INTERVENTION: CardDefinition = {
+  id: "heroic-intervention",
+  name: "Heroic Intervention",
+  scryfallId: "e32c67d1-187f-40df-b3b3-6036f5c92834",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: { kind: "pumpAll", power: 0, toughness: 0, scope: "controller", appliesTo: "permanents", grants: ["Hexproof", "Indestructible"] },
+  tier: "scripted",
+};
+
+/*
+ * "When this creature enters, put a +1/+1 counter on target creature. Each
+ * creature you control with a +1/+1 counter on it has trample."
+ *
+ * `includesSelf` is on because the second line says "each creature you
+ * control", not "each *other*" - and the first line can legally put the counter
+ * on the Crawler itself, at which point it had better have trample too.
+ */
+export const DUSKSHELL_CRAWLER: CardDefinition = {
+  id: "duskshell-crawler",
+  name: "Duskshell Crawler",
+  scryfallId: "eb39a0c0-668f-4881-957a-3d09c50beaf4",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 0,
+  toughness: 3,
+  staticBuff: { power: 0, toughness: 0, grants: ["Trample"], restriction: "with-counter", includesSelf: true },
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "addCounter", amount: 1, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+/*
+ * "Attacking Pests you control get +1/+0 and have menace. Whenever a nontoken
+ * creature you control dies, create a 1/1 black and green Pest creature token
+ * with 'When this token dies, you gain 1 life.'"
+ *
+ * Mono-black despite minting a black *and green* token: a token's colours are
+ * not mana symbols, so they add nothing to colour identity. Worth stating,
+ * because it is the opposite of what the card's text looks like.
+ */
+export const BLIGHT_MOUND: CardDefinition = {
+  id: "blight-mound",
+  name: "Blight Mound",
+  scryfallId: "dc060028-e01c-4bc7-8b52-7d0e2a350061",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  staticBuff: { power: 1, toughness: 0, subtype: "Pest", grants: ["Menace"], restriction: "attacking" },
+  triggeredAbilities: [
+    {
+      event: "permanent-dies",
+      watches: "controller",
+      watchFor: { type: "Creature", nontoken: true },
+      effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-bg-11-pest-dies-gain-life" },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Each opponent discards a card. You create a 1/1 black and green Pest
+ * creature token with 'Whenever this token attacks, you gain 1 life.'"
+ *
+ * The discard is at random rather than the opponent's choice - see the
+ * `discard` effect, where that shortcut is written down. Against a human it is
+ * strictly harsher than the printed card.
+ */
+export const SEND_IN_THE_PEST: CardDefinition = {
+  id: "send-in-the-pest",
+  name: "Send in the Pest",
+  scryfallId: "283b508b-89f0-4c23-9686-b049e402b73c",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "discard", amount: 1, who: "each-opponent" },
+      { kind: "createToken", count: 1, tokenDefinitionId: "token-bg-11-pest-attacks-gain-life" },
+    ],
+  },
+  tier: "scripted",
+};
+
+/*
+ * "Whenever this creature or another creature dies, target player loses 1 life
+ * and you gain 1 life."
+ *
+ * `includesSelf` for "this creature or another", and `watches: "any"` because
+ * it says nothing about who controlled the creature - an opponent's dying
+ * blocker drains them just the same.
+ *
+ * The `who` on each half is the whole card: the *target* loses, and the
+ * *controller* gains. One sequence, one target, two different people.
+ */
+export const BLOOD_ARTIST: CardDefinition = {
+  id: "blood-artist",
+  name: "Blood Artist",
+  scryfallId: "b5275d76-2947-4219-be21-614c7421614a",
+  types: ["Creature"],
+  subtypes: ["Vampire"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 0,
+  toughness: 1,
+  triggeredAbilities: [
+    {
+      event: "permanent-dies",
+      watches: "any",
+      includesSelf: true,
+      watchFor: { type: "Creature" },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "loseLife", amount: 1, who: "target", target: { kind: "player" } },
+          { kind: "gainLife", amount: 1, who: "controller" },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/** "As this land enters, you may pay 2 life. If you don't, it enters tapped." */
+export const OVERGROWN_TOMB: CardDefinition = {
+  id: "overgrown-tomb",
+  name: "Overgrown Tomb",
+  scryfallId: "ad7e18e2-c033-4b6c-86e8-d0e5cc824cfd",
+  types: ["Land"],
+  subtypes: ["Swamp", "Forest"],
+  colorIdentity: ["B", "G"],
+  entersTappedUnlessPayLife: 2,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "scripted",
+};
+
+/** "This land enters tapped. When this land enters, surveil 1." */
+export const UNDERGROUND_MORTUARY: CardDefinition = {
+  id: "underground-mortuary",
+  name: "Underground Mortuary",
+  scryfallId: "f6ca59cd-8779-4a84-a54b-e863b79c61f0",
+  types: ["Land"],
+  subtypes: ["Swamp", "Forest"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "surveil", amount: 1 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "scripted",
+};
+
+/*
+ * "Whenever an opponent casts an instant or sorcery spell, create a 1/2 green
+ * Spider creature token with reach."
+ *
+ * `watches: "any"` and `controlledBy: "opponent"` do different jobs and both
+ * are needed: the first stops the watcher/subject controller match throwing the
+ * event away before it is looked at, the second is the card's real restriction.
+ */
+export const ARASTA_OF_THE_ENDLESS_WEB: CardDefinition = {
+  id: "arasta-of-the-endless-web",
+  name: "Arasta of the Endless Web",
+  scryfallId: "95a87b4e-f0ea-457c-9517-4acf313c4ca6",
+  types: ["Enchantment", "Creature"],
+  subtypes: ["Spider"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 2, colors: { G: 2 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 5,
+  keywords: ["Reach"],
+  canBeCommander: true,
+  triggeredAbilities: [
+    {
+      event: "spell-cast",
+      watches: "any",
+      watchFor: { type: ["Instant", "Sorcery"], controlledBy: "opponent" },
+      effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-g-12-spider-reach" },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Whenever this creature is dealt damage, create that many 1/1 green Insect
+ * creature tokens with flying and deathtouch."
+ *
+ * "That many" is the damage that actually landed, substituted into the count as
+ * the trigger fires - so a Hornet Nest behind a prevention shield makes nothing
+ * at all.
+ */
+export const HORNET_NEST: CardDefinition = {
+  id: "hornet-nest",
+  name: "Hornet Nest",
+  scryfallId: "cc4693c6-f532-4726-b51a-21b04f820448",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 0,
+  toughness: 2,
+  keywords: ["Defender"],
+  triggeredAbilities: [
+    {
+      event: "damaged",
+      effect: { kind: "createToken", count: { kind: "event-amount" }, tokenDefinitionId: "token-g-11-insect-flying-deathtouch" },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Choose one - all creatures get -1/-1 until end of turn; destroy target
+ * enchantment; regenerate each creature you control."
+ *
+ * Every mode was already expressible except the third, which needed an
+ * untargeted mass regenerate. The bullet-list wording is a generator gap, not
+ * an engine one - `modal` has worked since the Charm's cousins arrived.
+ */
+export const GOLGARI_CHARM: CardDefinition = {
+  id: "golgari-charm",
+  name: "Golgari Charm",
+  scryfallId: "9d467e61-bbec-4cea-bd5d-f10555910c9d",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  castEffect: {
+    kind: "modal",
+    modes: [
+      { label: "All creatures get -1/-1 until end of turn", effect: { kind: "pumpAll", power: -1, toughness: -1, scope: "all" } },
+      { label: "Destroy target enchantment", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Enchantment"] } } },
+      { label: "Regenerate each creature you control", effect: { kind: "regenerateAll" } },
+    ],
+  },
+  tier: "scripted",
+};
+
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -12243,5 +12546,18 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     DOUBLING_SEASON,
     WINDING_CONSTRICTOR,
     THE_MEATHOOK_MASSACRE,
+    TOKEN_BG_11_PEST_DIES_GAIN_LIFE,
+    TOKEN_BG_11_PEST_ATTACKS_GAIN_LIFE,
+    TOKEN_G_12_SPIDER_REACH,
+    HEROIC_INTERVENTION,
+    DUSKSHELL_CRAWLER,
+    BLIGHT_MOUND,
+    SEND_IN_THE_PEST,
+    BLOOD_ARTIST,
+    OVERGROWN_TOMB,
+    UNDERGROUND_MORTUARY,
+    ARASTA_OF_THE_ENDLESS_WEB,
+    HORNET_NEST,
+    GOLGARI_CHARM,
   ].map((def) => [def.id, def]),
 );

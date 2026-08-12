@@ -1,7 +1,7 @@
 import type { CardDefinition, Effect, GameState, ManaCost, StackTarget } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import { applyCommanderTax, canPayManaCostFromPool, payManaCostFor, spendablePool } from "./mana.js";
-import { pushOntoStack, putOntoBattlefield } from "./permanents.js";
+import { describeSubject, fireWatchers, pushOntoStack, putOntoBattlefield } from "./permanents.js";
 import { isValidTarget, targetSelectorOf } from "./targeting.js";
 import { attemptWardPayments } from "./ward.js";
 import { costWithX, requiresX, resolveAmounts } from "./x.js";
@@ -115,7 +115,7 @@ export function castSpell(
   }
   // X is substituted here for the same reason the mode is: it is settled at
   // cast time, so nothing downstream ever has to know it was once a symbol.
-  effect = resolveAmounts(effect, chosenX);
+  effect = resolveAmounts(effect, { x: chosenX });
 
   // Validated before anything is paid or moved. Every throw below this point
   // would otherwise leave the game half-cast - mana spent and the card sitting
@@ -166,6 +166,16 @@ export function castSpell(
   }
 
   pushOntoStack(state, instanceId, playerId, effect, targets, isPermanentSpell, uncounterable);
+
+  /*
+   * "Whenever an opponent casts an instant or sorcery spell" - Arasta of the
+   * Endless Web.
+   *
+   * Fired after the spell is on the stack, so the trigger goes on top of it
+   * and resolves first. That is the real ordering, and it is visible: Arasta
+   * has its Spider before the removal spell that provoked it resolves.
+   */
+  fireWatchers(state, "spell-cast", describeSubject(state, instance, def));
 
   state.passesInSuccession = 0;
 }

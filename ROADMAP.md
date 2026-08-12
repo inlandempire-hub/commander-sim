@@ -2623,3 +2623,72 @@ beside it.
 typecheck clean. Verified in a real game: Hornet Queen made eight Insects under
 Doubling Season, and The Meathook Massacre cast for X = 2 off six Swamps offered
 0-4, killed both 2/2s, drained Salty Mike for 1 and gained Deadly Donny 1.
+
+### Ten cards, and the keyword layer they needed (2026-08-12)
+
+**Nothing may read `CardDefinition.keywords` any more.** That was safe only
+while keywords were a fixed property of the card. The moment Heroic
+Intervention can hand out indestructible and Blight Mound can hand out menace,
+a read of the printed list is a read of a stale answer - and the failure is
+silent and one-sided: the card looks right in the panel and simply does not work
+in combat. So `effectiveKeywords` joined `effectivePower` in counters.ts, and
+all thirty-odd read sites across the engine, the bot and the client now go
+through it. Granted keywords come from three places: printed on the card,
+handed to the permanent until end of turn, and handed out by something else on
+the battlefield.
+
+**Statics learned two restrictions and a verb.** `staticBuff` was an
+unconditional +N/+N optionally narrowed by subtype. It now grants keywords, and
+narrows to attacking creatures (Blight Mound's "Attacking Pests you control") or
+to creatures carrying a +1/+1 counter (Duskshell Crawler's "each creature you
+control with a +1/+1 counter on it"). Both are reread on every access, so the
+menace comes and goes with the attack and the trample with the counter.
+
+**Triggers can target now.** Targets for a triggered ability are chosen as it
+goes on the stack (rule 603.3d), not as it resolves - so `pushTrigger` parks the
+ability in `pendingTargetChoices` *before* it reaches the stack, and
+`chooseTriggerTarget` puts it there once answered. That ordering is visible in
+play: an opponent responds to Blood Artist already knowing who it is aimed at.
+With no legal target the ability is removed and never happens; with exactly one
+it is taken without asking, because there is no decision to make. A queue rather
+than a single slot, because a board wipe with two Blood Artists out asks twice
+per creature.
+
+**Surveil rides on the search machinery, deliberately.** It is the same
+interaction - the game stops, a player is shown cards from their own library,
+and chooses where one goes - and a parallel mechanism would have been a second
+place to remember to hold priority, a second picker, and a second way to get
+hidden information wrong. The card is identified by instance id, so an opponent
+already sees the hidden-card placeholder.
+
+**Two new trigger events.** `spell-cast` fires as a spell goes on the stack, so
+Arasta's Spider arrives before the removal spell that provoked it resolves.
+`damaged` fires from `damageCreature`, the one door all damage goes through, and
+carries the amount - so Hornet Nest makes one Insect per point that actually
+landed, and nothing at all behind a prevention shield.
+
+**"Tokens that carry their own rules text" was never an engine gap.** A token
+definition is an ordinary `CardDefinition` and `triggeredAbilities` on one has
+always worked; only the generator refused them. The two Pests are the proof, and
+the reason they are two definitions rather than one: same body, same colours,
+and one pays out when it dies while the other pays out when it attacks.
+
+**Four defects found on the way.** The card panel dropped every granted keyword,
+so "Attacking Pests you control get +1/+0" read as a complete card. It printed
+nothing at all for a shockland, so Overgrown Tomb read as an unconditional
+untapped dual. It could not tell two tokens apart - and the test that was
+supposed to guard that built its own key out of stats and colours rather than
+rendering anything, so it passed on a renderer that had never been able to. And
+"Each creature ... have trample" needed a singular verb.
+
+**One shortcut, written down rather than discovered.** Send in the Pest's
+discard is at random, because the engine has no way to ask a player who is not
+the one resolving the spell. Against a human that is strictly harsher than the
+printed card.
+
+**The list is at 64 of 100.** 895 fixtures, both audits clean. 873 tests,
+typecheck clean. Verified in a real game: Overgrown Tomb asked for 2 life and
+entered untapped at 38, Duskshell Crawler parked its counter until a creature
+was named, Blood Artist drained Salty Mike to 39 and took Deadly Donny to 39,
+Underground Mortuary offered its top card and put Arasta in the graveyard, and
+Send in the Pest made Salty Mike discard a Swamp and left a Pest behind.

@@ -11,7 +11,7 @@ import {
 } from "./state.js";
 import { addMana, canPayManaCost, manaValue, payManaCost } from "./mana.js";
 import { damageCreature, damagePlayer } from "./damage.js";
-import { effectivePower } from "./counters.js";
+import { effectivePower, hasKeyword } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
 import { enteredBattlefield, putOntoBattlefield } from "./permanents.js";
 import { gainLife } from "./life.js";
@@ -42,8 +42,9 @@ export function applyEffect(
 ): void {
   const controller = requirePlayer(state, controllerId);
   const sourceDef = state.cardDefinitions[findInstance(state, sourceInstanceId)?.instance.definitionId ?? ""];
-  const hasDeathtouch = sourceDef?.keywords?.includes("Deathtouch") ?? false;
-  const hasLifelink = sourceDef?.keywords?.includes("Lifelink") ?? false;
+  const sourceInstance = findInstance(state, sourceInstanceId)?.instance;
+  const hasDeathtouch = sourceInstance ? hasKeyword(state, sourceInstance, "Deathtouch") : false;
+  const hasLifelink = sourceInstance ? hasKeyword(state, sourceInstance, "Lifelink") : false;
 
   switch (effect.kind) {
     case "damage": {
@@ -89,6 +90,13 @@ export function applyEffect(
       return;
     }
     case "gainLife": {
+      // "You gain 1 life" beside a target the rest of the card is aimed at -
+      // see the note on the effect type, and Blood Artist.
+      if (effect.who === "controller") {
+        gainLife(state, controllerId, effect.amount);
+        log(state, `${controllerId} gains ${effect.amount} life`);
+        return;
+      }
       for (const target of targets) {
         if (target.kind === "player") {
           gainLife(state, target.playerId, effect.amount);
@@ -180,8 +188,7 @@ export function applyEffect(
         if (!found || found.instance.zone !== "battlefield") continue; // already gone; the spell just fizzles on it
 
         if (effect.kind === "destroy") {
-          const def = state.cardDefinitions[found.instance.definitionId];
-          if (def?.keywords?.includes("Indestructible")) continue;
+          if (hasKeyword(state, found.instance, "Indestructible")) continue;
           // A regeneration shield is spent here rather than at the graveyard,
           // because it replaces the destruction itself: the creature never
           // dies, so nothing watching for a death sees anything happen.
@@ -201,7 +208,7 @@ export function applyEffect(
       // per token - "would create one or more tokens" is a single event, so
       // two Doubling Seasons make four Insects rather than compounding oddly
       // inside the loop.
-      const count = tokensCreated(state, controllerId, effect.count);
+      const count = tokensCreated(state, controllerId, requireNumber(effect.count, "createToken count"));
       for (let i = 0; i < count; i++) {
         const token = createCardInstance(state, effect.tokenDefinitionId, controllerId, "battlefield");
         /*
@@ -238,13 +245,33 @@ export function applyEffect(
       const power = requireNumber(effect.power, "pumpAll power");
       const toughness = requireNumber(effect.toughness, "pumpAll toughness");
       const affected = effect.scope === "controller" ? [controller] : state.players;
+      const creaturesOnly = (effect.appliesTo ?? "creatures") === "creatures";
       for (const player of affected) {
         for (const instance of player.battlefield) {
-          if (!state.cardDefinitions[instance.definitionId]?.types.includes("Creature")) continue;
+          // Heroic Intervention says "permanents you control", so its shield
+          // reaches lands and artifacts too. Everything else in this family
+          // says creatures.
+          if (creaturesOnly && !state.cardDefinitions[instance.definitionId]?.types.includes("Creature")) continue;
           instance.temporaryPowerBonus += power;
           instance.temporaryToughnessBonus += toughness;
+          for (const keyword of effect.grants ?? []) {
+            if (!instance.grantedKeywords.includes(keyword)) instance.grantedKeywords.push(keyword);
+          }
         }
       }
+      if (effect.grants?.length) {
+        log(state, `${controllerId}'s ${creaturesOnly ? "creatures" : "permanents"} gain ${effect.grants.join(" and ").toLowerCase()} until end of turn`);
+      }
+      return;
+    }
+    case "regenerateAll": {
+      // Untargeted, so no hexproof check and nothing to fizzle on - the
+      // shield simply lands on everything its controller has in play.
+      for (const instance of controller.battlefield) {
+        if (!state.cardDefinitions[instance.definitionId]?.types.includes("Creature")) continue;
+        instance.regenerationShields += 1;
+      }
+      log(state, `${controllerId} regenerates each creature they control`);
       return;
     }
     case "loseLife": {
@@ -253,12 +280,68 @@ export function applyEffect(
        * prevention shield applies, lifelink gains nothing, and nothing watching
        * for damage fires. It goes straight to the total.
        */
-      for (const player of state.players) {
-        if (player.id === controllerId) continue; // "each opponent"
+      const losers =
+        effect.who === "target"
+          ? // "Target player loses 1 life" - which may legally be yourself, so
+            // this reads the chosen target rather than assuming an opponent.
+            targets
+              .filter((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player")
+              .map((t) => requirePlayer(state, t.playerId))
+          : state.players.filter((p) => p.id !== controllerId);
+      for (const player of losers) {
         if (player.hasLost) continue;
         player.life -= effect.amount;
         log(state, `${player.id} loses ${effect.amount} life`);
       }
+      return;
+    }
+    case "discard": {
+      /*
+       * Which card is really the discarding player's choice, and there is no
+       * way to ask somebody who is not the one resolving this. Taken at random
+       * instead - see the note on the effect type. Against a human opponent
+       * that is strictly harsher than the printed card.
+       */
+      for (const player of state.players) {
+        if (player.id === controllerId) continue; // "each opponent"
+        if (player.hasLost) continue;
+        for (let i = 0; i < effect.amount && player.hand.length > 0; i++) {
+          const index = Math.floor(Math.random() * player.hand.length);
+          const card = player.hand[index]!;
+          log(state, `${player.id} discards ${cardName(state, card.instanceId)}`);
+          moveCard(state, card.instanceId, "graveyard");
+        }
+      }
+      return;
+    }
+    case "surveil": {
+      /*
+       * Look at the top card, then choose whether it goes to the graveyard.
+       *
+       * Rides on the search machinery deliberately - see `PendingSearch.noShuffle`.
+       * An empty library is not an error and is not a draw: there is simply
+       * nothing to look at.
+       */
+      const library = controller.library;
+      if (library.length === 0) return;
+      state.pendingSearch = {
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: library.slice(0, effect.amount).map((card) => card.instanceId),
+        destination: "graveyard",
+        noShuffle: true,
+        prompt: `Surveil ${effect.amount}: you may put this card into your graveyard`,
+        followUp: pendingFollowUp,
+      };
+      return;
+    }
+    case "payLifeToEnterUntapped": {
+      const source = findInstance(state, sourceInstanceId);
+      if (!source) return;
+      requirePlayer(state, source.instance.controllerId).life -= effect.life;
+      source.instance.tapped = false;
+      log(state, `${source.instance.controllerId} pays ${effect.life} life; ${cardName(state, sourceInstanceId)} enters untapped`);
       return;
     }
     case "counter": {
@@ -498,6 +581,11 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
       putOntoBattlefield(state, instanceId, { tapped: pending.tapped });
     } else if (pending.destination === "hand") {
       moveCard(state, instanceId, "hand");
+    } else if (pending.destination === "graveyard") {
+      // Surveil's "yes". A card put into the graveyard from the library is an
+      // ordinary zone change, so it goes through the same door everything
+      // else does.
+      moveCard(state, instanceId, "graveyard");
     }
     // "library-top" is deliberately not handled here: the card has to survive
     // the shuffle below and *then* go on top, which is the order the cards
@@ -511,8 +599,11 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
   const sourceInstanceId = pending.sourceInstanceId;
   const effectControllerId = pending.effectControllerId;
   const destination = pending.destination;
+  const noShuffle = pending.noShuffle;
   state.pendingSearch = null;
-  shuffleLibrary(state, playerId);
+  // Surveil never shuffles - you looked at the top card and put it back, or
+  // did not. Shuffling would throw away the information the card just bought.
+  if (!noShuffle) shuffleLibrary(state, playerId);
 
   /*
    * Sylvan Tutor's ordering, and it is the whole card.

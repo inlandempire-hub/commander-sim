@@ -1,7 +1,7 @@
 import type { CardInstance, GameState } from "./types.js";
 import { log, requireDefinition, requirePlayer } from "./state.js";
 import { gainLife } from "./life.js";
-import { effectivePower, effectiveToughness } from "./counters.js";
+import { effectivePower, effectiveToughness, hasKeyword } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
 import { pushTrigger } from "./permanents.js";
 
@@ -19,9 +19,8 @@ import { pushTrigger } from "./permanents.js";
 export type DamageStep = "first-strike" | "regular";
 
 function dealsDamageIn(state: GameState, instance: CardInstance, step: DamageStep): boolean {
-  const keywords = requireDefinition(state, instance.definitionId).keywords;
-  const first = keywords?.includes("First Strike") ?? false;
-  const double = keywords?.includes("Double Strike") ?? false;
+  const first = hasKeyword(state, instance, "First Strike");
+  const double = hasKeyword(state, instance, "Double Strike");
   if (step === "first-strike") return first || double;
   return !first || double;
 }
@@ -32,8 +31,7 @@ export function combatHasFirstStrike(state: GameState): boolean {
   return involved.some((id) => {
     const found = findOnAnyBattlefield(state, id);
     if (!found) return false;
-    const keywords = requireDefinition(state, found.instance.definitionId).keywords;
-    return (keywords?.includes("First Strike") ?? false) || (keywords?.includes("Double Strike") ?? false);
+    return hasKeyword(state, found.instance, "First Strike") || hasKeyword(state, found.instance, "Double Strike");
   });
 }
 
@@ -63,9 +61,9 @@ export function attackProblem(state: GameState, playerId: string, attackerInstan
   if (!instance) return "That creature is not on your battlefield";
   const def = requireDefinition(state, instance.definitionId);
   if (!def.types.includes("Creature")) return `${def.name} is not a creature`;
-  if (def.keywords?.includes("Defender")) return `${def.name} has defender and cannot attack`;
+  if (hasKeyword(state, instance, "Defender")) return `${def.name} has defender and cannot attack`;
   if (instance.tapped) return `${def.name} is tapped and cannot attack`;
-  const hasHaste = def.keywords?.includes("Haste") ?? false;
+  const hasHaste = hasKeyword(state, instance, "Haste");
   if (instance.summoningSickness && !hasHaste) {
     return `${def.name} came into play this turn and cannot attack yet`;
   }
@@ -98,9 +96,8 @@ export function blockProblem(
   const attackerFound = findOnAnyBattlefield(state, attackerInstanceId);
   if (attackerFound) {
     const attackerDef = requireDefinition(state, attackerFound.instance.definitionId);
-    if (attackerDef.keywords?.includes("Flying")) {
-      const canReachIt =
-        (blockerDef.keywords?.includes("Flying") ?? false) || (blockerDef.keywords?.includes("Reach") ?? false);
+    if (hasKeyword(state, attackerFound.instance, "Flying")) {
+      const canReachIt = hasKeyword(state, blocker, "Flying") || hasKeyword(state, blocker, "Reach");
       if (!canReachIt) {
         return `${blockerDef.name} cannot block ${attackerDef.name} - it has flying, and this has neither flying nor reach`;
       }
@@ -123,7 +120,7 @@ export function declareAttackers(state: GameState, playerId: string, declaration
     if (problem) throw new Error(problem);
     const instance = player.battlefield.find((c) => c.instanceId === attackerInstanceId)!;
     const def = requireDefinition(state, instance.definitionId);
-    const hasVigilance = def.keywords?.includes("Vigilance") ?? false;
+    const hasVigilance = hasKeyword(state, instance, "Vigilance");
     if (!hasVigilance) instance.tapped = true;
     state.attackers[attackerInstanceId] = defendingPlayerId;
   }
@@ -169,7 +166,7 @@ export function declareBlockers(state: GameState, playerId: string, declarations
     const attackerFound = findOnAnyBattlefield(state, attackerInstanceId);
     if (!attackerFound) continue;
     const attackerDef = requireDefinition(state, attackerFound.instance.definitionId);
-    if (attackerDef.keywords?.includes("Menace")) {
+    if (hasKeyword(state, attackerFound.instance, "Menace")) {
       throw new Error(`${attackerDef.name} has menace and can't be blocked by only one creature`);
     }
   }
@@ -233,9 +230,9 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
     if (attackerFound.instance.removedFromCombat) continue;
     const attackerDef = requireDefinition(state, attackerFound.instance.definitionId);
     const power = effectivePower(state, attackerFound.instance);
-    const attackerHasDeathtouch = attackerDef.keywords?.includes("Deathtouch") ?? false;
-    const attackerHasLifelink = attackerDef.keywords?.includes("Lifelink") ?? false;
-    const attackerHasTrample = attackerDef.keywords?.includes("Trample") ?? false;
+    const attackerHasDeathtouch = hasKeyword(state, attackerFound.instance, "Deathtouch");
+    const attackerHasLifelink = hasKeyword(state, attackerFound.instance, "Lifelink");
+    const attackerHasTrample = hasKeyword(state, attackerFound.instance, "Trample");
     const attackerStrikesNow = dealsDamageIn(state, attackerFound.instance, step);
 
     const declaredBlockerIds = blockersByAttacker.get(attackerInstanceId) ?? [];
@@ -300,10 +297,9 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
 
       if (!dealsDamageIn(state, blockerFound.instance, step)) continue;
 
-      const blockerDef = requireDefinition(state, blockerFound.instance.definitionId);
       const blockerPower = effectivePower(state, blockerFound.instance);
-      const blockerHasDeathtouch = blockerDef.keywords?.includes("Deathtouch") ?? false;
-      const blockerHasLifelink = blockerDef.keywords?.includes("Lifelink") ?? false;
+      const blockerHasDeathtouch = hasKeyword(state, blockerFound.instance, "Deathtouch");
+      const blockerHasLifelink = hasKeyword(state, blockerFound.instance, "Lifelink");
 
       const { dealt: dealtToAttacker } = damageCreature(state, attackerFound.instance, blockerPower);
       if (blockerHasDeathtouch && dealtToAttacker > 0) anyBlockerDeathtouchDamage = true;

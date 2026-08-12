@@ -1,6 +1,7 @@
 import type { GameState, StackTarget } from "./types.js";
 import { findInstance, requirePlayer, requireDefinition } from "./state.js";
 import { canPayManaCost, payManaCost } from "./mana.js";
+import { hasKeyword } from "./counters.js";
 
 /**
  * Ward: "Whenever this creature becomes the target of a spell or ability an
@@ -24,7 +25,7 @@ export function attemptWardPayments(state: GameState, casterId: string, targets:
     if (!found) continue;
     if (found.instance.controllerId === casterId) continue; // Ward only triggers against opponents' spells/abilities
     const def = requireDefinition(state, found.instance.definitionId);
-    if (!def.keywords?.includes("Ward")) continue;
+    if (!hasKeyword(state, found.instance, "Ward")) continue;
     const cost = def.wardCost ?? { generic: 0, colors: {} };
     if (!canPayManaCost(caster, cost)) return false;
     payManaCost(caster, cost);

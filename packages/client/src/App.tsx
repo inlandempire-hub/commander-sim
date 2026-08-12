@@ -389,6 +389,31 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
       : undefined;
 
   /*
+   * A triggered ability parked waiting for a target - Blood Artist, Duskshell
+   * Crawler. Same rule again: only the seat that owns it is asked.
+   *
+   * Unlike `pendingTarget`, this is not something this client set up. The
+   * engine decided the ability targets, worked out every legal answer, and is
+   * holding the whole game until one is named - so the candidate list comes
+   * from the state rather than from a selector evaluated here, and the board
+   * lights up from that list.
+   */
+  const pendingTriggerChoice =
+    state.pendingTargetChoices[0] && controller.canControlPlayer(state.pendingTargetChoices[0].playerId)
+      ? state.pendingTargetChoices[0]
+      : undefined;
+  const triggerCandidateInstanceIds = new Set(
+    (pendingTriggerChoice?.candidates ?? [])
+      .filter((c): c is Extract<typeof c, { kind: "card" }> => c.kind === "card")
+      .map((c) => c.instanceId),
+  );
+  const triggerCandidatePlayerIds = new Set(
+    (pendingTriggerChoice?.candidates ?? [])
+      .filter((c): c is Extract<typeof c, { kind: "player" }> => c.kind === "player")
+      .map((c) => c.playerId),
+  );
+
+  /*
    * An opening hand waiting on this client. Same rule as a pending search: the
    * bot answers its own through the engine, and over the network each player
    * answers theirs, so a seat this client doesn't drive shows nothing.
@@ -486,6 +511,12 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   }
 
   function handleBattlefieldCardClick(ownerId: string, instanceId: string) {
+    // A parked trigger comes first: nobody has priority while one is waiting,
+    // so no other click on the board can mean anything yet.
+    if (pendingTriggerChoice && triggerCandidateInstanceIds.has(instanceId)) {
+      controller.chooseTriggerTarget(pendingTriggerChoice.playerId, { kind: "card", instanceId });
+      return;
+    }
     if (pendingTarget) {
       const { ownerId: casterId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
       if (kind === "ability") {
@@ -647,6 +678,10 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   }
 
   function handlePlayerTargetClick(playerId: string) {
+    if (pendingTriggerChoice && triggerCandidatePlayerIds.has(playerId)) {
+      controller.chooseTriggerTarget(pendingTriggerChoice.playerId, { kind: "player", playerId });
+      return;
+    }
     if (!pendingTarget) return;
     const { ownerId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
     if (kind === "ability") {
@@ -817,6 +852,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     selectingGraveyardTarget:
       pendingSelectorKind === "card-in-your-graveyard" && player.id === pendingTarget?.ownerId,
     selectingPermanentTypes: pendingPermanentTypes,
+    triggerTargetIds: triggerCandidateInstanceIds,
     canPlay:
       // Only for seats this client actually plays, and only while they hold
       // priority - a highlight during someone else's window would be promising
@@ -982,7 +1018,11 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
 
         <TablePrompt
           prompt={
-            pendingTarget
+            // A parked trigger holds the whole game, so its question comes
+            // first - there is nothing else the player could be doing.
+            pendingTriggerChoice
+              ? pendingTriggerChoice.prompt
+              : pendingTarget
               ? `Choose a target for ${pendingTarget.cardName}`
               : // Blocking is two clicks and neither is guessable, so say so.
                 isDeclareBlockersStep && controller.canControlPlayer(defendingPlayerId)
@@ -1032,6 +1072,9 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             cardDefinitions={state.cardDefinitions}
             onChoose={(instanceId) => controller.resolveSearch(pendingSearch.playerId, instanceId)}
             onDecline={() => controller.resolveSearch(pendingSearch.playerId, null)}
+            // A surveil that finds nothing leaves the card where it was; a
+            // tutor that finds nothing takes nothing. Different sentences.
+            declineLabel={pendingSearch.destination === "graveyard" ? "Leave it on top" : undefined}
             onHover={handleHover}
           />
         )}

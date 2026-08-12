@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TEST_CARD_DEFINITIONS } from "@mtg-commander-sim/engine";
-import { describeActivated, describeCard } from "../cardText.js";
+import { describeActivated, describeCard, tokenName } from "../cardText.js";
 
 /**
  * The card panel is the only place a player reads what a card does - there is
@@ -240,12 +240,86 @@ describe("tokens, as the card prints them", () => {
   });
 
   it("describes every token in the pool distinctly", () => {
-    // Two tokens rendering identically is the failure this guards: it would
-    // mean the panel cannot tell you which one a card actually makes.
+    /*
+     * Two tokens rendering identically is the failure this guards: it would
+     * mean the panel cannot tell you which one a card actually makes.
+     *
+     * This used to build its own key out of stats, colour and keywords rather
+     * than rendering anything - so despite the name it was testing the
+     * fixtures, not the renderer, and it passed on a renderer that could not
+     * tell two tokens apart at all. The two Pests are exactly that case: same
+     * body, same colours, no keywords, and different rules text.
+     *
+     * `tokenName` and not `describeCard`: rules text alone is empty for a
+     * vanilla token, so the Soldier and the Saproling would collide on a
+     * renderer that is working perfectly.
+     */
     const rendered = Object.values(TEST_CARD_DEFINITIONS)
       .filter((def) => def.isToken)
-      .map((def) => `${def.power}/${def.toughness} ${(def.colorIdentity ?? []).join("")} ${def.name} ${(def.keywords ?? []).join(",")}`);
+      .map((def) => tokenName(def));
     expect(new Set(rendered).size).toBe(rendered.length);
+  });
+
+  it("prints a granted keyword, which used to vanish from the panel", () => {
+    // staticBuff only ever adjusted power and toughness, so a panel that
+    // dropped "and have menace" read as a complete card that was simply worse.
+    expect(textOf("blight-mound")).toContain("Attacking Pests you control get +1/+0 and have menace.");
+    expect(textOf("duskshell-crawler")).toContain(
+      "Each creature you control with a +1/+1 counter on it has trample.",
+    );
+  });
+
+  it("drops a +0/+0 from a card that is entirely about its keywords", () => {
+    // Heroic Intervention is +0/+0. "Permanents you control get +0/+0 and gain
+    // hexproof" buries the card under a number that means nothing.
+    expect(textOf("heroic-intervention")).toBe(
+      "Permanents you control gain hexproof and indestructible until end of turn.",
+    );
+  });
+
+  it("names the target on a trigger that chooses one", () => {
+    expect(textOf("duskshell-crawler")).toContain(
+      "When this creature enters the battlefield, put a +1/+1 counter on target creature.",
+    );
+    // Both halves of the sequence, and each aimed at the right person.
+    expect(textOf("blood-artist")).toBe(
+      "Whenever a creature dies, target player loses 1 life. You gain 1 life.",
+    );
+  });
+
+  it("says what a shockland costs", () => {
+    // This used to render as "{T}: Add {B}. {T}: Add {G}." - an unconditional
+    // untapped dual, which is a better card than the one being played.
+    expect(textOf("overgrown-tomb")).toContain(
+      "As this land enters, you may pay 2 life. If you don't, it enters tapped.",
+    );
+  });
+
+  it("renders the two new trigger events in the card's own words", () => {
+    expect(textOf("arasta-of-the-endless-web")).toContain(
+      "Whenever an opponent casts an instant or sorcery spell,",
+    );
+    expect(textOf("hornet-nest")).toContain("Whenever this creature is dealt damage, create that many");
+  });
+
+  it("renders surveil and every mode of a charm", () => {
+    // Lowercased by the trigger prefix, as every effect tail is.
+    expect(textOf("underground-mortuary")).toContain(
+      "When this land enters the battlefield, surveil 1.",
+    );
+    const charm = textOf("golgari-charm");
+    expect(charm).toContain("All creatures get -1/-1 until end of turn");
+    expect(charm).toContain("Destroy target enchantment");
+    expect(charm).toContain("Regenerate each creature you control");
+  });
+
+  it("quotes a token's own rules text, which is all that tells two Pests apart", () => {
+    expect(textOf("blight-mound")).toContain(
+      'Pest creature token with "When this token dies, you gain 1 life."',
+    );
+    expect(textOf("send-in-the-pest")).toContain(
+      'Pest creature token with "Whenever this token attacks, you gain 1 life."',
+    );
   });
 });
 

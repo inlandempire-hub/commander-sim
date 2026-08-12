@@ -8,9 +8,11 @@ import type {
   TriggerCondition,
   TriggeredAbility,
 } from "./types.js";
-import { cardName, findInstance, moveCard, requireDefinition } from "./state.js";
+import { cardName, findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import { meetsBoardCondition } from "./conditions.js";
+import { hasKeyword } from "./counters.js";
 import { resolveAmounts } from "./x.js";
+import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
 
 /**
  * The two ways an object arrives somewhere and may set triggers off: onto the
@@ -98,7 +100,7 @@ export function enteredBattlefield(
   options: { tapped?: boolean } = {},
 ): void {
   const def = requireDefinition(state, instance.definitionId);
-  if (def.keywords?.includes("Haste")) instance.summoningSickness = false;
+  if (hasKeyword(state, instance, "Haste")) instance.summoningSickness = false;
   // Either the card says so on its face, or whatever put it here said so (a
   // ramp spell fetching a land onto the battlefield tapped). Not exclusive:
   // a land that enters tapped anyway still enters tapped when fetched.
@@ -108,6 +110,36 @@ export function enteredBattlefield(
   // make Deathcap Glade untapped off a single land, one turn too early.
   if (options.tapped || (def.entersTapped && !entersUntapped(state, instance, def))) {
     instance.tapped = true;
+  }
+
+  /*
+   * The shockland question: "as this land enters, you may pay N life; if you
+   * don't, it enters tapped."
+   *
+   * Asked here, with the land already tapped, and answering yes untaps it -
+   * see `payLifeToEnterUntapped` for why that shortcut is sound and where it
+   * would stop being so. The question is skipped outright when the life is not
+   * there to pay: paying down to exactly 0 is legal and loses you the game, so
+   * an engine that offered it would be offering a way to concede by accident.
+   */
+  if (def.entersTappedUnlessPayLife !== undefined && !options.tapped) {
+    instance.tapped = true;
+    const controller = requirePlayer(state, instance.controllerId);
+    if (controller.life > def.entersTappedUnlessPayLife) {
+      state.pendingConfirmation = {
+        playerId: instance.controllerId,
+        sourceInstanceId: instance.instanceId,
+        prompt: `${def.name}: pay ${def.entersTappedUnlessPayLife} life so it enters untapped?`,
+        object: {
+          id: `enters-${instance.instanceId}`,
+          sourceInstanceId: instance.instanceId,
+          controllerId: instance.controllerId,
+          effect: { kind: "payLifeToEnterUntapped", life: def.entersTappedUnlessPayLife },
+          targets: [],
+          isPermanentSpell: false,
+        },
+      };
+    }
   }
 
   // Triggers printed on the permanent that just arrived.
@@ -185,7 +217,7 @@ export function describeSubject(
  */
 export function fireWatchers(
   state: GameState,
-  event: "permanent-enters" | "permanent-dies",
+  event: "permanent-enters" | "permanent-dies" | "spell-cast",
   subject: TriggerSubject,
   alsoSelf?: CardInstance,
 ): void {
@@ -250,7 +282,12 @@ export function matchesWatchFor(
   watcherControllerId?: string,
 ): boolean {
   if (!watchFor) return true;
-  if (watchFor.type && !subject.def.types.includes(watchFor.type)) return false;
+  if (watchFor.type) {
+    // One type or a list of them - "an instant or sorcery spell" is one
+    // question with two acceptable answers, not two separate filters.
+    const wanted = Array.isArray(watchFor.type) ? watchFor.type : [watchFor.type];
+    if (!wanted.some((type) => subject.def.types.includes(type))) return false;
+  }
   if (watchFor.subtype && !(subject.def.subtypes ?? []).includes(watchFor.subtype)) return false;
   if (watchFor.withCounter && !subject.hadCounters) return false;
   if (watchFor.nontoken && subject.isToken) return false;
@@ -277,6 +314,12 @@ export function pushTrigger(
   sourceInstanceId: string,
   controllerId: string,
   trigger: TriggeredAbility,
+  /**
+   * The number this event carried, for a trigger whose effect says "that
+   * many" - how much damage Hornet Nest was just dealt. Substituted here
+   * alongside X, so nothing downstream ever sees an unresolved marker.
+   */
+  eventAmount?: number,
 ): StackObject | null {
   // Rule 603.4, first check: an intervening-if that is false right now means
   // the ability never goes on the stack at all.
@@ -293,7 +336,53 @@ export function pushTrigger(
    * one shape: by the time anything downstream sees the effect, X is a number.
    */
   const chosenX = findInstance(state, sourceInstanceId)?.instance.chosenX ?? 0;
-  const effect = resolveAmounts(trigger.effect, chosenX);
+  const effect = resolveAmounts(trigger.effect, { x: chosenX, eventAmount });
+
+  /*
+   * A trigger that targets is pointed at something before it goes on the
+   * stack, not as it resolves (rule 603.3d) - so it is parked here and pushed
+   * by `chooseTriggerTarget` once answered.
+   *
+   * With no legal target the ability is simply removed from the stack and
+   * never happens, which is the real rule and not a shortcut. With exactly one
+   * it is taken without asking: the player has no decision to make, and a
+   * picker offering a single button is noise rather than a choice.
+   */
+  const selector = targetSelectorOf(effect);
+  if (selector) {
+    const candidates = legalTargetsFor(state, selector, controllerId);
+    if (candidates.length === 0) {
+      log(state, `${cardName(state, sourceInstanceId)} has no legal target and does nothing`);
+      return null;
+    }
+    const object: StackObject = {
+      id: `t${state.nextStackObjectId++}`,
+      sourceInstanceId,
+      controllerId,
+      effect,
+      targets: [],
+      isPermanentSpell: false,
+    };
+    if (trigger.optional) {
+      object.optional = true;
+      object.prompt = `${cardName(state, sourceInstanceId)}: ${describeOptionalEffect(trigger.effect)}`;
+    }
+    if (trigger.onlyIf) object.onlyIf = trigger.onlyIf;
+
+    if (candidates.length === 1) {
+      object.targets = [candidates[0]!];
+      state.stack.push(object);
+      return object;
+    }
+    state.pendingTargetChoices.push({
+      playerId: controllerId,
+      sourceInstanceId,
+      candidates,
+      prompt: `${cardName(state, sourceInstanceId)}: choose a target`,
+      object,
+    });
+    return null;
+  }
 
   const obj = pushOntoStack(state, sourceInstanceId, controllerId, effect, [], false);
   if (trigger.optional) {
@@ -302,6 +391,34 @@ export function pushTrigger(
   }
   if (trigger.onlyIf) obj.onlyIf = trigger.onlyIf;
   return obj;
+}
+
+/**
+ * Points a parked trigger at something and puts it on the stack.
+ *
+ * Re-checked against the pending entry rather than trusted, the same way
+ * `resolveSearch` and `resolveConfirmation` are: a client cannot answer a
+ * question that was asked of somebody else, and cannot name a target the
+ * engine did not offer.
+ */
+export function chooseTriggerTarget(state: GameState, playerId: string, target: StackTarget): void {
+  const pending = state.pendingTargetChoices[0];
+  if (!pending) throw new Error("No trigger is waiting for a target");
+  if (pending.playerId !== playerId) throw new Error(`The choice belongs to ${pending.playerId}`);
+  const chosen = pending.candidates.find((candidate) => sameTarget(candidate, target));
+  if (!chosen) throw new Error("That is not a legal target for this ability");
+
+  state.pendingTargetChoices.shift();
+  pending.object.targets = [chosen];
+  state.stack.push(pending.object);
+}
+
+function sameTarget(a: StackTarget, b: StackTarget): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "player" && b.kind === "player") return a.playerId === b.playerId;
+  if (a.kind === "card" && b.kind === "card") return a.instanceId === b.instanceId;
+  if (a.kind === "spell" && b.kind === "spell") return a.stackObjectId === b.stackObjectId;
+  return false;
 }
 
 /** Rule 603.4's condition, checked when the trigger fires and again when it resolves. */

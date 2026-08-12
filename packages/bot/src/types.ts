@@ -17,6 +17,8 @@ export type BotAction =
   | { kind: "resolveSearch"; instanceId: string | null }
   /** Answering a "you may" trigger that stopped mid-resolution. */
   | { kind: "resolveConfirmation"; accept: boolean }
+  /** Pointing a triggered ability at something before it goes on the stack. */
+  | { kind: "chooseTriggerTarget"; target: StackTarget }
   /** Settling an opening hand, before the game has begun. */
   | { kind: "takeMulligan" }
   | { kind: "keepHand" }

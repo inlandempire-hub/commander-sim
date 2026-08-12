@@ -201,6 +201,7 @@ function runAutomaticStepActions(state: GameState): void {
         for (const instance of player.battlefield) {
           instance.damageMarked = 0;
           instance.deathtouchDamage = false;
+          instance.grantedKeywords = []; // Heroic Intervention's hexproof wears off with everything else
           instance.temporaryPowerBonus = 0; // "until end of turn" effects wear off here
           instance.temporaryToughnessBonus = 0;
           instance.damagePrevention = 0;

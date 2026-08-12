@@ -97,6 +97,10 @@ function signed(n: number): string {
  */
 function signedAmount(amount: Amount): string {
   if (typeof amount === "number") return signed(amount);
+  // `event-amount` is "that many", which no card puts in a power/toughness
+  // slot - it only ever counts tokens. Rendered rather than thrown, because
+  // the panel's job is to describe whatever it is handed.
+  if (amount.kind === "event-amount") return "that many";
   return amount.negate ? "-X" : "+X";
 }
 
@@ -115,12 +119,30 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         .join("")}.`;
     case "gainLife":
       return `You gain ${effect.amount} life.`;
+    case "discard":
+      return `Each opponent discards ${countWord(effect.amount)} ${plural(effect.amount, "card")}.`;
+    case "surveil":
+      return `Surveil ${effect.amount}.`;
+    case "payLifeToEnterUntapped":
+      // Never written on a fixture - built by the engine as the land arrives -
+      // but the panel can be asked to describe anything, so it gets a sentence
+      // rather than falling through to the catch-all.
+      return `Pay ${effect.life} life.`;
+    case "regenerateAll":
+      return "Regenerate each creature you control.";
     case "preventDamage":
       return `Prevent the next ${effect.amount} damage that would be dealt to ${describeTarget(
         effect.target,
       )} this turn.`;
-    case "addCounter":
-      return `Put ${effect.amount} +1/+1 ${plural(effect.amount, "counter")} on this creature.`;
+    case "addCounter": {
+      // Same optional-target convention as `pump`: named on Duskshell Crawler,
+      // unnamed on "{cost}: put a +1/+1 counter on this creature".
+      const who = effect.target ? describeTarget(effect.target) : "this creature";
+      // "a +1/+1 counter", not "1 +1/+1 counter" - no printed card says the latter.
+      return sentence(
+        `Put ${countWord(effect.amount)} +1/+1 ${plural(effect.amount, "counter")} on ${who}.`,
+      );
+    }
     case "addCounterToEachOther": {
       // "each other Hero you control" vs "each Pest, Bat, Insect, Snake, and
       // Spider you control" - the "other" is dropped when the source counts
@@ -142,6 +164,11 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       const token = definitions[effect.tokenDefinitionId];
       if (!token) return `Create ${effect.count} ${effect.tokenDefinitionId}.`;
       const name = tokenName(token);
+      // "Create that many ..." - Hornet Nest, where the count is the damage
+      // the event carried and is not known until it fires.
+      if (typeof effect.count !== "number") {
+        return `Create that many ${name.replace(" token", " tokens")}.`;
+      }
       // "Create a 1/1 black Snake creature token with deathtouch." / "Create
       // four 1/1 green Insect creature tokens with flying and deathtouch."
       // `countWord(1)` is "a", which is the article the cards use rather than
@@ -157,14 +184,25 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       );
     }
     case "pumpAll": {
-      const [who, verb] =
-        effect.scope === "controller" ? ["Creatures you control", "get"] : ["All creatures", "get"];
-      return `${who} ${verb} ${signedAmount(effect.power)}/${signedAmount(effect.toughness)} until end of turn.`;
+      const noun = (effect.appliesTo ?? "creatures") === "permanents" ? "Permanents" : "Creatures";
+      const who = effect.scope === "controller" ? `${noun} you control` : `All ${noun.toLowerCase()}`;
+      /*
+       * Heroic Intervention is +0/+0 and is entirely about the keywords, so
+       * printing "get +0/+0 and gain hexproof" would bury the card under a
+       * number that means nothing. A pump of zero is dropped from the sentence.
+       */
+      const pumps = effect.power !== 0 || effect.toughness !== 0;
+      const parts: string[] = [];
+      if (pumps) parts.push(`get ${signedAmount(effect.power)}/${signedAmount(effect.toughness)}`);
+      if (effect.grants?.length) parts.push(`gain ${listAnd(effect.grants.map((k) => k.toLowerCase()))}`);
+      return `${who} ${parts.join(" and ")} until end of turn.`;
     }
     case "loseLife":
       // Loss, not damage, and the panel says so - a player who reads "deals 1
       // damage to each opponent" will expect prevention and lifelink to matter.
-      return `Each opponent loses ${effect.amount} life.`;
+      return effect.who === "target" && effect.target
+        ? sentence(`${describeTarget(effect.target)} loses ${effect.amount} life.`)
+        : `Each opponent loses ${effect.amount} life.`;
     case "counter": {
       const unless = effect.unlessPays
         ? ` unless its controller pays ${formatManaCost(effect.unlessPays)}`
@@ -248,14 +286,39 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
  * "1/1 Insect" describes both - so the panel would show the same line for two
  * genuinely different tokens.
  */
-function tokenName(token: CardDefinition): string {
+/**
+ * The whole noun phrase a card prints for a token it makes - "a 1/1 black and
+ * green Pest creature token with 'When this token dies, you gain 1 life.'"
+ *
+ * Exported because it is the only complete description of a token there is.
+ * `describeCard` renders rules text alone, which is empty for a vanilla token
+ * and identical for every vanilla token - so it cannot answer "which token does
+ * this card make", and that is the question the panel is asked.
+ */
+export function tokenName(token: CardDefinition): string {
   const stats = token.power !== undefined ? `${token.power}/${token.toughness} ` : "";
   const colors = (token.colorIdentity ?? []).map(colorWord).join(" and ");
   const body = `${stats}${colors ? `${colors} ` : ""}${token.name} creature`;
   const keywords = token.keywords ?? [];
-  return keywords.length > 0
-    ? `${body} token with ${listAnd(keywords.map((k) => k.toLowerCase()))}`
-    : `${body} token`;
+  /*
+   * A token with rules text of its own is quoted, exactly as the card prints
+   * it: "a 1/1 black and green Pest creature token with 'When this token dies,
+   * you gain 1 life.'"
+   *
+   * Not decoration. Blight Mound and Send in the Pest both make a 1/1 black and
+   * green Pest, and the *only* difference between them is that quoted line -
+   * one pays out when the token dies, the other when it attacks. Without this
+   * the panel prints the same sentence for both cards.
+   */
+  const printed = (token.triggeredAbilities ?? [])
+    .map((trigger) => describeTrigger(trigger, {}, token))
+    .join(" ");
+  const withClause = keywords.length > 0 ? ` with ${listAnd(keywords.map((k) => k.toLowerCase()))}` : "";
+  if (printed) {
+    const joiner = withClause ? `${withClause} and` : " with";
+    return `${body} token${joiner} "${printed}"`;
+  }
+  return `${body} token${withClause}`;
 }
 
 /** "flying and deathtouch", "flying, deathtouch, and trample". */
@@ -272,10 +335,64 @@ function countWord(n: number): string {
 
 /** "creature", "Aura", "permanent" - what a watcher is looking out for. */
 function watchedNoun(watchFor: TriggeredAbility["watchFor"]): string {
-  const base = watchFor?.subtype ?? watchFor?.type?.toLowerCase() ?? "permanent";
+  // A list of types is only ever written on a spell trigger, which uses
+  // `watchedSpell` instead - but the field allows one, so this reads it rather
+  // than printing "[object Object]" the day a permanent trigger names two.
+  const types = watchFor?.type;
+  const typeNoun = Array.isArray(types)
+    ? types.map((t) => t.toLowerCase()).join(" or ")
+    : types?.toLowerCase();
+  const base = watchFor?.subtype ?? typeNoun ?? "permanent";
   // "nontoken creature" is printed as one noun phrase, so it belongs here
   // rather than as a clause tacked on the end.
   return watchFor?.nontoken ? `nontoken ${base}` : base;
+}
+
+/** Who is doing the casting, for a `spell-cast` trigger. */
+function castSubject(ability: TriggeredAbility): string {
+  return ability.watchFor?.controlledBy === "opponent" ? "an opponent" : "a player";
+}
+
+/** "an instant or sorcery spell" - the spell a `spell-cast` trigger watches for. */
+function watchedSpell(watchFor: TriggeredAbility["watchFor"]): string {
+  const types = watchFor?.type;
+  if (!types) return "a spell";
+  const list = Array.isArray(types) ? types : [types];
+  return `an ${list.map((t) => t.toLowerCase()).join(" or ")} spell`;
+}
+
+/**
+ * A static buff in the card's own words, keywords and restriction included.
+ *
+ * This used to print "Other <subtype>s you control get +N/+N" and nothing else,
+ * which was true of every card in the pool until three of them started granting
+ * keywords and narrowing who they reach. A panel that silently drops "and have
+ * menace" is worse than one that says nothing: it reads as a complete card.
+ */
+function describeStaticBuff(buff: NonNullable<CardDefinition["staticBuff"]>): string {
+  const noun = buff.subtype ? `${buff.subtype}s` : "creatures";
+  // "Attacking Pests you control", "Each creature you control with a +1/+1
+  // counter on it" - the restriction is part of the subject, not a trailing
+  // clause, which is how the cards print it.
+  // "Each creature ..." is singular and takes "gets"/"has"; every other form
+  // here is plural and takes "get"/"have". Printed as one sentence either way,
+  // so the verb has to agree or the panel reads as broken English.
+  const singular = buff.restriction === "with-counter";
+  const subject =
+    buff.restriction === "attacking"
+      ? `Attacking ${noun} you control`
+      : singular
+        ? `Each ${buff.subtype ?? "creature"} you control with a +1/+1 counter on it`
+        : `${buff.includesSelf ? "" : "Other "}${noun} you control`;
+
+  const parts: string[] = [];
+  if (buff.power !== 0 || buff.toughness !== 0) {
+    parts.push(`${singular ? "gets" : "get"} ${signed(buff.power)}/${signed(buff.toughness)}`);
+  }
+  if (buff.grants?.length) {
+    parts.push(`${singular ? "has" : "have"} ${listAnd(buff.grants.map((k) => k.toLowerCase()))}`);
+  }
+  return sentence(`${subject} ${parts.join(" and ")}.`);
 }
 
 /** "a creature you control with a +1/+1 counter on it" - the whole subject. */
@@ -385,9 +502,11 @@ function describeTrigger(
       // land enters", not "this permanent", which no card says.
       return `When this ${selfNoun(self)} enters the battlefield, ${tail}`;
     case "attacks":
-      return `Whenever this creature attacks, ${tail}`;
+      // "this token" on a token, which is the word its creator's card prints -
+      // "create a 1/1 Pest with 'Whenever this token attacks...'".
+      return `Whenever this ${self.isToken ? "token" : "creature"} attacks, ${tail}`;
     case "dies":
-      return `When this creature dies, ${tail}`;
+      return `When this ${self.isToken ? "token" : "creature"} dies, ${tail}`;
     case "landfall":
       return (ability.watches ?? "controller") === "any"
         ? `Whenever a land enters the battlefield, ${tail}`
@@ -401,6 +520,12 @@ function describeTrigger(
       return `Whenever ${watchedSubject(ability, self)} enters the battlefield, ${tail}`;
     case "permanent-dies":
       return `Whenever ${watchedSubject(ability, self)} dies, ${tail}`;
+    case "spell-cast":
+      // The subject is a spell, so `watchedSubject`'s permanent vocabulary is
+      // wrong here - "an instant or sorcery spell", not "an instant permanent".
+      return `Whenever ${castSubject(ability)} casts ${watchedSpell(ability.watchFor)}, ${tail}`;
+    case "damaged":
+      return `Whenever this creature is dealt damage, ${tail}`;
     case "upkeep":
       return `At the beginning of ${whoseStep} upkeep, ${tail}`;
     case "first-main":
@@ -540,11 +665,22 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
     lines.push(`This ${noun} enters tapped${unless}.`);
   }
 
-  if (def.staticBuff) {
-    const who = def.staticBuff.subtype ? `${def.staticBuff.subtype}s` : "creatures";
+  /*
+   * The shockland's price.
+   *
+   * Nothing rendered this at all, so Overgrown Tomb's panel read "{T}: Add
+   * {B}. {T}: Add {G}." - an unconditional untapped dual, which is a strictly
+   * better card than the one being played and the exact failure the tapland
+   * line above exists to prevent.
+   */
+  if (def.entersTappedUnlessPayLife !== undefined) {
     lines.push(
-      `Other ${who} you control get ${signed(def.staticBuff.power)}/${signed(def.staticBuff.toughness)}.`,
+      `As this ${selfNoun(def)} enters, you may pay ${def.entersTappedUnlessPayLife} life. If you don't, it enters tapped.`,
     );
+  }
+
+  if (def.staticBuff) {
+    lines.push(describeStaticBuff(def.staticBuff));
   }
 
   for (const replacement of def.replacementEffects ?? []) {

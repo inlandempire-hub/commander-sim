@@ -35,7 +35,7 @@ DATA = Path(__file__).parent / "data" / "oracle-cards.jsonl.gz"
 # The events packages/engine/src/types.ts actually models.
 MODELLED = {
     "enters-battlefield", "attacks", "dies", "landfall", "permanent-enters", "gain-life",
-    "permanent-dies", "upkeep", "first-main", "begin-combat", "end-step",
+    "permanent-dies", "spell-cast", "damaged", "upkeep", "first-main", "begin-combat", "end-step",
 }
 
 
@@ -164,6 +164,13 @@ def classify(clause, card_name):
             return "permanent-enters", None
         return "enters-battlefield", None
 
+    # "Whenever this creature is dealt damage" became a real event on
+    # 2026-08-12 (Hornet Nest). *Dealing* damage still is not one: it is a
+    # different question asked of a different object, and nothing wants it yet.
+    if re.search(r"^when(ever)?\s+%s\s+is dealt damage" % self_ref, c):
+        return "damaged", None
+    if re.search(r"is dealt damage", c):
+        return None, "watches something else being dealt damage - not modelled"
     if re.search(r"deals combat damage to a player", c):
         return None, "combat damage to a player - not modelled"
     if re.search(r"deals damage", c):
@@ -199,6 +206,11 @@ def classify(clause, card_name):
     # invented - the audit contradicting itself about the same card.
     if re.search(r"^whenever you gain life", c):
         return "gain-life", None
+    # "Whenever an opponent casts an instant or sorcery spell" became a real
+    # event on 2026-08-12 (Arasta of the Endless Web). Checked before the
+    # catch-all below, which would otherwise call a correct fixture invented.
+    if re.search(r"^whenever an opponent casts", c):
+        return "spell-cast", None
     if re.search(r"you (cast|draw|gain|lose)", c):
         return None, "watches you casting/drawing/gaining - not modelled"
     if "becomes tapped" in c or "becomes the target" in c:

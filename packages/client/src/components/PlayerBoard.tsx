@@ -62,6 +62,14 @@ export interface PlayerBoardProps {
    * `attackChoice` on CardView.
    */
   eligibleAttackerIds: Set<string>;
+  /**
+   * Battlefield cards a parked triggered ability may legally be pointed at.
+   *
+   * Borrows the attacker "eligible" outline rather than inventing a colour: it
+   * already means "you may click this one", which is exactly what it means
+   * here, and a second blue would be a second thing to learn.
+   */
+  triggerTargetIds?: Set<string>;
   attackingIds: Set<string>;
   selectedBlockerSourceId: string | null;
   blockerAssignments: Record<string, string>;
@@ -109,6 +117,7 @@ export function PlayerBoard({
   hasPriority,
   selectedAttackerIds,
   eligibleAttackerIds,
+  triggerTargetIds,
   attackingIds,
   selectedBlockerSourceId,
   blockerAssignments,
@@ -582,7 +591,8 @@ export function PlayerBoard({
                     selectedAttackerIds.has(instance.instanceId) ||
                     attackingIds.has(instance.instanceId)
                       ? "chosen"
-                      : eligibleAttackerIds.has(instance.instanceId)
+                      : eligibleAttackerIds.has(instance.instanceId) ||
+                          triggerTargetIds?.has(instance.instanceId)
                         ? "eligible"
                         : undefined
                   }

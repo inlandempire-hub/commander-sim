@@ -1,4 +1,5 @@
 import {
+  effectiveKeywords,
   effectivePower,
   effectiveToughness,
   manaValue,
@@ -22,8 +23,18 @@ export function definitionOf(state: GameState, instance: CardInstance): CardDefi
   return state.cardDefinitions[instance.definitionId];
 }
 
+/**
+ * Whether this permanent has the keyword *right now* - printed, granted for the
+ * turn, or handed to it by something else on the battlefield.
+ *
+ * Delegates to the engine rather than reading `CardDefinition.keywords`, which
+ * is what it used to do. That was safe only while keywords were fixed: with
+ * Heroic Intervention and Blight Mound in the pool, a bot reading the printed
+ * list would block a menace attacker with one creature and trade into an
+ * indestructible one.
+ */
 export function hasKeyword(state: GameState, instance: CardInstance, keyword: string): boolean {
-  return definitionOf(state, instance)?.keywords?.includes(keyword as never) ?? false;
+  return effectiveKeywords(state, instance).includes(keyword as never);
 }
 
 export function isCreature(state: GameState, instance: CardInstance): boolean {

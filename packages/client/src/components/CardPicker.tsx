@@ -28,6 +28,12 @@ export interface CardPickerProps {
   onChoose: (instanceId: string) => void;
   /** Provided when declining is legal - a tutor may always find nothing. */
   onDecline?: () => void;
+  /**
+   * What declining is called. "Take nothing" is right for a tutor and wrong
+   * for a surveil, where you are not taking anything either way - the choice
+   * is whether the card goes to the graveyard or stays on top.
+   */
+  declineLabel?: string;
   onHover?: (definitionId: string | null, ownerId?: string, instanceId?: string) => void;
 }
 
@@ -51,6 +57,7 @@ export function CardPicker({
   cardDefinitions,
   onChoose,
   onDecline,
+  declineLabel,
   onHover,
 }: CardPickerProps) {
   const [query, setQuery] = useState("");
@@ -77,7 +84,7 @@ export function CardPicker({
           </span>
           {onDecline && (
             <button type="button" className="overlay__close" onClick={onDecline}>
-              Take nothing
+              {declineLabel ?? "Take nothing"}
             </button>
           )}
         </div>

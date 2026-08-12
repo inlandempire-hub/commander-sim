@@ -34,6 +34,8 @@ export interface GameController {
    * is mid-resolution and nobody has priority until this comes back.
    */
   resolveConfirmation(playerId: string, accept: boolean): void;
+  /** Points a triggered ability the engine parked at one of the targets it offered. */
+  chooseTriggerTarget(playerId: string, target: StackTarget): void;
   /** Opening hands, before the game starts. See the engine's mulligan.ts. */
   takeMulligan(playerId: string): void;
   keepHand(playerId: string): void;

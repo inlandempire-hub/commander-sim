@@ -83,7 +83,20 @@ export interface ManaCost {
  * value the effects layer has to understand: nothing in effects.ts, the bot or
  * the card-text renderer had to learn what X is.
  */
-export type Amount = number | { kind: "x"; negate?: boolean };
+export type Amount =
+  | number
+  | { kind: "x"; negate?: boolean }
+  /**
+   * "Whenever this creature is dealt damage, create **that many** tokens" -
+   * Hornet Nest. The number the event itself carried.
+   *
+   * Substituted the same way and at the same moment X is, by `resolveAmounts`
+   * as the trigger is put on the stack - which is what keeps both of them out
+   * of the effects layer entirely. Zero for any event that carries no number,
+   * so a card written with this on the wrong trigger does nothing rather than
+   * inventing a figure.
+   */
+  | { kind: "event-amount" };
 
 export type TargetSelector =
   | { kind: "any-target" }
@@ -168,7 +181,18 @@ export type Effect =
    * every existing reader alone and simply is not offered to them.
    */
   | { kind: "addManaCombination"; mana: Array<{ color: ManaColor; amount: number }> }
-  | { kind: "gainLife"; amount: number }
+  /**
+   * "You gain N life", or "target player gains N life" when a target is handed
+   * in - the default reads whatever the effect was pointed at, and falls back
+   * to the controller.
+   *
+   * `who: "controller"` overrides that, and Blood Artist is why it has to
+   * exist. Its ability is "**target player** loses 1 life and **you** gain 1
+   * life" - one sequence, one target, and two steps that mean different people
+   * by it. Left to the default, the life would go to the player who was just
+   * drained.
+   */
+  | { kind: "gainLife"; amount: number; who?: "controller" }
   /**
    * "Prevent the next N damage that would be dealt to any target this turn"
    * (Healing Salve's second mode, and the whole prevention family).
@@ -181,8 +205,17 @@ export type Effect =
    * nothing at all against destruction or -N/-N.
    */
   | { kind: "preventDamage"; amount: number; target: TargetSelector }
-  /** Puts `amount` +1/+1 counters on the target creature, or on the effect's own source if no target is given. */
-  | { kind: "addCounter"; amount: number }
+  /**
+   * Puts `amount` +1/+1 counters on the target creature, or on the effect's own
+   * source if no target is given.
+   *
+   * `target` is optional for exactly that reason: "{cost}: put a +1/+1 counter
+   * on this creature" names nothing, and Duskshell Crawler's "put a +1/+1
+   * counter on **target creature**" does. The handler has always honoured a
+   * target it was handed; without this field nothing ever asked for one, so
+   * the targeted printing could not be written down at all.
+   */
+  | { kind: "addCounter"; amount: number; target?: TargetSelector }
   /**
    * "Put `amount` +1/+1 counters on each other creature you control" (The
    * Falcon, Sam Wilson), optionally narrowed to a subtype - "each other Hero
@@ -233,8 +266,23 @@ export type Effect =
    * an extra life the creature carries around.
    */
   | { kind: "regenerate"; target: TargetSelector }
-  /** "Create N X tokens." `tokenDefinitionId` must name a definition flagged `isToken`. */
-  | { kind: "createToken"; count: number; tokenDefinitionId: string }
+  /**
+   * "Regenerate each creature you control" - Golgari Charm's third mode.
+   *
+   * Untargeted and so a separate effect rather than `regenerate` with a
+   * scope: the targeted form has to check hexproof and can fizzle, and this
+   * one sweeps the controller's own board where neither applies.
+   */
+  | { kind: "regenerateAll" }
+  /**
+   * "Create N X tokens." `tokenDefinitionId` must name a definition flagged
+   * `isToken`.
+   *
+   * `count` is an `Amount` because Hornet Nest creates "that many" - one per
+   * point of damage it was just dealt. Always a plain number by the time
+   * `applyEffect` sees it.
+   */
+  | { kind: "createToken"; count: Amount; tokenDefinitionId: string }
   /**
    * "Target creature gets +N/+N until end of turn." Both numbers are signed, so
    * the same effect covers Giant Growth and the whole -N/-N removal family - a
@@ -256,7 +304,26 @@ export type Effect =
    * Massacre prints "-X/-X". By the time this reaches `applyEffect` the X has
    * already been substituted, so it is always a plain number there.
    */
-  | { kind: "pumpAll"; power: Amount; toughness: Amount; scope: "controller" | "all" }
+  | {
+      kind: "pumpAll";
+      power: Amount;
+      toughness: Amount;
+      scope: "controller" | "all";
+      /**
+       * "Permanents you control **gain hexproof and indestructible** until end
+       * of turn" - Heroic Intervention. Granted for the turn and cleared in the
+       * cleanup step alongside the P/T bonuses, which is what makes this the
+       * right home for it rather than a separate effect.
+       */
+      grants?: Keyword[];
+      /**
+       * Heroic Intervention says **permanents**, not creatures. Everything else
+       * in this family says creatures, so that stays the default - widening it
+       * silently would give every board pump to lands as well, which is only
+       * invisible because lands have no power to show for it.
+       */
+      appliesTo?: "creatures" | "permanents";
+    }
   /**
    * "Each opponent loses 1 life", and the family of life *loss* as opposed to
    * damage.
@@ -267,7 +334,57 @@ export type Effect =
    * trigger anything watching for damage. Getting that wrong would make The
    * Meathook Massacre quietly interact with Healing Salve.
    */
-  | { kind: "loseLife"; amount: number; who: "each-opponent" }
+  | {
+      kind: "loseLife";
+      amount: number;
+      /**
+       * Who loses it. `"each-opponent"` is The Meathook Massacre;
+       * `"target"` is Blood Artist's "**target player** loses 1 life", where
+       * the player is chosen when the ability goes on the stack and may
+       * legally be yourself.
+       */
+      who: "each-opponent" | "target";
+      /** Required when `who` is `"target"`, and meaningless otherwise. */
+      target?: TargetSelector;
+    }
+  /**
+   * "Each opponent discards a card" - Send in the Pest.
+   *
+   * Which card is the discarding player's own choice, and the engine has no
+   * way to ask somebody who is not resolving the spell. Taken at random
+   * instead, which is a real difference from the printed card and the reason
+   * this is written down rather than left to be discovered: against a human
+   * opponent it is strictly harsher than the card. The honest fix is a pending
+   * choice aimed at another player, which nothing else in the pool needs yet.
+   */
+  | { kind: "discard"; amount: number; who: "each-opponent" }
+  /**
+   * "Surveil 1" - look at the top card of your library, then choose whether to
+   * put it into your graveyard.
+   *
+   * Only 1. Surveil 2 and up let you sort several cards between two zones,
+   * which is a genuinely different interaction rather than this one repeated,
+   * and `applyEffect` refuses it out loud instead of quietly doing something
+   * near enough.
+   */
+  | { kind: "surveil"; amount: 1 }
+  /**
+   * The "yes" half of a shockland's arrival: pay the life, and the land that
+   * has just entered tapped untaps.
+   *
+   * One effect rather than a general "pay life" plus a general "untap this",
+   * because no card asks for either on its own and a pair of loose primitives
+   * would be two things to get wrong. It is only ever built by
+   * `enteredBattlefield`, never written on a fixture.
+   *
+   * The land really does enter tapped and then untap, where the printed card
+   * enters untapped. `entersUntapped`'s posture applies - tapped is the safe
+   * direction while the question is unanswered - and nothing in the pool
+   * watches for a permanent entering tapped, so the two are indistinguishable
+   * in play. The day something does, this has to become a real replacement
+   * effect applied before the permanent arrives.
+   */
+  | { kind: "payLifeToEnterUntapped"; life: number }
   /**
    * "Counter target spell", optionally "...unless its controller pays [cost]".
    * Only spells can be targeted, never triggered or activated abilities - see
@@ -471,6 +588,27 @@ export type TriggerEvent =
    * through for exactly that reason.
    */
   | "gain-life"
+  /**
+   * "Whenever an opponent casts an instant or sorcery spell" - Arasta of the
+   * Endless Web.
+   *
+   * A watcher event whose subject is the *spell*, not a permanent, so
+   * `watchFor.type` reads the spell's card types and `watchFor.controlledBy`
+   * reads who is casting it. Fired as the spell goes on the stack, which is
+   * why the trigger resolves first: it goes on top of the spell that set it
+   * off, exactly as the rules have it.
+   */
+  | "spell-cast"
+  /**
+   * "Whenever this creature is dealt damage" - Hornet Nest.
+   *
+   * A *self* event: the permanent watches only damage marked on itself, so
+   * this needs no `watchFor` at all. Fired from `damageCreature`, the one door
+   * every point of damage in the engine goes through, so combat damage,
+   * a burn spell and a fight all set it off alike. The amount is carried into
+   * the effect as `{ kind: "event-amount" }`.
+   */
+  | "damaged"
   | "upkeep"
   /**
    * "At the beginning of your first main phase" - the precombat main only.
@@ -535,7 +673,14 @@ export interface TriggeredAbility {
    * every permanent, which no card in the pool currently wants; write it out.
    */
   watchFor?: {
-    type?: CardType;
+    /**
+     * The card type the subject has to have.
+     *
+     * A list means any one of them qualifies, which is what Arasta of the
+     * Endless Web's "an instant **or sorcery** spell" says. One field rather
+     * than two, because it is one question.
+     */
+    type?: CardType | CardType[];
     subtype?: string;
     /**
      * "a creature you control **with a +1/+1 counter on it**" - Meltstrider
@@ -703,7 +848,41 @@ export interface CardDefinition {
    * Anything that grants keywords, changes types, or depends on timestamps
    * still needs the real thing. See ROADMAP.md.
    */
-  staticBuff?: { power: number; toughness: number; subtype?: string };
+  staticBuff?: {
+    power: number;
+    toughness: number;
+    subtype?: string;
+    /**
+     * "Attacking Pests you control get +1/+0 **and have menace**" - Blight
+     * Mound. Keywords granted for as long as this permanent is on the
+     * battlefield and the restriction below holds.
+     *
+     * Granted rather than printed, which is why nothing may read
+     * `CardDefinition.keywords` directly any more: see `effectiveKeywords`.
+     */
+    grants?: Keyword[];
+    /**
+     * Which of the controller's permanents it reaches, beyond the subtype.
+     *
+     * `"attacking"` is Blight Mound's "**Attacking** Pests you control", which
+     * is not decoration - the menace is only there in combat, and a card that
+     * granted it permanently would be a different card. `"with-counter"` is
+     * Duskshell Crawler's "each creature you control **with a +1/+1 counter on
+     * it**", which turns on and off as counters come and go.
+     */
+    restriction?: "attacking" | "with-counter";
+    /**
+     * Whether the permanent printing this counts as one of the things it
+     * affects.
+     *
+     * Defaults to false, because every "lord" says "**other** creatures you
+     * control". Duskshell Crawler says "each creature you control with a +1/+1
+     * counter on it" with no "other", and is itself a creature that can carry
+     * one - so leaving this off would make it the one creature its own ability
+     * skips.
+     */
+    includesSelf?: boolean;
+  };
   /**
    * "If an effect would ... instead" - the replacement-effect family. See
    * replacements.ts for how they combine and why the order is what it is.
@@ -734,6 +913,21 @@ export interface CardDefinition {
    * untapped, otherwise `entersTapped` applies as usual.
    */
   entersTappedUnless?: EntersUntappedCondition;
+  /**
+   * "As this land enters, you may pay N life. If you don't, it enters tapped"
+   * - the shockland cycle, of which Overgrown Tomb is this deck's.
+   *
+   * A number rather than a boolean because the cycle is not uniform: the
+   * ten-card shockland cycle is 2, and the newer "surveil land unless you pay
+   * 3 life" printings are 3.
+   *
+   * Asked as the permanent arrives, so the answer is a mid-arrival choice
+   * rather than something the caster decided in advance - which matters,
+   * because whether 2 life is worth an untapped land depends on the board in
+   * front of you at the time. Distinct from `entersTappedUnless`, which the
+   * engine answers on its own from the board.
+   */
+  entersTappedUnlessPayLife?: number;
   triggeredAbilities?: TriggeredAbility[];
   activatedAbilities?: ActivatedAbility[];
   /** What resolving this spell does, for instants/sorceries. */
@@ -790,6 +984,17 @@ export interface CardInstance {
   temporaryPowerBonus: number;
   /** Extra toughness from "until end of turn" effects. Cleared alongside temporaryPowerBonus; goes negative for -N/-N effects. */
   temporaryToughnessBonus: number;
+  /**
+   * Keywords handed to this permanent until end of turn - Heroic
+   * Intervention's hexproof and indestructible.
+   *
+   * Cleared in the cleanup step and on any zone change, exactly like the P/T
+   * bonuses above and for the same reason: it is a property of this object
+   * this turn, not of the card. Nothing reads this directly; ask
+   * `effectiveKeywords`, which also folds in what other permanents are
+   * granting.
+   */
+  grantedKeywords: Keyword[];
   /**
    * A shield of damage yet to be prevented - "prevent the next N damage that
    * would be dealt to this creature this turn". Consumed by the next damage
@@ -894,6 +1099,43 @@ export interface PendingConfirmation {
 }
 
 /**
+ * A triggered ability waiting for its controller to point it at something.
+ *
+ * Targets for a trigger are chosen as it is put on the stack (rule 603.3d),
+ * not as it resolves - which is why this parks the ability *before* it reaches
+ * the stack rather than interrupting its resolution the way a search does. The
+ * difference is visible: an opponent gets to respond knowing what Blood Artist
+ * is aimed at.
+ *
+ * A queue rather than a single slot, because one event can set several of
+ * these off at once - a board wipe with two Blood Artists out asks twice per
+ * creature. They are answered from the front, and each goes on the stack as it
+ * is answered. Ordering simultaneous triggers is the controller's choice under
+ * the real rules and is not modelled; they go on in the order they fired.
+ */
+export interface PendingTargetChoice {
+  playerId: string;
+  /** The permanent whose ability this is, so the client can show it beside the question. */
+  sourceInstanceId: string;
+  /**
+   * Every legal target, worked out by the engine from the effect's own
+   * selector - so a client can only ever offer a legal answer, and
+   * `chooseTriggerTarget` checks again rather than trusting what comes back.
+   */
+  candidates: StackTarget[];
+  /** The question in the card's own words - "Blood Artist: choose a player". */
+  prompt: string;
+  /**
+   * The ability itself, built and ready, needing only its `targets` filled in.
+   *
+   * Held whole for the same reason `PendingConfirmation` does: by the time it
+   * is answered the permanent that printed it may be dead, and an ability on
+   * the stack is independent of its source.
+   */
+  object: StackObject;
+}
+
+/**
  * A library search that has stopped to ask its controller which card to take.
  *
  * The candidate list is computed by the engine from the effect's restrictions,
@@ -910,8 +1152,21 @@ export interface PendingSearch {
   sourceInstanceId: string;
   /** Card instances in that player's library that match the search restriction. */
   candidateInstanceIds: string[];
-  destination: "hand" | "battlefield" | "library-top";
+  destination: "hand" | "battlefield" | "library-top" | "graveyard";
   tapped?: boolean;
+  /**
+   * "Then shuffle" is on every tutor and on no surveil, so the shuffle is
+   * skipped when this is set.
+   *
+   * Surveil rides on this state rather than getting one of its own because it
+   * is the same interaction: the game stops, a player is shown cards from
+   * their own library, and chooses where one of them goes. A parallel
+   * mechanism would be a second place to remember to hold priority, a second
+   * picker in the client, and - the reason that matters most - a second way to
+   * get hidden information wrong. The card is identified here by instance id,
+   * so an opponent's view of it is already the hidden-card placeholder.
+   */
+  noShuffle?: boolean;
   /**
    * Whose ability set this search off, which is not always the searcher.
    *
@@ -1072,6 +1327,12 @@ export interface GameState {
    * `resolveConfirmation`.
    */
   pendingConfirmation: PendingConfirmation | null;
+  /**
+   * Triggered abilities waiting to be pointed at something, front first. Gated
+   * exactly like `pendingSearch`: while this is non-empty nobody gets priority
+   * and no step advances. See `PendingTargetChoice`.
+   */
+  pendingTargetChoices: PendingTargetChoice[];
   /**
    * How many creatures have died this turn, for morbid ("if a creature died
    * this turn"). Reset in cleanup with everything else that lasts a turn.
