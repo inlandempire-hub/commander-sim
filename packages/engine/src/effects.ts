@@ -18,6 +18,7 @@ import { gainLife } from "./life.js";
 import { useRegenerationShield } from "./regeneration.js";
 import { sacrificePermanent } from "./sba.js";
 import { countersPlaced, tokensCreated } from "./replacements.js";
+import { requireNumber } from "./x.js";
 
 /**
  * Applies a resolved (non-permanent) effect: spell/ability damage, draw,
@@ -230,13 +231,33 @@ export function applyEffect(
       return;
     }
     case "pumpAll": {
+      // Always plain numbers by now - `resolveAmounts` substituted any X when
+      // the spell was cast or the trigger fired. Loud if not, because a -X/-X
+      // silently reading as -0/-0 looks like a targeting bug rather than a
+      // missing substitution.
+      const power = requireNumber(effect.power, "pumpAll power");
+      const toughness = requireNumber(effect.toughness, "pumpAll toughness");
       const affected = effect.scope === "controller" ? [controller] : state.players;
       for (const player of affected) {
         for (const instance of player.battlefield) {
           if (!state.cardDefinitions[instance.definitionId]?.types.includes("Creature")) continue;
-          instance.temporaryPowerBonus += effect.power;
-          instance.temporaryToughnessBonus += effect.toughness;
+          instance.temporaryPowerBonus += power;
+          instance.temporaryToughnessBonus += toughness;
         }
+      }
+      return;
+    }
+    case "loseLife": {
+      /*
+       * Life loss, which is not damage. Nothing is dealt by a source, so no
+       * prevention shield applies, lifelink gains nothing, and nothing watching
+       * for damage fires. It goes straight to the total.
+       */
+      for (const player of state.players) {
+        if (player.id === controllerId) continue; // "each opponent"
+        if (player.hasLost) continue;
+        player.life -= effect.amount;
+        log(state, `${player.id} loses ${effect.amount} life`);
       }
       return;
     }

@@ -196,7 +196,7 @@ BLOCKERS = [
      "not a supported card type"),
     (r"\{X\}",
      "X in a cost",
-     "parse_mana_cost refuses X, hybrid and phyrexian symbols"),
+     "parse_mana_cost refuses hybrid and phyrexian symbols; {X} is supported"),
     (r"\bscry\b|\bsurveil\b|top of your library|look at the top",
      "Library manipulation (scry, surveil, top-of-library)",
      "the library is a list nothing can look at"),
@@ -614,8 +614,9 @@ def classify(card):
         return "blocked", [(type_line, "Planeswalkers", "not a supported card type")]
 
     if gen.parse_mana_cost(card.get("mana_cost")) is None and "Land" not in type_line:
-        return "blocked", [(card.get("mana_cost") or "", "X, hybrid or phyrexian mana in the cost",
-                            "parse_mana_cost refuses anything but digits and WUBRG")]
+        return "blocked", [(card.get("mana_cost") or "", "Hybrid or phyrexian mana in the cost",
+                            "parse_mana_cost takes digits, WUBRG and {X}; hybrid and phyrexian have "
+                            "no representation in ManaCost")]
 
     # ADDABLE has to mean "the generator will emit this", so each type goes to
     # the function that actually decides it. Routing everything through

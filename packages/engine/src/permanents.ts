@@ -8,8 +8,9 @@ import type {
   TriggerCondition,
   TriggeredAbility,
 } from "./types.js";
-import { cardName, moveCard, requireDefinition } from "./state.js";
+import { cardName, findInstance, moveCard, requireDefinition } from "./state.js";
 import { meetsBoardCondition } from "./conditions.js";
+import { resolveAmounts } from "./x.js";
 
 /**
  * The two ways an object arrives somewhere and may set triggers off: onto the
@@ -196,7 +197,7 @@ export function fireWatchers(
     const watcherDef = requireDefinition(state, watcher.definitionId);
     for (const trigger of watcherDef.triggeredAbilities ?? []) {
       if (trigger.event !== event) continue;
-      if (!matchesWatchFor(trigger.watchFor, subject)) continue;
+      if (!matchesWatchFor(trigger.watchFor, subject, watcher.controllerId)) continue;
       if (watcher.instanceId === subject.instanceId && !trigger.includesSelf) continue;
       if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== subject.controllerId) {
         continue;
@@ -240,12 +241,25 @@ export function fireLandfall(state: GameState, landControllerId: string): void {
 export function matchesWatchFor(
   watchFor: TriggeredAbility["watchFor"],
   subject: TriggerSubject,
+  /**
+   * Who controls the permanent doing the watching, needed only by
+   * `controlledBy`. Optional so the card-text renderer can ask "would this
+   * trigger see that card?" without inventing a controller; a filter that
+   * needs one and is not given one simply does not match.
+   */
+  watcherControllerId?: string,
 ): boolean {
   if (!watchFor) return true;
   if (watchFor.type && !subject.def.types.includes(watchFor.type)) return false;
   if (watchFor.subtype && !(subject.def.subtypes ?? []).includes(watchFor.subtype)) return false;
   if (watchFor.withCounter && !subject.hadCounters) return false;
   if (watchFor.nontoken && subject.isToken) return false;
+  if (watchFor.controlledBy) {
+    if (!watcherControllerId) return false;
+    const mine = subject.controllerId === watcherControllerId;
+    if (watchFor.controlledBy === "you" && !mine) return false;
+    if (watchFor.controlledBy === "opponent" && mine) return false;
+  }
   return true;
 }
 
@@ -268,7 +282,20 @@ export function pushTrigger(
   // the ability never goes on the stack at all.
   if (trigger.onlyIf && !triggerConditionMet(state, controllerId, trigger.onlyIf)) return null;
 
-  const obj = pushOntoStack(state, sourceInstanceId, controllerId, trigger.effect, [], false);
+  /*
+   * A trigger printed on a card with {X} in its cost refers to the value
+   * announced when that card was cast - The Meathook Massacre's "each creature
+   * gets -X/-X". The card is on the battlefield by now and the spell is long
+   * gone, so the value is read off the permanent itself.
+   *
+   * Done here rather than at resolution because this is the single door every
+   * fire site goes through, and because it keeps the substitution in exactly
+   * one shape: by the time anything downstream sees the effect, X is a number.
+   */
+  const chosenX = findInstance(state, sourceInstanceId)?.instance.chosenX ?? 0;
+  const effect = resolveAmounts(trigger.effect, chosenX);
+
+  const obj = pushOntoStack(state, sourceInstanceId, controllerId, effect, [], false);
   if (trigger.optional) {
     obj.optional = true;
     obj.prompt = `${cardName(state, sourceInstanceId)}: ${describeOptionalEffect(trigger.effect)}`;

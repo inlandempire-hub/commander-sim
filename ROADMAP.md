@@ -2550,3 +2550,76 @@ has outlived the gap it named.
 
 **The list is at 51 of 100.** 878 fixtures, both audits clean. 805 tests,
 typecheck clean.
+
+### Replacement effects, and {X}
+
+Two clusters the deck report offered as "finishes 2" and "finishes 3". The
+first delivered both cards. The second finished one, and the heading was wrong
+again - for the eighth time.
+
+**Replacement effects, for the two events any card here replaces.** Not a
+general event bus: the real rules let a replacement modify almost anything, and
+building that faithfully would mean routing every effect in the engine through
+an interception point. Counters going onto a permanent and tokens being created
+are the only two events any card in this pool replaces, and each is a single
+line in effects.ts.
+
+The interesting part is not that Doubling Season doubles. It is that rule 616.1
+gives the *player* the choice when two replacements apply to one event, and the
+answers differ: Doubling Season plus Winding Constrictor turn one counter into
+three or four depending on order. With no way to ask, every `add` is applied
+before every `multiply` - always the larger result, and therefore always the
+order the player would pick. That equivalence holds only because the engine
+models one kind of counter, +1/+1, and more is never worse; the shortcut is
+written down in replacements.ts so the day -1/-1 counters arrive it is visible
+rather than inherited.
+
+Winding Constrictor's second line concerns counters put on a *player*, and this
+engine has none of any kind. No reachable game state makes it do anything, so it
+is left unmodelled deliberately, with a note on the fixture saying so rather
+than approximating it onto something else.
+
+**{X} is a substitution, not a value the effects layer understands.** X is
+settled once, as the spell is cast, and never changes - so `resolveAmounts`
+replaces every X with the announced number before the effect goes anywhere near
+`applyEffect`. Nothing in effects.ts, the bot, or the card-text renderer had to
+learn what X is. Carrying it on the stack object instead would have meant every
+reader of every numeric field asking "is this a number or is it X?" forever.
+
+`ManaCost.x` counts the symbols rather than being a flag, because Pest
+Infestation is {X}{X}{G} and X = 3 costs six generic. It is deliberately not
+part of mana value: a card in hand has X = 0 (rule 202.3b), which is what the
+curve is drawn from.
+
+**The Meathook Massacre needed three more things**, none large and none
+optional. The announced X has to survive from the cast into an
+enters-the-battlefield trigger that fires *after* the spell has left the stack,
+so `chosenX` lives on the card instance and is the one field `moveCard`
+deliberately does not reset (rule 608.2g). `watchFor.controlledBy` exists
+because the card has two death triggers pointed in opposite directions - without
+it they are the same ability twice, and the card drains you when your own
+creature dies. And life *loss* is its own effect rather than damage with a minus
+sign: loss cannot be prevented by a shield, gives lifelink nothing, and fires
+nothing watching for damage.
+
+**The card-text renderer printed both death triggers identically** until a test
+was written for them - it knew about `watches` and not about `controlledBy`, so
+the panel read "Whenever a creature dies" twice.
+
+**The heading was wrong again.** "X, hybrid or phyrexian mana in the cost ->
+finishes 3" finished exactly one. Pest Infestation also needs a token carrying
+its own rules text and a dynamic count; Springleaf Parade needs changeling and a
+static ability granting an activated ability to a class of permanents. With the
+generator now parsing {X}, the report names those instead - which is the whole
+point of the `blockers_for` fix.
+
+**Two things fixed in passing.** `parse_mana_cost` and the fixture audit both
+had to learn {X}. And the network protocol was dropping `chosenMode` on the way
+over the wire, so a modal spell cast against a networked opponent was refused
+for not naming a mode the client had already chosen; `chosenX` now travels
+beside it.
+
+**The list is at 54 of 100.** 882 fixtures, both audits clean. 838 tests,
+typecheck clean. Verified in a real game: Hornet Queen made eight Insects under
+Doubling Season, and The Meathook Massacre cast for X = 2 off six Swamps offered
+0-4, killed both 2/2s, drained Salty Mike for 1 and gained Deadly Donny 1.

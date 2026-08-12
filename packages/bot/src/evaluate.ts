@@ -2,6 +2,7 @@ import {
   effectivePower,
   effectiveToughness,
   manaValue,
+  type Amount,
   type CardDefinition,
   type CardInstance,
   type GameState,
@@ -27,6 +28,20 @@ export function hasKeyword(state: GameState, instance: CardInstance, keyword: st
 
 export function isCreature(state: GameState, instance: CardInstance): boolean {
   return definitionOf(state, instance)?.types.includes("Creature") ?? false;
+}
+
+/**
+ * A number an effect prints, or null when it will not be known until the spell
+ * is cast - the -X/-X on The Meathook Massacre.
+ *
+ * Every heuristic that reaches for one of these is doing arithmetic on a board
+ * ("would this wipe kill more of theirs than mine?"), and X has no value yet
+ * while the card is still in hand. Null means "the bot cannot judge this card",
+ * and each caller skips it rather than guessing - which is the difference
+ * between not playing a card and playing it for X = 0.
+ */
+export function fixedAmount(amount: Amount): number | null {
+  return typeof amount === "number" ? amount : null;
 }
 
 export function creaturesOf(state: GameState, player: Player): CardInstance[] {

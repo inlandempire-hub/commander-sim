@@ -3,6 +3,7 @@ import { findInstance, requireDefinition, requirePlayer } from "./state.js";
 import { abilityAvailable, addMana, applyCommanderTax, canPayManaCostFromPool, isFreeManaAbility, potentialAvailableMana } from "./mana.js";
 import { activateAbility } from "./abilities.js";
 import { castSpell, type CastOptions } from "./casting.js";
+import { costWithX } from "./x.js";
 
 /**
  * Tapping lands to pay for a spell.
@@ -191,19 +192,25 @@ export function planManaPayment(state: GameState, playerId: string, cost: ManaCo
 
 /**
  * What it actually costs this player to cast this card right now, commander
- * tax included. The tax is only charged from the command zone, which is why
- * this needs to know where the card is being cast from.
+ * tax included and {X} filled in. The tax is only charged from the command
+ * zone, which is why this needs to know where the card is being cast from.
+ *
+ * `chosenX` matters because this is what the auto-tapper taps for: without it,
+ * The Meathook Massacre cast for X = 3 would have three lands tapped for its
+ * {B}{B} and then be refused for not affording {3}{B}{B}.
  */
 export function castingCostOf(
   state: GameState,
   playerId: string,
   instanceId: string,
   fromCommandZone = false,
+  chosenX = 0,
 ): ManaCost {
   const player = requirePlayer(state, playerId);
   const found = findInstance(state, instanceId);
   if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
-  const cost = requireDefinition(state, found.instance.definitionId).manaCost ?? EMPTY_COST;
+  const printed = requireDefinition(state, found.instance.definitionId).manaCost ?? EMPTY_COST;
+  const cost = costWithX(printed, chosenX);
   if (!fromCommandZone) return cost;
   return applyCommanderTax(cost, player.commanderCastCount[instanceId] ?? 0);
 }
@@ -292,7 +299,7 @@ export function castSpellWithAutoTap(
   targets: StackTarget[] = [],
   options: CastOptions = {},
 ): void {
-  const cost = castingCostOf(state, playerId, instanceId, options.fromCommandZone);
+  const cost = castingCostOf(state, playerId, instanceId, options.fromCommandZone, options.chosenX ?? 0);
   withAutoTap(state, playerId, cost, () => castSpell(state, playerId, instanceId, targets, options));
 }
 

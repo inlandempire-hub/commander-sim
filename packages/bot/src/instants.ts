@@ -13,6 +13,7 @@ import {
   combatDamage,
   creatureValue,
   definitionOf,
+  fixedAmount,
   hasKeyword,
   isCreature,
   power,
@@ -120,9 +121,15 @@ function worthCountering(state: GameState, me: Player, obj: StackObject): boolea
   }
 
   // A one-sided sweeper is the single worst thing that can resolve against a board.
-  if (effect?.kind === "pumpAll" && effect.toughness < 0) {
-    const ourCreatures = me.battlefield.filter((c) => isCreature(state, c));
-    if (ourCreatures.some((c) => toughness(state, c) + effect.toughness <= 0)) return true;
+  if (effect?.kind === "pumpAll") {
+    // An X-valued sweeper is worth countering on sight - the bot cannot see how
+    // big it is, and "would it kill my board" has no answer until it resolves.
+    const shrink = fixedAmount(effect.toughness);
+    if (shrink === null) return true;
+    if (shrink < 0) {
+      const ourCreatures = me.battlefield.filter((c) => isCreature(state, c));
+      if (ourCreatures.some((c) => toughness(state, c) + shrink <= 0)) return true;
+    }
   }
 
   return manaValue(def.manaCost ?? NO_COST) >= COUNTER_THRESHOLD;
@@ -249,7 +256,7 @@ function teamPump(
       def.types.includes("Instant") &&
       def.castEffect?.kind === "pumpAll" &&
       def.castEffect.scope === "controller" &&
-      def.castEffect.power + def.castEffect.toughness > 0,
+      (fixedAmount(def.castEffect.power) ?? 0) + (fixedAmount(def.castEffect.toughness) ?? 0) > 0,
   );
   if (pumps.length === 0) return null;
 
@@ -263,14 +270,19 @@ function teamPump(
   for (const pump of pumps) {
     const effect = pump.definition.castEffect;
     if (effect?.kind !== "pumpAll") continue;
+    // Same reason as the sweeper: a combat trick worth +X/+X cannot be sized
+    // before it is cast, so there is nothing to compare against lethal.
+    const extraPower = fixedAmount(effect.power);
+    const extraToughness = fixedAmount(effect.toughness);
+    if (extraPower === null || extraToughness === null) continue;
 
     const saves = inCombat.some(
       ({ mine, theirs }) =>
-        diesInFight(state, mine, theirs) && !diesInFight(state, mine, theirs, effect.toughness),
+        diesInFight(state, mine, theirs) && !diesInFight(state, mine, theirs, extraToughness),
     );
 
     const defender = state.players.find((p) => p.id !== me.id && !p.hasLost);
-    const damageThrough = unblocked.reduce((total, c) => total + power(state, c) + effect.power, 0);
+    const damageThrough = unblocked.reduce((total, c) => total + power(state, c) + extraPower, 0);
     const lethal = defender !== undefined && damageThrough >= defender.life;
 
     if (saves || lethal) return castOrTapToward(state, me, pump);

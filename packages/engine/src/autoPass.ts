@@ -4,6 +4,7 @@ import { applyCommanderTax, canPayManaCostFromPool, potentialAvailableMana } fro
 import { canCastAtSorcerySpeed } from "./casting.js";
 import { controllerMeets } from "./conditions.js";
 import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
+import { costWithX, requiresX } from "./x.js";
 
 const EMPTY_COST: ManaCost = { generic: 0, colors: {} };
 
@@ -55,6 +56,41 @@ export function canPlayCardNow(state: GameState, playerId: string, instanceId: s
 
   if (!canPayManaCostFromPool(potentialMana, def.manaCost ?? EMPTY_COST)) return false;
   return hasSomethingToTarget(state, playerId, def.castEffect);
+}
+
+/**
+ * Every value of {X} this player could actually pay for right now, lowest
+ * first, counting mana they could still produce rather than only what is
+ * floating.
+ *
+ * Exported because the UI has to offer the choice, and the list has to be the
+ * one the engine will accept - a chooser that offered X = 5 and then had the
+ * cast refused would be worse than no chooser.
+ *
+ * Always includes 0: casting The Meathook Massacre for nothing is legal, and
+ * occasionally right when you only want the two death triggers on the board.
+ * Capped so a board with a hundred lands does not produce a hundred buttons;
+ * nothing in the pool wants an X anywhere near it.
+ */
+export function affordableXValues(
+  state: GameState,
+  playerId: string,
+  instanceId: string,
+  cap = 20,
+): number[] {
+  const player = requirePlayer(state, playerId);
+  const instance = player.hand.find((c) => c.instanceId === instanceId);
+  if (!instance) return [];
+  const def = requireDefinition(state, instance.definitionId);
+  if (!requiresX(def.manaCost)) return [];
+
+  const potentialMana = potentialAvailableMana(state, playerId);
+  const affordable: number[] = [];
+  for (let x = 0; x <= cap; x++) {
+    if (!canPayManaCostFromPool(potentialMana, costWithX(def.manaCost ?? EMPTY_COST, x))) break;
+    affordable.push(x);
+  }
+  return affordable;
 }
 
 /**

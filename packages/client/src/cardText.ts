@@ -3,6 +3,7 @@ import type {
   BoardCondition,
   CardDefinition,
   Color,
+  Amount,
   Effect,
   ReplacementEffect,
   TargetSelector,
@@ -87,6 +88,18 @@ function signed(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
 }
 
+/**
+ * A power/toughness modifier, which may still be X on a card in hand.
+ *
+ * The Meathook Massacre's panel has to read "-X/-X" and not a number: the panel
+ * is what a player reads *before* deciding what to cast it for, so printing a
+ * value there would be printing a decision they have not made.
+ */
+function signedAmount(amount: Amount): string {
+  if (typeof amount === "number") return signed(amount);
+  return amount.negate ? "-X" : "+X";
+}
+
 export function describeEffect(effect: Effect, definitions: Definitions = {}): string {
   switch (effect.kind) {
     case "damage":
@@ -144,9 +157,14 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       );
     }
     case "pumpAll": {
-      const who = effect.scope === "controller" ? "Creatures you control" : "All creatures";
-      return `${who} get ${signed(effect.power)}/${signed(effect.toughness)} until end of turn.`;
+      const [who, verb] =
+        effect.scope === "controller" ? ["Creatures you control", "get"] : ["All creatures", "get"];
+      return `${who} ${verb} ${signedAmount(effect.power)}/${signedAmount(effect.toughness)} until end of turn.`;
     }
+    case "loseLife":
+      // Loss, not damage, and the panel says so - a player who reads "deals 1
+      // damage to each opponent" will expect prevention and lifelink to matter.
+      return `Each opponent loses ${effect.amount} life.`;
     case "counter": {
       const unless = effect.unlessPays
         ? ` unless its controller pays ${formatManaCost(effect.unlessPays)}`
@@ -263,7 +281,25 @@ function watchedNoun(watchFor: TriggeredAbility["watchFor"]): string {
 /** "a creature you control with a +1/+1 counter on it" - the whole subject. */
 function watchedSubject(ability: TriggeredAbility, self: CardDefinition): string {
   const noun = watchedNoun(ability.watchFor);
-  const whose = (ability.watches ?? "controller") === "any" ? noun : `${noun} you control`;
+  /*
+   * Who has to control the thing being watched.
+   *
+   * `controlledBy` wins where it is set, because it is the explicit version of
+   * the question `watches` answers coarsely. The Meathook Massacre is the card
+   * that made this matter: both its death triggers watch every player's
+   * creatures, and the only difference between them is whose creature died.
+   * Without this the panel prints "Whenever a creature dies" twice, which reads
+   * as a card that drains you when your own creature dies and gains you life at
+   * the same time.
+   */
+  const whose =
+    ability.watchFor?.controlledBy === "you"
+      ? `${noun} you control`
+      : ability.watchFor?.controlledBy === "opponent"
+        ? `${noun} an opponent controls`
+        : (ability.watches ?? "controller") === "any"
+          ? noun
+          : `${noun} you control`;
   /*
    * "another" only if this card is itself the kind of thing it watches.
    * Tanglespan Lookout is a Satyr watching Auras, so it reads "an Aura you

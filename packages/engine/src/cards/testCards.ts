@@ -11310,6 +11310,54 @@ export const WINDING_CONSTRICTOR: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * "{X}{B}{B} Legendary Enchantment
+ *
+ *  When The Meathook Massacre enters, each creature gets -X/-X until end of turn.
+ *  Whenever a creature you control dies, each opponent loses 1 life.
+ *  Whenever a creature an opponent controls dies, you gain 1 life."
+ *
+ * Three abilities and three separate pieces of engine. The -X/-X needs X to
+ * survive from the cast into an enters-the-battlefield trigger that fires after
+ * the spell has left the stack; the other two are the same event pointed in
+ * opposite directions, which is the whole reason `watchFor.controlledBy`
+ * exists. Written without it, the card drains you every time your own creature
+ * dies - the exact opposite of what it says.
+ */
+export const THE_MEATHOOK_MASSACRE: CardDefinition = {
+  id: "the-meathook-massacre",
+  name: "The Meathook Massacre",
+  scryfallId: "70d0540f-93c6-4af5-ab2d-65e6c03001c7",
+  types: ["Enchantment"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 0, colors: { B: 2 }, x: 1 },
+  colorIdentity: ["B"],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "pumpAll",
+        power: { kind: "x", negate: true },
+        toughness: { kind: "x", negate: true },
+        scope: "all",
+      },
+    },
+    {
+      event: "permanent-dies",
+      watches: "any",
+      watchFor: { type: "Creature", controlledBy: "you" },
+      effect: { kind: "loseLife", amount: 1, who: "each-opponent" },
+    },
+    {
+      event: "permanent-dies",
+      watches: "any",
+      watchFor: { type: "Creature", controlledBy: "opponent" },
+      effect: { kind: "gainLife", amount: 1 },
+    },
+  ],
+  tier: "weird",
+};
+
 
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
@@ -12194,5 +12242,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     ASSASSINS_TROPHY,
     DOUBLING_SEASON,
     WINDING_CONSTRICTOR,
+    THE_MEATHOOK_MASSACRE,
   ].map((def) => [def.id, def]),
 );

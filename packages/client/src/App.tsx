@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   activatableAbilities,
+  affordableXValues,
   attackProblem,
   blockProblem,
   canMulliganAgain,
@@ -9,6 +10,7 @@ import {
   modesOf,
   mustNotAutoPass,
   planManaPayment,
+  requiresX,
   shouldAutoPass,
   targetSelectorOf,
   type CardDefinition,
@@ -29,7 +31,7 @@ import {
 import { StackView } from "./components/StackView.js";
 import { ActionBar, ConcedeButton } from "./components/ActionBar.js";
 import { CardDetail } from "./components/CardDetail.js";
-import { CardPicker, ModePicker } from "./components/CardPicker.js";
+import { CardPicker, ModePicker, XPicker } from "./components/CardPicker.js";
 import { GameLog } from "./components/GameLog.js";
 import { CardFlightLayer } from "./components/CardFlightLayer.js";
 import { TableBeat } from "./components/TableBeat.js";
@@ -78,6 +80,8 @@ interface PendingTarget {
   abilityIndex?: number;
   /** Set for a modal spell, chosen before targets since the legal targets depend on it. */
   chosenMode?: number;
+  /** Set for a spell with {X}, announced before targets for the same reason. */
+  chosenX?: number;
 }
 
 /** The card the detail panel is reading out, and whose copy of it. */
@@ -142,6 +146,8 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const [hovered, setHovered] = useState<HoveredCard | null>(null);
   /** A modal spell waiting on you to choose which mode you're casting. */
   const [pendingMode, setPendingMode] = useState<{ ownerId: string; instanceId: string } | null>(null);
+  /** A spell with {X} in its cost, waiting on a value. Asked before targets, like a mode. */
+  const [pendingX, setPendingX] = useState<{ ownerId: string; instanceId: string } | null>(null);
   const [sound, setSound] = useState(soundEnabled);
   const [volume, setVolume] = useState(soundVolume);
   const [particles, setParticles] = useState(particlesEnabled);
@@ -403,6 +409,18 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const modeOptions = modeCardDefinition ? modesOf(modeCardDefinition) : undefined;
   const modeCardName = modeCardDefinition?.name ?? "";
 
+  const xCardDefinition = pendingX
+    ? state.cardDefinitions[
+        state.players
+          .find((p) => p.id === pendingX.ownerId)
+          ?.hand.find((c) => c.instanceId === pendingX.instanceId)?.definitionId ?? ""
+      ]
+    : undefined;
+  const xCardName = xCardDefinition?.name ?? "";
+  // Asked of the engine rather than worked out here, so the list offered is the
+  // list the engine will accept.
+  const xValues = pendingX ? affordableXValues(state, pendingX.ownerId, pendingX.instanceId) : [];
+
   function handleHover(definitionId: string | null, ownerId?: string, instanceId?: string) {
     setHovered(definitionId ? { definitionId, ownerId, instanceId } : null);
   }
@@ -440,6 +458,13 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
       controller.playLand(ownerId, instanceId);
       return;
     }
+    // X is announced first of all - before the mode and before targets -
+    // because it is part of the cost, and the cost is what decides whether the
+    // spell can be cast at all.
+    if (requiresX(def.manaCost) && !def.types.includes("Land")) {
+      setPendingX({ ownerId, instanceId });
+      return;
+    }
     // A mode is part of casting, so it's asked before targets - the legal
     // targets depend on which mode you picked.
     if (modesOf(def)) {
@@ -468,6 +493,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
       } else {
         controller.castSpell(casterId, sourceInstanceId, [{ kind: "card", instanceId }], {
           chosenMode: pendingTarget.chosenMode,
+          chosenX: pendingTarget.chosenX,
         });
       }
       setPendingTarget(null);
@@ -596,7 +622,10 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     if (kind === "ability") {
       controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target]);
     } else {
-      controller.castSpell(ownerId, sourceInstanceId, [target], { chosenMode: pendingTarget.chosenMode });
+      controller.castSpell(ownerId, sourceInstanceId, [target], {
+        chosenMode: pendingTarget.chosenMode,
+        chosenX: pendingTarget.chosenX,
+      });
     }
     setPendingTarget(null);
   }
@@ -609,7 +638,10 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     if (kind === "ability") {
       controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target]);
     } else {
-      controller.castSpell(ownerId, sourceInstanceId, [target], { chosenMode: pendingTarget.chosenMode });
+      controller.castSpell(ownerId, sourceInstanceId, [target], {
+        chosenMode: pendingTarget.chosenMode,
+        chosenX: pendingTarget.chosenX,
+      });
     }
     setPendingTarget(null);
   }
@@ -622,6 +654,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     } else {
       controller.castSpell(ownerId, sourceInstanceId, [{ kind: "player", playerId }], {
         chosenMode: pendingTarget.chosenMode,
+        chosenX: pendingTarget.chosenX,
       });
     }
     setPendingTarget(null);
@@ -632,6 +665,29 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
    * normal target-selection flow carrying the mode with it; if it doesn't,
    * the spell is fully specified and can be cast.
    */
+  function handleXChosen(x: number) {
+    if (!pendingX) return;
+    const { ownerId, instanceId } = pendingX;
+    const owner = state!.players.find((p) => p.id === ownerId)!;
+    const instance = owner.hand.find((c) => c.instanceId === instanceId);
+    const def = instance ? state!.cardDefinitions[instance.definitionId] : undefined;
+    setPendingX(null);
+    if (!def) return;
+
+    if (def.castEffect && targetSelectorOf(def.castEffect)) {
+      setPendingTarget({
+        ownerId,
+        sourceInstanceId: instanceId,
+        cardName: def.name,
+        effect: def.castEffect,
+        kind: "cast",
+        chosenX: x,
+      });
+      return;
+    }
+    controller.castSpell(ownerId, instanceId, [], { chosenX: x });
+  }
+
   function handleModeChosen(index: number) {
     if (!pendingMode) return;
     const { ownerId, instanceId } = pendingMode;
@@ -984,6 +1040,15 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           <ConfirmTrigger
             prompt={pendingConfirmation.prompt}
             onAnswer={(accept) => controller.resolveConfirmation(pendingConfirmation.playerId, accept)}
+          />
+        )}
+
+        {pendingX && (
+          <XPicker
+            cardName={xCardName}
+            values={xValues}
+            onChoose={handleXChosen}
+            onCancel={() => setPendingX(null)}
           />
         )}
 

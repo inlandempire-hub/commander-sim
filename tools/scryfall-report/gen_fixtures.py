@@ -939,9 +939,10 @@ def ts_mana_cost(cost_string):
     parsed = parse_mana_cost(cost_string)
     if parsed is None:
         return None
-    generic, colors = parsed
+    generic, colors, x = parsed
     pips = ", ".join("%s: %d" % (c, n) for c, n in sorted(colors.items()))
-    return "{ generic: %d, colors: {%s} }" % (generic, " %s " % pips if pips else "")
+    suffix = ", x: %d" % x if x else ""
+    return "{ generic: %d, colors: {%s}%s }" % (generic, " %s " % pips if pips else "", suffix)
 
 
 def signed(value):
@@ -1099,17 +1100,26 @@ def const_name(name):
 
 
 def parse_mana_cost(cost_string):
-    """Scryfall's '{2}{B}{B}' into the engine's {generic, colors} shape. Returns None for anything with hybrid/phyrexian/X symbols, which the engine can't pay."""
+    """Scryfall's '{2}{B}{B}' into the engine's {generic, colors, x} shape.
+
+    Returns None for anything with hybrid or phyrexian symbols, which the engine
+    still cannot pay. {X} is counted rather than refused: the engine gained X
+    costs on 2026-08-10, and a card is now blocked by whatever its *text* needs
+    rather than by the symbol in its cost.
+    """
     generic = 0
     colors = {}
+    x = 0
     for symbol in re.findall(r"\{([^}]+)\}", cost_string or ""):
         if symbol.isdigit():
             generic += int(symbol)
         elif symbol in "WUBRG":
             colors[symbol] = colors.get(symbol, 0) + 1
+        elif symbol == "X":
+            x += 1
         else:
-            return None  # hybrid, phyrexian, {X}, snow - not representable
-    return generic, colors
+            return None  # hybrid, phyrexian, snow - not representable
+    return generic, colors, x
 
 
 def interpret(card):

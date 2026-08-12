@@ -55,6 +55,11 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
     case "castSpell":
       castSpellWithAutoTap(state, playerId, message.instanceId, message.targets ?? [], {
         fromCommandZone: message.fromCommandZone,
+        // Both were dropped here before now, so a modal spell cast over the
+        // network was refused for not naming a mode - the client had chosen
+        // one and the message left it behind.
+        chosenMode: message.chosenMode,
+        chosenX: message.chosenX,
       });
       return;
     case "activateAbility":

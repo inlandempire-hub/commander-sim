@@ -302,3 +302,29 @@ describe("replacement effects", () => {
     expect(textOf("doubling-season")).toContain("a permanent you control");
   });
 });
+
+/**
+ * {X}, which the panel must show as a symbol rather than a number.
+ */
+describe("X in a cost", () => {
+  it("prints -X/-X rather than a value", () => {
+    // The panel is read *before* deciding what to cast it for, so a number
+    // there would be showing a decision the player has not made yet.
+    const text = textOf("the-meathook-massacre");
+    expect(text).toContain("all creatures get -X/-X until end of turn.");
+  });
+
+  it("distinguishes the two death triggers by who controlled the creature", () => {
+    // Printed identically these are the same ability twice, and the card reads
+    // as one that drains you when your own creature dies *and* gains you life
+    // for it. The renderer dropped the filter until this test was written.
+    const text = textOf("the-meathook-massacre");
+    expect(text).toContain("Whenever a creature you control dies, each opponent loses 1 life.");
+    expect(text).toContain("Whenever a creature an opponent controls dies, you gain 1 life.");
+  });
+
+  it("shows the {X} in the printed cost", () => {
+    const def = TEST_CARD_DEFINITIONS["the-meathook-massacre"]!;
+    expect(def.manaCost?.x).toBe(1);
+  });
+});

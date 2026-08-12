@@ -44,6 +44,10 @@ def mana_cost_to_string(cost):
     if cost is None:
         return ""
     parts = []
+    # {X} comes first, as it is printed, and there may be more than one of it -
+    # Pest Infestation is {X}{X}{G}. `x` is a count for that reason, and the
+    # engine keeps it out of the generic total because a card in hand has X = 0.
+    parts.extend(["{X}"] * cost.get("x", 0))
     generic = cost.get("generic", 0)
     if generic:
         parts.append("{%d}" % generic)

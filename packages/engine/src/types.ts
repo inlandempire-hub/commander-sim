@@ -60,7 +60,30 @@ export interface ManaCost {
    * It counts 1 towards mana value however it is paid.
    */
   hybrid?: Color[][];
+  /**
+   * How many {X} symbols the cost prints. One for The Meathook Massacre
+   * ({X}{B}{B}), two for Pest Infestation ({X}{X}{G}) - where choosing X = 3
+   * costs six generic, not three.
+   *
+   * A count rather than a flag for exactly that reason, and it is *not* part of
+   * mana value: a card sitting in a hand or a library has X = 0 (rule 202.3b),
+   * which is what `manaValue` reports and what the curve is drawn from. The
+   * chosen value only exists from the moment the spell is put on the stack.
+   */
+  x?: number;
 }
+
+/**
+ * A number in an effect that is not known until the spell is cast - the -X/-X
+ * on The Meathook Massacre.
+ *
+ * Substituted for the chosen value by `resolveAmounts` (see x.ts) before the
+ * effect ever reaches `applyEffect`, so every reader downstream still sees a
+ * plain number. That is the whole reason this is a substitution rather than a
+ * value the effects layer has to understand: nothing in effects.ts, the bot or
+ * the card-text renderer had to learn what X is.
+ */
+export type Amount = number | { kind: "x"; negate?: boolean };
 
 export type TargetSelector =
   | { kind: "any-target" }
@@ -228,8 +251,23 @@ export type Effect =
    * turn" (`scope: "controller"`) or "All creatures get -N/-N until end of
    * turn" (`scope: "all"`) - the latter being how this engine gets a board wipe
    * without a separate effect kind.
+   *
+   * The two numbers are `Amount` rather than `number` because The Meathook
+   * Massacre prints "-X/-X". By the time this reaches `applyEffect` the X has
+   * already been substituted, so it is always a plain number there.
    */
-  | { kind: "pumpAll"; power: number; toughness: number; scope: "controller" | "all" }
+  | { kind: "pumpAll"; power: Amount; toughness: Amount; scope: "controller" | "all" }
+  /**
+   * "Each opponent loses 1 life", and the family of life *loss* as opposed to
+   * damage.
+   *
+   * A separate effect and not damage with a minus sign, because the two behave
+   * differently in ways that come up: loss cannot be prevented by a damage
+   * shield, is not dealt by a source, gives lifelink nothing, and does not
+   * trigger anything watching for damage. Getting that wrong would make The
+   * Meathook Massacre quietly interact with Healing Salve.
+   */
+  | { kind: "loseLife"; amount: number; who: "each-opponent" }
   /**
    * "Counter target spell", optionally "...unless its controller pays [cost]".
    * Only spells can be targeted, never triggered or activated abilities - see
@@ -508,6 +546,19 @@ export interface TriggeredAbility {
     withCounter?: boolean;
     /** "a **nontoken** creature you control dies" - Blight Mound. */
     nontoken?: boolean;
+    /**
+     * Whose permanent it has to be, relative to the watcher's controller.
+     *
+     * The Meathook Massacre needs both halves and they do opposite things:
+     * "whenever a creature **you control** dies, each opponent loses 1 life"
+     * and "whenever a creature **an opponent controls** dies, you gain 1 life".
+     * Without this the two abilities are indistinguishable and the card drains
+     * you every time your own creature dies.
+     *
+     * Omitted means any creature at all, which is what Soul Warden's family
+     * says and why it cannot simply default to "you".
+     */
+    controlledBy?: "you" | "opponent";
   };
   /**
    * "You may". The trigger still goes on the stack; its controller is asked on
@@ -715,6 +766,20 @@ export interface CardInstance {
   deathtouchDamage: boolean;
   /** +1/+1 counters currently on this permanent. Reset to 0 on any zone change (a "new object" per the real rules). */
   plusOneCounters: number;
+  /**
+   * The value announced for {X} when this card was cast, for a card whose own
+   * abilities refer to it.
+   *
+   * Deliberately *not* cleared by `moveCard`, unlike counters and pumps. For a
+   * permanent spell, X stays defined for the permanent's abilities after it
+   * resolves (rule 608.2g) - The Meathook Massacre's "each creature gets -X/-X"
+   * is an enters-the-battlefield trigger, so it fires after the spell has left
+   * the stack and would see nothing at all if this were reset on the way in.
+   *
+   * 0 for everything else, which is also the right answer: a card with no {X}
+   * in its cost has X = 0.
+   */
+  chosenX: number;
   /**
    * Extra power from "until end of turn" effects, on top of the printed value
    * and any +1/+1 counters. Cleared in the cleanup step and on any zone

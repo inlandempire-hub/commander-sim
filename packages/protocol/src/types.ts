@@ -8,7 +8,20 @@ import type { AttackerDeclaration, BlockerDeclaration, GameState, StackTarget } 
  */
 export type ClientMessage =
   | { type: "playLand"; instanceId: string }
-  | { type: "castSpell"; instanceId: string; targets?: StackTarget[]; fromCommandZone?: boolean }
+  /**
+   * `chosenMode` and `chosenX` are both settled as the spell is cast (rule
+   * 601.2b), so they travel with the cast rather than being asked for
+   * afterwards. Both were dropped on the way over the wire before now, which
+   * meant a modal spell played over the network was refused outright.
+   */
+  | {
+      type: "castSpell";
+      instanceId: string;
+      targets?: StackTarget[];
+      fromCommandZone?: boolean;
+      chosenMode?: number;
+      chosenX?: number;
+    }
   | { type: "activateAbility"; instanceId: string; abilityIndex: number; targets?: StackTarget[] }
   | { type: "declareAttackers"; declarations: AttackerDeclaration[] }
   | { type: "declareBlockers"; declarations: BlockerDeclaration[] }

@@ -153,3 +153,46 @@ export function ModePicker({
     document.body,
   );
 }
+
+/**
+ * "Announce a value for X" - chosen as the spell is cast (rule 601.2b), before
+ * anything is paid.
+ *
+ * Only values the player can actually afford are offered, because a chooser
+ * that lets you pick a number and then has the cast refused is worse than no
+ * chooser at all. Zero is always there: casting The Meathook Massacre for
+ * nothing is a real play when what you want is the two death triggers.
+ */
+export function XPicker({
+  cardName,
+  values,
+  onChoose,
+  onCancel,
+}: {
+  cardName: string;
+  values: number[];
+  onChoose: (x: number) => void;
+  onCancel: () => void;
+}) {
+  return createPortal(
+    <div className="overlay overlay--picker">
+      <div className="overlay__panel overlay__panel--narrow">
+        <div className="overlay__head">
+          <strong>{cardName}</strong>
+          <button type="button" className="overlay__close" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+        <p className="picker__prompt">Choose a value for X</p>
+        <div className="x-values">
+          {values.map((x) => (
+            <button key={x} type="button" className="x-values__option" onClick={() => onChoose(x)}>
+              {x}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}

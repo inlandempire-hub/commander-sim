@@ -4,6 +4,7 @@ import { applyCommanderTax, canPayManaCostFromPool, payManaCostFor, spendablePoo
 import { pushOntoStack, putOntoBattlefield } from "./permanents.js";
 import { isValidTarget, targetSelectorOf } from "./targeting.js";
 import { attemptWardPayments } from "./ward.js";
+import { costWithX, requiresX, resolveAmounts } from "./x.js";
 
 const PERMANENT_TYPES = new Set(["Creature", "Artifact", "Enchantment", "Planeswalker", "Battle", "Land"]);
 
@@ -28,6 +29,15 @@ export interface CastOptions {
    * also why the targets passed alongside must be legal for *that* mode.
    */
   chosenMode?: number;
+  /**
+   * The value announced for {X}. Required for a card with {X} in its cost and
+   * meaningless for anything else.
+   *
+   * Announced rather than inferred from the mana available: "cast it for as
+   * much as I can afford" is a common play but it is not the only one, and a
+   * player who wants to keep mana up for something else must be able to.
+   */
+  chosenX?: number;
 }
 
 /** The modes of a "choose one" card, or undefined if it isn't modal. */
@@ -70,7 +80,22 @@ export function castSpell(
     throw new Error(`${def.name} can only be cast at sorcery speed`);
   }
 
-  let cost: ManaCost = def.manaCost ?? { generic: 0, colors: {} };
+  /*
+   * {X} is announced as the spell is cast (rule 601.2b), before anything is
+   * paid, and it never changes afterwards. Recorded on the card instance
+   * rather than only on the stack object because a permanent spell's own
+   * abilities go on referring to it once it has resolved - see
+   * `CardInstance.chosenX`.
+   */
+  const chosenX = requiresX(def.manaCost) ? (options.chosenX ?? 0) : 0;
+  if (requiresX(def.manaCost) && options.chosenX === undefined) {
+    throw new Error(`${def.name} has {X} in its cost - a value for X must be chosen`);
+  }
+  if (chosenX < 0 || !Number.isInteger(chosenX)) {
+    throw new Error(`X must be a whole number, not ${chosenX}`);
+  }
+
+  let cost: ManaCost = costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
   if (options.fromCommandZone) {
     const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
     cost = applyCommanderTax(cost, timesCast);
@@ -88,6 +113,9 @@ export function castSpell(
     if (!mode) throw new Error(`${def.name} has no mode ${chosen}`);
     effect = mode.effect;
   }
+  // X is substituted here for the same reason the mode is: it is settled at
+  // cast time, so nothing downstream ever has to know it was once a symbol.
+  effect = resolveAmounts(effect, chosenX);
 
   // Validated before anything is paid or moved. Every throw below this point
   // would otherwise leave the game half-cast - mana spent and the card sitting
@@ -117,6 +145,10 @@ export function castSpell(
    */
   const uncounterable =
     def.cantBeCountered === true || restrictionsUsed.some((used) => used.grantsUncounterable === true);
+
+  // Recorded on the card, not just the spell: The Meathook Massacre's own
+  // enters-the-battlefield trigger fires after the spell has left the stack.
+  instance.chosenX = chosenX;
 
   moveCard(state, instanceId, "stack");
   log(state, `${playerId} casts ${def.name}`);

@@ -14,6 +14,7 @@ import { chooseAttackers, chooseBlockers } from "./combat.js";
 import {
   creatureValue,
   definitionOf,
+  fixedAmount,
   hasKeyword,
   opponentsOf,
   power,
@@ -233,19 +234,26 @@ function sweepTheBoard(state: GameState, me: Player): BotAction | null {
   const wipes = castableFromHand(
     state,
     me,
-    (def) => def.castEffect?.kind === "pumpAll" && def.castEffect.scope === "all" && def.castEffect.toughness < 0,
+    (def) =>
+      def.castEffect?.kind === "pumpAll" &&
+      def.castEffect.scope === "all" &&
+      (fixedAmount(def.castEffect.toughness) ?? 0) < 0,
   );
   if (wipes.length === 0) return null;
 
   for (const wipe of wipes) {
     const effect = wipe.definition.castEffect;
     if (effect?.kind !== "pumpAll") continue;
+    // -X/-X: how much it kills depends on a value nobody has chosen yet, so
+    // there is nothing here to weigh. Skipped rather than played for X = 0.
+    const shrink = fixedAmount(effect.toughness);
+    if (shrink === null) continue;
 
     const lossFor = (player: Player): number =>
       player.battlefield
         .filter((c) => definitionOf(state, c)?.types.includes("Creature"))
         .filter((c) => !hasKeyword(state, c, "Indestructible"))
-        .filter((c) => toughness(state, c) + effect.toughness <= 0)
+        .filter((c) => toughness(state, c) + shrink <= 0)
         .reduce((total, c) => total + creatureValue(state, c), 0);
 
     const theirLoss = opponentsOf(state, me.id).reduce((total, p) => total + lossFor(p), 0);

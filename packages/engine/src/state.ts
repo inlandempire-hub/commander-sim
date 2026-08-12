@@ -87,6 +87,7 @@ export function createCardInstance(
     damageMarked: 0,
     deathtouchDamage: false,
     plusOneCounters: 0,
+    chosenX: 0,
     temporaryPowerBonus: 0,
     temporaryToughnessBonus: 0,
     damagePrevention: 0,
@@ -148,6 +149,10 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.damageMarked = 0;
   instance.deathtouchDamage = false;
   instance.plusOneCounters = 0; // a zone change makes a new object, per the real rules - counters don't carry over
+  // `chosenX` is deliberately *not* in this list. For a permanent spell the
+  // announced X stays defined for the permanent's own abilities (rule 608.2g),
+  // and The Meathook Massacre's -X/-X is an enters-the-battlefield trigger -
+  // it fires after this has run, so resetting here would wipe the board for 0.
   instance.temporaryPowerBonus = 0; // likewise, until-end-of-turn pumps don't follow a card between zones
   instance.temporaryToughnessBonus = 0;
   instance.damagePrevention = 0; // a shield protects the object it was cast on, not the new one this became
