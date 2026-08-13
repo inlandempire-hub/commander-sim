@@ -25,6 +25,7 @@ export function createPlayer(id: string): Player {
     damagePrevention: 0,
     attemptedDrawFromEmptyLibrary: false,
     landsPlayedThisTurn: 0,
+    plusOneCountersPlacedThisTurn: 0,
   };
 }
 
@@ -47,6 +48,7 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     pendingTargetChoices: [],
     pendingDiscards: [],
     creatureDeathsThisTurn: 0,
+    combatDamagePrevention: null,
     mulligan: null,
     cardDefinitions,
     nextInstanceId: 1,
@@ -147,6 +149,21 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
     return instance;
   }
 
+  /*
+   * A modal double-faced card turns back over as it leaves the battlefield.
+   *
+   * Bala Ged Sanctuary in a graveyard is Bala Ged Recovery: the back face only
+   * exists while the card is in play, and a card in any other zone has its
+   * front face's characteristics. Without this, killing the land half would put
+   * a card called "Bala Ged Sanctuary" in the graveyard that nothing could
+   * recognise, recur, or count towards a deck's singleton rule.
+   */
+  const backFace = state.cardDefinitions[instance.definitionId];
+  if (backFace?.isBackFace && destination !== "battlefield") {
+    const front = Object.values(state.cardDefinitions).find((d) => d.backFaceId === instance.definitionId);
+    if (front) instance.definitionId = front.id;
+  }
+
   instance.zone = destination;
   instance.tapped = false;
   instance.damageMarked = 0;
@@ -162,6 +179,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.damagePrevention = 0; // a shield protects the object it was cast on, not the new one this became
   instance.regenerationShields = 0; // likewise - a regenerated creature that later leaves keeps nothing
   instance.removedFromCombat = false;
+  instance.attachedTo = undefined; // an Equipment that changes zones falls off
   instance.controllerId = owner.id; // zone changes return control to the owner
   instance.summoningSickness = destination === "battlefield";
 

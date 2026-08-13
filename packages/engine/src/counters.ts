@@ -15,6 +15,15 @@ function buffApplies(
   candidate: CardInstance,
   candidateDef: CardDefinition,
 ): boolean {
+  /*
+   * An Equipment's buff is not an anthem: "equipped creature gets +1/-1"
+   * reaches exactly one permanent, the one it is attached to, and nothing at
+   * all while it sits unattached. Checked first, because every other rule below
+   * is about classes of creatures and none of them apply.
+   */
+  const sourceDef = state.cardDefinitions[source.definitionId];
+  if (sourceDef?.equipCost) return source.attachedTo === candidate.instanceId;
+
   // "*other* creatures you control", unless the card omits the word - see
   // `includesSelf`.
   if (source.instanceId === candidate.instanceId && !buff.includesSelf) return false;

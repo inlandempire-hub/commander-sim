@@ -193,6 +193,21 @@ export function playLand(state: GameState, playerId: string, instanceId: string)
   if (instance.zone !== "hand" || instance.ownerId !== playerId) {
     throw new Error(`${instanceId} is not in ${playerId}'s hand`);
   }
+  /*
+   * A modal double-faced card played for its land half *becomes* that half.
+   *
+   * Done before anything else reads the definition, so every check below and
+   * every trigger afterwards sees a plain land - which is exactly what it is
+   * once it is on the battlefield. `moveCard` turns it back over on the way
+   * out. Only when the back face is a land: nothing in the pool has a spell on
+   * the back, and `playLand` is not the door a spell comes through.
+   */
+  const front = requireDefinition(state, instance.definitionId);
+  const back = front.backFaceId ? requireDefinition(state, front.backFaceId) : undefined;
+  if (back?.types.includes("Land") && !front.types.includes("Land")) {
+    instance.definitionId = front.backFaceId!;
+  }
+
   const def = requireDefinition(state, instance.definitionId);
   if (!def.types.includes("Land")) throw new Error(`${def.name} is not a land`);
   if (!canCastAtSorcerySpeed(state, playerId)) throw new Error("Lands can only be played at sorcery speed");

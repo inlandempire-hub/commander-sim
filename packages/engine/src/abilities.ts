@@ -13,6 +13,7 @@ import { applyEffect } from "./effects.js";
 import { pushOntoStack } from "./permanents.js";
 import { sacrificePermanent } from "./sba.js";
 import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
+import { canCastAtSorcerySpeed } from "./casting.js";
 import { attemptWardPayments } from "./ward.js";
 
 /**
@@ -49,6 +50,8 @@ export function activatableAbilities(
       if (instance.tapped) return;
       if (def.types.includes("Creature") && instance.summoningSickness) return;
     }
+    // "Equip only as a sorcery." Everything else here is instant speed.
+    if (ability.sorcerySpeedOnly && !canCastAtSorcerySpeed(state, playerId)) return;
     if (ability.cost.mana && !canPayManaCostFromPool(potential, ability.cost.mana)) return;
     if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) return;
     if (!colorAllowed(state, playerId, ability)) return;

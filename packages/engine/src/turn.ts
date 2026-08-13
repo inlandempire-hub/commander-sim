@@ -212,12 +212,18 @@ function runAutomaticStepActions(state: GameState): void {
         // Unspent prevention expires with the turn too - "prevent the next 3
         // damage this turn" is not a shield you get to keep.
         player.damagePrevention = 0;
+        // "Counters you've put on creatures this turn" - the turn ends here, so
+        // the tally does. Cleanup rather than untap, because Iridescent
+        // Hornbeetle reads it during the end step, which is still this turn.
+        player.plusOneCountersPlacedThisTurn = 0;
         emptyManaPool(player);
       }
       // "If a creature died *this turn*" - the turn ends here, so the count
       // does too. Cleanup rather than untap because a card could ask about it
       // during an opponent's end step, which is still this turn.
       state.creatureDeathsThisTurn = 0;
+      // "Prevent all combat damage ... this turn" ends with the turn.
+      state.combatDamagePrevention = null;
       break;
     }
     default:

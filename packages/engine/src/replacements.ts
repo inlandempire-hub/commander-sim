@@ -61,6 +61,19 @@ export function countersPlaced(state: GameState, instance: CardInstance, amount:
   let total = amount;
   for (const rule of applicable) total += rule.add ?? 0;
   for (const rule of applicable) total *= rule.multiply ?? 1;
+
+  /*
+   * Iridescent Hornbeetle's tally, counted after the replacements have had
+   * their say - which is right, because Doubling Season genuinely does make the
+   * Hornbeetle pay for twice as many.
+   *
+   * "On creatures under your control", so a counter this player puts on
+   * somebody else's creature does not count, and neither does one on a
+   * non-creature.
+   */
+  if (definition.types.includes("Creature")) {
+    requirePlayer(state, instance.controllerId).plusOneCountersPlacedThisTurn += total;
+  }
   return total;
 }
 

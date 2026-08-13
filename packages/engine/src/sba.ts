@@ -119,6 +119,25 @@ export function checkStateBasedActions(state: GameState): void {
       }
     }
 
+    /*
+     * An Equipment whose creature has gone falls off.
+     *
+     * Rule 704.5n as it applies here: an Equipment attached to something that
+     * is no longer a creature on the battlefield becomes unattached. Without
+     * this, Skullclamp would keep buffing a graveyard and its dies trigger
+     * would watch a card that can never die again.
+     */
+    for (const player of state.players) {
+      for (const instance of player.battlefield) {
+        if (!instance.attachedTo) continue;
+        const host = findInstance(state, instance.attachedTo);
+        if (!host || host.instance.zone !== "battlefield") {
+          instance.attachedTo = undefined;
+          changed = true;
+        }
+      }
+    }
+
     // Legend rule: a player controlling 2+ legendary permanents with the same name keeps only one.
     for (const player of state.players) {
       const legendaryByName = new Map<string, string[]>();

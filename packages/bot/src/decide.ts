@@ -57,7 +57,14 @@ function shouldAcceptTrigger(state: GameState, botPlayerId: string): boolean {
   if (!pending) return false;
   const me = state.players.find((p) => p.id === botPlayerId);
   const effect = pending.object.effect;
-  if (effect.kind === "draw" && me) return me.library.length >= effect.amount;
+  if (effect.kind === "draw" && me) {
+    // A draw whose size is counted at resolution cannot be checked against the
+    // library here, so the "would this deck me out?" guard does not apply and
+    // the trigger is simply taken. Same posture as everywhere else the bot
+    // meets a dynamic amount: skip the heuristic rather than guess a number.
+    const amount = fixedAmount(effect.amount);
+    return amount === null || me.library.length >= amount;
+  }
   return true;
 }
 
@@ -355,7 +362,10 @@ function drawCards(state: GameState, me: Player, reserve: ManaCost = NO_COST): B
   if (draws.length === 0) return null;
   // Most cards per cast; the mana is otherwise going unspent anyway.
   draws.sort((a, b) => {
-    const amountOf = (c: Castable): number => (c.definition.castEffect?.kind === "draw" ? c.definition.castEffect.amount : 0);
+    // Dynamic draws sort last rather than being guessed at - the bot has no
+    // way to know Inspiring Call draws three until it resolves.
+    const amountOf = (c: Castable): number =>
+      c.definition.castEffect?.kind === "draw" ? (fixedAmount(c.definition.castEffect.amount) ?? 0) : 0;
     return amountOf(b) - amountOf(a);
   });
   return castOrTapToward(state, me, draws[0]!);

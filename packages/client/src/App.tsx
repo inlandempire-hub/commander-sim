@@ -31,7 +31,7 @@ import {
 import { StackView } from "./components/StackView.js";
 import { ActionBar, ConcedeButton } from "./components/ActionBar.js";
 import { CardDetail } from "./components/CardDetail.js";
-import { CardPicker, ModePicker, XPicker } from "./components/CardPicker.js";
+import { CardPicker, FacePicker, ModePicker, XPicker } from "./components/CardPicker.js";
 import { GameLog } from "./components/GameLog.js";
 import { CardFlightLayer } from "./components/CardFlightLayer.js";
 import { TableBeat } from "./components/TableBeat.js";
@@ -45,7 +45,7 @@ import { ParticleLayer } from "./components/ParticleLayer.js";
 import { StopSettings } from "./components/StopSettings.js";
 import { AbilityPicker, type AbilityOption } from "./components/AbilityPicker.js";
 import { ConfirmTrigger } from "./components/ConfirmTrigger.js";
-import { describeActivated } from "./cardText.js";
+import { describeActivated, describeCard } from "./cardText.js";
 import { burstsForFlight, spellColor } from "./particles.js";
 import { findInstance } from "./cardLookup.js";
 import {
@@ -148,6 +148,11 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
   const [pendingMode, setPendingMode] = useState<{ ownerId: string; instanceId: string } | null>(null);
   /** A spell with {X} in its cost, waiting on a value. Asked before targets, like a mode. */
   const [pendingX, setPendingX] = useState<{ ownerId: string; instanceId: string } | null>(null);
+  /**
+   * A modal double-faced card waiting on which half you meant. Asked before X
+   * and before a mode, since the other face has neither.
+   */
+  const [pendingFace, setPendingFace] = useState<{ ownerId: string; instanceId: string } | null>(null);
   const [sound, setSound] = useState(soundEnabled);
   const [volume, setVolume] = useState(soundVolume);
   const [particles, setParticles] = useState(particlesEnabled);
@@ -500,6 +505,17 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
       controller.playLand(ownerId, instanceId);
       return;
     }
+    /*
+     * A modal double-faced card is two cards in one, and which one you meant is
+     * the first question - before X, before a mode, before targets, because the
+     * other face has none of those. Asked every time rather than guessed: "cast
+     * the spell if you can afford it, otherwise play the land" would take the
+     * land drop away from you on the turn you wanted it.
+     */
+    if (def.backFaceId && !pendingFace) {
+      setPendingFace({ ownerId, instanceId });
+      return;
+    }
     // X is announced first of all - before the mode and before targets -
     // because it is part of the cost, and the cost is what decides whether the
     // spell can be cast at all.
@@ -717,6 +733,24 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
    * normal target-selection flow carrying the mode with it; if it doesn't,
    * the spell is fully specified and can be cast.
    */
+  /**
+   * A face has been chosen. The back is always a land here, so it goes down as
+   * a land drop; the front falls into the ordinary casting flow, which still
+   * has to ask about X, modes and targets afterwards.
+   */
+  function handleFaceChosen(face: "front" | "back") {
+    if (!pendingFace) return;
+    const { ownerId, instanceId } = pendingFace;
+    setPendingFace(null);
+    if (face === "back") {
+      controller.playLand(ownerId, instanceId);
+      return;
+    }
+    // Re-enter the normal path now that the face is settled. `pendingFace` is
+    // already cleared, so the guard at the top does not bounce it straight back.
+    handleHandCardClick(ownerId, instanceId);
+  }
+
   function handleXChosen(x: number) {
     if (!pendingX) return;
     const { ownerId, instanceId } = pendingX;
@@ -1109,6 +1143,22 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             onHover={handleHover}
           />
         )}
+
+        {pendingFace && (() => {
+          const owner = state.players.find((p) => p.id === pendingFace.ownerId);
+          const card = owner?.hand.find((c) => c.instanceId === pendingFace.instanceId);
+          const front = card ? state.cardDefinitions[card.definitionId] : undefined;
+          const back = front?.backFaceId ? state.cardDefinitions[front.backFaceId] : undefined;
+          if (!front || !back) return null;
+          return (
+            <FacePicker
+              front={{ name: front.name, lines: describeCard(front, state.cardDefinitions) }}
+              back={{ name: back.name, lines: describeCard(back, state.cardDefinitions) }}
+              onChoose={(face) => handleFaceChosen(face)}
+              onCancel={() => setPendingFace(null)}
+            />
+          );
+        })()}
 
         {pendingConfirmation && (
           <ConfirmTrigger

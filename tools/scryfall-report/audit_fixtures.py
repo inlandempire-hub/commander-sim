@@ -30,12 +30,39 @@ def load_scryfall():
     marked not-Commander-legal, which produced a false failure on a perfectly
     good fixture."""
     by_name = {}
+    multi_faced = []
     with gzip.open(DATA, "rt", encoding="utf-8") as fh:
         for line in fh:
             card = json.loads(line)
             if "Token" in card.get("type_line", ""):
                 continue
             by_name.setdefault(card["name"].lower(), card)
+            if card.get("card_faces"):
+                multi_faced.append(card)
+
+    """
+    Faces are indexed in a *second* pass, and only where the name is not already
+    a card of its own.
+
+    A modal double-faced card is filed under "Front // Back", and the engine
+    holds each face as its own definition - so the faces have to be findable.
+    But plenty of face names collide with real single-faced cards ("Regrowth",
+    "Lightning Strike"), and indexing in one pass let whichever came first in
+    the file win. That silently re-pointed a dozen perfectly good fixtures at
+    the wrong card and reported them all as broken.
+    """
+    for card in multi_faced:
+        for face in card["card_faces"]:
+            name = face["name"].lower()
+            if name in by_name:
+                continue
+            merged = dict(card)
+            merged.update({k: v for k, v in face.items() if v is not None})
+            # Colour identity and legality belong to the whole card, never to
+            # one side of it.
+            merged["legalities"] = card.get("legalities", {})
+            merged["color_identity"] = card.get("color_identity", [])
+            by_name[name] = merged
     return by_name
 
 
@@ -53,6 +80,11 @@ def mana_cost_to_string(cost):
         parts.append("{%d}" % generic)
     for color in ("W", "U", "B", "R", "G"):
         parts.extend(["{%s}" % color] * cost.get("colors", {}).get(color, 0))
+    # "{B/G}" - one symbol paid with either colour. Revitalizing Repast is the
+    # first fixture whose *cost* has one; the filter lands only had them in an
+    # activation cost, which this never looked at.
+    for pair in cost.get("hybrid", []) or []:
+        parts.append("{%s}" % "/".join(pair))
     # A genuinely free spell is written "{0}", not "" - "" means "no mana cost
     # at all", which is a different thing (lands, most tokens).
     return "".join(parts) or "{0}"

@@ -92,6 +92,8 @@ def card_features(fx):
         feat.add("replacementEffects")
     if fx.get("wardCost"):
         feat.add("ward")
+    if fx.get("equipCost"):
+        feat.add("equipCost")
     for ability in fx.get("activatedAbilities") or []:
         cost = ability.get("cost") or {}
         if cost.get("payLife"):
@@ -121,17 +123,28 @@ def card_features(fx):
     }
     if len({c for c in mana_colors if c in {"W", "U", "B", "R", "G"}}) >= 5:
         feat.add("anyColour")
-    if any(
-        (t.get("effect") or {}).get("grants") or (t.get("effect") or {}).get("appliesTo")
-        for t in fx.get("triggeredAbilities") or []
-    ):
-        feat.add("grantsKeywords")
-    cast = fx.get("castEffect") or {}
-    if cast.get("grants"):
-        feat.add("grantsKeywords")
-    for mode in cast.get("modes") or []:
-        if (mode.get("effect") or {}).get("grants"):
-            feat.add("grantsKeywords")
+    """
+    `grants` is looked for *anywhere* in the effect tree rather than at the three
+    places it used to be checked.
+
+    It can sit on a cast effect, on a mode, on a trigger's effect, or - as of
+    Inspiring Call and Revitalizing Repast - on a step inside a sequence. Each
+    hand-written check kept missing the next shape, and every miss reported a
+    correct card as incomplete.
+    """
+
+    def walk(node):
+        if isinstance(node, dict):
+            if node.get("grants") or node.get("appliesTo"):
+                feat.add("grantsKeywords")
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    for field in ("castEffect", "activatedAbilities", "triggeredAbilities"):
+        walk(fx.get(field))
     return feat
 
 
@@ -166,13 +179,22 @@ RULES = [
     (r"^this (land|artifact|creature|permanent|enchantment) enters tapped$", {"entersTapped"}),
     # Effects.
     (r"\bprevent the next \d+ damage\b", {"preventDamage"}),
+    (r"\bprevent all combat damage\b", {"preventCombatDamage"}),
+    (r"\bexile target player's graveyard\b", {"exileGraveyard"}),
+    (r"\bif a \w+ card is exiled this way\b", {"ifTargetWas"}),
+    (r"^equip \{", {"equipCost"}),
+    (r"\bequipped creature gets\b", {"staticBuff"}),
+    (r"\bthose creatures gain\b", {"grantsKeywords"}),
     (r"\bdeals \d+ damage\b", {"damage"}),
     (r"\bgains? \d+ life\b", {"gainLife"}),
     (r"\bloses? \d+ life\b", {"loseLife"}),
     (r"\bdiscards? a card\b", {"discard"}),
     (r"\bsurveil \d+\b", {"surveil"}),
     (r"\bmills? \w+ cards?\b", {"mill"}),
-    (r"\bdraw (a card|\w+ cards)\b", {"draw"}),
+    # "draw a card", "draw three cards", and "draw cards equal to ..." - the
+    # last has no quantity word at all, which the first two forms required, so
+    # Return of the Wildspeaker read as unimplemented.
+    (r"\bdraw (a card|cards|\w+ cards)\b", {"draw"}),
     (r"\bdestroy (target|all|each)\b", {"destroy", "pumpAll"}),
     (r"\bexile target\b", {"exile"}),
     (r"\bcounter target\b", {"counter"}),
@@ -246,12 +268,30 @@ def main():
     fixtures = list(fixtures.values()) if isinstance(fixtures, dict) else fixtures
 
     by_name = {}
+    multi_faced = []
     with gzip.open(DATA, "rt", encoding="utf-8") as fh:
         for line in fh:
             card = json.loads(line)
             if "Token" in card.get("type_line", ""):
                 continue
             by_name.setdefault(card["name"].lower(), card)
+            if card.get("card_faces"):
+                multi_faced.append(card)
+    """
+    Faces are indexed in a second pass, and only where the name is not already
+    a card of its own - see the same note in audit_fixtures.py. Indexing in one
+    pass lets a face called "Regrowth" shadow the real Regrowth.
+    """
+    for card in multi_faced:
+        for face in card["card_faces"]:
+            name = face["name"].lower()
+            if name in by_name:
+                continue
+            merged = dict(card)
+            merged.update({k: v for k, v in face.items() if v is not None})
+            merged["legalities"] = card.get("legalities", {})
+            merged["color_identity"] = card.get("color_identity", [])
+            by_name[name] = merged
 
     gaps, checked = [], 0
     for fx in fixtures:
@@ -269,7 +309,8 @@ def main():
         leftovers = []
         for line in oracle.split("\n"):
             for sentence in re.split(r"(?<=\.)\s+", line):
-                if sentence.strip(" .•") and not covered(sentence.lstrip("• "), have):
+                cleaned = sentence.strip().lstrip("•").strip()
+                if cleaned.strip(" .") and not covered(cleaned, have):
                     leftovers.append(re.sub(r"\s+", " ", sentence.strip()))
         if leftovers:
             gaps.append((fx["name"], fx.get("tier"), leftovers))

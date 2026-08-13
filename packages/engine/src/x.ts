@@ -50,9 +50,15 @@ export interface AmountContext {
   eventAmount?: number;
 }
 
-function value(amount: Amount, values: AmountContext): number {
+function value(amount: Amount, values: AmountContext): number | Amount {
   if (typeof amount === "number") return amount;
   if (amount.kind === "event-amount") return values.eventAmount ?? 0;
+  /*
+   * A `count` is not substituted - it is read off the board when the effect
+   * resolves, which is a different moment and a different answer. Passed
+   * through untouched for `evaluateAmount` to deal with later. See amounts.ts.
+   */
+  if (amount.kind === "count") return amount;
   return amount.negate ? -values.x : values.x;
 }
 

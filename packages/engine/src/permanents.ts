@@ -230,6 +230,8 @@ export function fireWatchers(
     for (const trigger of watcherDef.triggeredAbilities ?? []) {
       if (trigger.event !== event) continue;
       if (!matchesWatchFor(trigger.watchFor, subject, watcher.controllerId)) continue;
+      // "Whenever equipped creature dies" - only the one this Equipment is on.
+      if (trigger.watchFor?.attachedToThis && watcher.attachedTo !== subject.instanceId) continue;
       if (watcher.instanceId === subject.instanceId && !trigger.includesSelf) continue;
       if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== subject.controllerId) {
         continue;

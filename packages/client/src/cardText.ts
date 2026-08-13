@@ -4,6 +4,7 @@ import type {
   CardDefinition,
   Color,
   Amount,
+  Countable,
   Effect,
   ReplacementEffect,
   TargetSelector,
@@ -101,6 +102,10 @@ function signedAmount(amount: Amount): string {
   // slot - it only ever counts tokens. Rendered rather than thrown, because
   // the panel's job is to describe whatever it is handed.
   if (amount.kind === "event-amount") return "that many";
+  // A counted amount never appears in a power/toughness slot on any card in the
+  // pool - Return of the Wildspeaker's +3/+3 is a plain number, and the count
+  // is on its other mode. Rendered rather than thrown, like the case above.
+  if (amount.kind === "count") return describeCount(amount.of);
   return amount.negate ? "-X" : "+X";
 }
 
@@ -108,9 +113,22 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
   switch (effect.kind) {
     case "damage":
       return `Deal ${effect.amount} damage to ${describeTarget(effect.target)}.`;
-    case "draw":
+    case "draw": {
+      // "Draw a card for each creature you control with a +1/+1 counter on it",
+      // and the plain numeric printings. The dynamic form reads as a phrase
+      // rather than a number, because a number is exactly what it is not.
+      if (typeof effect.amount !== "number") {
+        if (effect.amount.kind !== "count") return "Draw that many cards.";
+        // "Draw cards equal to the greatest power ..." reads as a quantity;
+        // "draw a card for each creature ..." reads as a repetition. Different
+        // sentences, and both are printed on real cards.
+        return effect.amount.of.what === "greatest-power"
+          ? `Draw cards equal to ${describeCount(effect.amount.of)}.`
+          : `Draw a card for each ${describeCount(effect.amount.of)}.`;
+      }
       // "Draw a card", not "Draw 1 card" - no printed card says the latter.
       return effect.amount === 1 ? "Draw a card." : `Draw ${effect.amount} cards.`;
+    }
     case "addMana":
       return `Add ${`{${effect.color}}`.repeat(effect.amount)}.`;
     case "addManaCombination":
@@ -130,6 +148,22 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Pay ${effect.life} life.`;
     case "regenerateAll":
       return "Regenerate each creature you control.";
+    case "attach":
+      // The equip ability's own text is rendered from `equipCost` beside the
+      // rest of the card; this is the effect it puts on the stack.
+      return `Attach to ${describeTarget(effect.target)}.`;
+    case "preventCombatDamage":
+      return effect.exceptSubtype
+        ? `Prevent all combat damage that would be dealt this turn by non-${effect.exceptSubtype} creatures.`
+        : "Prevent all combat damage that would be dealt this turn.";
+    case "exileGraveyard":
+      return sentence(`Exile ${describeTarget(effect.target)}'s graveyard.`);
+    case "ifTargetWas":
+      // "If a creature card is exiled this way, ..." - the reflexive half, and
+      // the sentence the card actually prints for it.
+      return `If a ${effect.cardType.toLowerCase()} card is exiled this way, ${
+        describeEffect(effect.then, definitions).charAt(0).toLowerCase()
+      }${describeEffect(effect.then, definitions).slice(1)}`;
     case "preventDamage":
       return `Prevent the next ${effect.amount} damage that would be dealt to ${describeTarget(
         effect.target,
@@ -179,9 +213,16 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
     }
     case "pump": {
       const who = effect.target ? describeTarget(effect.target) : "this creature";
-      return sentence(
-        `${who} gets ${signed(effect.power)}/${signed(effect.toughness)} until end of turn.`,
-      );
+      // Revitalizing Repast pumps nothing and grants everything, so a +0/+0
+      // is dropped for the same reason `pumpAll` drops it.
+      const parts: string[] = [];
+      if (effect.power !== 0 || effect.toughness !== 0) {
+        parts.push(`gets ${signed(effect.power)}/${signed(effect.toughness)}`);
+      }
+      if (effect.grants?.length) {
+        parts.push(`gains ${listAnd(effect.grants.map((k) => k.toLowerCase()))}`);
+      }
+      return sentence(`${who} ${parts.join(" and ")} until end of turn.`);
     }
     case "pumpAll": {
       const noun = (effect.appliesTo ?? "creatures") === "permanents" ? "Permanents" : "Creatures";
@@ -326,6 +367,33 @@ function listAnd(items: string[]): string {
   if (items.length <= 1) return items[0] ?? "";
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+/**
+ * What a counted amount counts, in the card's own words.
+ *
+ * Each phrase is lifted from the printed card rather than generated from the
+ * fields - "the greatest power among non-Human creatures you control" is not
+ * something a generic renderer would ever assemble, and a panel that said
+ * something close-but-not-quite would be worse than one that said nothing.
+ */
+function describeCount(of: Countable): string {
+  switch (of.what) {
+    case "creatures": {
+      const noun = of.excludeSubtype ? `non-${of.excludeSubtype} creature` : "creature";
+      return of.withCounter
+        ? `${noun} you control with a +1/+1 counter on it`
+        : `${noun} you control`;
+    }
+    case "greatest-power":
+      return of.excludeSubtype
+        ? `the greatest power among non-${of.excludeSubtype} creatures you control`
+        : "the greatest power among creatures you control";
+    case "counters-placed-this-turn":
+      return "+1/+1 counter you've put on creatures under your control this turn";
+    case "creatures-attacking-you":
+      return "creature attacking you";
+  }
 }
 
 /** "a", "two", "four" - cards spell small numbers out. */

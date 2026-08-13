@@ -53,6 +53,7 @@ DEFINITION_RE = re.compile(
 def load_names_to_ids() -> dict:
     """name -> scryfall card id, for every card in the oracle bulk file."""
     by_name = {}
+    multi_faced = []
     with gzip.open(BULK_PATH, "rt", encoding="utf-8") as handle:
         for line in handle:
             card = json.loads(line)
@@ -61,6 +62,21 @@ def load_names_to_ids() -> dict:
             if card.get("layout") in ("art_series", "token", "double_faced_token"):
                 continue
             by_name.setdefault(card["name"], card["id"])
+            if card.get("card_faces"):
+                multi_faced.append(card)
+
+    """
+    Each face of a modal double-faced card answers to the *card's* id.
+
+    The engine holds the two faces as separate definitions, so both need
+    stamping - and both point at the same Scryfall row, which is correct: there
+    is one physical card and one entry for it. Second pass, and never over a
+    name that is already a card of its own, for the same reason as the audits:
+    plenty of face names collide with real single-faced cards.
+    """
+    for card in multi_faced:
+        for face in card["card_faces"]:
+            by_name.setdefault(face["name"], card["id"])
     return by_name
 
 

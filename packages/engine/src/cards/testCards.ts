@@ -11676,6 +11676,340 @@ export const GOLGARI_CHARM: CardDefinition = {
 };
 
 
+/*
+ * The 2026-08-13 batch: four modal double-faced cards, three that read a number
+ * off the board, and three that each needed one new thing.
+ *
+ * Every MDFC below is two definitions. The back is flagged `isBackFace` so the
+ * deck builder never offers it on its own - you put the front in a deck and
+ * choose a face when you play it.
+ */
+
+export const BALA_GED_SANCTUARY: CardDefinition = {
+  id: "bala-ged-sanctuary",
+  name: "Bala Ged Sanctuary",
+  scryfallId: "c5cb3052-358d-44a7-8cfd-cd31b236494a",
+  types: ["Land"],
+  colorIdentity: ["G"],
+  entersTapped: true,
+  isBackFace: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+/** "Return target card from your graveyard to your hand." // a tapped Forest. */
+export const BALA_GED_RECOVERY: CardDefinition = {
+  id: "bala-ged-recovery",
+  name: "Bala Ged Recovery",
+  scryfallId: "c5cb3052-358d-44a7-8cfd-cd31b236494a",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  backFaceId: "bala-ged-sanctuary",
+  castEffect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard" } },
+  tier: "scripted",
+};
+
+export const FELL_MIRE: CardDefinition = {
+  id: "fell-mire",
+  name: "Fell Mire",
+  scryfallId: "a3cb782d-c459-468d-9779-9b5669abc337",
+  types: ["Land"],
+  colorIdentity: ["B"],
+  entersTappedUnlessPayLife: 3,
+  isBackFace: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "scripted",
+};
+
+/*
+ * "Destroy target creature or planeswalker." // a shockland that costs 3.
+ *
+ * The planeswalker half of the selector is unreachable today - the engine has
+ * no planeswalkers - but it is written down because it is what the card says,
+ * and the day Grist arrives this spell already answers it.
+ */
+export const FELL_THE_PROFANE: CardDefinition = {
+  id: "fell-the-profane",
+  name: "Fell the Profane",
+  scryfallId: "a3cb782d-c459-468d-9779-9b5669abc337",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  backFaceId: "fell-mire",
+  castEffect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Creature", "Planeswalker"] } },
+  tier: "scripted",
+};
+
+export const OLD_GROWTH_GROVE: CardDefinition = {
+  id: "old-growth-grove",
+  name: "Old-Growth Grove",
+  scryfallId: "03522b6b-31ec-4126-8885-5dbb2248688b",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  isBackFace: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+/** "Put a +1/+1 counter on target creature. It gains indestructible until end of turn." */
+export const REVITALIZING_REPAST: CardDefinition = {
+  id: "revitalizing-repast",
+  name: "Revitalizing Repast",
+  scryfallId: "03522b6b-31ec-4126-8885-5dbb2248688b",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: {}, hybrid: [["B", "G"]] },
+  colorIdentity: ["B", "G"],
+  backFaceId: "old-growth-grove",
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "addCounter", amount: 1, target: { kind: "creature" } },
+      { kind: "pump", power: 0, toughness: 0, grants: ["Indestructible"] },
+    ],
+  },
+  tier: "scripted",
+};
+
+export const BOGGART_BOG: CardDefinition = {
+  id: "boggart-bog",
+  name: "Boggart Bog",
+  scryfallId: "d0d484a6-5610-4f1d-95ec-eda273c255e4",
+  types: ["Land"],
+  colorIdentity: ["B"],
+  entersTappedUnlessPayLife: 3,
+  isBackFace: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "scripted",
+};
+
+/** "When this creature enters, exile target player's graveyard." // a shockland. */
+export const BOGGART_TRAWLER: CardDefinition = {
+  id: "boggart-trawler",
+  name: "Boggart Trawler",
+  scryfallId: "d0d484a6-5610-4f1d-95ec-eda273c255e4",
+  types: ["Creature"],
+  subtypes: ["Goblin"],
+  manaCost: { generic: 2, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 3,
+  toughness: 1,
+  backFaceId: "boggart-bog",
+  triggeredAbilities: [
+    { event: "enters-battlefield", effect: { kind: "exileGraveyard", target: { kind: "player" } } },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Draw a card for each creature you control with a +1/+1 counter on it. Those
+ * creatures gain indestructible until end of turn."
+ *
+ * The count and the shield read the same board, and the `with-counter`
+ * restriction on the pump is what makes "those creatures" mean the ones it just
+ * counted rather than everything you control.
+ */
+export const INSPIRING_CALL: CardDefinition = {
+  id: "inspiring-call",
+  name: "Inspiring Call",
+  scryfallId: "2555ec7b-5cc2-4ffd-9344-6368019feff9",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "draw", amount: { kind: "count", of: { what: "creatures", withCounter: true } } },
+      {
+        kind: "pumpAll",
+        power: 0,
+        toughness: 0,
+        scope: "controller",
+        restriction: "with-counter",
+        grants: ["Indestructible"],
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+/*
+ * "Choose one - draw cards equal to the greatest power among non-Human
+ * creatures you control; or non-Human creatures you control get +3/+3 until end
+ * of turn."
+ *
+ * Both modes exclude Humans, and both read the board when they resolve.
+ */
+export const RETURN_OF_THE_WILDSPEAKER: CardDefinition = {
+  id: "return-of-the-wildspeaker",
+  name: "Return of the Wildspeaker",
+  scryfallId: "2fa1dac5-51ba-403e-b48b-d2c0d23a8146",
+  types: ["Instant"],
+  manaCost: { generic: 4, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: {
+    kind: "modal",
+    modes: [
+      {
+        label: "Draw cards equal to the greatest power among non-Human creatures you control",
+        effect: { kind: "draw", amount: { kind: "count", of: { what: "greatest-power", excludeSubtype: "Human" } } },
+      },
+      {
+        label: "Non-Human creatures you control get +3/+3 until end of turn",
+        effect: { kind: "pumpAll", power: 3, toughness: 3, scope: "controller", excludeSubtype: "Human" },
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+/*
+ * "At the beginning of your end step, create a 1/1 green Insect creature token
+ * for each +1/+1 counter you've put on creatures under your control this turn."
+ *
+ * A tally, not a board reading: the creatures that carried those counters may
+ * be dead by the end step and the Hornbeetle still pays for them.
+ */
+export const IRIDESCENT_HORNBEETLE: CardDefinition = {
+  id: "iridescent-hornbeetle",
+  name: "Iridescent Hornbeetle",
+  scryfallId: "214ef641-b08c-42d0-94a5-3054fa7fcebc",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  manaCost: { generic: 4, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 4,
+  triggeredAbilities: [
+    {
+      event: "end-step",
+      watches: "controller",
+      effect: {
+        kind: "createToken",
+        count: { kind: "count", of: { what: "counters-placed-this-turn" } },
+        tokenDefinitionId: "token-g-11-insect",
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const TOKEN_G_11_INSECT: CardDefinition = {
+  id: "token-g-11-insect",
+  name: "Insect",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+/*
+ * "Attacking Pests you control get +1/+0 and have deathtouch.
+ *  {1}{G}: Exile target card from a graveyard. If a creature card is exiled
+ *  this way, create a 1/1 black and green Pest creature token with 'When this
+ *  token dies, you gain 1 life.'"
+ *
+ * "A graveyard" is anybody's, which is why the selector says so explicitly -
+ * every other card in the pool that reaches into a graveyard says "your".
+ */
+export const FERAL_APPETITE: CardDefinition = {
+  id: "feral-appetite",
+  name: "Feral Appetite",
+  scryfallId: "69dda877-c176-456c-8cd8-5a1ea288e4c9",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  staticBuff: { power: 1, toughness: 0, subtype: "Pest", grants: ["Deathtouch"], restriction: "attacking" },
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: { G: 1 } } },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "exile", target: { kind: "card-in-your-graveyard", anyGraveyard: true } },
+          {
+            kind: "ifTargetWas",
+            cardType: "Creature",
+            then: { kind: "createToken", count: 1, tokenDefinitionId: "token-bg-11-pest-dies-gain-life" },
+          },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Equipped creature gets +1/-1. Whenever equipped creature dies, draw two
+ * cards. Equip {1}"
+ *
+ * The first Equipment in the pool. Its `staticBuff` reaches exactly the
+ * creature it is attached to - see `buffApplies` - and the dies trigger watches
+ * that one creature rather than a class of them.
+ */
+export const SKULLCLAMP: CardDefinition = {
+  id: "skullclamp",
+  name: "Skullclamp",
+  scryfallId: "1d8b007b-3169-4ee3-80c7-781fc096fc7a",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 1, colors: {} },
+  staticBuff: { power: 1, toughness: -1 },
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 1, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  triggeredAbilities: [
+    {
+      event: "permanent-dies",
+      watches: "any",
+      watchFor: { type: "Creature", attachedToThis: true },
+      effect: { kind: "draw", amount: 2 },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Create X 1/2 green Spider creature tokens with reach, where X is the number
+ * of creatures attacking you. Prevent all combat damage that would be dealt
+ * this turn by non-Spider creatures."
+ *
+ * A fog that leaves a board behind. Both halves read the same combat: the count
+ * is the attackers pointed at you, and the prevention spares the Spiders it
+ * just made.
+ */
+export const ARACHNOGENESIS: CardDefinition = {
+  id: "arachnogenesis",
+  name: "Arachnogenesis",
+  scryfallId: "f5f18431-64c0-4ae5-bdc1-1e953313f086",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      {
+        kind: "createToken",
+        count: { kind: "count", of: { what: "creatures-attacking-you" } },
+        tokenDefinitionId: "token-g-12-spider-reach",
+      },
+      { kind: "preventCombatDamage", exceptSubtype: "Spider" },
+    ],
+  },
+  tier: "scripted",
+};
+
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -12573,5 +12907,20 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     ARASTA_OF_THE_ENDLESS_WEB,
     HORNET_NEST,
     GOLGARI_CHARM,
+    BALA_GED_SANCTUARY,
+    BALA_GED_RECOVERY,
+    FELL_MIRE,
+    FELL_THE_PROFANE,
+    OLD_GROWTH_GROVE,
+    REVITALIZING_REPAST,
+    BOGGART_BOG,
+    BOGGART_TRAWLER,
+    INSPIRING_CALL,
+    RETURN_OF_THE_WILDSPEAKER,
+    IRIDESCENT_HORNBEETLE,
+    TOKEN_G_11_INSECT,
+    FERAL_APPETITE,
+    SKULLCLAMP,
+    ARACHNOGENESIS,
   ].map((def) => [def.id, def]),
 );

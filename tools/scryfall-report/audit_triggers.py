@@ -41,12 +41,30 @@ MODELLED = {
 
 def load_scryfall():
     by_name = {}
+    multi_faced = []
     with gzip.open(DATA, "rt", encoding="utf-8") as fh:
         for line in fh:
             card = json.loads(line)
             if "Token" in card.get("type_line", ""):
                 continue
             by_name.setdefault(card["name"].lower(), card)
+            if card.get("card_faces"):
+                multi_faced.append(card)
+    """
+    Faces are indexed in a second pass, and only where the name is not already
+    a card of its own - see the same note in audit_fixtures.py. Indexing in one
+    pass lets a face called "Regrowth" shadow the real Regrowth.
+    """
+    for card in multi_faced:
+        for face in card["card_faces"]:
+            name = face["name"].lower()
+            if name in by_name:
+                continue
+            merged = dict(card)
+            merged.update({k: v for k, v in face.items() if v is not None})
+            merged["legalities"] = card.get("legalities", {})
+            merged["color_identity"] = card.get("color_identity", [])
+            by_name[name] = merged
     return by_name
 
 
@@ -191,6 +209,11 @@ def classify(clause, card_name):
     if re.search(r"\bdies\b", c):
         if re.search(r"^when(ever)?\s+%s\s+dies" % self_ref, c):
             return "dies", None
+        # "Whenever equipped creature dies" - Skullclamp. A permanent-dies
+        # watcher narrowed to the single creature this Equipment is attached
+        # to, which is what `watchFor.attachedToThis` expresses.
+        if re.search(r"^whenever equipped creature dies", c):
+            return "permanent-dies", None
         # Watching *other* permanents die became a real event on 2026-08-10
         # (Meltstrider Eulogist), mirroring `permanent-enters`. Anything
         # whose filter the engine cannot express is still refused, below.

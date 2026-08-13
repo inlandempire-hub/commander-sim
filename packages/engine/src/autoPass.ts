@@ -48,6 +48,15 @@ export function canPlayCardNow(state: GameState, playerId: string, instanceId: s
     return canPayManaCostFromPool(potentialMana, applyCommanderTax(def.manaCost ?? EMPTY_COST, timesCast));
   }
 
+  /*
+   * A modal double-faced card is playable if *either* face is - the land on the
+   * back of Bala Ged Recovery is a land drop even when the sorcery on the front
+   * is unaffordable, and a card that lit up only for its front face would be
+   * telling you the land was not there.
+   */
+  const back = def.backFaceId ? requireDefinition(state, def.backFaceId) : undefined;
+  if (back?.types.includes("Land") && isMainPhaseWindow && player.landsPlayedThisTurn < 1) return true;
+
   const castableAnytime = def.types.includes("Instant") || (def.keywords?.includes("Flash") ?? false);
   if (!castableAnytime && !isMainPhaseWindow) return false;
 

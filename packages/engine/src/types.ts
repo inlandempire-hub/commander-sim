@@ -96,7 +96,51 @@ export type Amount =
    * so a card written with this on the wrong trigger does nothing rather than
    * inventing a figure.
    */
-  | { kind: "event-amount" };
+  | { kind: "event-amount" }
+  /**
+   * "Draw a card **for each creature you control with a +1/+1 counter on it**"
+   * - a number read off the board when the effect resolves.
+   *
+   * Deliberately NOT substituted the way X and `event-amount` are. Those are
+   * settled before the effect goes on the stack and never change; this is
+   * counted at resolution, which is the rule and is visible in play: kill a
+   * creature in response to Inspiring Call and it draws one card fewer.
+   *
+   * So the effects layer *does* have to understand this one. `evaluateAmount`
+   * is the single place that turns it into a number, and every handler that
+   * takes an `Amount` goes through it.
+   */
+  | { kind: "count"; of: Countable };
+
+/**
+ * What a `count` amount counts. Each entry is a phrase a real card prints, not
+ * a general query language - the day a card needs something else, it gets its
+ * own entry rather than this growing a filter DSL.
+ */
+export type Countable =
+  /**
+   * "For each creature you control [with a +1/+1 counter on it]" - Inspiring
+   * Call. `excludeSubtype` is Return of the Wildspeaker's "non-Human".
+   */
+  | { what: "creatures"; withCounter?: boolean; excludeSubtype?: string }
+  /**
+   * "The greatest power among [non-Human] creatures you control" - Return of
+   * the Wildspeaker. Zero when you control none, which is what the card does.
+   */
+  | { what: "greatest-power"; excludeSubtype?: string }
+  /**
+   * "For each +1/+1 counter you've put on creatures under your control this
+   * turn" - Iridescent Hornbeetle. A tally rather than a board reading: the
+   * creatures it counted may be long dead by the end step, and the card still
+   * pays out for them.
+   */
+  | { what: "counters-placed-this-turn" }
+  /**
+   * "Where X is the number of creatures attacking you" - Arachnogenesis. Read
+   * off the combat state, so it is only ever nonzero during a combat where
+   * this player is being attacked, which is the only time the card is cast.
+   */
+  | { what: "creatures-attacking-you" };
 
 export type TargetSelector =
   | { kind: "any-target" }
@@ -153,7 +197,17 @@ export type TargetSelector =
    * few of them genuinely say. Hexproof is irrelevant here - it only protects
    * permanents on the battlefield.
    */
-  | { kind: "card-in-your-graveyard"; cardType?: CardType }
+  | {
+      kind: "card-in-your-graveyard";
+      cardType?: CardType;
+      /**
+       * "Target card **from a graveyard**" - Feral Appetite, which reaches into
+       * anybody's. Off by default, because every other card of this shape says
+       * "your graveyard" and reaching into an opponent's would be a different
+       * and much better card.
+       */
+      anyGraveyard?: boolean;
+    }
   /**
    * "Target card you own in exile" - the return-from-exile effects. Separate
    * from the graveyard selector because the two zones are genuinely different
@@ -168,7 +222,12 @@ export type TargetSelector =
  */
 export type Effect =
   | { kind: "damage"; amount: number; target: TargetSelector }
-  | { kind: "draw"; amount: number }
+  /**
+   * "Draw a card", and the ones that draw a number nobody knows until they
+   * resolve - "draw cards equal to the greatest power among non-Human
+   * creatures you control".
+   */
+  | { kind: "draw"; amount: Amount }
   | { kind: "addMana"; color: ManaColor; amount: number }
   /**
    * One activation producing mana of more than one colour - "Add {B}{G}", the
@@ -275,6 +334,25 @@ export type Effect =
    */
   | { kind: "regenerateAll" }
   /**
+   * "Prevent all combat damage that would be dealt this turn by non-Spider
+   * creatures" - Arachnogenesis, the second half of a fog.
+   *
+   * Distinct from `preventDamage`, which is a shield of a fixed size on one
+   * target. This is unlimited, lasts the turn, and is a property of the
+   * *source* rather than the recipient - so it lives on the game state and is
+   * consulted as combat damage is dealt, not spent by it.
+   */
+  | { kind: "preventCombatDamage"; exceptSubtype?: string }
+  /**
+   * "Equip {1}" - attach this Equipment to target creature you control.
+   *
+   * Written as an ordinary targeted activated ability rather than a special
+   * action, because that path already works end to end: the client picks a
+   * target, the bot can use it, and the cost is paid the same way. What equip
+   * adds over a normal ability is the timing, which `sorcerySpeedOnly` carries.
+   */
+  | { kind: "attach"; target: TargetSelector }
+  /**
    * "Create N X tokens." `tokenDefinitionId` must name a definition flagged
    * `isToken`.
    *
@@ -293,7 +371,18 @@ export type Effect =
    * own source, which is what "{cost}: This creature gets +N/+N until end of
    * turn" needs (same convention as `addCounter`).
    */
-  | { kind: "pump"; power: number; toughness: number; target?: TargetSelector }
+  | {
+      kind: "pump";
+      power: number;
+      toughness: number;
+      target?: TargetSelector;
+      /**
+       * "**It gains indestructible** until end of turn" - Revitalizing Repast.
+       * The single-target twin of `pumpAll.grants`, and cleared by the same
+       * cleanup step.
+       */
+      grants?: Keyword[];
+    }
   /**
    * The untargeted mass version: "Creatures you control get +N/+N until end of
    * turn" (`scope: "controller"`) or "All creatures get -N/-N until end of
@@ -323,6 +412,19 @@ export type Effect =
        * invisible because lands have no power to show for it.
        */
       appliesTo?: "creatures" | "permanents";
+      /**
+       * "**Those** creatures gain indestructible" - Inspiring Call, where
+       * "those" means the ones it just counted: the creatures with a +1/+1
+       * counter. Without it the shield would cover the whole board, which is a
+       * much better card.
+       */
+      restriction?: "with-counter";
+      /**
+       * "**Non-Human** creatures you control get +3/+3" - Return of the
+       * Wildspeaker. An exclusion rather than a filter, because that is how the
+       * card is worded and the difference shows up on a board with both.
+       */
+      excludeSubtype?: string;
     }
   /**
    * "Each opponent loses 1 life", and the family of life *loss* as opposed to
@@ -370,6 +472,25 @@ export type Effect =
    * near enough.
    */
   | { kind: "surveil"; amount: 1 }
+  /**
+   * "Exile target player's graveyard" - Boggart Trawler.
+   *
+   * The whole graveyard, not a card from it, so it takes a player rather than
+   * a card and has nothing to choose. Worth having as its own effect because
+   * "exile" already means something narrower: one permanent, off the
+   * battlefield.
+   */
+  | { kind: "exileGraveyard"; target: TargetSelector }
+  /**
+   * "**If a creature card is exiled this way**, create a ... token" - Feral
+   * Appetite's reflexive half.
+   *
+   * A sequence step that reads what the step before it actually did, rather
+   * than a second effect that hopes. Only ever written after the effect whose
+   * target it asks about, and it reads the target's *current* definition -
+   * which is right, since exiling does not change what the card is.
+   */
+  | { kind: "ifTargetWas"; cardType: CardType; then: Effect }
   /**
    * The "yes" half of a shockland's arrival: pay the life, and the land that
    * has just entered tapped untaps.
@@ -694,6 +815,12 @@ export interface TriggeredAbility {
     /** "a **nontoken** creature you control dies" - Blight Mound. */
     nontoken?: boolean;
     /**
+     * "Whenever **equipped** creature dies" - Skullclamp. Only the one creature
+     * this Equipment is currently attached to, so the watcher has to compare
+     * against its own `attachedTo` rather than against a class of permanents.
+     */
+    attachedToThis?: boolean;
+    /**
      * Whose permanent it has to be, relative to the watcher's controller.
      *
      * The Meathook Massacre needs both halves and they do opposite things:
@@ -772,6 +899,12 @@ export type ManaSpendRestriction = {
 };
 
 export interface ActivatedAbility {
+  /**
+   * "Equip only as a sorcery." Activated abilities are instant-speed by
+   * default, which is right for all but this one - equipping at the end of an
+   * opponent's turn would be a materially better Skullclamp.
+   */
+  sorcerySpeedOnly?: boolean;
   cost: ActivatedAbilityCost;
   effect: Effect;
   /** Narrows which of an "any colour" ability's five halves are legal right now. */
@@ -896,6 +1029,40 @@ export interface CardDefinition {
   /** Tokens cease to exist the moment they leave the battlefield, rather than moving zones. */
   isToken?: boolean;
   /**
+   * The other half of a modal double-faced card - the land on the back of Bala
+   * Ged Recovery, and its three cousins in this deck.
+   *
+   * The two faces are two `CardDefinition`s, and a card played as its back face
+   * simply *becomes* that definition: `playLand` swaps `definitionId` on the
+   * way to the battlefield, and `moveCard` swaps it back when the card leaves.
+   *
+   * That is deliberately not "one definition with two faces". Every read site
+   * in the engine, the bot and the client asks `requireDefinition` for what a
+   * card is right now, and a face-aware definition would mean teaching all of
+   * them which face to look at - the same sprawl that made granted keywords
+   * expensive. Swapping the id keeps every one of them correct without knowing
+   * MDFCs exist. The card really is one physical object with two sets of
+   * characteristics, and only one of them applies at a time.
+   */
+  backFaceId?: string;
+  /**
+   * "Equip {1}" - the cost of attaching this Equipment to a creature you
+   * control, at sorcery speed.
+   *
+   * Its presence is what makes a permanent an Equipment as far as the engine is
+   * concerned; `staticBuff` on the same card then applies to whatever it is
+   * attached to rather than to a class of creatures. That reuse is deliberate -
+   * "equipped creature gets +1/-1" is the same kind of continuous effect the
+   * anthems already are, narrowed to exactly one permanent.
+   */
+  equipCost?: ManaCost;
+  /**
+   * True on the *back* definition, so the deck builder and the card pool do not
+   * offer it as a card of its own. You cannot put Bala Ged Sanctuary in a deck;
+   * you put Bala Ged Recovery in and choose a face when you play it.
+   */
+  isBackFace?: boolean;
+  /**
    * "This permanent enters tapped." True for most nonbasic lands that produce
    * more than one colour - the drawback that pays for the fixing.
    *
@@ -976,6 +1143,18 @@ export interface CardInstance {
    * in its cost has X = 0.
    */
   chosenX: number;
+  /**
+   * The permanent this Equipment is attached to, if any.
+   *
+   * On the *Equipment*, not on the creature, because that is the direction the
+   * rules run: an Aura or Equipment is attached to a permanent, and moving it
+   * is a change to the Equipment. A creature can carry any number of them, so
+   * the reverse mapping would have to be a list that is only ever derived.
+   *
+   * Cleared on any zone change - by the Equipment moving, and by the creature
+   * it was on leaving, which `checkStateBasedActions` notices.
+   */
+  attachedTo?: string;
   /**
    * Extra power from "until end of turn" effects, on top of the printed value
    * and any +1/+1 counters. Cleared in the cleanup step and on any zone
@@ -1286,6 +1465,16 @@ export interface Player {
   /** Set when this player tried to draw from an empty library; checked as a state-based action. */
   attemptedDrawFromEmptyLibrary: boolean;
   landsPlayedThisTurn: number;
+  /**
+   * +1/+1 counters this player has put on creatures they control this turn -
+   * Iridescent Hornbeetle's "for each +1/+1 counter you've put on creatures
+   * under your control this turn".
+   *
+   * A tally rather than a board reading, and the difference is the card: the
+   * creatures counted may be dead by the end step, and it still pays for them.
+   * Reset in the cleanup step with the rest of the turn's state.
+   */
+  plusOneCountersPlacedThisTurn: number;
 }
 
 export type Phase = "beginning" | "precombat-main" | "combat" | "postcombat-main" | "ending";
@@ -1372,6 +1561,11 @@ export interface GameState {
    * need the whole thing rewritten.
    */
   creatureDeathsThisTurn: number;
+  /**
+   * A fog in force for the rest of this turn - Arachnogenesis. Null when there
+   * is none, which is almost always. Cleared in the cleanup step.
+   */
+  combatDamagePrevention: { exceptSubtype?: string } | null;
   /**
    * Opening hands still being decided. Null for the whole of a normal game -
    * it is only ever set between dealing and the first untap step, and clearing

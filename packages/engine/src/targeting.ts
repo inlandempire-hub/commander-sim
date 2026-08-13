@@ -81,9 +81,9 @@ export function isValidTarget(
       if (target.kind !== "card") return false;
       const found = findInstance(state, target.instanceId);
       if (!found || found.instance.zone !== "graveyard") return false;
-      // "your graveyard" - a card in a graveyard is owned by whoever owns it,
-      // and control of a card in a graveyard always sits with its owner.
-      if (found.instance.ownerId !== controllerId) return false;
+      // "your graveyard" - control of a card outside the battlefield always
+      // sits with its owner. Feral Appetite says "a graveyard", anybody's.
+      if (!selector.anyGraveyard && found.instance.ownerId !== controllerId) return false;
       if (!selector.cardType) return true;
       return requireDefinition(state, found.instance.definitionId).types.includes(selector.cardType);
     }
@@ -155,6 +155,7 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "pump":
     case "addCounter":
     case "loseLife":
+    case "exileGraveyard":
       return effect.target;
     /*
      * A sequence targets if one of its steps does, and the targets chosen for

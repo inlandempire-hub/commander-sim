@@ -212,6 +212,21 @@ export function declareBlockers(state: GameState, playerId: string, declarations
  * does: a first-striking attacker hits in the first sub-step while its ordinary
  * blocker waits for the second, by which point it may be dead.
  */
+/**
+ * Whether this creature's combat damage is prevented outright this turn.
+ *
+ * Read per creature rather than once per combat, because Arachnogenesis
+ * excludes a subtype: the Spiders it just made still hit, and everything else
+ * does not. Checked here rather than in `damageCreature` because it is combat
+ * damage specifically - a Spider-less burn spell is unaffected.
+ */
+function combatDamageIsPrevented(state: GameState, instance: CardInstance): boolean {
+  const fog = state.combatDamagePrevention;
+  if (!fog) return false;
+  if (!fog.exceptSubtype) return true;
+  return !requireDefinition(state, instance.definitionId).subtypes?.includes(fog.exceptSubtype);
+}
+
 export function dealCombatDamage(state: GameState, step: DamageStep = "regular"): void {
   const blockersByAttacker = new Map<string, string[]>();
   for (const [blockerInstanceId, attackerInstanceId] of Object.entries(state.blockers)) {
@@ -233,7 +248,9 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
     const attackerHasDeathtouch = hasKeyword(state, attackerFound.instance, "Deathtouch");
     const attackerHasLifelink = hasKeyword(state, attackerFound.instance, "Lifelink");
     const attackerHasTrample = hasKeyword(state, attackerFound.instance, "Trample");
-    const attackerStrikesNow = dealsDamageIn(state, attackerFound.instance, step);
+    const attackerStrikesNow =
+      dealsDamageIn(state, attackerFound.instance, step) &&
+      !combatDamageIsPrevented(state, attackerFound.instance);
 
     const declaredBlockerIds = blockersByAttacker.get(attackerInstanceId) ?? [];
     // Blocked is a property of the declaration, not of who is still alive: an
@@ -296,6 +313,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       }
 
       if (!dealsDamageIn(state, blockerFound.instance, step)) continue;
+      if (combatDamageIsPrevented(state, blockerFound.instance)) continue;
 
       const blockerPower = effectivePower(state, blockerFound.instance);
       const blockerHasDeathtouch = hasKeyword(state, blockerFound.instance, "Deathtouch");

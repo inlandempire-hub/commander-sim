@@ -6,6 +6,7 @@ import {
   findInstance,
   log,
   moveCard,
+  requireDefinition,
   requirePlayer,
   shuffleLibrary,
 } from "./state.js";
@@ -18,7 +19,7 @@ import { gainLife } from "./life.js";
 import { useRegenerationShield } from "./regeneration.js";
 import { sacrificePermanent } from "./sba.js";
 import { countersPlaced, tokensCreated } from "./replacements.js";
-import { requireNumber } from "./x.js";
+import { evaluateAmount } from "./amounts.js";
 
 /**
  * Applies a resolved (non-permanent) effect: spell/ability damage, draw,
@@ -73,7 +74,9 @@ export function applyEffect(
     }
     case "draw": {
       // drawCard logs this itself now, so that the draw step logs too.
-      drawCard(state, controllerId, effect.amount);
+      // The amount is counted at resolution for the cards that read the board
+      // - Inspiring Call draws one card fewer if you kill a creature first.
+      drawCard(state, controllerId, evaluateAmount(state, controllerId, effect.amount, "draw amount"));
       return;
     }
     case "addMana": {
@@ -185,7 +188,17 @@ export function applyEffect(
       for (const target of targets) {
         if (target.kind !== "card") continue;
         const found = findInstance(state, target.instanceId);
-        if (!found || found.instance.zone !== "battlefield") continue; // already gone; the spell just fizzles on it
+        /*
+         * Battlefield or graveyard. Destruction only ever happens in play, but
+         * exile reaches further: Feral Appetite exiles a card *from a
+         * graveyard*, and this used to silently skip it - the ability paid its
+         * mana, targeted legally, and did nothing at all.
+         */
+        const reachable =
+          found &&
+          (found.instance.zone === "battlefield" ||
+            (effect.kind === "exile" && found.instance.zone === "graveyard"));
+        if (!found || !reachable) continue; // already gone; the spell just fizzles on it
 
         if (effect.kind === "destroy") {
           if (hasKeyword(state, found.instance, "Indestructible")) continue;
@@ -208,7 +221,7 @@ export function applyEffect(
       // per token - "would create one or more tokens" is a single event, so
       // two Doubling Seasons make four Insects rather than compounding oddly
       // inside the loop.
-      const count = tokensCreated(state, controllerId, requireNumber(effect.count, "createToken count"));
+      const count = tokensCreated(state, controllerId, evaluateAmount(state, controllerId, effect.count, "createToken count"));
       for (let i = 0; i < count; i++) {
         const token = createCardInstance(state, effect.tokenDefinitionId, controllerId, "battlefield");
         /*
@@ -234,6 +247,12 @@ export function applyEffect(
         if (!found || found.instance.zone !== "battlefield") continue;
         found.instance.temporaryPowerBonus += effect.power;
         found.instance.temporaryToughnessBonus += effect.toughness;
+        // "It gains indestructible until end of turn" - Revitalizing Repast.
+        for (const keyword of effect.grants ?? []) {
+          if (!found.instance.grantedKeywords.includes(keyword)) {
+            found.instance.grantedKeywords.push(keyword);
+          }
+        }
       }
       return;
     }
@@ -242,8 +261,8 @@ export function applyEffect(
       // the spell was cast or the trigger fired. Loud if not, because a -X/-X
       // silently reading as -0/-0 looks like a targeting bug rather than a
       // missing substitution.
-      const power = requireNumber(effect.power, "pumpAll power");
-      const toughness = requireNumber(effect.toughness, "pumpAll toughness");
+      const power = evaluateAmount(state, controllerId, effect.power, "pumpAll power");
+      const toughness = evaluateAmount(state, controllerId, effect.toughness, "pumpAll toughness");
       const affected = effect.scope === "controller" ? [controller] : state.players;
       const creaturesOnly = (effect.appliesTo ?? "creatures") === "creatures";
       for (const player of affected) {
@@ -251,7 +270,12 @@ export function applyEffect(
           // Heroic Intervention says "permanents you control", so its shield
           // reaches lands and artifacts too. Everything else in this family
           // says creatures.
-          if (creaturesOnly && !state.cardDefinitions[instance.definitionId]?.types.includes("Creature")) continue;
+          const affectedDef = state.cardDefinitions[instance.definitionId];
+          if (creaturesOnly && !affectedDef?.types.includes("Creature")) continue;
+          // "Those creatures" - Inspiring Call means the ones it just counted.
+          if (effect.restriction === "with-counter" && instance.plusOneCounters <= 0) continue;
+          // "Non-Human creatures you control" - Return of the Wildspeaker.
+          if (effect.excludeSubtype && affectedDef?.subtypes?.includes(effect.excludeSubtype)) continue;
           instance.temporaryPowerBonus += power;
           instance.temporaryToughnessBonus += toughness;
           for (const keyword of effect.grants ?? []) {
@@ -338,6 +362,56 @@ export function applyEffect(
         prompt: `Surveil ${effect.amount}: you may put this card into your graveyard`,
         followUp: pendingFollowUp,
       };
+      return;
+    }
+    case "attach": {
+      const equipment = findInstance(state, sourceInstanceId);
+      if (!equipment) return;
+      for (const target of targets) {
+        if (target.kind !== "card") continue;
+        const found = findInstance(state, target.instanceId);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        // Moving an Equipment from one creature to another is one assignment:
+        // it is attached to exactly one thing at a time.
+        equipment.instance.attachedTo = target.instanceId;
+        log(state, `${cardName(state, sourceInstanceId)} is attached to ${cardName(state, target.instanceId)}`);
+      }
+      return;
+    }
+    case "preventCombatDamage": {
+      state.combatDamagePrevention = { exceptSubtype: effect.exceptSubtype };
+      log(
+        state,
+        effect.exceptSubtype
+          ? `all combat damage from non-${effect.exceptSubtype} creatures is prevented this turn`
+          : "all combat damage is prevented this turn",
+      );
+      return;
+    }
+    case "exileGraveyard": {
+      for (const target of targets) {
+        if (target.kind !== "player") continue;
+        const victim = requirePlayer(state, target.playerId);
+        const count = victim.graveyard.length;
+        // Copied first: moveCard splices the array being walked.
+        for (const card of [...victim.graveyard]) moveCard(state, card.instanceId, "exile");
+        if (count > 0) log(state, `${victim.id}'s graveyard is exiled (${count} cards)`);
+      }
+      return;
+    }
+    case "ifTargetWas": {
+      /*
+       * Reads what the step before it actually hit. The card has already moved
+       * by now - Feral Appetite exiles first and asks second - which is fine,
+       * because exiling does not change what the card *is*.
+       */
+      const hit = targets.some((target) => {
+        if (target.kind !== "card") return false;
+        const found = findInstance(state, target.instanceId);
+        if (!found) return false;
+        return requireDefinition(state, found.instance.definitionId).types.includes(effect.cardType);
+      });
+      if (hit) applyEffect(state, controllerId, sourceInstanceId, effect.then, targets);
       return;
     }
     case "payLifeToEnterUntapped": {

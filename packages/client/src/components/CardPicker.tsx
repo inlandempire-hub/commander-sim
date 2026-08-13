@@ -127,6 +127,56 @@ export function CardPicker({
  * 601.2b). Small enough to be a list of sentences rather than a card grid -
  * you are choosing between wordings, not between cards.
  */
+/**
+ * Which half of a modal double-faced card you are playing.
+ *
+ * Its own component rather than a `ModePicker` with two options, because the
+ * two are different questions: a mode is chosen *while casting one spell*, and
+ * this decides which spell you are casting at all - or whether you are casting
+ * one instead of playing a land. Showing each face's full rules text matters
+ * for the same reason; the choice is usually "removal now, or a land drop I
+ * cannot take back".
+ */
+export function FacePicker({
+  front,
+  back,
+  onChoose,
+  onCancel,
+}: {
+  front: { name: string; lines: string[] };
+  back: { name: string; lines: string[] };
+  onChoose: (face: "front" | "back") => void;
+  onCancel: () => void;
+}) {
+  return createPortal(
+    <div className="overlay overlay--picker">
+      <div className="overlay__panel overlay__panel--narrow">
+        <div className="overlay__head">
+          <strong>{front.name}</strong>
+          <button type="button" className="overlay__close" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+        <p className="picker__prompt">Which face are you playing?</p>
+        <div className="modes">
+          {([["front", front], ["back", back]] as const).map(([which, face]) => (
+            <button
+              key={which}
+              type="button"
+              className="modes__option"
+              onClick={() => onChoose(which)}
+            >
+              <strong>{face.name}</strong>
+              {face.lines.length > 0 && <span className="modes__detail">{face.lines.join(" ")}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export function ModePicker({
   cardName,
   modes,

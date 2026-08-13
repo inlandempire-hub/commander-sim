@@ -2692,3 +2692,55 @@ entered untapped at 38, Duskshell Crawler parked its counter until a creature
 was named, Blood Artist drained Salty Mike to 39 and took Deadly Donny to 39,
 Underground Mortuary offered its top card and put Arasta in the graveyard, and
 Send in the Pest made Salty Mike discard a Swamp and left a Pest behind.
+
+### Ten more, and the number that is not settled until it resolves (2026-08-13)
+
+**Modal double-faced cards are two definitions, and playing the back face swaps
+the id.** A card played for its land half genuinely *becomes* that land:
+`playLand` swaps `definitionId` on the way to the battlefield and `moveCard`
+swaps it back on the way out. That is deliberately not "one definition with two
+faces" - every read site in the engine, the bot and the client asks
+`requireDefinition` what a card is right now, and a face-aware definition would
+have meant teaching all of them which face to look at, the same sprawl that made
+granted keywords expensive. Swapping the id keeps every one of them correct
+without knowing MDFCs exist. Four cards, and three of their four front faces
+needed nothing that was not already built last week.
+
+**A counted amount is not a substitution.** X and `event-amount` are settled
+before an effect reaches the stack and never change, which is what lets
+`resolveAmounts` replace them and keep the effects layer ignorant. A count is
+different: "draw a card for each creature you control with a +1/+1 counter on
+it" reads the board *when it resolves*, so killing a creature in response really
+does take a card away. `evaluateAmount` is the one place that turns one into a
+number, and every handler taking an `Amount` goes through it. Three flavours,
+each lifted from a printed card rather than invented: a filtered count, the
+greatest power among them, and a per-turn tally.
+
+**Iridescent Hornbeetle's tally is not a board reading.** "For each +1/+1
+counter you've put on creatures under your control this turn" keeps paying for
+creatures that are already dead by the end step, which is why it is counted at
+`countersPlaced` - the single door every counter goes through - rather than read
+off the battlefield.
+
+**Equipment reuses the targeted-activated-ability path.** Equip is written as an
+ordinary ability with a target, because that path already works end to end: the
+client picks a target, the bot can use it, the cost is paid the same way. The
+only thing equip adds is timing, which is one flag. An Equipment's `staticBuff`
+reaches exactly what it is attached to, and state-based actions drop it when
+that creature leaves.
+
+**A real bug found by writing the test.** `exile` only ever worked on the
+battlefield, so Feral Appetite - which exiles a card *from a graveyard* - paid
+its mana, targeted legally, and did nothing at all.
+
+**And three tools taught what they did not know.** All three audits index a
+Scryfall card's *faces*, in a second pass so a face called "Regrowth" cannot
+shadow the real Regrowth - a one-pass version reported a dozen good fixtures as
+broken. `audit_fixtures` learned hybrid mana in a cost; `audit_text` learned to
+find granted keywords anywhere in an effect tree rather than at the three places
+it used to look, and that "draw cards equal to" has no quantity word.
+
+**The list is at 74 of 100.** 910 fixtures, all three audits clean bar the two
+known gaps. 890 tests, typecheck clean. Verified in a real game: Fell the
+Profane offered both faces with their rules text, the land half went down as
+Fell Mire, and the shockland question fired on top of it.
