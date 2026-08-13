@@ -1,4 +1,12 @@
-import type { CardDefinition, CardInstance, GameState, Keyword, TriggeredAbility } from "./types.js";
+import type {
+  ActivatedAbility,
+  CardDefinition,
+  CardInstance,
+  CardType,
+  GameState,
+  Keyword,
+  TriggeredAbility,
+} from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 
 /**
@@ -31,7 +39,21 @@ function buffApplies(
   // Crawler's trample would land on any land carrying a counter, which is
   // invisible right up until something starts counting keywords.
   if (!candidateDef.types.includes("Creature")) return false;
-  if (buff.subtype && !candidateDef.subtypes?.includes(buff.subtype)) return false;
+  /*
+   * A changeling is every creature type, so it qualifies for any lord.
+   *
+   * Read off the printed and granted lists directly rather than through
+   * `hasCreatureType`, which asks `hasKeyword`, which recomputes the buffs
+   * reaching this permanent - and lands straight back here. The cycle is real
+   * and it blew the stack; the printed answer is also the correct one, because
+   * nothing in the pool grants changeling by way of a static buff.
+   */
+  const changeling =
+    (candidateDef.keywords?.includes("Changeling") ?? false) ||
+    candidate.grantedKeywords.includes("Changeling");
+  if (buff.subtype && !changeling && !candidateDef.subtypes?.includes(buff.subtype)) return false;
+  // "Creature **tokens** you control" - Springleaf Parade.
+  if (buff.tokensOnly && !(candidateDef.isToken || candidate.isTokenCopy)) return false;
   // "Attacking Pests you control" - a creature that is not in combat is not
   // one of them, so the bonus and the menace both come and go with the attack.
   if (buff.restriction === "attacking" && state.attackers[candidate.instanceId] === undefined) return false;
@@ -104,6 +126,62 @@ export function effectiveKeywords(state: GameState, instance: CardInstance): Key
   return [...all];
 }
 
+/**
+ * Whether this permanent has a creature type.
+ *
+ * **Nothing may compare `subtypes` directly for a creature-type question.**
+ * Changeling means "every creature type", so a card that read the printed list
+ * would answer no for a Shapeshifter that is, by its own rules text, whatever
+ * you asked about.
+ */
+export function hasCreatureType(state: GameState, instance: CardInstance, subtype: string): boolean {
+  if (hasKeyword(state, instance, "Changeling")) return true;
+  return requireDefinition(state, instance.definitionId).subtypes?.includes(subtype) ?? false;
+}
+
+/**
+ * Every activated ability this permanent has right now - printed, and granted
+ * by something else on the battlefield.
+ *
+ * The third of these, after keywords and triggers, and for the third time the
+ * rule is blunt: nothing may read `CardDefinition.activatedAbilities` directly,
+ * because Springleaf Parade can hand a mana ability to a token that printed
+ * none.
+ */
+export function effectiveActivated(state: GameState, instance: CardInstance): ActivatedAbility[] {
+  const printed = requireDefinition(state, instance.definitionId).activatedAbilities ?? [];
+  if (instance.zone !== "battlefield") return printed;
+  const granted: ActivatedAbility[] = [];
+  for (const buff of buffsReaching(state, instance)) {
+    for (const ability of buff.grantsAbilities ?? []) granted.push(ability);
+  }
+  return granted.length > 0 ? [...printed, ...granted] : printed;
+}
+
+/**
+ * What this card's types are *right now*.
+ *
+ * Two cards in the pool disagree with their own printed type line:
+ *
+ * - Grist is a 1/1 Insect creature in every zone except the battlefield, which
+ *   is the opposite of every other characteristic-defining ability here.
+ * - A bestowed creature is an Aura and not a creature for exactly as long as it
+ *   stays attached.
+ *
+ * Nothing that asks "is this a creature" about a specific instance may read
+ * `def.types` directly once either exists.
+ */
+export function typesOf(state: GameState, instance: CardInstance): CardType[] {
+  const def = requireDefinition(state, instance.definitionId);
+  if (instance.bestowed) {
+    return [...def.types.filter((t) => t !== "Creature"), "Enchantment"];
+  }
+  if (def.alsoCreatureOffBattlefield && instance.zone !== "battlefield") {
+    return def.types.includes("Creature") ? [...def.types] : [...def.types, "Creature"];
+  }
+  return [...def.types];
+}
+
 /** Convenience for the common single-keyword question. */
 export function hasKeyword(state: GameState, instance: CardInstance, keyword: Keyword): boolean {
   return effectiveKeywords(state, instance).includes(keyword);
@@ -133,7 +211,11 @@ export function effectiveTriggers(state: GameState, instance: CardInstance): Tri
 export function effectivePower(state: GameState, instance: CardInstance): number {
   const def = requireDefinition(state, instance.definitionId);
   return (
-    (def.power ?? 0) + instance.plusOneCounters + instance.temporaryPowerBonus + staticBuffFor(state, instance).power
+    (def.power ?? 0) +
+    instance.plusOneCounters -
+    instance.minusOneCounters +
+    instance.temporaryPowerBonus +
+    staticBuffFor(state, instance).power
   );
 }
 
@@ -149,7 +231,8 @@ export function effectiveToughness(state: GameState, instance: CardInstance): nu
   const def = requireDefinition(state, instance.definitionId);
   return (
     (def.toughness ?? 0) +
-    instance.plusOneCounters +
+    instance.plusOneCounters -
+    instance.minusOneCounters +
     instance.temporaryToughnessBonus +
     staticBuffFor(state, instance).toughness
   );

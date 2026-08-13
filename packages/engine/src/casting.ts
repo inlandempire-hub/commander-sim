@@ -66,6 +66,22 @@ export interface CastOptions {
    * the commander requirement alone.
    */
   useAlternativeCost?: boolean;
+  /**
+   * Cast this without paying its mana cost, for a reason that is not the
+   * card's own alternative cost - Rishkar's Expertise granting it, or the far
+   * side of suspend.
+   *
+   * Separate from `useAlternativeCost` because that one checks the card's own
+   * condition and this one is granted from outside: a spell made free by
+   * something else has no condition of its own to meet.
+   */
+  free?: boolean;
+  /**
+   * Cast this as a bestowed Aura for its bestow cost, attached to the creature
+   * handed in as the target. It is still a creature card - it is simply not a
+   * creature while it is attached to one.
+   */
+  bestowOnto?: string;
 }
 
 /**
@@ -202,10 +218,14 @@ export function castSpell(
     }
   }
 
-  let cost: ManaCost = alternative
+  if (options.bestowOnto && !def.bestowCost) throw new Error(`${def.name} has no bestow cost`);
+  const free = alternative !== undefined || options.free === true;
+  let cost: ManaCost = free
     ? { generic: 0, colors: {} }
-    : costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
-  if (options.fromCommandZone && !alternative) {
+    : options.bestowOnto
+      ? def.bestowCost!
+      : costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
+  if (options.fromCommandZone && !free) {
     const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
     cost = applyCommanderTax(cost, timesCast);
   }
@@ -299,6 +319,11 @@ export function castSpell(
   // Recorded on the card, not just the spell: The Meathook Massacre's own
   // enters-the-battlefield trigger fires after the spell has left the stack.
   instance.chosenX = chosenX;
+  /*
+   * Recorded on the card rather than on the spell, because attaching happens
+   * as the permanent arrives - long after the stack object has gone.
+   */
+  instance.bestowTarget = options.bestowOnto;
 
   moveCard(state, instanceId, "stack");
   log(state, `${playerId} casts ${def.name}`);

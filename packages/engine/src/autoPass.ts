@@ -234,6 +234,8 @@ export function mustNotAutoPass(state: GameState, playerId: string): boolean {
   // And for an opponent who owes a discard.
   if (state.pendingDiscards.length > 0) return true;
   if (state.pendingSacrifice) return true;
+  if (state.pendingCardChoices.length > 0) return true;
+  if (state.pendingAmount) return true;
 
   const activePlayerId = state.players[state.activePlayerIndex]?.id;
 

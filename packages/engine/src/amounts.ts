@@ -1,5 +1,5 @@
 import type { Amount, Countable, GameState } from "./types.js";
-import { requireDefinition, requirePlayer } from "./state.js";
+import { findInstance, requireDefinition, requirePlayer } from "./state.js";
 import { effectivePower } from "./counters.js";
 
 /**
@@ -25,9 +25,16 @@ export function evaluateAmount(
   controllerId: string,
   amount: Amount,
   what: string,
+  /**
+   * The permanent the effect belongs to. Only `counters-on-source` needs it -
+   * every other count reads the board or the player - so it is optional, and
+   * a count that needs one without being given one answers zero rather than
+   * guessing.
+   */
+  sourceInstanceId?: string,
 ): number {
   if (typeof amount === "number") return amount;
-  if (amount.kind === "count") return countOf(state, controllerId, amount.of);
+  if (amount.kind === "count") return countOf(state, controllerId, amount.of, sourceInstanceId);
   /*
    * An unresolved X or event-amount reaching here means a fire site skipped
    * `resolveAmounts`. Loud, because the alternative is a board wipe that
@@ -38,7 +45,12 @@ export function evaluateAmount(
   throw new Error(`${what} still contains an unresolved ${amount.kind} - resolveAmounts was not called`);
 }
 
-function countOf(state: GameState, controllerId: string, of: Countable): number {
+function countOf(
+  state: GameState,
+  controllerId: string,
+  of: Countable,
+  sourceInstanceId?: string,
+): number {
   const player = requirePlayer(state, controllerId);
   const creatures = player.battlefield.filter((instance) =>
     requireDefinition(state, instance.definitionId).types.includes("Creature"),
@@ -69,6 +81,21 @@ function countOf(state: GameState, controllerId: string, of: Countable): number 
     }
     case "counters-placed-this-turn":
       return player.plusOneCountersPlacedThisTurn;
+    case "creature-cards-in-your-graveyard":
+      return player.graveyard.filter((card) =>
+        requireDefinition(state, card.definitionId).types.includes("Creature"),
+      ).length;
+    case "counters-on-source": {
+      // "For each counter on this creature" means every kind at once, which is
+      // why this adds the piles rather than reading one of them.
+      const source = sourceInstanceId ? findInstance(state, sourceInstanceId) : undefined;
+      if (!source) return 0;
+      return source.instance.plusOneCounters + source.instance.otherCounters;
+    }
+    case "life-gained-this-turn":
+      return player.lifeGainedThisTurn;
+    case "opponents":
+      return state.players.filter((p) => p.id !== controllerId && !p.hasLost).length;
     case "creatures-attacking-you":
       // `state.attackers` maps an attacker to the player it is attacking, so
       // this is a count of the entries pointed at us - not of our creatures,

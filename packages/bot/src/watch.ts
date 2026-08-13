@@ -110,6 +110,12 @@ function describe(state: GameState, seat: string, action: BotAction): string | n
       return `${seat} aims a trigger at ${describeTarget(state, action.target)}.`;
     case "resolveDiscard":
       return `${seat} discards ${nameOf(state, action.instanceId)}.`;
+    case "resolveCardChoice":
+      return action.instanceIds.length === 0
+        ? `${seat} declines a choice.`
+        : `${seat} chooses ${action.instanceIds.length} card(s).`;
+    case "resolveAmountChoice":
+      return `${seat} pays ${action.amount} life.`;
     case "resolveSacrificeChoice":
       return action.instanceId
         ? `${seat} sacrifices ${nameOf(state, action.instanceId)}.`

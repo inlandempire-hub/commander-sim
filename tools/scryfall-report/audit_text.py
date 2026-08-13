@@ -62,7 +62,10 @@ def effect_kinds(fx):
             for v in node:
                 walk(v)
 
-    for field in ("castEffect", "activatedAbilities", "triggeredAbilities"):
+    #  is in this list because a planeswalker keeps its
+    # effects there rather than in  - without it every
+    # sentence inside Grist's three abilities read as unimplemented.
+    for field in ("castEffect", "activatedAbilities", "triggeredAbilities", "loyaltyAbilities"):
         walk(fx.get(field))
     return found
 
@@ -108,6 +111,28 @@ def card_features(fx):
         feat.add("extraLandDrops")
     if rules.get("playLandsFromGraveyard"):
         feat.add("playLandsFromGraveyard")
+    if rules.get("skipDrawStep"):
+        feat.add("skipDrawStep")
+    if rules.get("maxHandSize") is not None:
+        feat.add("maxHandSize")
+    if fx.get("loyalty") is not None:
+        feat.add("loyalty")
+    if fx.get("devour") is not None:
+        feat.add("devour")
+    if fx.get("suspend"):
+        feat.add("suspend")
+    if fx.get("bestowCost"):
+        feat.add("bestow")
+    if fx.get("alsoCreatureOffBattlefield"):
+        feat.add("alsoCreatureOffBattlefield")
+    buff = fx.get("staticBuff") or {}
+    if buff.get("grantsAbilities"):
+        feat.add("grantsAbilities")
+    for ability in fx.get("activatedAbilities") or []:
+        if ability.get("addsOtherCounterToSelf"):
+            feat.add("addsOtherCounter")
+        if ability.get("sorcerySpeedOnly"):
+            feat.add("sorcerySpeedOnly")
     if fx.get("equipCost"):
         feat.add("equipCost")
     for ability in fx.get("activatedAbilities") or []:
@@ -211,7 +236,7 @@ RULES = [
     (r"\bloses? \d+ life\b", {"loseLife"}),
     (r"\bdiscards? a card\b", {"discard"}),
     (r"\bsurveil \d+\b", {"surveil"}),
-    (r"\bmills? \w+ cards?\b", {"mill"}),
+    (r"\bmills? \w+ cards?\b", {"mill", "millThenMayTake"}),
     # "draw a card", "draw three cards", and "draw cards equal to ..." - the
     # last has no quantity word at all, which the first two forms required, so
     # Return of the Wildspeaker read as unimplemented.
@@ -256,6 +281,33 @@ RULES = [
     (r"\bleaves the battlefield\b", {"addCounter"}),
     (r"\bmove all counters\b", {"moveAllCounters"}),
     (r"\bscry \d+\b", {"scry", "manaSpendRider"}),
+    # The 2026-08-13 sweep.
+    (r"^devour \d+", {"devour"}),
+    (r"^suspend \d+", {"suspend"}),
+    (r"^bestow ", {"bestow"}),
+    (r"^skip your draw step", {"skipDrawStep"}),
+    (r"your maximum hand size is", {"maxHandSize"}),
+    (r"you may pay any amount of life", {"payLifeDrawThatMany"}),
+    (r"\bput a nest counter\b", {"addsOtherCounter"}),
+    (r"^activate only as a sorcery", {"sorcerySpeedOnly"}),
+    (r"\bcreature tokens you control have\b", {"grantsAbilities"}),
+    (r"\bit's a \d+/\d+ \w+ creature in addition\b", {"alsoCreatureOffBattlefield"}),
+    (r"\bthen you may pay\b", {"millThenMayTake"}),
+    (r"\bput a card from among those cards into your hand\b", {"millThenMayTake"}),
+    (r"\bwithout paying its mana cost\b", {"alternativeCost", "castFreeFromHand", "suspend"}),
+    (r"\btoken that's a copy\b", {"createCopyToken"}),
+    (r"\bif a card or token would be put into your graveyard\b", {"replacementEffects"}),
+    # "They have '...'" - a token's own rules text, which lives on the token
+    # definition rather than on the card that makes them.
+    (r"^they have \"", {"createToken"}),
+    (r"\bmay sacrifice a permanent of their choice\b", {"offerSacrificeToOpponents"}),
+    (r"\bloyalty counter\b", {"loyalty", "repeatWhileMilledMatches"}),
+    # A loyalty ability's whole line - "+1: ...", "-2: ...". These live in
+    # `loyaltyAbilities` rather than `activatedAbilities`, so the effect kinds
+    # inside them are reached by the rules above but the line itself is not.
+    (r"^[+\u2212-]\d+:", {"loyalty"}),
+    (r"^if you do, draw that many cards", {"payLifeDrawThatMany"}),
+    (r"^when you do, destroy", {"sacrificeChosen"}),
 ]
 
 

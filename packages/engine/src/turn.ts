@@ -1,5 +1,5 @@
 import type { GameState, Phase, Step, TriggerEvent } from "./types.js";
-import { drawCard, requireDefinition } from "./state.js";
+import { drawCard, log, moveCard, requireDefinition } from "./state.js";
 import { emptyManaPool } from "./mana.js";
 import { combatHasFirstStrike, dealCombatDamage } from "./combat.js";
 import { pushTrigger } from "./permanents.js";
@@ -167,6 +167,21 @@ function runAutomaticStepActions(state: GameState): void {
       break;
     }
     case "draw": {
+      /*
+       * "Skip your draw step." - Necrodominance. Checked on the board rather
+       * than remembered on the player, so an enchantment that leaves gives the
+       * draw back on the next turn without anything having to undo it.
+       */
+      {
+        const active = state.players[state.activePlayerIndex];
+        const skipped = active?.battlefield.some(
+          (c) => state.cardDefinitions[c.definitionId]?.staticRules?.skipDrawStep,
+        );
+        if (active && skipped) {
+          log(state, `${active.id} skips their draw step`);
+          break;
+        }
+      }
       // Rule 103.7a: in a two-player game the player going first skips the
       // draw step of their first turn, since they already have the advantage
       // of acting first.
@@ -197,6 +212,36 @@ function runAutomaticStepActions(state: GameState): void {
       break;
     }
     case "cleanup": {
+      for (const player of state.players) {
+        // "The amount of life you gained **this turn**" - the tally belongs to
+        // the turn, so it ends with it.
+        player.lifeGainedThisTurn = 0;
+      }
+      /*
+       * "Your maximum hand size is five." - Necrodominance, and the ordinary
+       * seven everyone else has.
+       *
+       * Discarded from the back of the hand rather than chosen, which is a real
+       * simplification: the rules make it the player's choice. It is here at
+       * all because a Necrodominance deck draws itself into this every turn,
+       * and a hand size nobody enforces would make the card strictly better
+       * than printed.
+       */
+      for (const player of state.players) {
+        let limit = 7;
+        for (const instance of player.battlefield) {
+          const rule = state.cardDefinitions[instance.definitionId]?.staticRules?.maxHandSize;
+          if (rule !== undefined) limit = Math.min(limit, rule);
+        }
+        while (player.hand.length > limit) {
+          const last = player.hand[player.hand.length - 1]!;
+          log(state, `${player.id} discards ${requireDefinition(state, last.definitionId).name} to hand size`);
+          moveCard(state, last.instanceId, "graveyard");
+        }
+      }
+      for (const player of state.players) {
+        for (const instance of player.battlefield) instance.loyaltyUsedThisTurn = false;
+      }
       for (const player of state.players) {
         for (const instance of player.battlefield) {
           instance.damageMarked = 0;

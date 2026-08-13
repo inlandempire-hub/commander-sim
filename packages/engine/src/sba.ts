@@ -193,6 +193,22 @@ export function checkStateBasedActions(state: GameState): void {
       }
     }
 
+    /*
+     * A planeswalker with no loyalty left is put into its owner's graveyard
+     * (rule 704.5i). Checked with the creatures rather than after them, because
+     * a loyalty ability that killed the walker should take effect before
+     * anything else reads the board.
+     */
+    for (const player of state.players) {
+      for (const instance of [...player.battlefield]) {
+        const def = requireDefinition(state, instance.definitionId);
+        if (def.loyalty === undefined) continue;
+        if (instance.loyalty > 0) continue;
+        moveDyingCreatureToItsZone(state, instance.instanceId, instance.isCommander);
+        changed = true;
+      }
+    }
+
     // Legend rule: a player controlling 2+ legendary permanents with the same name keeps only one.
     for (const player of state.players) {
       const legendaryByName = new Map<string, string[]>();
@@ -220,6 +236,12 @@ export function checkStateBasedActions(state: GameState): void {
       if (player.life <= 0) {
         player.hasLost = true;
         player.lossReason = "life total dropped to 0 or less";
+        changed = true;
+        continue;
+      }
+      if (player.poisonCounters >= 10) {
+        player.hasLost = true;
+        player.lossReason = `had ${player.poisonCounters} poison counters`;
         changed = true;
         continue;
       }

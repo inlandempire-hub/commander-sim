@@ -69,6 +69,10 @@ function toClientMessage(action: BotAction): ClientMessage | null {
       return { type: "resolveDiscard", instanceId: action.instanceId };
     case "resolveSacrificeChoice":
       return { type: "resolveSacrificeChoice", instanceId: action.instanceId };
+    case "resolveCardChoice":
+      return { type: "resolveCardChoice", instanceIds: action.instanceIds };
+    case "resolveAmountChoice":
+      return { type: "resolveAmountChoice", amount: action.amount };
     case "takeMulligan":
       return { type: "takeMulligan" };
     case "keepHand":

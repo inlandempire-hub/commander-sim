@@ -45,7 +45,23 @@ export type Keyword =
   | "Hexproof"
   | "Indestructible"
   | "Ward"
-  | "Flash";
+  | "Flash"
+  /**
+   * "It deals damage to creatures in the form of -1/-1 counters and to players
+   * in the form of poison counters."
+   *
+   * Changes what damage *is* rather than how much of it there is, which is why
+   * it is checked in damage.ts - the one door every point of damage goes
+   * through - and not anywhere combat-specific.
+   */
+  | "Infect"
+  /**
+   * "This card is every creature type."
+   *
+   * Nothing may compare `subtypes` directly for a creature-type question once
+   * this exists; ask `hasCreatureType`, the same rule granted keywords carry.
+   */
+  | "Changeling";
 
 /** Generic mana + colored pips. A card with no mana cost (most lands) omits this entirely. */
 export interface ManaCost {
@@ -85,7 +101,17 @@ export interface ManaCost {
  */
 export type Amount =
   | number
-  | { kind: "x"; negate?: boolean }
+  | {
+      kind: "x";
+      negate?: boolean;
+      /**
+       * "Create **twice X**" - Pest Infestation, whose {X}{X} cost already
+       * charges X twice and whose token count is doubled on top of that. A
+       * multiplier rather than a second symbol, because they are two different
+       * numbers on one card.
+       */
+      multiply?: number;
+    }
   /**
    * "Whenever this creature is dealt damage, create **that many** tokens" -
    * Hornet Nest. The number the event itself carried.
@@ -151,7 +177,19 @@ export type Countable =
    * off the combat state, so it is only ever nonzero during a combat where
    * this player is being attacked, which is the only time the card is cast.
    */
-  | { what: "creatures-attacking-you" };
+  | { what: "creatures-attacking-you" }
+  /** "equal to the number of creature cards in your graveyard" - Grist. */
+  | { what: "creature-cards-in-your-graveyard" }
+  /**
+   * "for each counter on this creature" - Twitching Doll, which counts *nest*
+   * counters. Reads the +1/+1 pile and `otherCounters` together, because
+   * "counters on it" on a real card means all of them.
+   */
+  | { what: "counters-on-source" }
+  /** "the amount of life you gained this turn" - Moseo, Vein's New Dean. */
+  | { what: "life-gained-this-turn" }
+  /** "For each opponent" - Turn Stones. One in a duel, three in a pod. */
+  | { what: "opponents" };
 
 export type TargetSelector =
   | { kind: "any-target" }
@@ -527,7 +565,12 @@ export type Effect =
    */
   | {
       kind: "loseLife";
-      amount: number;
+      /**
+       * An `Amount` because of Grist's ultimate - "each opponent loses life
+       * equal to the number of creature cards in your graveyard". Every other
+       * printing is a plain number and reads as it always did.
+       */
+      amount: Amount;
       /**
        * Who loses it. `"each-opponent"` is The Meathook Massacre;
        * `"target"` is Blood Artist's "**target player** loses 1 life", where
@@ -670,7 +713,7 @@ export type Effect =
        * else* search: Assassin's Trophy hands its victim a basic land. The
        * player is read off the effect's first card target.
        */
-      who?: "controller" | "target-controller";
+      who?: "controller" | "target-controller" | "each-target-player";
     }
   /**
    * "Sacrifice it" as an *effect*, as opposed to a cost.
@@ -696,6 +739,84 @@ export type Effect =
    * `PendingSearch.followUp` carries. Without that the gain-life half would run
    * *before* the search it is written after.
    */
+  /**
+   * "If you control six or more lands, do this instead" - Scute Swarm.
+   *
+   * A branch rather than two abilities, because the card is one trigger with
+   * one outcome: writing it as two would fire both.
+   */
+  | { kind: "conditional"; condition: BoardCondition; then: Effect; otherwise?: Effect }
+  /**
+   * "Create a token that's a copy of this creature" - Scute Swarm, and
+   * Springheart Nantuko's copy of whatever it is attached to.
+   *
+   * A copy is a token of the *same definition*, flagged on the instance rather
+   * than the definition - see `CardInstance.isTokenCopy`. That is what lets a
+   * real card be copied at all: the definition it copies is a printed card and
+   * must not be marked `isToken`, or every real one would cease to exist on
+   * leaving the battlefield.
+   */
+  | { kind: "createCopyToken"; of: "self" | "attached-creature" }
+  /**
+   * "Mill three cards. Then you may pay {1} and 3 life. If you do, put a card
+   * from among those cards into your hand." - Ripples of Undeath.
+   *
+   * One effect rather than a mill beside a choice, because the choice is over
+   * *the cards this milled* - a set that exists only inside this resolution.
+   */
+  | { kind: "millThenMayTake"; amount: number; cost: { mana?: ManaCost; life?: number } }
+  /**
+   * "You may cast a spell with mana value 5 or less from your hand without
+   * paying its mana cost." - Rishkar's Expertise.
+   */
+  | { kind: "castFreeFromHand"; maxManaValue: number }
+  /**
+   * "You may pay any amount of life. If you do, draw that many cards." -
+   * Necrodominance. The number is the player's, not the card's, so it is asked
+   * for rather than counted.
+   */
+  | { kind: "payLifeDrawThatMany" }
+  /**
+   * "Each opponent may sacrifice a permanent of their choice that shares a card
+   * type with it. For each opponent who doesn't, that player loses 2 life and
+   * you draw a card." - Braids, Arisen Nightmare.
+   *
+   * The second question in this engine aimed at a player who is not resolving
+   * anything (the first was discard), and the first that is *optional* for
+   * them - which is the whole card: the punishment is what happens when they
+   * decline.
+   */
+  | {
+      kind: "offerSacrificeToOpponents";
+      /** Only permanents sharing a type with this one qualify. */
+      sharesTypeWith: "the-sacrificed-permanent";
+      /** What each opponent who declines suffers. */
+      ifDeclined: Effect;
+    }
+  /**
+   * "Put a nest counter on this creature" - the rider on Twitching Doll's mana
+   * ability. Not a +1/+1 counter: it changes no stats and only exists to be
+   * counted. See `CardInstance.otherCounters`.
+   */
+  | { kind: "addOtherCounter"; amount: number }
+  /**
+   * Grist's +1, which is a loop: "create a token, then mill a card. If an
+   * Insect card was milled this way, put a loyalty counter on Grist and repeat
+   * this process."
+   *
+   * Deliberately narrow - it is the one card in the pool that repeats itself -
+   * and capped, because a library full of Insects would otherwise run until it
+   * ran out.
+   */
+  | {
+      kind: "repeatWhileMilledMatches";
+      body: Effect;
+      /** The creature type the milled card must have for another round. */
+      subtype: string;
+      /** Also the loyalty this adds each time round, which is what Grist prints. */
+      addLoyalty: number;
+      max: number;
+    }
   | { kind: "sequence"; effects: Effect[] };
 
 /**
@@ -729,7 +850,15 @@ export type BoardCondition =
    * in the command zone is not controlled by anybody in play, and reading the
    * command zone here would make the card free on turn one of every game.
    */
-  | { kind: "controls-commander" };
+  | { kind: "controls-commander" }
+  /**
+   * "If you control six or more lands" - Scute Swarm. Counts every land,
+   * unlike `controls-other-lands`, which exists to let a land ask about the
+   * board *without* counting itself as it arrives.
+   */
+  | { kind: "controls-lands"; count: number }
+  /** "if this permanent is attached to a creature you control" - Springheart Nantuko. */
+  | { kind: "attached-to-a-creature" };
 
 /**
  * "If an effect would X instead" - a replacement effect.
@@ -764,7 +893,16 @@ export type ReplacementEffect =
       cardTypes?: CardType[];
     }
   /** "If an effect would create one or more tokens under your control, it creates twice that many instead." */
-  | { kind: "tokens-created"; multiply: number };
+  | { kind: "tokens-created"; multiply: number }
+  /**
+   * "If a card or token would be put into your graveyard from anywhere, exile
+   * it instead." - Necrodominance.
+   *
+   * The third event a replacement can intercept, and the first that is a zone
+   * change. It sits in `moveCard`, which is the one door every zone change
+   * goes through - the whole reason that was worth keeping as a single door.
+   */
+  | { kind: "graveyard-to-exile" };
 
 /** The tapland half of `BoardCondition`, named for where it reads. */
 export type EntersUntappedCondition = BoardCondition;
@@ -890,6 +1028,8 @@ export type TriggerCondition =
    * ability resolve and put nothing anywhere.
    */
   | { kind: "source-has-counters" }
+  /** "if you gained life this turn" - Moseo, and Eccentric Pestfinder's infusion. */
+  | { kind: "gained-life-this-turn" }
   /** Ophiomancer: "if you control no Snakes". A `BoardCondition` read as a negation. */
   | { kind: "not"; condition: BoardCondition };
 
@@ -1039,6 +1179,18 @@ export type ManaSpendRestriction = {
   grantsUncounterable?: boolean;
 };
 
+/**
+ * A planeswalker's loyalty ability. `cost` is signed exactly as the card prints
+ * it: +1 adds a loyalty counter, -2 removes two and cannot be activated with
+ * only one.
+ */
+export interface LoyaltyAbility {
+  cost: number;
+  effect: Effect;
+  /** The printed wording, for the client's button. */
+  label?: string;
+}
+
 export interface ActivatedAbility {
   /**
    * "Equip only as a sorcery." Activated abilities are instant-speed by
@@ -1065,6 +1217,13 @@ export interface ActivatedAbility {
    * whether a trigger fires when it is spent. See `ManaMark`.
    */
   marksMana?: ManaSpendRider;
+  /**
+   * "Add one mana of any color. **Put a nest counter on this creature.**" -
+   * Twitching Doll. A rider on a mana ability, applied where
+   * `damageToController` is and for the same reason: it belongs to the
+   * ability, not to adding mana.
+   */
+  addsOtherCounterToSelf?: number;
   /**
    * "Activate only if you control a Swamp." - Tainted Wood, Wastewood Verge,
    * Sapseep Forest.
@@ -1174,6 +1333,10 @@ export interface StaticRules {
   extraLandDrops?: number;
   /** "You may play lands from your graveyard" - Icetill Explorer's second line. */
   playLandsFromGraveyard?: boolean;
+  /** "Skip your draw step." - Necrodominance. */
+  skipDrawStep?: boolean;
+  /** "Your maximum hand size is five." - Necrodominance. */
+  maxHandSize?: number;
 }
 
 /**
@@ -1260,6 +1423,17 @@ export interface CardDefinition {
      * skips.
      */
     includesSelf?: boolean;
+    /**
+     * "Creature tokens you control have '{T}: Add one mana of any color.'" -
+     * Springleaf Parade, which hands out a whole activated ability.
+     *
+     * The same problem granted keywords and granted triggers had, a third
+     * time: nothing may read `CardDefinition.activatedAbilities` directly.
+     * See `effectiveActivated`.
+     */
+    grantsAbilities?: ActivatedAbility[];
+    /** "Creature **tokens** you control" - narrows to tokens only. */
+    tokensOnly?: boolean;
   };
   /**
    * "If an effect would ... instead" - the replacement-effect family. See
@@ -1345,6 +1519,42 @@ export interface CardDefinition {
    * drops, and where lands may be played from. Battlefield only.
    */
   staticRules?: StaticRules;
+  /**
+   * Starting loyalty. Its presence is what makes a card a planeswalker as far
+   * as the engine is concerned, the same way `equipCost` marks an Equipment.
+   */
+  loyalty?: number;
+  /**
+   * "+1:", "-2:", "-5:" - the abilities a planeswalker activates by moving its
+   * own loyalty. One a turn, at sorcery speed, and the cost is signed: a
+   * negative one cannot be activated for more loyalty than the card has.
+   */
+  loyaltyAbilities?: LoyaltyAbility[];
+  /**
+   * "As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in
+   * addition to its other types."
+   *
+   * A characteristic-defining ability that applies in every zone *except* the
+   * battlefield, which is the opposite of everything else here - so it is read
+   * by `typesOf` rather than by anything that looks at permanents.
+   */
+  alsoCreatureOffBattlefield?: { power: number; toughness: number; subtypes: string[] };
+  /**
+   * "Suspend 2-{1}{B}" - pay the cost, exile it with that many time counters,
+   * remove one each of your upkeeps, and cast it free when the last is gone.
+   */
+  suspend?: { timeCounters: number; cost: ManaCost };
+  /**
+   * "Devour 1" - as this enters, you may sacrifice any number of creatures; it
+   * enters with that many times this number of +1/+1 counters on it.
+   */
+  devour?: number;
+  /**
+   * "Bestow {1}{G}" - cast it as an Aura for this cost instead, attached to a
+   * creature. It is still a creature card; it simply is not a creature while
+   * it is attached to one.
+   */
+  bestowCost?: ManaCost;
   /** "As an additional cost to cast this spell, ..." - paid at cast time. */
   additionalCost?: AdditionalCost;
   /** "You may cast this spell without paying its mana cost" - offered at cast time. */
@@ -1437,6 +1647,42 @@ export interface CardInstance {
    * directly any more. Ask `effectiveTriggers`.
    */
   grantedTriggers: TriggeredAbility[];
+  /**
+   * -1/-1 counters, which are not negative +1/+1 counters: they are a separate
+   * kind, they do not annihilate here, and infect damage is the only thing in
+   * the pool that makes them.
+   */
+  minusOneCounters: number;
+  /**
+   * Counters that are neither +1/+1 nor -1/-1 - Twitching Doll's nest
+   * counters. One number rather than a map because one card needs one kind;
+   * the day a second arrives this becomes `Record<string, number>`.
+   */
+  otherCounters: number;
+  /** Loyalty on a planeswalker. Zero on everything else. */
+  loyalty: number;
+  /**
+   * The creature this was cast to bestow onto, remembered from the cast until
+   * the permanent arrives - the stack object is long gone by then.
+   */
+  bestowTarget?: string;
+  /** Whether this planeswalker has already used a loyalty ability this turn. */
+  loyaltyUsedThisTurn: boolean;
+  /** Time counters, while this card sits suspended in exile. */
+  timeCounters: number;
+  /**
+   * True on a token that is a *copy* of a real card.
+   *
+   * Flagged on the instance and not the definition, because the definition it
+   * copies is a printed card: marking that `isToken` would make every real one
+   * cease to exist the moment it left the battlefield.
+   */
+  isTokenCopy: boolean;
+  /**
+   * True while this creature card is attached to another as a bestowed Aura.
+   * It is not a creature while this holds - see `typesOf`.
+   */
+  bestowed: boolean;
   /**
    * A shield of damage yet to be prevented - "prevent the next N damage that
    * would be dealt to this creature this turn". Consumed by the next damage
@@ -1592,6 +1838,60 @@ export interface PendingSacrifice {
   followUp?: Effect[];
 }
 
+/**
+ * A resolution stopped on "choose some cards", with an optional price.
+ *
+ * One state rather than the five this batch would otherwise have needed. Devour
+ * picks any number of creatures, Braids offers an opponent one permanent,
+ * Rishkar's Expertise picks a spell to cast for free, and Ripples of Undeath
+ * picks one of three milled cards for {1} and 3 life - four questions with the
+ * same shape and four different answers, which is exactly what `mode` is for.
+ */
+export interface PendingCardChoice {
+  /** Who chooses. Not always the player resolving - see Braids. */
+  playerId: string;
+  sourceInstanceId: string;
+  prompt: string;
+  /** Every card that may be chosen, worked out by the engine. */
+  candidateInstanceIds: string[];
+  /** How many must be taken, and how many may be. `min: 0` means declinable. */
+  min: number;
+  max: number;
+  /** What happens to the chosen cards. */
+  mode: "sacrifice" | "cast-free" | "to-hand";
+  /** A price paid only if something is chosen - Ripples of Undeath. */
+  cost?: { mana?: ManaCost; life?: number };
+  /**
+   * Run after the choice, whatever it was. Braids' punishment lives here, and
+   * fires only when the opponent declined.
+   */
+  ifDeclined?: Effect;
+  /** Whose ability this is, which is who a follow-up belongs to. */
+  effectControllerId: string;
+  /** The rest of a `sequence` this interrupted - see `PendingSearch.followUp`. */
+  followUp?: Effect[];
+  /**
+   * Devour and Braids both count the chosen cards afterwards - one to place
+   * counters, one to decide who was punished - so the source is carried rather
+   * than looked up from a battlefield the sacrifice may have emptied.
+   */
+  multiplier?: number;
+}
+
+/**
+ * "You may pay any amount of life" - Necrodominance, the one choice in the
+ * game that is a number rather than a card or a yes.
+ */
+export interface PendingAmount {
+  playerId: string;
+  sourceInstanceId: string;
+  prompt: string;
+  /** The largest legal answer, so a client cannot offer a lethal one by accident. */
+  max: number;
+  /** What the chosen number feeds. */
+  mode: "pay-life-draw";
+}
+
 export interface PendingDiscard {
   /** Whose hand it comes out of, and who chooses. Not the caster. */
   playerId: string;
@@ -1689,6 +1989,13 @@ export interface PendingSearch {
    * first, which is both the wrong order and visible to the player.
    */
   followUp?: Effect[];
+  /**
+   * Targets to hand the follow-up, when it is not the ones this search had.
+   *
+   * Scheming Symmetry asks two players to search, one after the other, and the
+   * second question has to be aimed at the player who has not answered yet.
+   */
+  followUpTargets?: StackTarget[];
 }
 
 /**
@@ -1769,6 +2076,18 @@ export interface Player {
   /** Set when this player tried to draw from an empty library; checked as a state-based action. */
   attemptedDrawFromEmptyLibrary: boolean;
   landsPlayedThisTurn: number;
+  /**
+   * Poison counters. Ten of them loses the game, checked as a state-based
+   * action beside the life total.
+   */
+  poisonCounters: number;
+  /**
+   * Life gained this turn - Moseo's infusion, and Eccentric Pestfinder's. A
+   * tally rather than a comparison against a remembered total, because life
+   * lost in between must not cancel it: gaining 4 and losing 4 still counts as
+   * having gained life this turn.
+   */
+  lifeGainedThisTurn: number;
   /**
    * +1/+1 counters this player has put on creatures they control this turn -
    * Iridescent Hornbeetle's "for each +1/+1 counter you've put on creatures
@@ -1861,6 +2180,13 @@ export interface GameState {
    * and step advance exactly like `pendingSearch`. See `PendingSacrifice`.
    */
   pendingSacrifice: PendingSacrifice | null;
+  /**
+   * Cards waiting to be chosen. A queue because Braids asks every opponent in
+   * turn. Gates priority exactly like the rest.
+   */
+  pendingCardChoices: PendingCardChoice[];
+  /** A number waiting to be named - Necrodominance. */
+  pendingAmount: PendingAmount | null;
   /**
    * How many creatures have died this turn, for morbid ("if a creature died
    * this turn"). Reset in cleanup with everything else that lasts a turn.

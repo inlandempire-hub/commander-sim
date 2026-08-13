@@ -9,6 +9,8 @@ import {
   resolveSearch,
   chooseTriggerTarget,
   resolveDiscard,
+  resolveAmountChoice,
+  resolveCardChoice,
   resolveSacrificeChoice,
   resolveConfirmation,
   takeMulligan,
@@ -79,6 +81,8 @@ export function useLocalGameController({ decks, mulligan = true }: LocalGameOpti
     resolveDiscard: (playerId, instanceId) => act((s) => resolveDiscard(s, playerId, instanceId)),
     resolveSacrificeChoice: (playerId, instanceId) =>
       act((s) => resolveSacrificeChoice(s, playerId, instanceId)),
+    resolveCardChoice: (playerId, instanceIds) => act((s) => resolveCardChoice(s, playerId, instanceIds)),
+    resolveAmountChoice: (playerId, amount) => act((s) => resolveAmountChoice(s, playerId, amount)),
     takeMulligan: (playerId) => act((s) => takeMulligan(s, playerId)),
     keepHand: (playerId) => act((s) => keepHand(s, playerId)),
     putOnBottom: (playerId, instanceIds) => act((s) => putOnBottom(s, playerId, instanceIds)),

@@ -11,6 +11,8 @@ import {
   resolveSearch,
   chooseTriggerTarget,
   resolveDiscard,
+  resolveAmountChoice,
+  resolveCardChoice,
   resolveSacrificeChoice,
   resolveConfirmation,
   takeMulligan,
@@ -102,6 +104,12 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       break;
     case "resolveSacrificeChoice":
       resolveSacrificeChoice(state, playerId, message.instanceId);
+      break;
+    case "resolveCardChoice":
+      resolveCardChoice(state, playerId, message.instanceIds);
+      break;
+    case "resolveAmountChoice":
+      resolveAmountChoice(state, playerId, message.amount);
       return;
     case "passPriority":
       passPriority(state, playerId);

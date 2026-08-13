@@ -58,6 +58,17 @@ export interface AmountContext {
    * no sacrifice does nothing rather than inventing a figure.
    */
   sacrificedPower?: number;
+  /**
+   * How many counters the source had, for an ability that sacrifices it as a
+   * cost - Twitching Doll.
+   *
+   * The one place a `count` has to be substituted rather than read at
+   * resolution: the permanent is in a graveyard with its counters stripped by
+   * the time the ability resolves, so the board cannot answer. This is the
+   * rules' own "last known information", and it is why the substitution
+   * happens as the cost is paid.
+   */
+  sourceCounters?: number;
 }
 
 function value(amount: Amount, values: AmountContext): number | Amount {
@@ -69,7 +80,12 @@ function value(amount: Amount, values: AmountContext): number | Amount {
    * resolves, which is a different moment and a different answer. Passed
    * through untouched for `evaluateAmount` to deal with later. See amounts.ts.
    */
-  if (amount.kind === "count") return amount;
+  if (amount.kind === "count") {
+    if (amount.of.what === "counters-on-source" && values.sourceCounters !== undefined) {
+      return values.sourceCounters;
+    }
+    return amount;
+  }
   return amount.negate ? -values.x : values.x;
 }
 

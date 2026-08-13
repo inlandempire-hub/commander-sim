@@ -142,6 +142,60 @@ export function enteredBattlefield(
     }
   }
 
+  /*
+   * A planeswalker arrives with its printed loyalty. Before the triggers,
+   * because an ability that reads its own loyalty must not see zero.
+   */
+  if (def.loyalty !== undefined && instance.loyalty === 0) {
+    instance.loyalty = def.loyalty;
+  }
+
+  /*
+   * A bestowed creature card arrives attached to the creature it was cast onto,
+   * and is an Aura rather than a creature while it stays there - see `typesOf`.
+   * If the intended host has gone in the meantime, it simply arrives as the
+   * creature it also is, which is what the real rule says.
+   */
+  if (instance.bestowTarget) {
+    const host = findInstance(state, instance.bestowTarget);
+    if (host && host.instance.zone === "battlefield") {
+      instance.attachedTo = instance.bestowTarget;
+      instance.bestowed = true;
+    }
+    instance.bestowTarget = undefined;
+  }
+
+  /*
+   * Devour: "as this enters, you may sacrifice any number of creatures. It
+   * enters with that many +1/+1 counters on it."
+   *
+   * Asked *as* it arrives, so the counters are on it before anything else looks
+   * - which is why this is here and not a trigger. The multiplier is carried on
+   * the choice because the creatures are in a graveyard by the time it is
+   * answered.
+   */
+  if (def.devour !== undefined) {
+    const controller = requirePlayer(state, instance.controllerId);
+    const fodder = controller.battlefield.filter(
+      (c) =>
+        c.instanceId !== instance.instanceId &&
+        requireDefinition(state, c.definitionId).types.includes("Creature"),
+    );
+    if (fodder.length > 0) {
+      state.pendingCardChoices.push({
+        playerId: instance.controllerId,
+        effectControllerId: instance.controllerId,
+        sourceInstanceId: instance.instanceId,
+        candidateInstanceIds: fodder.map((c) => c.instanceId),
+        min: 0,
+        max: fodder.length,
+        mode: "sacrifice",
+        prompt: `${def.name}: devour ${def.devour} - you may sacrifice any number of creatures`,
+        multiplier: def.devour,
+      });
+    }
+  }
+
   // Triggers printed on the permanent that just arrived.
   for (const trigger of effectiveTriggers(state, instance)) {
     if (trigger.event === "enters-battlefield") {
@@ -462,6 +516,10 @@ export function triggerConditionMet(
   switch (condition.kind) {
     case "creature-died-this-turn":
       return state.creatureDeathsThisTurn > 0;
+    case "gained-life-this-turn":
+      // A tally rather than a comparison against a remembered total: gaining 4
+      // and losing 4 still counts as having gained life this turn.
+      return requirePlayer(state, controllerId).lifeGainedThisTurn > 0;
     case "source-has-counters": {
       if (!sourceInstanceId) return false;
       const found = findInstance(state, sourceInstanceId);

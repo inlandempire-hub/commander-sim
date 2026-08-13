@@ -76,6 +76,26 @@ export function meetsBoardCondition(
       });
       return matching.length >= condition.count;
     }
+    case "controls-lands":
+      /*
+       * Every land, including the one that just arrived - which is why this
+       * reads the whole battlefield rather than `others`. Scute Swarm's
+       * landfall counts the land that set it off, and excluding it would make
+       * the card switch on one land later than it does.
+       */
+      return (
+        player.battlefield.filter((card) => state.cardDefinitions[card.definitionId]?.types.includes("Land"))
+          .length >= condition.count
+      );
+    case "attached-to-a-creature": {
+      // Asked of the permanent itself rather than of the board, so the one
+      // being excluded is the one doing the asking - see the call site.
+      if (!excludeInstanceId) return false;
+      const self = player.battlefield.find((c) => c.instanceId === excludeInstanceId);
+      if (!self?.attachedTo) return false;
+      const host = player.battlefield.find((c) => c.instanceId === self.attachedTo);
+      return host !== undefined && (state.cardDefinitions[host.definitionId]?.types.includes("Creature") ?? false);
+    }
     case "controls-commander":
       /*
        * On the battlefield, which is what "control" means. A commander waiting

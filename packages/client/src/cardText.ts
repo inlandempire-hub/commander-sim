@@ -231,6 +231,41 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         `Put ${countAmount(effect.amount)} +1/+1 ${isOne(effect.amount) ? "counter" : "counters"} on ${who}.`,
       );
     }
+    case "conditional":
+      // "If you control six or more lands, ... instead." The branch reads as
+      // the card prints it, with the condition first.
+      return `If ${describeCondition(effect.condition)}, ${lowerFirst(
+        describeEffect(effect.then, definitions),
+      )}${
+        effect.otherwise
+          ? ` Otherwise, ${lowerFirst(describeEffect(effect.otherwise, definitions))}`
+          : ""
+      }`;
+    case "createCopyToken":
+      return effect.of === "self"
+        ? "Create a token that's a copy of this creature."
+        : "Create a token that's a copy of the creature this is attached to.";
+    case "addOtherCounter":
+      return `Put ${countWord(effect.amount)} counter${effect.amount === 1 ? "" : "s"} on this creature.`;
+    case "millThenMayTake": {
+      const price = [
+        effect.cost.mana ? formatManaCost(effect.cost.mana) : null,
+        effect.cost.life ? `${effect.cost.life} life` : null,
+      ]
+        .filter(Boolean)
+        .join(" and ");
+      return `Mill ${countWord(effect.amount)} cards. Then you may pay ${price}. If you do, put a card from among those cards into your hand.`;
+    }
+    case "castFreeFromHand":
+      return `You may cast a spell with mana value ${effect.maxManaValue} or less from your hand without paying its mana cost.`;
+    case "payLifeDrawThatMany":
+      return "You may pay any amount of life. If you do, draw that many cards.";
+    case "offerSacrificeToOpponents":
+      return `Each opponent may sacrifice a permanent of their choice that shares a card type with it. For each opponent who doesn't, ${lowerFirst(
+        describeEffect(effect.ifDeclined, definitions),
+      )}`;
+    case "repeatWhileMilledMatches":
+      return `${describeEffect(effect.body, definitions)} If ${article(effect.subtype)} ${effect.subtype} card was milled this way, put a loyalty counter on this permanent and repeat this process.`;
     case "moveAllCounters":
       return sentence(`Move all counters from this permanent onto ${describeTarget(effect.target)}.`);
     case "mill":
@@ -467,6 +502,14 @@ function describeCount(of: Countable): string {
         : "the greatest power among creatures you control";
     case "counters-placed-this-turn":
       return "+1/+1 counter you've put on creatures under your control this turn";
+    case "creature-cards-in-your-graveyard":
+      return "the number of creature cards in your graveyard";
+    case "counters-on-source":
+      return "the number of counters on this creature";
+    case "life-gained-this-turn":
+      return "the amount of life you gained this turn";
+    case "opponents":
+      return "each opponent";
     case "creatures-attacking-you":
       return "creature attacking you";
   }
@@ -606,6 +649,8 @@ function describeTriggerCondition(condition: TriggerCondition): string {
       return "if a creature died this turn";
     case "source-has-counters":
       return "if it has counters on it";
+    case "gained-life-this-turn":
+      return "if you gained life this turn";
     case "not":
       return `if ${negateCondition(condition.condition)}`;
   }
@@ -631,6 +676,10 @@ function negateCondition(condition: BoardCondition): string {
       return "you have no opponents";
     case "controls-commander":
       return "you control no commander";
+    case "controls-lands":
+      return `you control fewer than ${condition.count} lands`;
+    case "attached-to-a-creature":
+      return "this permanent is not attached to a creature";
   }
 }
 
@@ -742,6 +791,10 @@ function describeCondition(condition: BoardCondition): string {
       return `you control ${condition.count} or more ${colorWord(condition.color)} permanents`;
     case "controls-commander":
       return "you control a commander";
+    case "controls-lands":
+      return `you control ${condition.count} or more lands`;
+    case "attached-to-a-creature":
+      return "this permanent is attached to a creature you control";
   }
 }
 
@@ -916,6 +969,9 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
  * a trigger. "Doubles your tokens" reads like something that happens after.
  */
 function describeReplacement(replacement: ReplacementEffect): string {
+  if (replacement.kind === "graveyard-to-exile") {
+    return "If a card or token would be put into your graveyard from anywhere, exile it instead.";
+  }
   if (replacement.kind === "tokens-created") {
     return (
       "If an effect would create one or more tokens under your control, it creates " +

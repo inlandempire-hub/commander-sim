@@ -119,6 +119,12 @@ function perform(controller: GameController, playerId: string, action: BotAction
       break;
     case "resolveSacrificeChoice":
       controller.resolveSacrificeChoice(playerId, action.instanceId);
+      break;
+    case "resolveCardChoice":
+      controller.resolveCardChoice(playerId, action.instanceIds);
+      break;
+    case "resolveAmountChoice":
+      controller.resolveAmountChoice(playerId, action.amount);
       return;
     case "takeMulligan":
       controller.takeMulligan(playerId);

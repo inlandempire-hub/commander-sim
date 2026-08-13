@@ -47,6 +47,14 @@ export type ClientMessage =
    * refuses unless the card said "may".
    */
   | { type: "resolveSacrificeChoice"; instanceId: string | null }
+  /**
+   * Which cards were chosen for a "choose some cards" - devour, Braids' offer,
+   * Rishkar's free spell, Ripples of Undeath's milled card. An empty array
+   * declines, which the engine refuses when the card demanded a minimum.
+   */
+  | { type: "resolveCardChoice"; instanceIds: string[] }
+  /** The number named for "pay any amount of life" - Necrodominance. */
+  | { type: "resolveAmountChoice"; amount: number }
   | { type: "takeMulligan" }
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }

@@ -48,6 +48,10 @@ export interface GameController {
   resolveDiscard(playerId: string, instanceId: string): void;
   /** Answers a "you may sacrifice a creature" - `null` declines. */
   resolveSacrificeChoice(playerId: string, instanceId: string | null): void;
+  /** Answers a "choose some cards" - an empty array declines. */
+  resolveCardChoice(playerId: string, instanceIds: string[]): void;
+  /** Answers "pay any amount of life". */
+  resolveAmountChoice(playerId: string, amount: number): void;
   /** Opening hands, before the game starts. See the engine's mulligan.ts. */
   takeMulligan(playerId: string): void;
   keepHand(playerId: string): void;

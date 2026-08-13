@@ -12374,6 +12374,334 @@ export const SEDGEMOOR_WITCH: CardDefinition = {
   tier: "scripted",
 };
 
+
+export const TOKEN_BG_11_INSECT: CardDefinition = {
+  id: "token-bg-11-insect",
+  name: "Insect",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  colorIdentity: ["B", "G"],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_C_11_SHAPESHIFTER_CHANGELING: CardDefinition = {
+  id: "token-c-11-shapeshifter-changeling",
+  name: "Shapeshifter",
+  scryfallId: "f15f2638-3895-459a-84af-fb91de06c395",
+  types: ["Creature"],
+  subtypes: ["Shapeshifter"],
+  colorIdentity: [],
+  power: 1,
+  toughness: 1,
+  keywords: ["Changeling"],
+  isToken: true,
+  tier: "scripted",
+};
+
+/*
+ * "Target creature gets +1/+0 and gains infect until end of turn."
+ *
+ * Infect is granted for the turn like any other keyword, and everything that
+ * follows from it - poison to a player, -1/-1 counters to a creature - falls
+ * out of `damageCreature` and `damagePlayer` rather than out of this card.
+ */
+export const TAINTED_STRIKE: CardDefinition = {
+  id: "tainted-strike",
+  name: "Tainted Strike",
+  scryfallId: "d0f82007-99f6-4c6c-8182-ee631c33531f",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  castEffect: { kind: "pump", power: 1, toughness: 0, target: { kind: "creature" }, grants: ["Infect"] },
+  tier: "scripted",
+};
+
+/*
+ * "{T}: Add one mana of any color. Put a nest counter on this creature."
+ * "{T}, Sacrifice this creature: Create a 2/2 green Spider creature token with
+ * reach for each counter on this creature. Activate only as a sorcery."
+ *
+ * Nest counters are not +1/+1 counters - they change no stats and exist only to
+ * be counted - so they live in `otherCounters`, and the second ability counts
+ * both piles because "each counter on this creature" means all of them.
+ */
+export const TWITCHING_DOLL: CardDefinition = {
+  id: "twitching-doll",
+  name: "Twitching Doll",
+  scryfallId: "416c025b-e40e-4d95-a774-ba3961f43808",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Spider", "Toy"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 2,
+  activatedAbilities: [
+    ...(["W", "U", "B", "R", "G"] as const).map((color) => ({
+      cost: { tap: true },
+      effect: { kind: "addMana" as const, color, amount: 1 },
+      addsOtherCounterToSelf: 1,
+    })),
+    {
+      cost: { tap: true, sacrificeSelf: true },
+      sorcerySpeedOnly: true,
+      effect: {
+        kind: "createToken",
+        count: { kind: "count", of: { what: "counters-on-source" } },
+        tokenDefinitionId: "token-g-12-spider-reach",
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "At the beginning of your first main phase, mill three cards. Then you may
+ * pay {1} and 3 life. If you do, put a card from among those cards into your
+ * hand."
+ *
+ * One effect rather than a mill beside a choice, because the choice is over the
+ * cards *this* mill produced - a set that exists only inside this resolution.
+ */
+export const RIPPLES_OF_UNDEATH: CardDefinition = {
+  id: "ripples-of-undeath",
+  name: "Ripples of Undeath",
+  scryfallId: "a201d1bc-e3fe-4f59-bd48-3683996ac308",
+  types: ["Enchantment"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  triggeredAbilities: [
+    {
+      event: "first-main",
+      watches: "controller",
+      effect: {
+        kind: "millThenMayTake",
+        amount: 3,
+        cost: { mana: { generic: 1, colors: {} }, life: 3 },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Draw cards equal to the greatest power among creatures you control. You may
+ * cast a spell with mana value 5 or less from your hand without paying its mana
+ * cost."
+ */
+export const RISHKARS_EXPERTISE: CardDefinition = {
+  id: "rishkars-expertise",
+  name: "Rishkar's Expertise",
+  scryfallId: "efa9d2dc-b3b8-4475-bbfc-2db457ee4ffd",
+  types: ["Sorcery"],
+  manaCost: { generic: 4, colors: { G: 2 } },
+  colorIdentity: ["G"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "draw", amount: { kind: "count", of: { what: "greatest-power" } } },
+      { kind: "castFreeFromHand", maxManaValue: 5 },
+    ],
+  },
+  tier: "scripted",
+};
+
+/*
+ * "Devour 1. At the beginning of your end step, create a number of 1/1 black
+ * and green Pest creature tokens equal to the number of +1/+1 counters on this
+ * creature. They have 'When this token dies, you gain 1 life.'"
+ *
+ * Devour is asked as it arrives rather than as a trigger, because the counters
+ * have to be on it before anything else reads the board.
+ */
+export const RIBTRUSS_ROASTER: CardDefinition = {
+  id: "ribtruss-roaster",
+  name: "Ribtruss Roaster",
+  scryfallId: "8217100d-8244-4565-97bd-6c0f38c3e2f0",
+  types: ["Creature"],
+  subtypes: ["Troll", "Druid"],
+  manaCost: { generic: 4, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 3,
+  devour: 1,
+  triggeredAbilities: [
+    {
+      event: "end-step",
+      watches: "controller",
+      effect: {
+        kind: "createToken",
+        count: { kind: "count", of: { what: "counters-on-source" } },
+        tokenDefinitionId: "token-bg-11-pest-dies-gain-life",
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Skip your draw step. At the beginning of your end step, you may pay any
+ * amount of life. If you do, draw that many cards. Your maximum hand size is
+ * five. If a card or token would be put into your graveyard from anywhere,
+ * exile it instead."
+ *
+ * Four lines and every one of them matters together: the replacement is what
+ * stops the drawn cards ever coming back, and the hand size is what makes the
+ * draw a real cost rather than free storage.
+ */
+export const NECRODOMINANCE: CardDefinition = {
+  id: "necrodominance",
+  name: "Necrodominance",
+  scryfallId: "ffc0109c-f939-4424-820e-d6e60cacd794",
+  types: ["Enchantment"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 0, colors: { B: 3 } },
+  colorIdentity: ["B"],
+  staticRules: { skipDrawStep: true, maxHandSize: 5 },
+  replacementEffects: [{ kind: "graveyard-to-exile" }],
+  triggeredAbilities: [
+    { event: "end-step", watches: "controller", effect: { kind: "payLifeDrawThatMany" } },
+  ],
+  tier: "weird",
+};
+
+/*
+ * "Landfall - Whenever a land you control enters, create a 1/1 green Insect
+ * creature token. If you control six or more lands, create a token that's a
+ * copy of this creature instead."
+ *
+ * "Instead" is one branch, not two abilities - a card written as two would make
+ * two tokens per land once the sixth was down.
+ */
+export const SCUTE_SWARM: CardDefinition = {
+  id: "scute-swarm",
+  name: "Scute Swarm",
+  scryfallId: "ea630ba1-22f9-4a10-bdc6-0d03128214f4",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [
+    {
+      event: "landfall",
+      watches: "controller",
+      effect: {
+        kind: "conditional",
+        condition: { kind: "controls-lands", count: 6 },
+        then: { kind: "createCopyToken", of: "self" },
+        otherwise: { kind: "createToken", count: 1, tokenDefinitionId: "token-g-11-insect" },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "When this enchantment enters, create X 1/1 colorless Shapeshifter creature
+ * tokens with changeling. Creature tokens you control have '{T}: Add one mana
+ * of any color.'"
+ *
+ * The second line grants a whole activated ability, which is why nothing may
+ * read `CardDefinition.activatedAbilities` directly any more - see
+ * `effectiveActivated`.
+ */
+export const SPRINGLEAF_PARADE: CardDefinition = {
+  id: "springleaf-parade",
+  name: "Springleaf Parade",
+  scryfallId: "44265489-645a-43b0-bc1f-726905b06876",
+  types: ["Enchantment"],
+  manaCost: { generic: 0, colors: { G: 2 }, x: 1 },
+  colorIdentity: ["G"],
+  staticBuff: {
+    power: 0,
+    toughness: 0,
+    includesSelf: false,
+    tokensOnly: true,
+    grantsAbilities: (["W", "U", "B", "R", "G"] as const).map((color) => ({
+      cost: { tap: true },
+      effect: { kind: "addMana" as const, color, amount: 1 },
+    })),
+  },
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "createToken",
+        count: { kind: "x" },
+        tokenDefinitionId: "token-c-11-shapeshifter-changeling",
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * Grist, the Hunger Tide - the first planeswalker.
+ *
+ * "As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in
+ * addition to its other types" is the opposite of every other
+ * characteristic-defining ability here: it applies everywhere *except* play,
+ * which is why `typesOf` reads it rather than anything that looks at permanents.
+ *
+ * The +1 is the one looping ability in the pool, and it is capped: a library
+ * full of Insects would otherwise run until it emptied.
+ */
+export const GRIST_THE_HUNGER_TIDE: CardDefinition = {
+  id: "grist-the-hunger-tide",
+  name: "Grist, the Hunger Tide",
+  scryfallId: "1925dc45-4dee-4772-aa16-3b4ca54be6c7",
+  types: ["Planeswalker"],
+  subtypes: ["Grist"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 1, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  loyalty: 3,
+  alsoCreatureOffBattlefield: { power: 1, toughness: 1, subtypes: ["Insect"] },
+  canBeCommander: true,
+  loyaltyAbilities: [
+    {
+      cost: 1,
+      label: "Create a 1/1 black and green Insect creature token, then mill a card. If an Insect card was milled this way, put a loyalty counter on Grist and repeat this process.",
+      effect: {
+        kind: "repeatWhileMilledMatches",
+        subtype: "Insect",
+        addLoyalty: 1,
+        max: 20,
+        body: {
+          kind: "sequence",
+          effects: [
+            { kind: "createToken", count: 1, tokenDefinitionId: "token-bg-11-insect" },
+            { kind: "mill", amount: 1 },
+          ],
+        },
+      },
+    },
+    {
+      cost: -2,
+      label: "You may sacrifice a creature. When you do, destroy target creature or planeswalker.",
+      effect: {
+        kind: "sacrificeChosen",
+        optional: true,
+        then: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Creature", "Planeswalker"] } },
+      },
+    },
+    {
+      cost: -5,
+      label: "Each opponent loses life equal to the number of creature cards in your graveyard.",
+      effect: {
+        kind: "loseLife",
+        who: "each-opponent",
+        amount: { kind: "count", of: { what: "creature-cards-in-your-graveyard" } },
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -13298,5 +13626,16 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     THE_OZOLITH,
     ROOT_MANIPULATION,
     SEDGEMOOR_WITCH,
+    TOKEN_BG_11_INSECT,
+    TOKEN_C_11_SHAPESHIFTER_CHANGELING,
+    TAINTED_STRIKE,
+    TWITCHING_DOLL,
+    RIPPLES_OF_UNDEATH,
+    RISHKARS_EXPERTISE,
+    RIBTRUSS_ROASTER,
+    NECRODOMINANCE,
+    SCUTE_SWARM,
+    SPRINGLEAF_PARADE,
+    GRIST_THE_HUNGER_TIDE,
   ].map((def) => [def.id, def]),
 );

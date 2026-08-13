@@ -1,7 +1,7 @@
 import type { CardInstance, GameState, Player } from "./types.js";
-import { log, requireDefinition } from "./state.js";
+import { findInstance, log, requireDefinition } from "./state.js";
 import { pushTrigger } from "./permanents.js";
-import { effectiveTriggers } from "./counters.js";
+import { effectiveTriggers, hasKeyword } from "./counters.js";
 
 /**
  * The one place damage is actually dealt.
@@ -50,9 +50,37 @@ function applyShield(holder: { damagePrevention: number }, amount: number): Dama
 }
 
 /** Damage to a player's life total, prevention applied. */
-export function damagePlayer(state: GameState, player: Player, amount: number): DamageResult {
+/**
+ * Whether this source deals its damage as counters rather than as damage.
+ *
+ * Infect is the one keyword that changes what damage *is*: to a creature it is
+ * -1/-1 counters, to a player it is poison. Asked of the source by the caller
+ * rather than read here, for exactly the reason `deathtouch` is - the flag
+ * belongs to whatever is dealing the damage, and only the caller knows what
+ * that is.
+ */
+export function dealsInfect(state: GameState, sourceInstanceId: string | undefined): boolean {
+  if (!sourceInstanceId) return false;
+  const found = findInstance(state, sourceInstanceId);
+  return found ? hasKeyword(state, found.instance, "Infect") : false;
+}
+
+/**
+ * Damage to a player, prevention applied.
+ */
+export function damagePlayer(state: GameState, player: Player, amount: number, options: { infect?: boolean } = {}): DamageResult {
   const result = applyShield(player, amount);
-  player.life -= result.dealt;
+  /*
+   * Infect damage to a player is poison counters, not life loss. Prevention
+   * still applies first - a shield stops the damage before it becomes
+   * anything - which is why this reads `result.dealt` rather than `amount`.
+   */
+  if (options.infect) {
+    player.poisonCounters += result.dealt;
+    if (result.dealt > 0) log(state, `${player.id} gets ${result.dealt} poison counter${result.dealt === 1 ? "" : "s"}`);
+  } else {
+    player.life -= result.dealt;
+  }
   if (result.prevented > 0) {
     log(state, `${result.prevented} damage to ${player.id} prevented`);
   }
@@ -73,10 +101,21 @@ export function damageCreature(
   state: GameState,
   instance: CardInstance,
   amount: number,
-  options: { deathtouch?: boolean } = {},
+  options: { deathtouch?: boolean; infect?: boolean } = {},
 ): DamageResult {
   const result = applyShield(instance, amount);
-  instance.damageMarked += result.dealt;
+  /*
+   * Infect damage to a creature is -1/-1 counters, which is a different thing
+   * from damage in three ways that matter: it does not wear off at end of
+   * turn, it shrinks the creature rather than filling it up, and a creature
+   * killed by it dies to toughness rather than to lethal damage - so
+   * regeneration cannot save it.
+   */
+  if (options.infect) {
+    instance.minusOneCounters += result.dealt;
+  } else {
+    instance.damageMarked += result.dealt;
+  }
   if (options.deathtouch && result.dealt > 0) instance.deathtouchDamage = true;
   if (result.prevented > 0) {
     log(state, `${result.prevented} damage to ${cardLabel(state, instance)} prevented`);

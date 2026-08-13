@@ -281,7 +281,9 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       // Everything downstream keys off what actually landed rather than off
       // the attacker's power: a player who prevented the damage gained no
       // lifelink for the attacker and took no commander damage either.
-      const { dealt } = damagePlayer(state, defender, power);
+      const { dealt } = damagePlayer(state, defender, power, {
+        infect: hasKeyword(state, attackerFound.instance, "Infect"),
+      });
       if (attackerHasLifelink && dealt > 0) {
         gainLife(state, attackerFound.instance.controllerId, dealt);
       }
@@ -318,6 +320,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
         // player (rule 702.19b assigns against toughness, not against what
         // survives prevention).
         preventedByBlockers += damageCreature(state, blockerFound.instance, assign, {
+          infect: hasKeyword(state, attackerFound.instance, "Infect"),
           deathtouch: attackerHasDeathtouch,
         }).prevented;
         remainingPower -= assign;
@@ -330,7 +333,9 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       const blockerHasDeathtouch = hasKeyword(state, blockerFound.instance, "Deathtouch");
       const blockerHasLifelink = hasKeyword(state, blockerFound.instance, "Lifelink");
 
-      const { dealt: dealtToAttacker } = damageCreature(state, attackerFound.instance, blockerPower);
+      const { dealt: dealtToAttacker } = damageCreature(state, attackerFound.instance, blockerPower, {
+        infect: hasKeyword(state, blockerFound.instance, "Infect"),
+      });
       if (blockerHasDeathtouch && dealtToAttacker > 0) anyBlockerDeathtouchDamage = true;
       if (blockerHasLifelink && dealtToAttacker > 0) {
         gainLife(state, blockerFound.instance.controllerId, dealtToAttacker);
@@ -341,7 +346,9 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
     let trampledThrough = 0;
     if (attackerStrikesNow && attackerHasTrample && remainingPower > 0) {
       const defender = requirePlayer(state, defendingPlayerId);
-      trampledThrough = damagePlayer(state, defender, remainingPower).dealt;
+      trampledThrough = damagePlayer(state, defender, remainingPower, {
+        infect: hasKeyword(state, attackerFound.instance, "Infect"),
+      }).dealt;
       if (attackerFound.instance.isCommander && trampledThrough > 0) {
         defender.commanderDamageTaken[attackerInstanceId] =
           (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + trampledThrough;

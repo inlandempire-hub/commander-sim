@@ -26,6 +26,8 @@ export function createPlayer(id: string): Player {
     damagePrevention: 0,
     attemptedDrawFromEmptyLibrary: false,
     landsPlayedThisTurn: 0,
+    poisonCounters: 0,
+    lifeGainedThisTurn: 0,
     plusOneCountersPlacedThisTurn: 0,
   };
 }
@@ -49,6 +51,8 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     pendingTargetChoices: [],
     pendingDiscards: [],
     pendingSacrifice: null,
+    pendingCardChoices: [],
+    pendingAmount: null,
     creatureDeathsThisTurn: 0,
     combatDamagePrevention: null,
     mulligan: null,
@@ -95,6 +99,13 @@ export function createCardInstance(
     plusOneCounters: 0,
     grantedKeywords: [],
     grantedTriggers: [],
+    minusOneCounters: 0,
+    otherCounters: 0,
+    loyalty: 0,
+    loyaltyUsedThisTurn: false,
+    timeCounters: 0,
+    isTokenCopy: false,
+    bestowed: false,
     chosenX: 0,
     temporaryPowerBonus: 0,
     temporaryToughnessBonus: 0,
@@ -129,6 +140,8 @@ export function findInstance(state: GameState, instanceId: string): { instance: 
  * Resets transient state (tap, damage, summoning sickness) as appropriate for the destination.
  */
 export function moveCard(state: GameState, instanceId: string, destination: ZoneId): CardInstance {
+  // Reassigned by the graveyard replacement below, so it is a `let`.
+  // eslint-disable-next-line prefer-const
   const found = findInstance(state, instanceId);
   if (!found) throw new Error(`Cannot move unknown instance: ${instanceId}`);
   const { instance } = found;
@@ -147,7 +160,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   // the new zone (real rule 111.7). It's already been spliced out above, so
   // simply not re-inserting it is the whole implementation.
   const definition = state.cardDefinitions[instance.definitionId];
-  if (definition?.isToken && instance.zone === "battlefield" && destination !== "battlefield") {
+  if ((definition?.isToken || instance.isTokenCopy) && instance.zone === "battlefield" && destination !== "battlefield") {
     instance.zone = destination;
     return instance;
   }
@@ -167,6 +180,25 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
     if (front) instance.definitionId = front.id;
   }
 
+  /*
+   * "If a card or token would be put into your graveyard from anywhere, exile
+   * it instead." - Necrodominance.
+   *
+   * The first replacement effect on a zone change, and it lives here because
+   * this is the one door every zone change goes through - the whole reason
+   * that was worth keeping as a single function. Read off the board directly
+   * rather than through replacements.ts, which only knows about counters and
+   * tokens and would have to import half the engine to reach this.
+   */
+  if (destination === "graveyard") {
+    const redirects = owner.battlefield.some((c) =>
+      state.cardDefinitions[c.definitionId]?.replacementEffects?.some(
+        (r) => r.kind === "graveyard-to-exile",
+      ),
+    );
+    if (redirects) destination = "exile";
+  }
+
   instance.zone = destination;
   instance.tapped = false;
   instance.damageMarked = 0;
@@ -178,6 +210,10 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   // it fires after this has run, so resetting here would wipe the board for 0.
   instance.grantedKeywords = []; // an until-end-of-turn grant belongs to the object it was given to, not to the card
   instance.grantedTriggers = []; // likewise for a granted ability - Root Manipulation's does not follow the card out
+  instance.minusOneCounters = 0; // a zone change makes a new object, counters and all
+  instance.otherCounters = 0;
+  instance.loyaltyUsedThisTurn = false;
+  instance.bestowed = false; // an Aura that leaves play is a creature card again
   instance.temporaryPowerBonus = 0; // likewise, until-end-of-turn pumps don't follow a card between zones
   instance.temporaryToughnessBonus = 0;
   instance.damagePrevention = 0; // a shield protects the object it was cast on, not the new one this became

@@ -193,6 +193,32 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
    * and a rule that always said yes would feed it its best creature every
    * time. Declining is the play it can defend.
    */
+  /*
+   * A "choose some cards". Declined whenever the card allows it, for the same
+   * reason the sacrifice choice is: the bot has no way to weigh a creature
+   * against cards, and a rule that always said yes would feed it its board.
+   *
+   * The one exception is a choice it is *required* to answer, where it takes
+   * the cheapest legal set rather than stalling the game.
+   */
+  if (state.pendingCardChoices[0]?.playerId === botPlayerId) {
+    const pending = state.pendingCardChoices[0];
+    if (pending.min === 0) return { kind: "resolveCardChoice", instanceIds: [] };
+    return {
+      kind: "resolveCardChoice",
+      instanceIds: pending.candidateInstanceIds.slice(0, pending.min),
+    };
+  }
+
+  /*
+   * "Pay any amount of life." Zero, always: the bot cannot judge what the cards
+   * are worth against its own life total, and any other answer would be a
+   * number picked for no reason.
+   */
+  if (state.pendingAmount?.playerId === botPlayerId) {
+    return { kind: "resolveAmountChoice", amount: 0 };
+  }
+
   if (state.pendingSacrifice?.playerId === botPlayerId) {
     const pending = state.pendingSacrifice;
     if (pending.optional) return { kind: "resolveSacrificeChoice", instanceId: null };

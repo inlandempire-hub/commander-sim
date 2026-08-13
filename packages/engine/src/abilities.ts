@@ -15,6 +15,7 @@ import { sacrificePermanent } from "./sba.js";
 import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
 import { canCastAtSorcerySpeed } from "./casting.js";
 import { attemptWardPayments } from "./ward.js";
+import { resolveAmounts } from "./x.js";
 
 /**
  * Which of a permanent's activated abilities its controller could use right
@@ -71,6 +72,59 @@ export function activatableAbilities(
  * immediately without using the stack (per the real rules); everything else
  * is put on the stack like a spell.
  */
+
+/**
+ * Activates a planeswalker's loyalty ability.
+ *
+ * Its own function rather than a branch of `activateAbility`, because almost
+ * nothing about it is the same: the cost is loyalty rather than mana, it is
+ * sorcery-speed only, and a permanent may use exactly one a turn however many
+ * it has.
+ */
+export function activateLoyaltyAbility(
+  state: GameState,
+  playerId: string,
+  instanceId: string,
+  abilityIndex: number,
+): void {
+  if (state.players[state.priorityPlayerIndex]?.id !== playerId) {
+    throw new Error(`${playerId} does not have priority`);
+  }
+  const player = requirePlayer(state, playerId);
+  const instance = player.battlefield.find((c) => c.instanceId === instanceId);
+  if (!instance) throw new Error(`${instanceId} is not on ${playerId}'s battlefield`);
+  const def = requireDefinition(state, instance.definitionId);
+  const ability = def.loyaltyAbilities?.[abilityIndex];
+  if (!ability) throw new Error(`${def.name} has no loyalty ability ${abilityIndex}`);
+
+  if (!canCastAtSorcerySpeed(state, playerId)) {
+    throw new Error("Loyalty abilities can only be activated at sorcery speed");
+  }
+  // One a turn, per permanent - not per ability. Using the +1 and the -2 in the
+  // same turn is exactly what this forbids.
+  if (instance.loyaltyUsedThisTurn) {
+    throw new Error(`${def.name} has already used a loyalty ability this turn`);
+  }
+  // A minus ability cannot be activated for more loyalty than the card has.
+  if (instance.loyalty + ability.cost < 0) {
+    throw new Error(`${def.name} does not have ${-ability.cost} loyalty to spend`);
+  }
+
+  /*
+   * The cost is paid as the ability is activated, before it goes on the stack -
+   * so a walker that ultimates dies to state-based actions with its ability
+   * still waiting to resolve, which is the real behaviour.
+   */
+  instance.loyalty += ability.cost;
+  instance.loyaltyUsedThisTurn = true;
+  log(
+    state,
+    `${playerId} activates ${def.name}'s ${ability.cost >= 0 ? "+" : ""}${ability.cost} ability`,
+  );
+  pushOntoStack(state, instanceId, playerId, ability.effect, [], false);
+  state.passesInSuccession = 0;
+}
+
 export function activateAbility(
   state: GameState,
   playerId: string,
@@ -132,6 +186,14 @@ export function activateAbility(
    * losing the permanent does not stop it - which is exactly why this must not
    * be written as part of the effect.
    */
+  /*
+   * Counters read *before* the sacrifice, because the ability that spends them
+   * is the one that counts them - Twitching Doll. A moment later the permanent
+   * is in a graveyard with its counters stripped, and the board could only
+   * answer zero. This is the rules' own last-known-information, substituted
+   * here rather than understood downstream. See `AmountContext.sourceCounters`.
+   */
+  const sourceCounters = instance.plusOneCounters + instance.otherCounters;
   if (ability.cost.sacrificeSelf) sacrificePermanent(state, instanceId);
 
   const isManaAbility =
@@ -153,6 +215,16 @@ export function activateAbility(
        * stays fully spendable. All this adds is a note of where it came from,
        * read when it is spent. See `ManaMark`.
        */
+      /*
+       * "Add one mana of any color. **Put a nest counter on this creature.**"
+       *
+       * Applied here rather than inside the effect, exactly where the painland
+       * rider is and for the same reason: it belongs to the ability, not to
+       * adding mana.
+       */
+      if (ability.addsOtherCounterToSelf) {
+        instance.otherCounters += ability.addsOtherCounterToSelf;
+      }
       if (ability.marksMana && ability.effect.kind === "addMana") {
         player.manaMarks.push({
           color: ability.effect.color,
@@ -182,7 +254,7 @@ export function activateAbility(
       state.passesInSuccession = 0;
       return;
     }
-    pushOntoStack(state, instanceId, playerId, ability.effect, targets, false);
+    pushOntoStack(state, instanceId, playerId, resolveAmounts(ability.effect, { x: 0, sourceCounters }), targets, false);
     state.passesInSuccession = 0;
   }
 }

@@ -37,6 +37,8 @@ export type BotAction =
   /** Choosing which card to pitch when an opponent's spell demands a discard. */
   | { kind: "resolveDiscard"; instanceId: string }
   | { kind: "resolveSacrificeChoice"; instanceId: string | null }
+  | { kind: "resolveCardChoice"; instanceIds: string[] }
+  | { kind: "resolveAmountChoice"; amount: number }
   /** Settling an opening hand, before the game has begun. */
   | { kind: "takeMulligan" }
   | { kind: "keepHand" }

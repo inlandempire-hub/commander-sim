@@ -14,13 +14,17 @@ import { addMana, canPayManaCost, manaValue, payManaCost } from "./mana.js";
 import { damageCreature, damagePlayer } from "./damage.js";
 import { effectivePower, hasKeyword } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
-import { enteredBattlefield, putOntoBattlefield } from "./permanents.js";
+import { enteredBattlefield, pushTrigger, putOntoBattlefield } from "./permanents.js";
 import { gainLife } from "./life.js";
 import { useRegenerationShield } from "./regeneration.js";
 import { destroyPermanent, leaveBattlefield, sacrificePermanent } from "./sba.js";
 import { countersPlaced, tokensCreated } from "./replacements.js";
 import { evaluateAmount } from "./amounts.js";
+import { meetsBoardCondition } from "./conditions.js";
+import { hasCreatureType } from "./counters.js";
 import { resolveAmounts } from "./x.js";
+import { castSpell } from "./casting.js";
+import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
 
 /**
  * Applies a resolved (non-permanent) effect: spell/ability damage, draw,
@@ -46,6 +50,7 @@ export function applyEffect(
   const sourceDef = state.cardDefinitions[findInstance(state, sourceInstanceId)?.instance.definitionId ?? ""];
   const sourceInstance = findInstance(state, sourceInstanceId)?.instance;
   const hasDeathtouch = sourceInstance ? hasKeyword(state, sourceInstance, "Deathtouch") : false;
+  const hasInfect = sourceInstance ? hasKeyword(state, sourceInstance, "Infect") : false;
   const hasLifelink = sourceInstance ? hasKeyword(state, sourceInstance, "Lifelink") : false;
 
   switch (effect.kind) {
@@ -54,7 +59,7 @@ export function applyEffect(
       for (const target of targets) {
         if (target.kind === "player") {
           const player = requirePlayer(state, target.playerId);
-          totalDealt += damagePlayer(state, player, effect.amount).dealt;
+          totalDealt += damagePlayer(state, player, effect.amount, { infect: hasInfect }).dealt;
         } else if (target.kind === "card") {
           const found = findInstance(state, target.instanceId);
           if (found) {
@@ -62,6 +67,7 @@ export function applyEffect(
             // the life it would otherwise have gained.
             totalDealt += damageCreature(state, found.instance, effect.amount, {
               deathtouch: hasDeathtouch,
+              infect: hasInfect,
             }).dealt;
           }
         }
@@ -220,6 +226,167 @@ export function applyEffect(
       };
       return;
     }
+    case "conditional": {
+      /*
+       * "If you control six or more lands, create a copy instead." One branch
+       * or the other, never both - Scute Swarm makes one token per landfall,
+       * and a card written as two abilities would make two.
+       */
+      const met = meetsBoardCondition(state, controllerId, effect.condition, sourceInstanceId);
+      const branch = met ? effect.then : effect.otherwise;
+      if (branch) applyEffect(state, controllerId, sourceInstanceId, branch, targets);
+      return;
+    }
+    case "createCopyToken": {
+      const source = findInstance(state, sourceInstanceId);
+      if (!source) return;
+      let copied = source.instance;
+      if (effect.of === "attached-creature") {
+        // Springheart Nantuko copies whatever it is bestowed onto, not itself.
+        if (!source.instance.attachedTo) return;
+        const host = findInstance(state, source.instance.attachedTo);
+        if (!host || host.instance.zone !== "battlefield") return;
+        copied = host.instance;
+      }
+      const made = tokensCreated(state, controllerId, 1);
+      for (let i = 0; i < made; i++) {
+        const token = createCardInstance(state, copied.definitionId, controllerId, "battlefield");
+        /*
+         * Flagged on the instance, never on the definition. The definition
+         * being copied is a printed card, and marking *it* a token would make
+         * every real copy of that card cease to exist on leaving play.
+         */
+        token.isTokenCopy = true;
+        enteredBattlefield(state, token);
+      }
+      log(state, `${controllerId} creates a token copy of ${cardName(state, copied.instanceId)}`);
+      return;
+    }
+    case "addOtherCounter": {
+      const source = findInstance(state, sourceInstanceId);
+      if (source) source.instance.otherCounters += effect.amount;
+      return;
+    }
+    case "millThenMayTake": {
+      /*
+       * Mill, then offer the milled cards back for a price. One effect because
+       * the choice is over a set that exists only inside this resolution -
+       * "a card from among those cards" cannot be named any other way.
+       */
+      const milled = controller.library.slice(0, effect.amount).map((card) => card.instanceId);
+      for (const instanceId of milled) moveCard(state, instanceId, "graveyard");
+      if (milled.length > 0) {
+        log(state, `${controllerId} mills ${milled.length} card${milled.length === 1 ? "" : "s"}`);
+      }
+      if (milled.length === 0) return;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: milled,
+        min: 0,
+        max: 1,
+        mode: "to-hand",
+        cost: effect.cost,
+        prompt: `${cardName(state, sourceInstanceId)}: you may pay to take one of the milled cards`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
+    case "castFreeFromHand": {
+      const candidates = controller.hand.filter((card) => {
+        const def = requireDefinition(state, card.definitionId);
+        // A land is not a spell, and cannot be cast at all.
+        if (def.types.includes("Land")) return false;
+        return manaValue(def.manaCost ?? { generic: 0, colors: {} }) <= effect.maxManaValue;
+      });
+      if (candidates.length === 0) return;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: candidates.map((c) => c.instanceId),
+        min: 0,
+        max: 1,
+        mode: "cast-free",
+        prompt: `${cardName(state, sourceInstanceId)}: you may cast a spell with mana value ${effect.maxManaValue} or less without paying its mana cost`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
+    case "payLifeDrawThatMany": {
+      /*
+       * "Pay any amount of life. Draw that many cards." The ceiling is one
+       * short of the life total: paying down to exactly 0 is legal under the
+       * rules, but this asks without being able to explain the consequence, so
+       * it declines to offer a way to concede by accident. Same posture as the
+       * shockland question.
+       */
+      const max = Math.max(controller.life - 1, 0);
+      if (max === 0) return;
+      state.pendingAmount = {
+        playerId: controllerId,
+        sourceInstanceId,
+        prompt: `${cardName(state, sourceInstanceId)}: pay any amount of life to draw that many cards`,
+        max,
+        mode: "pay-life-draw",
+      };
+      return;
+    }
+    case "offerSacrificeToOpponents": {
+      /*
+       * Braids. The sacrifice the controller already made is the *first* card
+       * target, and its types are what each opponent has to match.
+       *
+       * Queued per opponent, like discard, because each answers for
+       * themselves - and unlike discard this one may be declined, which is the
+       * whole card: the punishment is what declining costs.
+       */
+      const chosen = targets.find((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card");
+      const sharedTypes = chosen
+        ? requireDefinition(state, findInstance(state, chosen.instanceId)!.instance.definitionId).types
+        : [];
+      for (const player of state.players) {
+        if (player.id === controllerId || player.hasLost) continue;
+        const candidates = player.battlefield.filter((card) =>
+          requireDefinition(state, card.definitionId).types.some((t) => sharedTypes.includes(t)),
+        );
+        state.pendingCardChoices.push({
+          playerId: player.id,
+          effectControllerId: controllerId,
+          sourceInstanceId,
+          candidateInstanceIds: candidates.map((c) => c.instanceId),
+          min: 0,
+          max: 1,
+          mode: "sacrifice",
+          prompt: `${cardName(state, sourceInstanceId)}: you may sacrifice a permanent sharing a type with ${
+            chosen ? cardName(state, chosen.instanceId) : "it"
+          }`,
+          ifDeclined: effect.ifDeclined,
+        });
+      }
+      return;
+    }
+    case "repeatWhileMilledMatches": {
+      /*
+       * Grist's +1, the one card in the pool that loops. Capped rather than
+       * trusted to terminate: a library of Insects would otherwise run until it
+       * emptied, and a bug in the match test would run forever.
+       */
+      for (let round = 0; round < effect.max; round++) {
+        const before = controller.graveyard.length;
+        applyEffect(state, controllerId, sourceInstanceId, effect.body, targets);
+        const milled = controller.graveyard.slice(before);
+        const again = milled.some((card) => {
+          const instance = controller.graveyard.find((c) => c.instanceId === card.instanceId);
+          return instance ? hasCreatureType(state, instance, effect.subtype) : false;
+        });
+        if (!again) return;
+        const source = findInstance(state, sourceInstanceId);
+        if (source) source.instance.loyalty += effect.addLoyalty;
+      }
+      return;
+    }
     case "sacrificeChosen": {
       /*
        * Stops and asks which creature is being given up - see
@@ -347,7 +514,11 @@ export function applyEffect(
       // per token - "would create one or more tokens" is a single event, so
       // two Doubling Seasons make four Insects rather than compounding oddly
       // inside the loop.
-      const count = tokensCreated(state, controllerId, evaluateAmount(state, controllerId, effect.count, "createToken count"));
+      const count = tokensCreated(
+        state,
+        controllerId,
+        evaluateAmount(state, controllerId, effect.count, "createToken count", sourceInstanceId),
+      );
       for (let i = 0; i < count; i++) {
         const token = createCardInstance(state, effect.tokenDefinitionId, controllerId, "battlefield");
         /*
@@ -449,10 +620,12 @@ export function applyEffect(
               .filter((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player")
               .map((t) => requirePlayer(state, t.playerId))
           : state.players.filter((p) => p.id !== controllerId);
+      const lost = evaluateAmount(state, controllerId, effect.amount, "loseLife amount", sourceInstanceId);
+      if (lost <= 0) return;
       for (const player of losers) {
         if (player.hasLost) continue;
-        player.life -= effect.amount;
-        log(state, `${player.id} loses ${effect.amount} life`);
+        player.life -= lost;
+        log(state, `${player.id} loses ${lost} life`);
       }
       return;
     }
@@ -636,6 +809,42 @@ export function applyEffect(
       return;
     }
     case "searchLibrary": {
+      /*
+       * "Choose two target players. Each of them searches their library." -
+       * Scheming Symmetry.
+       *
+       * Queued one at a time, because the search machinery stops the game for
+       * one player at a time and the second question cannot be asked until the
+       * first is answered. The follow-up carries the rest.
+       */
+      if (effect.who === "each-target-player") {
+        const players = targets
+          .filter((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player")
+          .map((t) => t.playerId);
+        if (players.length === 0) return;
+        const [first, ...rest] = players;
+        const searcher = requirePlayer(state, first!);
+        state.pendingSearch = {
+          playerId: first!,
+          effectControllerId: controllerId,
+          sourceInstanceId,
+          candidateInstanceIds: searcher.library
+            .filter((card) => matchesSearch(state, card, effect))
+            .map((card) => card.instanceId),
+          destination: effect.destination,
+          tapped: effect.tapped,
+          prompt: describeSearch(effect),
+          // The remaining players, asked in turn once this one has answered.
+          followUp: [
+            ...(rest.length > 0
+              ? [{ ...effect, who: "each-target-player" as const } satisfies Effect]
+              : []),
+            ...(pendingFollowUp ?? []),
+          ],
+          followUpTargets: rest.map((playerId) => ({ kind: "player" as const, playerId })),
+        };
+        return;
+      }
       // Searching stops the game and asks: which card you take is the whole
       // point of a tutor, and the real rules make it the searching player's
       // choice. `resolveSearch` finishes the job once they've answered.
@@ -690,6 +899,13 @@ export function applyEffect(
           state.pendingSacrifice.followUp = rest;
           return;
         }
+        // The same rule for the two questions added with the last sixteen
+        // cards: anything printed after them waits until they are answered.
+        if (state.pendingCardChoices.length > 0) {
+          state.pendingCardChoices[state.pendingCardChoices.length - 1]!.followUp = rest;
+          return;
+        }
+        if (state.pendingAmount) return;
       }
       return;
     }
@@ -821,6 +1037,7 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
   const effectControllerId = pending.effectControllerId;
   const destination = pending.destination;
   const noShuffle = pending.noShuffle;
+  const followUpTargets = pending.followUpTargets;
   state.pendingSearch = null;
   // Surveil never shuffles - you looked at the top card and put it back, or
   // did not. Shuffling would throw away the information the card just bought.
@@ -868,7 +1085,13 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
     // The rest of the card belongs to whoever cast it, not to whoever answered
     // the picker. The two are the same for every tutor cast as its own spell,
     // and different the moment a spell makes somebody else search.
-    applyEffect(state, effectControllerId, sourceInstanceId, { kind: "sequence", effects: followUp }, []);
+    applyEffect(
+      state,
+      effectControllerId,
+      sourceInstanceId,
+      { kind: "sequence", effects: followUp },
+      followUpTargets ?? [],
+    );
   }
 }
 
@@ -942,6 +1165,22 @@ export function resolveSacrificeChoice(state: GameState, playerId: string, insta
   state.pendingSacrifice = null;
 
   if (instanceId !== null && then) {
+    const substituted = resolveAmounts(then, { x: 0, sacrificedPower });
+    /*
+     * "When you do, destroy target creature or planeswalker" - Grist.
+     *
+     * "When you do" is a reflexive trigger, not a second half of the same
+     * resolution: it goes on the stack and is pointed at something. Parked
+     * through the ordinary trigger path so the player chooses, rather than
+     * resolving here with no targets and silently doing nothing.
+     */
+    if (targetSelectorOf(substituted)) {
+      pushTrigger(state, sourceInstanceId, effectControllerId, { event: "dies", effect: substituted });
+      if (followUp?.length) {
+        applyEffect(state, effectControllerId, sourceInstanceId, { kind: "sequence", effects: followUp }, []);
+      }
+      return;
+    }
     applyEffect(
       state,
       effectControllerId,
@@ -954,6 +1193,154 @@ export function resolveSacrificeChoice(state: GameState, playerId: string, insta
   }
   if (followUp?.length) {
     applyEffect(state, effectControllerId, sourceInstanceId, { kind: "sequence", effects: followUp }, []);
+  }
+}
+
+
+/**
+ * Answers a "choose some cards" - the one question shape four of the last
+ * sixteen cards share.
+ *
+ * Re-checked against the pending entry rather than trusted, like every other
+ * mid-resolution answer: a client cannot choose for somebody else, cannot name
+ * a card the engine did not offer, and cannot take more than the card allows.
+ */
+export function resolveCardChoice(state: GameState, playerId: string, instanceIds: string[]): void {
+  const pending = state.pendingCardChoices[0];
+  if (!pending) throw new Error("No card choice is waiting to be resolved");
+  if (pending.playerId !== playerId) throw new Error(`The choice belongs to ${pending.playerId}`);
+  if (instanceIds.length < pending.min) throw new Error(`At least ${pending.min} must be chosen`);
+  if (instanceIds.length > pending.max) throw new Error(`At most ${pending.max} may be chosen`);
+  for (const id of instanceIds) {
+    if (!pending.candidateInstanceIds.includes(id)) throw new Error("That card was not offered");
+  }
+
+  const player = requirePlayer(state, playerId);
+  let chosen = [...instanceIds];
+
+  /*
+   * The price is paid only when something is taken, and refusing it is the
+   * same as declining - Ripples of Undeath asks for {1} and 3 life, and a
+   * player who cannot afford it simply does not get the card.
+   */
+  if (chosen.length > 0 && pending.cost) {
+    const mana = pending.cost.mana;
+    const life = pending.cost.life ?? 0;
+    const affordable = (!mana || canPayManaCost(player, mana)) && player.life > life;
+    if (!affordable) {
+      chosen = [];
+    } else {
+      if (mana) payManaCost(player, mana);
+      if (life > 0) {
+        player.life -= life;
+        log(state, `${playerId} pays ${life} life`);
+      }
+    }
+  }
+
+  state.pendingCardChoices.shift();
+
+  for (const id of chosen) {
+    if (pending.mode === "sacrifice") sacrificePermanent(state, id);
+    else if (pending.mode === "to-hand") {
+      moveCard(state, id, "hand");
+      log(state, `${playerId} takes ${cardName(state, id)}`);
+    }
+    // "cast-free" is handled below: it needs the caster, not the chooser, and
+    // casting is not a zone move this function should be doing by hand.
+  }
+
+  if (pending.mode === "cast-free" && chosen.length > 0) {
+    castForFree(state, playerId, chosen[0]!);
+  }
+
+  /*
+   * Braids' punishment, which is what *declining* costs. Aimed at the player
+   * who declined rather than at the caster, so it is applied with them as the
+   * target rather than as the controller.
+   */
+  if (chosen.length === 0 && pending.ifDeclined) {
+    applyEffect(state, pending.effectControllerId, pending.sourceInstanceId, pending.ifDeclined, [
+      { kind: "player", playerId },
+    ]);
+  }
+
+  /*
+   * Devour counts what was given up. Held on the pending rather than counted
+   * afterwards, because the creatures are in a graveyard by now.
+   */
+  if (pending.multiplier !== undefined && chosen.length > 0) {
+    const source = findInstance(state, pending.sourceInstanceId);
+    if (source) {
+      source.instance.plusOneCounters += countersPlaced(
+        state,
+        source.instance,
+        chosen.length * pending.multiplier,
+      );
+    }
+  }
+
+  if (pending.followUp?.length) {
+    applyEffect(
+      state,
+      pending.effectControllerId,
+      pending.sourceInstanceId,
+      { kind: "sequence", effects: pending.followUp },
+      [],
+    );
+  }
+}
+
+/**
+ * Answers "pay any amount of life" - Necrodominance.
+ *
+ * The only choice in the game that is a number. Checked against the ceiling the
+ * engine offered rather than against the life total now, because a player who
+ * answered honestly should not be refused by something that happened in
+ * between.
+ */
+export function resolveAmountChoice(state: GameState, playerId: string, amount: number): void {
+  const pending = state.pendingAmount;
+  if (!pending) throw new Error("No amount is waiting to be named");
+  if (pending.playerId !== playerId) throw new Error(`The choice belongs to ${pending.playerId}`);
+  if (!Number.isInteger(amount) || amount < 0) throw new Error("That is not a whole number of life");
+  if (amount > pending.max) throw new Error(`At most ${pending.max} life may be paid`);
+
+  state.pendingAmount = null;
+  if (amount === 0) return;
+  const player = requirePlayer(state, playerId);
+  player.life -= amount;
+  log(state, `${playerId} pays ${amount} life`);
+  drawCard(state, playerId, amount);
+}
+
+/**
+ * Casts a card from a player's hand without paying its mana cost.
+ *
+ * Rishkar's Expertise, and the far side of suspend. Deliberately routed through
+ * `castSpell` rather than putting the card on the stack by hand, so the spell
+ * is cast for every purpose that matters: cast triggers fire, ward is offered,
+ * and a permanent spell resolves onto the battlefield the ordinary way.
+ */
+function castForFree(state: GameState, playerId: string, instanceId: string): void {
+  const found = findInstance(state, instanceId);
+  if (!found) return;
+  const def = requireDefinition(state, found.instance.definitionId);
+  /*
+   * A targeted free spell needs a target, and there is nobody to ask at this
+   * point in a resolution - so it takes the first legal one rather than
+   * fizzling. A shortcut, and the same one `pushTrigger` takes when a trigger
+   * has exactly one legal target; here it can be more than one.
+   */
+  const selector = targetSelectorOf(def.castEffect ?? { kind: "draw", amount: 0 });
+  const targets = selector ? legalTargetsFor(state, selector, playerId).slice(0, 1) : [];
+  if (selector && targets.length === 0) return;
+  const priorityBefore = state.priorityPlayerIndex;
+  state.priorityPlayerIndex = state.players.findIndex((p) => p.id === playerId);
+  try {
+    castSpell(state, playerId, instanceId, targets, { free: true });
+  } finally {
+    state.priorityPlayerIndex = priorityBefore;
   }
 }
 
