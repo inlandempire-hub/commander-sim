@@ -1,0 +1,286 @@
+"""Which cards say something on the real card that the sim does not do?
+
+    node -e "import('./packages/engine/dist/cards/testCards.js').then(m=>console.log(JSON.stringify(m.TEST_CARD_DEFINITIONS)))" > fixtures.json
+    py -X utf8 tools/scryfall-report/audit_text.py fixtures.json
+    py -X utf8 tools/scryfall-report/audit_text.py fixtures.json --deck mydeck.txt
+
+The third audit, and the only one that reads the *rules text*.
+
+  audit_fixtures.py  printed data - cost, power/toughness, type line, keywords
+  audit_triggers.py  trigger events - is this the trigger the card actually has
+  audit_text.py      everything else the oracle text says
+
+It takes each fixture's Oracle text, strips reminder text and every sentence the
+engine demonstrably models, and reports what is left. A leftover sentence is a
+card that looks right on the table and does less than it says.
+
+**This is a heuristic, and its failure mode is the dangerous direction.** A
+sentence it does not recognise is reported, which is safe. A sentence it
+recognises by accident is silently dropped - so a rule here that is too loose
+hides exactly the bug the tool exists to find. Keep the patterns specific, and
+tie each one to the effect kind that actually implements it rather than to a
+word that happens to appear nearby.
+
+It also goes stale in one direction: every new effect kind in the engine is a
+sentence this cannot account for until it is taught, which shows up as a pile of
+false positives on cards that are perfectly correct. That is the safe direction
+too, but it makes the report useless if left long enough. Effect kind names and
+card fields below are taken from packages/engine/src/types.ts, not guessed.
+"""
+
+import gzip
+import json
+import re
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).parent
+DATA = HERE / "data" / "oracle-cards.jsonl.gz"
+
+KEYWORDS = {
+    "flying", "trample", "first strike", "double strike", "deathtouch",
+    "lifelink", "haste", "vigilance", "menace", "reach", "defender",
+    "hexproof", "indestructible", "ward", "flash",
+}
+
+SECTION = re.compile(r"^(commander|deck|sideboard|maybeboard|companion)\s*:?\s*$", re.I)
+ENTRY = re.compile(r"^(\d+)\s*x?\s+(.+?)\s*(?:\((?:[^)]*)\)\s*[\w-]*)?\s*$")
+
+
+def effect_kinds(fx):
+    """Every `kind` anywhere in this fixture's effects, however deeply nested."""
+    found = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            k = node.get("kind")
+            if isinstance(k, str):
+                found.add(k)
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    for field in ("castEffect", "activatedAbilities", "triggeredAbilities"):
+        walk(fx.get(field))
+    return found
+
+
+def card_features(fx):
+    """
+    Fixture fields that are not effects but do implement rules text.
+
+    Kept separate from `effect_kinds` because these are properties of the card
+    rather than things it does - and every one of them is a sentence on the
+    printed card that would otherwise be reported as missing.
+    """
+    feat = set()
+    if fx.get("staticBuff"):
+        feat.add("staticBuff")
+        if fx["staticBuff"].get("grants"):
+            feat.add("grantsKeywords")
+    if fx.get("cantBeCountered"):
+        feat.add("cantBeCountered")
+    if fx.get("entersTapped"):
+        feat.add("entersTapped")
+    if fx.get("entersTappedUnless"):
+        feat.add("entersTappedUnless")
+    if fx.get("entersTappedUnlessPayLife") is not None:
+        feat.add("entersTappedUnlessPayLife")
+    if fx.get("replacementEffects"):
+        feat.add("replacementEffects")
+    if fx.get("wardCost"):
+        feat.add("ward")
+    for ability in fx.get("activatedAbilities") or []:
+        cost = ability.get("cost") or {}
+        if cost.get("payLife"):
+            feat.add("payLife")
+        if cost.get("sacrificeSelf"):
+            feat.add("sacrificeSelf")
+        if ability.get("activateOnlyIf"):
+            feat.add("activateOnlyIf")
+        if ability.get("damageToController"):
+            feat.add("damageToController")
+        if ability.get("anyColour") or ability.get("anyColor"):
+            feat.add("anyColour")
+        # Delighted Halfling's restriction rides on the mana it makes, not on
+        # the cost of making it - and the same field carries the "that spell
+        # can't be countered" half.
+        restricted = ability.get("producesRestrictedMana")
+        if restricted:
+            feat.add("spendRestriction")
+            if restricted.get("grantsUncounterable"):
+                feat.add("cantBeCountered")
+    # An "any colour" ability is also written as one ability per colour, which
+    # is what most of the pool does - five addMana abilities on one permanent.
+    mana_colors = {
+        (a.get("effect") or {}).get("color")
+        for a in fx.get("activatedAbilities") or []
+        if (a.get("effect") or {}).get("kind") == "addMana"
+    }
+    if len({c for c in mana_colors if c in {"W", "U", "B", "R", "G"}}) >= 5:
+        feat.add("anyColour")
+    if any(
+        (t.get("effect") or {}).get("grants") or (t.get("effect") or {}).get("appliesTo")
+        for t in fx.get("triggeredAbilities") or []
+    ):
+        feat.add("grantsKeywords")
+    cast = fx.get("castEffect") or {}
+    if cast.get("grants"):
+        feat.add("grantsKeywords")
+    for mode in cast.get("modes") or []:
+        if (mode.get("effect") or {}).get("grants"):
+            feat.add("grantsKeywords")
+    return feat
+
+
+def trigger_events(fx):
+    return {t.get("event") for t in fx.get("triggeredAbilities") or []}
+
+
+def strip_reminders(text):
+    """Reminder text restates a keyword and never adds rules. Spans lines."""
+    return re.sub(r"\([^)]*\)", "", text, flags=re.S)
+
+
+# Each entry is (pattern, the set of things any one of which implements it).
+# Deliberately specific: a loose pattern silently swallows the sentence it was
+# meant to catch, which is the one failure mode that matters here.
+RULES = [
+    # Mana, in all the shapes the engine writes it.
+    (r"^\{t\}: add (\{[wubrgc]\})+$", {"addMana", "addManaCombination"}),
+    (r"^\{t\}: add \{[wubrgc]\} or \{[wubrgc]\}$", {"addMana", "addManaCombination"}),
+    # A filter land prints every output it offers as one sentence: "Add {B}{B},
+    # {B}{G}, or {G}{G}." Each option is a separate ability on the fixture.
+    (r"^\{[wubrg]/[wubrg]\}, \{t\}: add .*\{[wubrgc]\}", {"addManaCombination"}),
+    (r"^add (\{[wubrgc]\})+$", {"addMana", "addManaCombination"}),
+    (r"\badd one mana of any color\b", {"anyColour"}),
+    (r"\bspend this mana only\b", {"spendRestriction"}),
+    (r"\bthis (land|creature|artifact) deals \d+ damage to you\b", {"damageToController"}),
+    (r"\bactivate only if\b", {"activateOnlyIf"}),
+    # Arrival.
+    (r"\benters tapped unless\b", {"entersTappedUnless"}),
+    (r"\bas this land enters, you may pay \d+ life\b", {"entersTappedUnlessPayLife"}),
+    (r"\bif you don't, it enters tapped\b", {"entersTappedUnlessPayLife"}),
+    (r"^this (land|artifact|creature|permanent|enchantment) enters tapped$", {"entersTapped"}),
+    # Effects.
+    (r"\bprevent the next \d+ damage\b", {"preventDamage"}),
+    (r"\bdeals \d+ damage\b", {"damage"}),
+    (r"\bgains? \d+ life\b", {"gainLife"}),
+    (r"\bloses? \d+ life\b", {"loseLife"}),
+    (r"\bdiscards? a card\b", {"discard"}),
+    (r"\bsurveil \d+\b", {"surveil"}),
+    (r"\bmills? \w+ cards?\b", {"mill"}),
+    (r"\bdraw (a card|\w+ cards)\b", {"draw"}),
+    (r"\bdestroy (target|all|each)\b", {"destroy", "pumpAll"}),
+    (r"\bexile target\b", {"exile"}),
+    (r"\bcounter target\b", {"counter"}),
+    (r"\bregenerate\b", {"regenerate", "regenerateAll"}),
+    (r"\bsacrifice (it|this)\b", {"sacrifice", "sacrificeSelf"}),
+    # "-X/-X" as well as "-2/-2" - The Meathook Massacre is the one card in the
+    # pool that prints a letter here, and a digits-only pattern missed it.
+    (r"[+-](\d+|x)/[+-](\d+|x)", {"pump", "pumpAll", "staticBuff"}),
+    (r"\bgains? (hexproof|indestructible|trample|menace|deathtouch|flying)\b", {"grantsKeywords"}),
+    (r"\bhas? (hexproof|indestructible|trample|menace|deathtouch|flying)\b", {"grantsKeywords"}),
+    (r"\+1/\+1 counters?\b", {"addCounter", "addCounterToEachOther"}),
+    (r"\bcreates? .*token\b|\bcreate \w+ .*creature token", {"createToken"}),
+    (r"\bfrom your graveyard\b", {"returnFromGraveyard"}),
+    (r"\bsearch (your|their) library\b", {"searchLibrary"}),
+    (r"\bcan't be countered\b", {"cantBeCountered", "spendRestriction"}),
+    (r"\bdouble .*power\b", {"doublePower"}),
+    (r"\bfrom exile\b", {"returnFromExile"}),
+    (r"\bchoose one\b", {"modal"}),
+    (r"\bif an effect would\b", {"replacementEffects"}),
+    (r"\bif one or more counters would be put on\b", {"replacementEffects"}),
+    (r"^ward\b", {"ward"}),
+]
+
+
+def covered(sentence, have):
+    """
+    Whether the engine models this sentence. `have` is effect kinds and card
+    features together, since a rule can be implemented by either.
+    """
+    t = re.sub(r"\s+", " ", sentence.strip().rstrip(".").lower())
+    if not t:
+        return True
+
+    # A line that is only keywords, comma separated.
+    parts = [p.strip() for p in re.split(r"[,;]", t) if p.strip()]
+    if parts and all(p in KEYWORDS for p in parts):
+        return True
+    if re.fullmatch(r"ward-?\s*(pay \d+ life|\{.*)", t):
+        return "ward" in have
+
+    hit_any = False
+    for pattern, needed in RULES:
+        if re.search(pattern, t):
+            hit_any = True
+            if needed & have:
+                return True
+    # A sentence that matched nothing at all is reported, not assumed fine.
+    return False if hit_any else False
+
+
+def decklist_names(path):
+    names = set()
+    for raw in Path(path).read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or SECTION.match(line):
+            continue
+        m = ENTRY.match(line)
+        if m:
+            names.add(m.group(2).strip().lower())
+    return names
+
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    deck = None
+    if "--deck" in sys.argv:
+        deck = decklist_names(sys.argv[sys.argv.index("--deck") + 1])
+        args = [a for a in args if a != sys.argv[sys.argv.index("--deck") + 1]]
+
+    fixtures = json.loads(Path(args[0]).read_text(encoding="utf-8-sig"))
+    fixtures = list(fixtures.values()) if isinstance(fixtures, dict) else fixtures
+
+    by_name = {}
+    with gzip.open(DATA, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            card = json.loads(line)
+            if "Token" in card.get("type_line", ""):
+                continue
+            by_name.setdefault(card["name"].lower(), card)
+
+    gaps, checked = [], 0
+    for fx in fixtures:
+        if fx.get("isToken"):
+            continue
+        if deck is not None and fx["name"].lower() not in deck:
+            continue
+        card = by_name.get(fx["name"].lower())
+        if not card:
+            continue
+        checked += 1
+        have = effect_kinds(fx) | card_features(fx)
+
+        oracle = strip_reminders((card.get("oracle_text") or "").replace("—", "-"))
+        leftovers = []
+        for line in oracle.split("\n"):
+            for sentence in re.split(r"(?<=\.)\s+", line):
+                if sentence.strip(" .•") and not covered(sentence.lstrip("• "), have):
+                    leftovers.append(re.sub(r"\s+", " ", sentence.strip()))
+        if leftovers:
+            gaps.append((fx["name"], fx.get("tier"), leftovers))
+
+    scope = "in the deck" if deck is not None else "in the pool"
+    print("Read the rules text of %d non-token fixtures %s." % (checked, scope))
+    print("Cards with text this audit could not account for: %d\n" % len(gaps))
+    for name, tier, leftovers in sorted(gaps):
+        print("- %s [%s]" % (name, tier))
+        for line in leftovers:
+            print("    %s" % line)
+
+
+main()

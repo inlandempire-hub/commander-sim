@@ -217,6 +217,18 @@ export const HILL_GIANT: CardDefinition = {
   tier: "vanilla",
 };
 
+/*
+ * "Incinerate deals 3 damage to any target. A creature dealt damage this way
+ * can't be regenerated this turn."
+ *
+ * The second sentence is NOT modelled. The engine has regeneration shields but
+ * nothing that can suppress one, so a creature with a shield up survives this
+ * where the printed card kills it. Not in any deck yet; the fix is a flag on
+ * the instance that `useRegenerationShield` checks, cleared in cleanup.
+ *
+ * Written down because a silent gap on a removal spell is the kind that only
+ * shows up as "why didn't that die" in the middle of a game.
+ */
 export const INCINERATE: CardDefinition = {
   id: "incinerate",
   name: "Incinerate",

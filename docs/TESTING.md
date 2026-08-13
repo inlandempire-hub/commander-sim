@@ -164,3 +164,34 @@ See [ADDING-CARDS.md](ADDING-CARDS.md) before changing the card pool itself.
 - Anything user-visible has actually been looked at in a browser.
 - If the card pool changed, `audit_fixtures.py` reports no problems.
 - `ROADMAP.md` updated if a phase or backlog item moved.
+
+## The three audits
+
+Each reads a different half of a card, and a card is only checked when all three
+have run. Dump the fixtures first:
+
+```
+node -e "import('./packages/engine/dist/cards/testCards.js').then(m=>console.log(JSON.stringify(m.TEST_CARD_DEFINITIONS)))" > fixtures.json
+```
+
+| Tool | What it reads |
+|---|---|
+| `audit_fixtures.py` | Printed data - cost, power/toughness, type line, keywords, colour identity, legality |
+| `audit_triggers.py` | Trigger events - is this the trigger the card actually has, watching the right thing |
+| `audit_text.py` | Everything else the oracle text says |
+
+`audit_text.py` takes each fixture's Oracle text, strips reminder text and every
+sentence the engine demonstrably models, and reports what is left. Pass
+`--deck mydeck.txt` to scope it to one decklist.
+
+**It goes stale in one direction and that is the point.** Every new effect kind
+in the engine is a sentence it cannot account for until it is taught, so a batch
+of new engine work shows up as a pile of false positives on cards that are
+perfectly correct - which is annoying but safe. The dangerous direction is a
+pattern that is too loose: it silently swallows the sentence it was meant to
+catch. Keep the patterns specific and tie each to the effect kind that actually
+implements it, never to a word that happens to appear nearby.
+
+When it reports something, read the card against Scryfall before believing
+either answer. On 2026-08-12 it reported 27 cards in one deck; 26 were its own
+blind spots from effects added since it was last taught, and one was real.
