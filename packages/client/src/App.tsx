@@ -389,6 +389,23 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
       : undefined;
 
   /*
+   * A discard somebody else's spell has demanded of a seat this client drives.
+   *
+   * The only question in the game that arrives on your turn or theirs, from a
+   * spell you did not cast - so the same "is this my seat" rule matters more
+   * here than anywhere else: over the network the caster must not be shown
+   * their opponent's hand, and the filtered state means they could not read it
+   * even if the picker were rendered.
+   */
+  const pendingDiscard =
+    state.pendingDiscards[0] && controller.canControlPlayer(state.pendingDiscards[0].playerId)
+      ? state.pendingDiscards[0]
+      : undefined;
+  const discardCandidates = pendingDiscard
+    ? (state.players.find((p) => p.id === pendingDiscard.playerId)?.hand ?? [])
+    : [];
+
+  /*
    * A triggered ability parked waiting for a target - Blood Artist, Duskshell
    * Crawler. Same rule again: only the seat that owns it is asked.
    *
@@ -1075,6 +1092,20 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             // A surveil that finds nothing leaves the card where it was; a
             // tutor that finds nothing takes nothing. Different sentences.
             declineLabel={pendingSearch.destination === "graveyard" ? "Leave it on top" : undefined}
+            onHover={handleHover}
+          />
+        )}
+
+        {/* Somebody's spell has made *this* seat discard. The same picker as a
+            tutor, over your own hand, and with no way to decline - discarding
+            is not optional, so there is no "take nothing" button here. */}
+        {pendingDiscard && (
+          <CardPicker
+            title={`${pendingDiscard.playerId}'s hand`}
+            prompt={pendingDiscard.prompt}
+            cards={discardCandidates}
+            cardDefinitions={state.cardDefinitions}
+            onChoose={(instanceId) => controller.resolveDiscard(pendingDiscard.playerId, instanceId)}
             onHover={handleHover}
           />
         )}

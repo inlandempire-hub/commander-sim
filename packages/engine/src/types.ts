@@ -350,12 +350,14 @@ export type Effect =
   /**
    * "Each opponent discards a card" - Send in the Pest.
    *
-   * Which card is the discarding player's own choice, and the engine has no
-   * way to ask somebody who is not resolving the spell. Taken at random
-   * instead, which is a real difference from the printed card and the reason
-   * this is written down rather than left to be discovered: against a human
-   * opponent it is strictly harsher than the card. The honest fix is a pending
-   * choice aimed at another player, which nothing else in the pool needs yet.
+   * Which card is the *discarding* player's choice, not the caster's, so this
+   * stops the game and asks each of them in turn - see `PendingDiscard`.
+   *
+   * That is the first choice in this engine aimed at somebody other than the
+   * player resolving the spell, and it is the whole difference between a real
+   * discard and a strictly better card. Taken at random - which is what this
+   * did until 2026-08-13 - "each opponent discards a card" rips answers out of
+   * a hand whose owner would have pitched a spare land instead.
    */
   | { kind: "discard"; amount: number; who: "each-opponent" }
   /**
@@ -1099,6 +1101,29 @@ export interface PendingConfirmation {
 }
 
 /**
+ * A player who has been told to discard and has not chosen which card yet.
+ *
+ * The first choice in this engine aimed at somebody other than the player
+ * resolving the spell. Everything else that stops the game - a search, a "you
+ * may", a trigger's target - belongs to whoever is resolving; this belongs to
+ * their opponent, which is why it is a queue: "each opponent discards a card"
+ * asks every one of them, one at a time, and in a pod that is three questions
+ * before the spell finishes.
+ *
+ * `sourceInstanceId` is the spell that demanded it, so the client can show what
+ * is doing this to you. There is nothing to decline - discarding is not
+ * optional, and a player with an empty hand is simply never asked.
+ */
+export interface PendingDiscard {
+  /** Whose hand it comes out of, and who chooses. Not the caster. */
+  playerId: string;
+  sourceInstanceId: string;
+  /** How many more cards this player still owes. */
+  remaining: number;
+  prompt: string;
+}
+
+/**
  * A triggered ability waiting for its controller to point it at something.
  *
  * Targets for a trigger are chosen as it is put on the stack (rule 603.3d),
@@ -1333,6 +1358,11 @@ export interface GameState {
    * and no step advances. See `PendingTargetChoice`.
    */
   pendingTargetChoices: PendingTargetChoice[];
+  /**
+   * Opponents who owe a discard, front first. Gated exactly like the others:
+   * while this is non-empty nobody gets priority and no step advances.
+   */
+  pendingDiscards: PendingDiscard[];
   /**
    * How many creatures have died this turn, for morbid ("if a creature died
    * this turn"). Reset in cleanup with everything else that lasts a turn.

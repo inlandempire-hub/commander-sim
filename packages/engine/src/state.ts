@@ -45,6 +45,7 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     pendingSearch: null,
     pendingConfirmation: null,
     pendingTargetChoices: [],
+    pendingDiscards: [],
     creatureDeathsThisTurn: 0,
     mulligan: null,
     cardDefinitions,

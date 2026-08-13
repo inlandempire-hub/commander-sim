@@ -62,6 +62,8 @@ function toClientMessage(action: BotAction): ClientMessage | null {
       return { type: "resolveConfirmation", accept: action.accept };
     case "chooseTriggerTarget":
       return { type: "chooseTriggerTarget", target: action.target };
+    case "resolveDiscard":
+      return { type: "resolveDiscard", instanceId: action.instanceId };
     case "takeMulligan":
       return { type: "takeMulligan" };
     case "keepHand":

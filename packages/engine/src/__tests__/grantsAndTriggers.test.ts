@@ -3,13 +3,14 @@ import { makeTestGame } from "../testHelpers.js";
 import { createCardInstance, findInstance } from "../state.js";
 import { chooseTriggerTarget, putOntoBattlefield } from "../permanents.js";
 import { resolveConfirmation, resolveTopOfStack } from "../stack.js";
-import { resolveSearch } from "../effects.js";
+import { resolveDiscard, resolveSearch } from "../effects.js";
 import { castSpell } from "../casting.js";
 import { declareAttackers } from "../combat.js";
 import { damageCreature } from "../damage.js";
 import { checkStateBasedActions } from "../sba.js";
 import { effectiveKeywords, effectivePower, hasKeyword } from "../counters.js";
 import { advanceStep } from "../turn.js";
+import { passPriority } from "../priority.js";
 import type { GameState, StackTarget } from "../types.js";
 
 /**
@@ -19,9 +20,12 @@ import type { GameState, StackTarget } from "../types.js";
  * events.
  *
  * Every expectation here is the printed card. Where the engine takes a
- * shortcut - the random discard, the shockland entering tapped and then
- * untapping - the test says so rather than quietly asserting the shortcut is
- * the card.
+ * shortcut - the shockland entering tapped and then untapping - the test says
+ * so rather than quietly asserting the shortcut is the card.
+ *
+ * Send in the Pest's discard used to be one of those shortcuts, taken at
+ * random. It is a real choice now (2026-08-13), and the tests below check the
+ * thing that makes it a different card: the opponent keeps what they wanted.
  */
 
 function enters(state: GameState, definitionId: string, playerId: string) {
@@ -485,21 +489,58 @@ describe("Hornet Nest", () => {
 });
 
 describe("Send in the Pest", () => {
-  it("takes a card from each opponent's hand and leaves a Pest behind", () => {
+  it("asks the opponent which card to pitch rather than taking one", () => {
     const state = makeTestGame();
     const [donny, mike] = [state.players[0]!, state.players[1]!];
     mainPhase(state);
-    createCardInstance(state, "grizzly-bears", mike.id, "hand");
-    const handBefore = mike.hand.length;
+    const keep = createCardInstance(state, "grizzly-bears", mike.id, "hand");
+    const pitch = createCardInstance(state, "swamp", mike.id, "hand");
 
     castFromHand(state, "send-in-the-pest", donny.id);
     drain(state);
 
-    expect(mike.hand).toHaveLength(handBefore - 1);
-    expect(mike.graveyard).toHaveLength(1);
+    // The spell has finished; the discard is still owed, and it is *Mike's*
+    // question even though Donny cast the card.
+    expect(state.pendingDiscards).toHaveLength(1);
+    expect(state.pendingDiscards[0]!.playerId).toBe(mike.id);
+    expect(mike.hand).toHaveLength(2);
+
+    resolveDiscard(state, mike.id, pitch.instanceId);
+
+    // Mike kept the card he wanted. Taken at random this was a coin flip.
+    expect(state.pendingDiscards).toHaveLength(0);
+    expect(mike.hand.map((c) => c.instanceId)).toEqual([keep.instanceId]);
+    expect(mike.graveyard.map((c) => c.instanceId)).toEqual([pitch.instanceId]);
     expect(
       donny.battlefield.filter((c) => c.definitionId === "token-bg-11-pest-attacks-gain-life"),
     ).toHaveLength(1);
+  });
+
+  it("will not let the caster discard for their opponent", () => {
+    const state = makeTestGame();
+    const [donny, mike] = [state.players[0]!, state.players[1]!];
+    mainPhase(state);
+    const theirs = createCardInstance(state, "grizzly-bears", mike.id, "hand");
+    createCardInstance(state, "swamp", donny.id, "hand");
+
+    castFromHand(state, "send-in-the-pest", donny.id);
+    drain(state);
+
+    expect(() => resolveDiscard(state, donny.id, theirs.instanceId)).toThrow(/belongs to/);
+    // And not a card that is not in the discarding player's hand either.
+    expect(() => resolveDiscard(state, mike.id, "no-such-card")).toThrow(/not in your hand/);
+  });
+
+  it("holds priority until the discard is paid", () => {
+    const state = makeTestGame();
+    const [donny, mike] = [state.players[0]!, state.players[1]!];
+    mainPhase(state);
+    createCardInstance(state, "grizzly-bears", mike.id, "hand");
+
+    castFromHand(state, "send-in-the-pest", donny.id);
+    drain(state);
+
+    expect(() => passPriority(state, donny.id)).toThrow(/must discard first/);
   });
 
   it("still makes the Pest against an empty hand", () => {

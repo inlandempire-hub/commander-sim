@@ -297,20 +297,24 @@ export function applyEffect(
     }
     case "discard": {
       /*
-       * Which card is really the discarding player's choice, and there is no
-       * way to ask somebody who is not the one resolving this. Taken at random
-       * instead - see the note on the effect type. Against a human opponent
-       * that is strictly harsher than the printed card.
+       * Each opponent picks their own card, so this queues a question per
+       * opponent rather than taking one. `resolveDiscard` finishes the job.
+       *
+       * A player with an empty hand is not queued at all: there is nothing to
+       * choose, and asking would stop the game on a question with no answers.
        */
       for (const player of state.players) {
         if (player.id === controllerId) continue; // "each opponent"
-        if (player.hasLost) continue;
-        for (let i = 0; i < effect.amount && player.hand.length > 0; i++) {
-          const index = Math.floor(Math.random() * player.hand.length);
-          const card = player.hand[index]!;
-          log(state, `${player.id} discards ${cardName(state, card.instanceId)}`);
-          moveCard(state, card.instanceId, "graveyard");
-        }
+        if (player.hasLost || player.hand.length === 0) continue;
+        state.pendingDiscards.push({
+          playerId: player.id,
+          sourceInstanceId,
+          remaining: effect.amount,
+          prompt:
+            effect.amount === 1
+              ? `${cardName(state, sourceInstanceId)}: discard a card`
+              : `${cardName(state, sourceInstanceId)}: discard ${effect.amount} cards`,
+        });
       }
       return;
     }
@@ -638,6 +642,33 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
   }
 }
 
+
+/**
+ * Puts one card from the discarding player's own hand into their graveyard.
+ *
+ * Re-checked against the pending entry rather than trusted, like every other
+ * mid-resolution answer: a client cannot discard for somebody else, and cannot
+ * name a card that is not in that player's hand.
+ *
+ * The entry stays on the queue until the player has paid it in full, so "each
+ * opponent discards two cards" asks twice before moving on to the next player.
+ */
+export function resolveDiscard(state: GameState, playerId: string, instanceId: string): void {
+  const pending = state.pendingDiscards[0];
+  if (!pending) throw new Error("Nobody owes a discard");
+  if (pending.playerId !== playerId) throw new Error(`The discard belongs to ${pending.playerId}`);
+
+  const player = requirePlayer(state, playerId);
+  const card = player.hand.find((c) => c.instanceId === instanceId);
+  if (!card) throw new Error("That card is not in your hand");
+
+  log(state, `${playerId} discards ${cardName(state, instanceId)}`);
+  moveCard(state, instanceId, "graveyard");
+
+  pending.remaining -= 1;
+  // Out of cards counts as paid: you discard as much as you can and no more.
+  if (pending.remaining <= 0 || player.hand.length === 0) state.pendingDiscards.shift();
+}
 
 /** Exported for the bot and UI: the creatures a pumpAll would actually touch. */
 export function creaturesAffectedByPumpAll(

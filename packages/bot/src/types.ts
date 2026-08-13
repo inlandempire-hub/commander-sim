@@ -19,6 +19,8 @@ export type BotAction =
   | { kind: "resolveConfirmation"; accept: boolean }
   /** Pointing a triggered ability at something before it goes on the stack. */
   | { kind: "chooseTriggerTarget"; target: StackTarget }
+  /** Choosing which card to pitch when an opponent's spell demands a discard. */
+  | { kind: "resolveDiscard"; instanceId: string }
   /** Settling an opening hand, before the game has begun. */
   | { kind: "takeMulligan" }
   | { kind: "keepHand" }

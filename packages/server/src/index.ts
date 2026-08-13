@@ -10,6 +10,7 @@ import {
   declareBlockers,
   resolveSearch,
   chooseTriggerTarget,
+  resolveDiscard,
   resolveConfirmation,
   takeMulligan,
   keepHand,
@@ -92,6 +93,9 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       break;
     case "chooseTriggerTarget":
       chooseTriggerTarget(state, playerId, message.target);
+      break;
+    case "resolveDiscard":
+      resolveDiscard(state, playerId, message.instanceId);
       return;
     case "passPriority":
       passPriority(state, playerId);

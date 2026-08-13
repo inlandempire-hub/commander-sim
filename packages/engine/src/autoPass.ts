@@ -177,6 +177,8 @@ export function mustNotAutoPass(state: GameState, playerId: string): boolean {
   if (state.pendingConfirmation) return true;
   // And for a trigger that has not been pointed at anything yet.
   if (state.pendingTargetChoices.length > 0) return true;
+  // And for an opponent who owes a discard.
+  if (state.pendingDiscards.length > 0) return true;
 
   const activePlayerId = state.players[state.activePlayerIndex]?.id;
 

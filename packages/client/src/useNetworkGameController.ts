@@ -65,6 +65,7 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
     resolveSearch: (_playerId, instanceId) => send({ type: "resolveSearch", instanceId }),
     resolveConfirmation: (_playerId, accept) => send({ type: "resolveConfirmation", accept }),
     chooseTriggerTarget: (_playerId, target) => send({ type: "chooseTriggerTarget", target }),
+    resolveDiscard: (_playerId, instanceId) => send({ type: "resolveDiscard", instanceId }),
     takeMulligan: () => send({ type: "takeMulligan" }),
     keepHand: () => send({ type: "keepHand" }),
     putOnBottom: (_playerId, instanceIds) => send({ type: "putOnBottom", instanceIds }),

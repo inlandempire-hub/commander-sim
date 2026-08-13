@@ -31,6 +31,8 @@ export type ClientMessage =
   | { type: "resolveConfirmation"; accept: boolean }
   /** Pointing a parked triggered ability at one of the targets the engine offered. */
   | { type: "chooseTriggerTarget"; target: StackTarget }
+  /** Choosing which card to discard, from your own hand, when a spell demands it. */
+  | { type: "resolveDiscard"; instanceId: string }
   | { type: "takeMulligan" }
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }

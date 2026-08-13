@@ -115,6 +115,38 @@ function findOnBattlefield(state: GameState, instanceId: string) {
   return undefined;
 }
 
+/**
+ * Which card the bot gives up when something makes it discard.
+ *
+ * Pitches the least useful thing it can: a surplus land first - counting what
+ * is already on the battlefield, since the fifth land in hand is worth far less
+ * than the second - and otherwise the most expensive card, which is the one
+ * least likely to be castable before the game is decided.
+ *
+ * Deliberately not "the cheapest": a bot that pitched its one-mana removal and
+ * kept a seven-drop it will never cast is making the discard *better* for the
+ * opponent than a random one, which is the failure this whole change exists to
+ * fix.
+ */
+function chooseDiscard(state: GameState, me: Player): string {
+  const landsInPlay = me.battlefield.filter(
+    (c) => definitionOf(state, c)?.types.includes("Land"),
+  ).length;
+  const scored = me.hand.map((card) => {
+    const def = definitionOf(state, card);
+    const isLand = def?.types.includes("Land") ?? false;
+    // A land is the obvious pitch once there are enough of them, and the last
+    // thing to go when there are not.
+    const score = isLand
+      ? landsInPlay >= 5
+        ? 100
+        : -100
+      : manaValue(def?.manaCost ?? { generic: 0, colors: {} });
+    return { id: card.instanceId, score };
+  });
+  return scored.reduce((a, b) => (b.score > a.score ? b : a)).id;
+}
+
 export function decideAction(state: GameState, botPlayerId: string): BotAction {
   const me = state.players.find((p) => p.id === botPlayerId);
   if (!me || me.hasLost) return PASS;
@@ -136,6 +168,12 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
   // And for a trigger of the bot's own waiting to be pointed at something.
   if (state.pendingTargetChoices[0]?.playerId === botPlayerId) {
     return { kind: "chooseTriggerTarget", target: chooseTriggerTarget(state, botPlayerId) };
+  }
+
+  // A discard an opponent's spell has demanded. Not the bot's own spell - this
+  // is the one question in the game aimed at the player who is *not* resolving.
+  if (state.pendingDiscards[0]?.playerId === botPlayerId) {
+    return { kind: "resolveDiscard", instanceId: chooseDiscard(state, me) };
   }
 
   // Opening hands come before even that: the game has not started, nobody has

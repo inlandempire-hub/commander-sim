@@ -108,6 +108,8 @@ function describe(state: GameState, seat: string, action: BotAction): string | n
       return action.accept ? `${seat} takes the optional trigger.` : `${seat} declines the optional trigger.`;
     case "chooseTriggerTarget":
       return `${seat} aims a trigger at ${describeTarget(state, action.target)}.`;
+    case "resolveDiscard":
+      return `${seat} discards ${nameOf(state, action.instanceId)}.`;
     case "takeMulligan":
       return `${seat} mulligans.`;
     case "keepHand":

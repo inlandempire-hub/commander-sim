@@ -11500,9 +11500,11 @@ export const BLIGHT_MOUND: CardDefinition = {
  * "Each opponent discards a card. You create a 1/1 black and green Pest
  * creature token with 'Whenever this token attacks, you gain 1 life.'"
  *
- * The discard is at random rather than the opponent's choice - see the
- * `discard` effect, where that shortcut is written down. Against a human it is
- * strictly harsher than the printed card.
+ * The discard is the *opponent's* choice, which is what keeps this a two-mana
+ * sorcery rather than a much better card. It used to be taken at random, and
+ * random discard does not read hands: it takes the answer as readily as the
+ * spare land, so a player never gets to make the decision the card is really
+ * asking for.
  */
 export const SEND_IN_THE_PEST: CardDefinition = {
   id: "send-in-the-pest",

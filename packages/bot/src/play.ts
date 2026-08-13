@@ -64,6 +64,7 @@ export function botShouldAct(state: GameState, botPlayerId: string): boolean {
   if (state.pendingSearch?.playerId === botPlayerId) return true;
   if (state.pendingConfirmation?.playerId === botPlayerId) return true;
   if (state.pendingTargetChoices[0]?.playerId === botPlayerId) return true;
+  if (state.pendingDiscards[0]?.playerId === botPlayerId) return true;
   const holdsPriority = state.players[state.priorityPlayerIndex]?.id === botPlayerId;
   if (holdsPriority) return true;
 
