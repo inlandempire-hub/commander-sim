@@ -12010,6 +12010,370 @@ export const ARACHNOGENESIS: CardDefinition = {
 };
 
 
+
+export const TOKEN_B_11_INSECT_FLYING: CardDefinition = {
+  id: "token-b-11-insect-flying",
+  name: "Insect",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  colorIdentity: ["B"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+/*
+ * "As an additional cost to cast this spell, pay X life. All creatures get
+ * -X/-X until end of turn."
+ *
+ * The {X} is in the *additional* cost, not the mana cost - the card really does
+ * cost {2}{B} - which is why `additionalCostNeedsX` exists in casting.ts. Read
+ * the mana cost alone and every Toxic Deluge would be cast for X = 0 and wipe
+ * nothing at all.
+ */
+export const TOXIC_DELUGE: CardDefinition = {
+  id: "toxic-deluge",
+  name: "Toxic Deluge",
+  scryfallId: "de5afccc-8d42-4bd6-b068-b9ea2361655e",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  additionalCost: { kind: "pay-life", amount: { kind: "x" } },
+  castEffect: {
+    kind: "pumpAll",
+    power: { kind: "x", negate: true },
+    toughness: { kind: "x", negate: true },
+    scope: "all",
+  },
+  tier: "scripted",
+};
+
+/*
+ * "As an additional cost to cast this spell, sacrifice a creature. Create X 1/1
+ * black and green Pest creature tokens with 'When this token dies, you gain 1
+ * life,' where X is the sacrificed creature's power."
+ *
+ * The sacrifice is a cost, so it is announced with the spell and cannot be
+ * responded to - and it is what makes X knowable, because the power is read
+ * while the creature is still on the battlefield. See `sacrificed-power`.
+ */
+export const TEND_THE_PESTS: CardDefinition = {
+  id: "tend-the-pests",
+  name: "Tend the Pests",
+  scryfallId: "8f43ed93-008d-44db-8204-ef2cc3b7cf8a",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  additionalCost: { kind: "sacrifice-creature" },
+  castEffect: {
+    kind: "createToken",
+    count: { kind: "sacrificed-power" },
+    tokenDefinitionId: "token-bg-11-pest-dies-gain-life",
+  },
+  tier: "scripted",
+};
+
+/*
+ * "If you control a commander, you may cast this spell without paying its mana
+ * cost. Exile target creature."
+ *
+ * The condition reads the battlefield and not the command zone - see
+ * `controls-commander`. A commander waiting to be cast is not one you control,
+ * and the whole cost of this card is having to get yours down first.
+ */
+export const DEADLY_ROLLICK: CardDefinition = {
+  id: "deadly-rollick",
+  name: "Deadly Rollick",
+  scryfallId: "0e13f735-54fa-42b6-aea4-ced33811d7d4",
+  types: ["Instant"],
+  manaCost: { generic: 3, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  alternativeCost: {
+    condition: { kind: "controls-commander" },
+    label: "cast without paying its mana cost",
+  },
+  castEffect: { kind: "exile", target: { kind: "creature" } },
+  tier: "scripted",
+};
+
+/*
+ * "As this land enters, you may pay 3 life. If you don't, it enters tapped.
+ * {T}: Add {G}." - the back face of Disciple of Freyalise.
+ */
+export const GARDEN_OF_FREYALISE: CardDefinition = {
+  id: "garden-of-freyalise",
+  name: "Garden of Freyalise",
+  scryfallId: "a8e9ea5a-5e10-4b77-baef-0352ff035483",
+  types: ["Land"],
+  colorIdentity: ["G"],
+  entersTappedUnlessPayLife: 3,
+  isBackFace: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "scripted",
+};
+
+/*
+ * "When this creature enters, you may sacrifice another creature. If you do,
+ * you gain X life and draw X cards, where X is that creature's power."
+ *
+ * The sacrifice here is an *effect*, not a cost, and the difference is the
+ * card: it can be declined, and Disciple of Freyalise is a perfectly good 3/3
+ * on an empty board. Tend the Pests above cannot be cast at all in that spot.
+ */
+export const DISCIPLE_OF_FREYALISE: CardDefinition = {
+  id: "disciple-of-freyalise",
+  name: "Disciple of Freyalise",
+  scryfallId: "a8e9ea5a-5e10-4b77-baef-0352ff035483",
+  types: ["Creature"],
+  subtypes: ["Elf", "Druid"],
+  manaCost: { generic: 3, colors: { G: 3 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 3,
+  backFaceId: "garden-of-freyalise",
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "sacrificeChosen",
+        optional: true,
+        excludeSelf: true,
+        then: {
+          kind: "sequence",
+          effects: [
+            { kind: "gainLife", amount: { kind: "sacrificed-power" }, who: "controller" },
+            { kind: "draw", amount: { kind: "sacrificed-power" } },
+          ],
+        },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "You may play an additional land on each of your turns. You may play lands
+ * from your graveyard. Landfall - Whenever a land you control enters, mill a
+ * card."
+ *
+ * All three lines matter together: the mill fills the graveyard the second line
+ * plays out of, and the first line is what lets you use both in one turn.
+ */
+export const ICETILL_EXPLORER: CardDefinition = {
+  id: "icetill-explorer",
+  name: "Icetill Explorer",
+  scryfallId: "d9482aab-6ddf-48e1-84fa-b13d5ff81e69",
+  types: ["Creature"],
+  subtypes: ["Insect", "Scout"],
+  manaCost: { generic: 2, colors: { G: 2 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 4,
+  staticRules: { extraLandDrops: 1, playLandsFromGraveyard: true },
+  triggeredAbilities: [{ event: "landfall", watches: "controller", effect: { kind: "mill", amount: 1 } }],
+  tier: "scripted",
+};
+
+/*
+ * "This land enters tapped. {T}: Add one mana of any color in your commander's
+ * color identity. When that mana is spent to cast a creature spell that shares
+ * a creature type with your commander, scry 1."
+ *
+ * Five abilities for the five colours, exactly as Command Tower is written, and
+ * `colorFrom` refuses whichever are not in this deck's identity. `marksMana` is
+ * the rider: it restricts nothing - the mana pays for anything - and only
+ * decides whether the scry fires. See `ManaMark`.
+ */
+export const PATH_OF_ANCESTRY: CardDefinition = {
+  id: "path-of-ancestry",
+  name: "Path of Ancestry",
+  scryfallId: "836b8f52-10d2-4716-9f7b-38fb23bc68de",
+  types: ["Land"],
+  colorIdentity: [],
+  entersTapped: true,
+  activatedAbilities: [
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "W", amount: 1 },
+      colorFrom: "commander-identity",
+      marksMana: { kind: "scry-on-creature-sharing-commander-type", amount: 1 },
+    },
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "U", amount: 1 },
+      colorFrom: "commander-identity",
+      marksMana: { kind: "scry-on-creature-sharing-commander-type", amount: 1 },
+    },
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "B", amount: 1 },
+      colorFrom: "commander-identity",
+      marksMana: { kind: "scry-on-creature-sharing-commander-type", amount: 1 },
+    },
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "R", amount: 1 },
+      colorFrom: "commander-identity",
+      marksMana: { kind: "scry-on-creature-sharing-commander-type", amount: 1 },
+    },
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "G", amount: 1 },
+      colorFrom: "commander-identity",
+      marksMana: { kind: "scry-on-creature-sharing-commander-type", amount: 1 },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Flying, deathtouch. Whenever a player sacrifices a nontoken creature, create
+ * a 1/1 black Insect creature token with flying. Whenever an Insect, Leech,
+ * Slug, or Worm you control attacks, defending player loses 1 life and you gain
+ * 1 life."
+ *
+ * The first trigger says "a player", so it watches everybody's sacrifices - not
+ * only its controller's, which is the reading that would halve the card.
+ *
+ * "Defending player" is written here as `opponent-of-controller`, which is
+ * exact in a two-player game - the only kind this engine plays - and would need
+ * the attacked player carried through the trigger in a pod. See CLAUDE.md on
+ * the two-player scope.
+ */
+export const FUMULUS_THE_INFESTATION: CardDefinition = {
+  id: "fumulus-the-infestation",
+  name: "Fumulus, the Infestation",
+  scryfallId: "ee5e47c2-7648-4218-b42c-ed9650e12914",
+  types: ["Creature"],
+  subtypes: ["Vampire", "Insect"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 3, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Flying", "Deathtouch"],
+  canBeCommander: true,
+  triggeredAbilities: [
+    {
+      event: "permanent-sacrificed",
+      watches: "any",
+      includesSelf: true,
+      watchFor: { type: "Creature", nontoken: true },
+      effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-b-11-insect-flying" },
+    },
+    {
+      event: "permanent-attacks",
+      watches: "controller",
+      includesSelf: true,
+      watchFor: { subtype: ["Insect", "Leech", "Slug", "Worm"] },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "loseLife", amount: 1, who: "target", target: { kind: "opponent-of-controller" } },
+          { kind: "gainLife", amount: 1, who: "controller" },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Whenever a creature you control leaves the battlefield, if it had counters
+ * on it, put those counters on The Ozolith. At the beginning of combat on your
+ * turn, if The Ozolith has counters on it, you may move all counters from The
+ * Ozolith onto target creature."
+ *
+ * "Leaves the battlefield" rather than "dies" is the whole card: a creature
+ * exiled or bounced still hands its counters over. The number rides on the
+ * event, captured before `moveCard` strips them.
+ */
+export const THE_OZOLITH: CardDefinition = {
+  id: "the-ozolith",
+  name: "The Ozolith",
+  scryfallId: "9341ed06-53db-4604-b60a-3ea9129afbc2",
+  types: ["Artifact"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  triggeredAbilities: [
+    {
+      event: "leaves-battlefield",
+      watches: "controller",
+      watchFor: { type: "Creature", withCounter: true },
+      effect: { kind: "addCounter", amount: { kind: "event-amount" } },
+    },
+    {
+      event: "begin-combat",
+      watches: "controller",
+      optional: true,
+      onlyIf: { kind: "source-has-counters" },
+      effect: { kind: "moveAllCounters", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+/*
+ * "Until end of turn, creatures you control get +2/+2 and gain menace and
+ * 'Whenever this creature attacks, you gain 1 life.'"
+ *
+ * The third clause is a whole triggered ability handed out for the turn, which
+ * is why `effectiveTriggers` exists: a creature can now have an ability its
+ * printed card does not list, and no fire site may read the printed list.
+ */
+export const ROOT_MANIPULATION: CardDefinition = {
+  id: "root-manipulation",
+  name: "Root Manipulation",
+  scryfallId: "5390a79c-bc4b-4edb-a845-0d3514986401",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  castEffect: {
+    kind: "pumpAll",
+    power: 2,
+    toughness: 2,
+    scope: "controller",
+    grants: ["Menace"],
+    grantsTriggers: [{ event: "attacks", effect: { kind: "gainLife", amount: 1, who: "controller" } }],
+  },
+  tier: "scripted",
+};
+
+/*
+ * "Menace. Ward-Pay 3 life. Magecraft - Whenever you cast or copy an instant or
+ * sorcery spell, create a 1/1 black and green Pest creature token with 'When
+ * this token dies, you gain 1 life.'"
+ *
+ * The "or copy" half is not modelled: nothing in this engine copies a spell, so
+ * there is no event to watch. Every other way this card makes a Pest works, and
+ * the day copying exists this trigger is already watching the right thing.
+ */
+export const SEDGEMOOR_WITCH: CardDefinition = {
+  id: "sedgemoor-witch",
+  name: "Sedgemoor Witch",
+  scryfallId: "e900c1eb-968b-4046-b824-c167a7a5b682",
+  types: ["Creature"],
+  subtypes: ["Human", "Warlock"],
+  manaCost: { generic: 2, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 3,
+  toughness: 2,
+  keywords: ["Menace", "Ward"],
+  wardLifeCost: 3,
+  triggeredAbilities: [
+    {
+      event: "spell-cast",
+      watches: "any",
+      watchFor: { type: ["Instant", "Sorcery"], controlledBy: "you" },
+      effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-bg-11-pest-dies-gain-life" },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -12922,5 +13286,17 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     FERAL_APPETITE,
     SKULLCLAMP,
     ARACHNOGENESIS,
+    TOKEN_B_11_INSECT_FLYING,
+    TOXIC_DELUGE,
+    TEND_THE_PESTS,
+    DEADLY_ROLLICK,
+    GARDEN_OF_FREYALISE,
+    DISCIPLE_OF_FREYALISE,
+    ICETILL_EXPLORER,
+    PATH_OF_ANCESTRY,
+    FUMULUS_THE_INFESTATION,
+    THE_OZOLITH,
+    ROOT_MANIPULATION,
+    SEDGEMOOR_WITCH,
   ].map((def) => [def.id, def]),
 );

@@ -261,6 +261,7 @@ describe("matchesWatchFor", () => {
     controllerId: "mike",
     def: definition,
     hadCounters: false,
+    counters: 0,
     isToken: false,
     ...over,
   });

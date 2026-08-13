@@ -48,11 +48,22 @@ export interface AmountContext {
    * inventing a figure.
    */
   eventAmount?: number;
+  /**
+   * The power of the creature given up for this - Tend the Pests' additional
+   * cost, and the creature chosen for Disciple of Freyalise's "if you do".
+   *
+   * Read while that creature was still on the battlefield, because by the time
+   * the effect runs it is in a graveyard with its counters stripped. Zero when
+   * nothing was sacrificed, so an effect written with this on a card that has
+   * no sacrifice does nothing rather than inventing a figure.
+   */
+  sacrificedPower?: number;
 }
 
 function value(amount: Amount, values: AmountContext): number | Amount {
   if (typeof amount === "number") return amount;
   if (amount.kind === "event-amount") return values.eventAmount ?? 0;
+  if (amount.kind === "sacrificed-power") return values.sacrificedPower ?? 0;
   /*
    * A `count` is not substituted - it is read off the board when the effect
    * resolves, which is a different moment and a different answer. Passed
@@ -79,6 +90,25 @@ export function resolveAmounts(effect: Effect, values: AmountContext): Effect {
       };
     case "createToken":
       return { ...effect, count: value(effect.count, values) };
+    case "addCounter":
+      return { ...effect, amount: value(effect.amount, values) };
+    case "mill":
+      return { ...effect, amount: value(effect.amount, values) };
+    case "gainLife":
+      return { ...effect, amount: value(effect.amount, values) };
+    case "draw":
+      return { ...effect, amount: value(effect.amount, values) };
+    case "sacrificeChosen":
+      /*
+       * The "if you do" half is *not* substituted here, and that is the point
+       * of it: its `sacrificed-power` is not known until the player has chosen
+       * which creature to give up, which happens long after this runs. It is
+       * held whole on the `PendingSacrifice` and substituted at the moment of
+       * the answer. Substituting now would resolve every one of them to zero.
+       */
+      return effect;
+    case "ifTargetWas":
+      return { ...effect, then: resolveAmounts(effect.then, values) };
     case "sequence":
       return { ...effect, effects: effect.effects.map((step) => resolveAmounts(step, values)) };
     case "modal":

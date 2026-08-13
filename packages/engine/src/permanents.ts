@@ -10,7 +10,7 @@ import type {
 } from "./types.js";
 import { cardName, findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import { meetsBoardCondition } from "./conditions.js";
-import { hasKeyword } from "./counters.js";
+import { effectiveTriggers, hasKeyword } from "./counters.js";
 import { resolveAmounts } from "./x.js";
 import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
 
@@ -143,7 +143,7 @@ export function enteredBattlefield(
   }
 
   // Triggers printed on the permanent that just arrived.
-  for (const trigger of def.triggeredAbilities ?? []) {
+  for (const trigger of effectiveTriggers(state, instance)) {
     if (trigger.event === "enters-battlefield") {
       pushTrigger(state, instance.instanceId, instance.controllerId, trigger);
     }
@@ -182,6 +182,15 @@ export interface TriggerSubject {
   controllerId: string;
   def: CardDefinition;
   hadCounters: boolean;
+  /**
+   * How many +1/+1 counters it was carrying, for The Ozolith - which does not
+   * merely want to know *that* there were some, it wants to move them.
+   *
+   * Captured for the same reason `hadCounters` is, and the reason is sharper
+   * here: a boolean read after the fact would be wrong, where a count read
+   * after the fact is always zero.
+   */
+  counters: number;
   isToken: boolean;
 }
 
@@ -196,6 +205,7 @@ export function describeSubject(
     controllerId: instance.controllerId,
     def: definition,
     hadCounters: instance.plusOneCounters > 0,
+    counters: instance.plusOneCounters,
     isToken: definition.isToken === true,
   };
 }
@@ -217,7 +227,13 @@ export function describeSubject(
  */
 export function fireWatchers(
   state: GameState,
-  event: "permanent-enters" | "permanent-dies" | "spell-cast",
+  event:
+    | "permanent-enters"
+    | "permanent-dies"
+    | "spell-cast"
+    | "permanent-sacrificed"
+    | "permanent-attacks"
+    | "leaves-battlefield",
   subject: TriggerSubject,
   alsoSelf?: CardInstance,
 ): void {
@@ -226,8 +242,7 @@ export function fireWatchers(
   if (alsoSelf) watchers.push(alsoSelf);
 
   for (const watcher of watchers) {
-    const watcherDef = requireDefinition(state, watcher.definitionId);
-    for (const trigger of watcherDef.triggeredAbilities ?? []) {
+    for (const trigger of effectiveTriggers(state, watcher)) {
       if (trigger.event !== event) continue;
       if (!matchesWatchFor(trigger.watchFor, subject, watcher.controllerId)) continue;
       // "Whenever equipped creature dies" - only the one this Equipment is on.
@@ -236,7 +251,13 @@ export function fireWatchers(
       if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== subject.controllerId) {
         continue;
       }
-      pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger);
+      /*
+       * The counters the subject was carrying, handed on as the event's
+       * number - The Ozolith's "put **those** counters on it". Zero for every
+       * other event and every other card, which is exactly what
+       * `event-amount` means when the event carries nothing.
+       */
+      pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger, subject.counters);
     }
   }
 }
@@ -253,8 +274,7 @@ export function fireWatchers(
 export function fireLandfall(state: GameState, landControllerId: string): void {
   for (const player of state.players) {
     for (const watcher of player.battlefield) {
-      const watcherDef = requireDefinition(state, watcher.definitionId);
-      for (const trigger of watcherDef.triggeredAbilities ?? []) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
         if (trigger.event !== "landfall") continue;
         if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== landControllerId) {
           continue;
@@ -290,7 +310,10 @@ export function matchesWatchFor(
     const wanted = Array.isArray(watchFor.type) ? watchFor.type : [watchFor.type];
     if (!wanted.some((type) => subject.def.types.includes(type))) return false;
   }
-  if (watchFor.subtype && !(subject.def.subtypes ?? []).includes(watchFor.subtype)) return false;
+  if (watchFor.subtype) {
+    const wanted = Array.isArray(watchFor.subtype) ? watchFor.subtype : [watchFor.subtype];
+    if (!wanted.some((subtype) => (subject.def.subtypes ?? []).includes(subtype))) return false;
+  }
   if (watchFor.withCounter && !subject.hadCounters) return false;
   if (watchFor.nontoken && subject.isToken) return false;
   if (watchFor.controlledBy) {
@@ -325,7 +348,7 @@ export function pushTrigger(
 ): StackObject | null {
   // Rule 603.4, first check: an intervening-if that is false right now means
   // the ability never goes on the stack at all.
-  if (trigger.onlyIf && !triggerConditionMet(state, controllerId, trigger.onlyIf)) return null;
+  if (trigger.onlyIf && !triggerConditionMet(state, controllerId, trigger.onlyIf, sourceInstanceId)) return null;
 
   /*
    * A trigger printed on a card with {X} in its cost refers to the value
@@ -428,10 +451,25 @@ export function triggerConditionMet(
   state: GameState,
   controllerId: string,
   condition: TriggerCondition,
+  /**
+   * The permanent the trigger is printed on. Only `source-has-counters` needs
+   * it - every other condition asks about the board rather than about the card
+   * - so it is optional, and a condition that needs it and is not given one
+   * answers false rather than guessing.
+   */
+  sourceInstanceId?: string,
 ): boolean {
   switch (condition.kind) {
     case "creature-died-this-turn":
       return state.creatureDeathsThisTurn > 0;
+    case "source-has-counters": {
+      if (!sourceInstanceId) return false;
+      const found = findInstance(state, sourceInstanceId);
+      // Off the battlefield it has no counters, which is also the honest
+      // answer: The Ozolith in a graveyard is holding nothing.
+      if (!found || found.instance.zone !== "battlefield") return false;
+      return found.instance.plusOneCounters > 0;
+    }
     case "not":
       return !meetsBoardCondition(state, controllerId, condition.condition);
   }

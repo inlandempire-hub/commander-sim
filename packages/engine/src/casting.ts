@@ -1,6 +1,15 @@
 import type { CardDefinition, Effect, GameState, ManaCost, StackTarget } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
-import { applyCommanderTax, canPayManaCostFromPool, payManaCostFor, spendablePool } from "./mana.js";
+import {
+  applyCommanderTax,
+  canPayManaCostFromPool,
+  commanderCreatureTypes,
+  payManaCostFor,
+  spendablePool,
+} from "./mana.js";
+import { controllerMeets } from "./conditions.js";
+import { effectivePower } from "./counters.js";
+import { sacrificePermanent } from "./sba.js";
 import { describeSubject, fireWatchers, pushOntoStack, putOntoBattlefield } from "./permanents.js";
 import { isValidTarget, targetSelectorOf } from "./targeting.js";
 import { attemptWardPayments } from "./ward.js";
@@ -38,6 +47,81 @@ export interface CastOptions {
    * player who wants to keep mana up for something else must be able to.
    */
   chosenX?: number;
+  /**
+   * Which creature is being given up for an "as an additional cost, sacrifice a
+   * creature" - Tend the Pests.
+   *
+   * Announced with the spell rather than asked for afterwards, because that is
+   * when the cost is paid (rule 601.2h). It is also what makes the card's own
+   * X knowable: the creature's power is read here, while it is still on the
+   * battlefield.
+   */
+  sacrificeInstanceId?: string;
+  /**
+   * Take the card's alternative cost - "you may cast this spell without paying
+   * its mana cost".
+   *
+   * Opt-in, because every printing of this shape is a "may" and paying the
+   * mana is sometimes the better line: Deadly Rollick cast for {3}{B} leaves
+   * the commander requirement alone.
+   */
+  useAlternativeCost?: boolean;
+}
+
+/**
+ * How many lands this player may play this turn.
+ *
+ * One, plus whatever their permanents grant. Read fresh every time rather than
+ * being counted onto the player when a permanent arrives, so an Icetill
+ * Explorer that dies mid-turn takes its extra drop with it - which is the rule,
+ * and the alternative would need every removal spell to know about land drops.
+ */
+export function landDropsAllowed(state: GameState, playerId: string): number {
+  const player = requirePlayer(state, playerId);
+  let allowed = 1;
+  for (const instance of player.battlefield) {
+    allowed += state.cardDefinitions[instance.definitionId]?.staticRules?.extraLandDrops ?? 0;
+  }
+  return allowed;
+}
+
+/** "You may play lands from your graveyard" - Icetill Explorer's second line. */
+export function canPlayLandsFromGraveyard(state: GameState, playerId: string): boolean {
+  return requirePlayer(state, playerId).battlefield.some(
+    (instance) => state.cardDefinitions[instance.definitionId]?.staticRules?.playLandsFromGraveyard === true,
+  );
+}
+
+/**
+ * Whether this player could pay the card's additional cost right now.
+ *
+ * Asked before a card is offered as playable, not only when it is cast. A spell
+ * whose additional cost cannot be paid cannot be cast at all (rule 601.2f), so
+ * a client that offered Tend the Pests with an empty board would be offering a
+ * play the engine is about to refuse.
+ */
+export function canPayAdditionalCost(
+  state: GameState,
+  playerId: string,
+  def: CardDefinition,
+  chosenX = 0,
+): boolean {
+  const cost = def.additionalCost;
+  if (!cost) return true;
+  const player = requirePlayer(state, playerId);
+  switch (cost.kind) {
+    case "pay-life": {
+      const amount = typeof cost.amount === "number" ? cost.amount : chosenX;
+      // You may pay life only down to nothing, and paying to exactly 0 is legal
+      // - it loses you the game to the usual state-based action, which is the
+      // real rule and Toxic Deluge's real ceiling.
+      return player.life >= amount;
+    }
+    case "sacrifice-creature":
+      return player.battlefield.some((instance) =>
+        state.cardDefinitions[instance.definitionId]?.types.includes("Creature"),
+      );
+  }
 }
 
 /** The modes of a "choose one" card, or undefined if it isn't modal. */
@@ -87,18 +171,67 @@ export function castSpell(
    * abilities go on referring to it once it has resolved - see
    * `CardInstance.chosenX`.
    */
-  const chosenX = requiresX(def.manaCost) ? (options.chosenX ?? 0) : 0;
-  if (requiresX(def.manaCost) && options.chosenX === undefined) {
+  /*
+   * X is not always in the mana cost. Toxic Deluge prints {2}{B} and asks for X
+   * *life*, so a card announces an X whenever either half of its cost needs
+   * one - reading the mana cost alone would silently take X = 0 and wipe
+   * nothing.
+   */
+  const needsX = requiresX(def.manaCost) || additionalCostNeedsX(def);
+  const chosenX = needsX ? (options.chosenX ?? 0) : 0;
+  if (needsX && options.chosenX === undefined) {
     throw new Error(`${def.name} has {X} in its cost - a value for X must be chosen`);
   }
   if (chosenX < 0 || !Number.isInteger(chosenX)) {
     throw new Error(`X must be a whole number, not ${chosenX}`);
   }
 
-  let cost: ManaCost = costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
-  if (options.fromCommandZone) {
+  /*
+   * "You may cast this spell without paying its mana cost."
+   *
+   * The mana cost is replaced outright rather than reduced to nothing by
+   * degrees, and the condition is checked here rather than trusted from the
+   * client: an alternative cost taken while its condition is false is simply a
+   * free spell.
+   */
+  const alternative = options.useAlternativeCost ? def.alternativeCost : undefined;
+  if (options.useAlternativeCost) {
+    if (!def.alternativeCost) throw new Error(`${def.name} has no alternative cost`);
+    if (!controllerMeets(state, playerId, def.alternativeCost.condition)) {
+      throw new Error(`${def.name}'s alternative cost is not available`);
+    }
+  }
+
+  let cost: ManaCost = alternative
+    ? { generic: 0, colors: {} }
+    : costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
+  if (options.fromCommandZone && !alternative) {
     const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
     cost = applyCommanderTax(cost, timesCast);
+  }
+
+  /*
+   * The additional cost, validated before anything at all is paid or moved.
+   *
+   * The creature's power is read here, while it is still on the battlefield,
+   * because that is the number Tend the Pests goes on to use and it cannot be
+   * recovered a line later. The sacrifice itself happens below, with the mana,
+   * because that is when a cost is paid.
+   */
+  if (!canPayAdditionalCost(state, playerId, def, chosenX)) {
+    throw new Error(`${playerId} cannot pay ${def.name}'s additional cost`);
+  }
+  let sacrificedPower = 0;
+  let sacrificeId: string | undefined;
+  if (def.additionalCost?.kind === "sacrifice-creature") {
+    sacrificeId = options.sacrificeInstanceId;
+    if (!sacrificeId) throw new Error(`${def.name} requires a creature to sacrifice`);
+    const victim = player.battlefield.find((c) => c.instanceId === sacrificeId);
+    if (!victim) throw new Error(`${playerId} does not control ${sacrificeId}`);
+    if (!requireDefinition(state, victim.definitionId).types.includes("Creature")) {
+      throw new Error(`${cardNameOf(state, victim.definitionId)} is not a creature`);
+    }
+    sacrificedPower = effectivePower(state, victim);
   }
 
   // A mode is chosen as the spell is cast, so the modal wrapper is unwrapped
@@ -115,7 +248,9 @@ export function castSpell(
   }
   // X is substituted here for the same reason the mode is: it is settled at
   // cast time, so nothing downstream ever has to know it was once a symbol.
-  effect = resolveAmounts(effect, { x: chosenX });
+  // The sacrificed creature's power rides along: it is settled at exactly the
+  // same moment and for exactly the same reason.
+  effect = resolveAmounts(effect, { x: chosenX, sacrificedPower });
 
   // Validated before anything is paid or moved. Every throw below this point
   // would otherwise leave the game half-cast - mana spent and the card sitting
@@ -137,7 +272,22 @@ export function castSpell(
   if (!canPayManaCostFromPool(spendablePool(player, def), cost)) {
     throw new Error(`${playerId} cannot afford to cast ${def.name}`);
   }
-  const restrictionsUsed = payManaCostFor(player, cost, def);
+  const payment = payManaCostFor(player, cost, def);
+  const restrictionsUsed = payment.restrictions;
+
+  /*
+   * The rest of the cost, paid in the same breath as the mana (rule 601.2h).
+   *
+   * After the mana rather than before, so a spell that turns out to be
+   * unaffordable has not already eaten a creature - the mana check above throws
+   * before this line is reached.
+   */
+  if (def.additionalCost?.kind === "pay-life") {
+    const life = typeof def.additionalCost.amount === "number" ? def.additionalCost.amount : chosenX;
+    player.life -= life;
+    log(state, `${playerId} pays ${life} life`);
+  }
+  if (sacrificeId) sacrificePermanent(state, sacrificeId);
   /*
    * "...and that spell can't be countered." A property of this casting rather
    * than of the card, so it is recorded on the spell on the stack: the same
@@ -177,7 +327,48 @@ export function castSpell(
    */
   fireWatchers(state, "spell-cast", describeSubject(state, instance, def));
 
+  /*
+   * "When that mana is spent to cast a creature spell that shares a creature
+   * type with your commander, scry 1." - Path of Ancestry.
+   *
+   * Fired here, after the spell is on the stack, for the same reason the
+   * cast watchers are: the trigger goes on top of the spell it paid for and
+   * resolves first, so the scry happens before the creature arrives. The
+   * condition is checked against the card actually cast rather than remembered
+   * on the mana, because "shares a creature type with your commander" is a
+   * question about both cards at once.
+   */
+  for (const mark of payment.marks) {
+    if (mark.rider.kind !== "scry-on-creature-sharing-commander-type") continue;
+    if (!def.types.includes("Creature")) continue;
+    const shared = commanderCreatureTypes(state, playerId);
+    if (!(def.subtypes ?? []).some((subtype) => shared.includes(subtype))) continue;
+    pushOntoStack(
+      state,
+      mark.sourceInstanceId,
+      playerId,
+      { kind: "scry", amount: mark.rider.amount },
+      [],
+      false,
+    );
+  }
+
   state.passesInSuccession = 0;
+}
+
+/**
+ * Whether the card's additional cost is the kind that needs an X announced -
+ * Toxic Deluge's "pay X life", where the mana cost prints no {X} at all.
+ */
+function additionalCostNeedsX(def: CardDefinition): boolean {
+  const cost = def.additionalCost;
+  if (!cost) return false;
+  return cost.kind === "pay-life" && typeof cost.amount !== "number" && cost.amount.kind === "x";
+}
+
+/** A definition's name, for an error raised before anything has an instance to look up. */
+function cardNameOf(state: GameState, definitionId: string): string {
+  return state.cardDefinitions[definitionId]?.name ?? "That permanent";
 }
 
 /** Playing a land is not "casting a spell" - it doesn't use the stack and is capped at one per turn. */
@@ -190,7 +381,16 @@ export function playLand(state: GameState, playerId: string, instanceId: string)
   if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
   const { instance } = found;
 
-  if (instance.zone !== "hand" || instance.ownerId !== playerId) {
+  /*
+   * From hand, or - with Icetill Explorer out - from the graveyard.
+   *
+   * A permission rather than a different action: everything below is identical
+   * either way, which is what the card means by "you may play lands from your
+   * graveyard". Checked here rather than widened unconditionally, because a
+   * land in a graveyard is otherwise as unplayable as any other card there.
+   */
+  const fromGraveyard = instance.zone === "graveyard" && canPlayLandsFromGraveyard(state, playerId);
+  if ((instance.zone !== "hand" && !fromGraveyard) || instance.ownerId !== playerId) {
     throw new Error(`${instanceId} is not in ${playerId}'s hand`);
   }
   /*
@@ -211,7 +411,10 @@ export function playLand(state: GameState, playerId: string, instanceId: string)
   const def = requireDefinition(state, instance.definitionId);
   if (!def.types.includes("Land")) throw new Error(`${def.name} is not a land`);
   if (!canCastAtSorcerySpeed(state, playerId)) throw new Error("Lands can only be played at sorcery speed");
-  if (player.landsPlayedThisTurn >= 1) throw new Error(`${playerId} has already played a land this turn`);
+  // One a turn, plus whatever the board grants - see `landDropsAllowed`.
+  if (player.landsPlayedThisTurn >= landDropsAllowed(state, playerId)) {
+    throw new Error(`${playerId} has already played a land this turn`);
+  }
 
   /*
    * Logged like every other action, which it was not until now.

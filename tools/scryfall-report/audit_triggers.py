@@ -35,7 +35,8 @@ DATA = Path(__file__).parent / "data" / "oracle-cards.jsonl.gz"
 # The events packages/engine/src/types.ts actually models.
 MODELLED = {
     "enters-battlefield", "attacks", "dies", "landfall", "permanent-enters", "gain-life",
-    "permanent-dies", "spell-cast", "damaged", "upkeep", "first-main", "begin-combat", "end-step",
+    "permanent-dies", "permanent-sacrificed", "permanent-attacks", "leaves-battlefield",
+    "spell-cast", "damaged", "upkeep", "first-main", "begin-combat", "end-step",
 }
 
 
@@ -197,14 +198,36 @@ def classify(clause, card_name):
     if re.search(r"^when(ever)?\s+%s\s+attacks" % self_ref, c) or re.search(
         r"whenever .*attacks", c
     ):
-        if re.search(r"whenever (a|another|one or more) ", c) and not re.search(
+        # "Whenever an Insect, Leech, Slug, or Worm you control attacks" -
+        # Fumulus, and a real watcher event since 2026-08-13. The twin of
+        # `attacks`, which only ever watches the card it is printed on.
+        if re.search(r"whenever (a|an|another|one or more) ", c) and not re.search(
             r"^when(ever)?\s+%s" % self_ref, c
         ):
-            return None, "watches other creatures attacking - not modelled"
+            return "permanent-attacks", None
         return "attacks", None
 
     if "blocks" in c or "becomes blocked" in c:
         return None, "block trigger - not modelled"
+
+    # Magecraft - "whenever you cast or copy an instant or sorcery spell"
+    # (Sedgemoor Witch). The *cast* half is the same `spell-cast` event Arasta
+    # uses, narrowed to your own spells; nothing copies a spell in this engine,
+    # so that half is documented on the fixture rather than modelled.
+    #
+    # Checked here, before the `dies` branch, and that ordering is the whole
+    # point: this clause quotes the token's own "when this token dies", and a
+    # bare search for the word claimed the sentence for the wrong event.
+    if re.search(r"^whenever you cast( or copy)? ", c):
+        return "spell-cast", None
+
+    # "Whenever a player sacrifices a nontoken creature" - Fumulus, the
+    # Infestation, and a real event since 2026-08-13. Deliberately not folded
+    # into `permanent-dies`: every sacrifice is a death and almost no death is a
+    # sacrifice, so a card written as the other one pays out on every board
+    # stall.
+    if re.search(r"whenever a player sacrifices", c):
+        return "permanent-sacrificed", None
 
     if re.search(r"\bdies\b", c):
         if re.search(r"^when(ever)?\s+%s\s+dies" % self_ref, c):
@@ -221,7 +244,12 @@ def classify(clause, card_name):
             return "permanent-dies", None
         return None, "watches other creatures dying in a way the filter cannot express"
 
+    # "Whenever a creature you control leaves the battlefield" - The Ozolith,
+    # and a real event since 2026-08-13. Wider than a death on purpose: a
+    # creature exiled or bounced left the battlefield without dying.
     if re.search(r"leaves the battlefield", c):
+        if re.search(r"whenever (a|an|another|one or more) .*leaves the battlefield", c):
+            return "leaves-battlefield", None
         return None, "leaves-the-battlefield trigger - not modelled"
     # "Whenever you gain life" became a real event on 2026-08-07, for Blech,
     # Loafing Pest and Pest Mascot. Checked before the catch-all below, which
@@ -238,6 +266,16 @@ def classify(clause, card_name):
         return None, "watches you casting/drawing/gaining - not modelled"
     if "becomes tapped" in c or "becomes the target" in c:
         return None, "tap/target trigger - not modelled"
+
+    # "When that mana is spent to cast ..., scry 1" - Path of Ancestry.
+    #
+    # A real trigger that is deliberately *not* a `triggeredAbilities` entry:
+    # it belongs to a particular lump of mana rather than to the permanent, so
+    # the engine hangs it off the mana ability as `marksMana`. Reported as
+    # modelled-elsewhere rather than missing, because "missing" would be a lie
+    # and silencing it altogether would hide the day it stops being written.
+    if re.search(r"^when that mana is spent", c):
+        return "mana-spend-rider", None
 
     return None, "unrecognised trigger shape"
 
@@ -268,6 +306,10 @@ def audit(fixtures, by_name):
         printed = [(clause, *classify(clause, name)) for clause in clauses(card)]
         printed_events = [event for _, event, _ in printed if event]
         fixture_events = [t["event"] for t in fixture.get("triggeredAbilities") or []]
+        # A mana-spend rider lives on an activated ability, so it counts as
+        # modelled without appearing in `triggeredAbilities` at all.
+        if any(a.get("marksMana") for a in fixture.get("activatedAbilities") or []):
+            fixture_events = fixture_events + ["mana-spend-rider"]
 
         coverage["cards"] += 1
         coverage["clauses"] += len(printed)

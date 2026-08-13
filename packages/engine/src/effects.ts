@@ -17,9 +17,10 @@ import { isSpellOnStack } from "./targeting.js";
 import { enteredBattlefield, putOntoBattlefield } from "./permanents.js";
 import { gainLife } from "./life.js";
 import { useRegenerationShield } from "./regeneration.js";
-import { sacrificePermanent } from "./sba.js";
+import { destroyPermanent, leaveBattlefield, sacrificePermanent } from "./sba.js";
 import { countersPlaced, tokensCreated } from "./replacements.js";
 import { evaluateAmount } from "./amounts.js";
+import { resolveAmounts } from "./x.js";
 
 /**
  * Applies a resolved (non-permanent) effect: spell/ability damage, draw,
@@ -93,20 +94,24 @@ export function applyEffect(
       return;
     }
     case "gainLife": {
+      const life = evaluateAmount(state, controllerId, effect.amount, "gainLife amount");
+      // Gaining 0 is not gaining life, and firing the "whenever you gain life"
+      // watchers for it would be a real difference - see gainLife in life.ts.
+      if (life <= 0) return;
       // "You gain 1 life" beside a target the rest of the card is aimed at -
       // see the note on the effect type, and Blood Artist.
       if (effect.who === "controller") {
-        gainLife(state, controllerId, effect.amount);
-        log(state, `${controllerId} gains ${effect.amount} life`);
+        gainLife(state, controllerId, life);
+        log(state, `${controllerId} gains ${life} life`);
         return;
       }
       for (const target of targets) {
         if (target.kind === "player") {
-          gainLife(state, target.playerId, effect.amount);
+          gainLife(state, target.playerId, life);
         }
       }
-      if (targets.length === 0) gainLife(state, controllerId, effect.amount);
-      log(state, `${controllerId} gains ${effect.amount} life`);
+      if (targets.length === 0) gainLife(state, controllerId, life);
+      log(state, `${controllerId} gains ${life} life`);
       return;
     }
     case "preventDamage": {
@@ -134,17 +139,113 @@ export function applyEffect(
       return;
     }
     case "addCounter": {
+      const amount = evaluateAmount(state, controllerId, effect.amount, "addCounter amount");
+      // "Put those counters on The Ozolith" when the creature that left had
+      // none is nothing happening, not an error.
+      if (amount <= 0) return;
       const cardTargets = targets.filter((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card");
       if (cardTargets.length === 0) {
         // No explicit target (e.g. a triggered ability buffing its own source) - counters go on the source itself.
         const source = findInstance(state, sourceInstanceId);
-        if (source) source.instance.plusOneCounters += countersPlaced(state, source.instance, effect.amount);
+        if (source) source.instance.plusOneCounters += countersPlaced(state, source.instance, amount);
         return;
       }
       for (const target of cardTargets) {
         const found = findInstance(state, target.instanceId);
-        if (found) found.instance.plusOneCounters += countersPlaced(state, found.instance, effect.amount);
+        if (found) found.instance.plusOneCounters += countersPlaced(state, found.instance, amount);
       }
+      return;
+    }
+    case "moveAllCounters": {
+      const source = findInstance(state, sourceInstanceId);
+      if (!source) return;
+      const moving = source.instance.plusOneCounters;
+      if (moving <= 0) return;
+      for (const target of targets) {
+        if (target.kind !== "card") continue;
+        const found = findInstance(state, target.instanceId);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        /*
+         * Emptied first, so the counters exist in exactly one place at every
+         * moment. A replacement effect watching for counters being *placed*
+         * still applies to the arrival - Doubling Season really does double a
+         * pile moved off The Ozolith, which is the interaction the card is
+         * played for.
+         */
+        source.instance.plusOneCounters = 0;
+        found.instance.plusOneCounters += countersPlaced(state, found.instance, moving);
+        log(
+          state,
+          `${moving} +1/+1 counter${moving === 1 ? "" : "s"} move from ${cardName(state, sourceInstanceId)} to ${cardName(state, target.instanceId)}`,
+        );
+      }
+      return;
+    }
+    case "mill": {
+      /*
+       * The top N cards of the library into the graveyard.
+       *
+       * Milling out is not losing: only *drawing* from an empty library does
+       * that (rule 104.3c), so this deliberately never touches
+       * `attemptedDrawFromEmptyLibrary`. Taking whatever is there and stopping
+       * is the whole rule for a library shorter than N.
+       */
+      const count = evaluateAmount(state, controllerId, effect.amount, "mill amount");
+      const milled = controller.library.slice(0, count).map((card) => card.instanceId);
+      for (const instanceId of milled) moveCard(state, instanceId, "graveyard");
+      if (milled.length > 0) {
+        log(state, `${controllerId} mills ${milled.length} card${milled.length === 1 ? "" : "s"}`);
+      }
+      return;
+    }
+    case "scry": {
+      /*
+       * Look at the top card and choose whether it goes to the bottom.
+       *
+       * The same interaction as surveil down to the picker, and rides on the
+       * same machinery for exactly that reason - the only difference between
+       * the two keywords is where the card ends up, which is one destination
+       * rather than a second mechanism. See `PendingSearch.noShuffle`.
+       */
+      if (controller.library.length === 0) return;
+      state.pendingSearch = {
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: controller.library.slice(0, effect.amount).map((card) => card.instanceId),
+        destination: "library-bottom",
+        noShuffle: true,
+        prompt: `Scry ${effect.amount}: you may put this card on the bottom of your library`,
+        followUp: pendingFollowUp,
+      };
+      return;
+    }
+    case "sacrificeChosen": {
+      /*
+       * Stops and asks which creature is being given up - see
+       * `PendingSacrifice` for why this is not the same thing as an additional
+       * cost even though both end in a sacrifice.
+       *
+       * With nothing to sacrifice there is nothing to ask, and the "if you do"
+       * half simply does not happen: Disciple of Freyalise with an empty board
+       * is a 3/3 that draws no cards.
+       */
+      const candidates = controller.battlefield.filter((instance) => {
+        if (effect.excludeSelf && instance.instanceId === sourceInstanceId) return false;
+        return requireDefinition(state, instance.definitionId).types.includes("Creature");
+      });
+      if (candidates.length === 0) return;
+      state.pendingSacrifice = {
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: candidates.map((instance) => instance.instanceId),
+        optional: effect.optional === true,
+        prompt: `${cardName(state, sourceInstanceId)}: ${effect.optional ? "you may sacrifice" : "sacrifice"} ${
+          effect.excludeSelf ? "another creature" : "a creature"
+        }`,
+        then: effect.then,
+      };
       return;
     }
     case "addCounterToEachOther": {
@@ -208,11 +309,36 @@ export function applyEffect(
           if (useRegenerationShield(state, found.instance)) continue;
         }
 
-        // The commander replacement effect applies to both: a commander that
-        // would be destroyed or exiled goes to the command zone instead.
-        const destination = found.instance.isCommander ? "command" : effect.kind === "destroy" ? "graveyard" : "exile";
         log(state, `${cardName(state, target.instanceId)} is ${effect.kind === "destroy" ? "destroyed" : "exiled"}`);
-        moveCard(state, target.instanceId, destination);
+
+        if (effect.kind === "destroy") {
+          /*
+           * Through the death handler, not `moveCard`.
+           *
+           * This used to move the card by hand, which quietly skipped the dies
+           * triggers, the turn's death count and the commander replacement
+           * effect together: a creature killed in combat fired its ability and
+           * the same creature killed by Assassin's Trophy did not.
+           */
+          destroyPermanent(state, target.instanceId);
+          continue;
+        }
+
+        // The commander replacement effect applies to exile too: a commander
+        // that would be exiled goes to the command zone instead.
+        if (found.instance.isCommander) {
+          moveCard(state, target.instanceId, "command");
+          continue;
+        }
+        if (found.instance.zone === "battlefield") {
+          // Leaving play, which The Ozolith watches for and a death is not the
+          // only way to do.
+          leaveBattlefield(state, target.instanceId, "exile");
+          continue;
+        }
+        // A card exiled out of a graveyard never was on the battlefield, so
+        // nothing is leaving it - Feral Appetite.
+        moveCard(state, target.instanceId, "exile");
       }
       return;
     }
@@ -280,6 +406,17 @@ export function applyEffect(
           instance.temporaryToughnessBonus += toughness;
           for (const keyword of effect.grants ?? []) {
             if (!instance.grantedKeywords.includes(keyword)) instance.grantedKeywords.push(keyword);
+          }
+          /*
+           * A whole ability, handed over for the turn - Root Manipulation.
+           *
+           * Pushed rather than de-duplicated: casting it twice really does give
+           * each creature the ability twice, and each copy triggers. That is
+           * the rule, and it is the opposite of the keyword line above, where a
+           * second copy of menace would mean nothing.
+           */
+          for (const trigger of effect.grantsTriggers ?? []) {
+            instance.grantedTriggers.push(trigger);
           }
         }
       }
@@ -546,7 +683,13 @@ export function applyEffect(
         const step = effect.effects[i]!;
         const rest = effect.effects.slice(i + 1);
         applyEffect(state, controllerId, sourceInstanceId, step, targets, rest);
+        // Both of the steps that stop and ask. A sacrifice choice suspends the
+        // rest of the card exactly as a search does, for the same reason.
         if (state.pendingSearch) return;
+        if (state.pendingSacrifice) {
+          state.pendingSacrifice.followUp = rest;
+          return;
+        }
       }
       return;
     }
@@ -700,6 +843,19 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
   }
 
   /*
+   * Scry's "yes": the card goes to the bottom.
+   *
+   * A reorder rather than a zone change, like `library-top` above and unlike
+   * surveil's graveyard - the card never leaves the library, so nothing
+   * triggers and no counters are cleared.
+   */
+  if (destination === "library-bottom" && instanceId !== null) {
+    const library = requirePlayer(state, playerId).library;
+    const index = library.findIndex((card) => card.instanceId === instanceId);
+    if (index >= 0) library.push(...library.splice(index, 1));
+  }
+
+  /*
    * The rest of whatever this search interrupted - Riveteers Overlook's "and
    * you gain 1 life", which is printed after the shuffle and now happens after
    * it.
@@ -742,6 +898,63 @@ export function resolveDiscard(state: GameState, playerId: string, instanceId: s
   pending.remaining -= 1;
   // Out of cards counts as paid: you discard as much as you can and no more.
   if (pending.remaining <= 0 || player.hand.length === 0) state.pendingDiscards.shift();
+}
+
+/**
+ * Finishes a "you may sacrifice a creature" once its controller has named one -
+ * or declined, where the card allows it.
+ *
+ * The power is read *before* the sacrifice, which is the whole reason this is
+ * one function rather than two steps a caller could get out of order: a moment
+ * later the creature is in a graveyard with its counters stripped, and "X is
+ * that creature's power" would be zero for every creature that was ever
+ * buffed.
+ *
+ * Re-checked against the pending entry rather than trusted, like every other
+ * mid-resolution answer: a client cannot sacrifice somebody else's creature,
+ * and cannot name one the engine did not offer.
+ */
+export function resolveSacrificeChoice(state: GameState, playerId: string, instanceId: string | null): void {
+  const pending = state.pendingSacrifice;
+  if (!pending) throw new Error("No sacrifice is waiting to be resolved");
+  if (pending.playerId !== playerId) throw new Error(`The choice belongs to ${pending.playerId}`);
+  if (instanceId === null && !pending.optional) throw new Error("This sacrifice is not optional");
+  if (instanceId !== null && !pending.candidateInstanceIds.includes(instanceId)) {
+    throw new Error("That creature was not offered for sacrifice");
+  }
+
+  let sacrificedPower = 0;
+  if (instanceId !== null) {
+    const found = findInstance(state, instanceId);
+    // Killed in response, so there is nothing to give up - the "if you do"
+    // half does not happen, which is what "if you do" means.
+    if (found && found.instance.zone === "battlefield") {
+      sacrificedPower = effectivePower(state, found.instance);
+      sacrificePermanent(state, instanceId);
+    } else {
+      instanceId = null;
+    }
+  }
+
+  const { then, followUp, sourceInstanceId, effectControllerId } = pending;
+  // Cleared before running, not after: a follow-up that asks again would
+  // otherwise have its new question wiped out and strand the game.
+  state.pendingSacrifice = null;
+
+  if (instanceId !== null && then) {
+    applyEffect(
+      state,
+      effectControllerId,
+      sourceInstanceId,
+      // The moment `sacrificed-power` becomes a number - see the note in x.ts
+      // on why this could not be substituted any earlier.
+      resolveAmounts(then, { x: 0, sacrificedPower }),
+      [],
+    );
+  }
+  if (followUp?.length) {
+    applyEffect(state, effectControllerId, sourceInstanceId, { kind: "sequence", effects: followUp }, []);
+  }
 }
 
 /** Exported for the bot and UI: the creatures a pumpAll would actually touch. */

@@ -110,7 +110,18 @@ export type Amount =
    * is the single place that turns it into a number, and every handler that
    * takes an `Amount` goes through it.
    */
-  | { kind: "count"; of: Countable };
+  | { kind: "count"; of: Countable }
+  /**
+   * "...where X is the sacrificed creature's power" - Tend the Pests, and the
+   * "if you do" half of Disciple of Freyalise.
+   *
+   * A third moment again, and the reason it is neither of the two above: the
+   * creature is *gone* by the time the effect runs, so nothing downstream could
+   * read it off the board even if it wanted to. The power is captured while the
+   * creature is still on the battlefield - as the cost is paid, or as the
+   * sacrifice is chosen - and substituted the way X is.
+   */
+  | { kind: "sacrificed-power" };
 
 /**
  * What a `count` amount counts. Each entry is a phrase a real card prints, not
@@ -251,7 +262,16 @@ export type Effect =
    * by it. Left to the default, the life would go to the player who was just
    * drained.
    */
-  | { kind: "gainLife"; amount: number; who?: "controller" }
+  | {
+      kind: "gainLife";
+      /**
+       * An `Amount` because of Disciple of Freyalise: "you gain X life ...
+       * where X is that creature's power". Every other printing in the pool is
+       * a plain number and reads exactly as it always did.
+       */
+      amount: Amount;
+      who?: "controller";
+    }
   /**
    * "Prevent the next N damage that would be dealt to any target this turn"
    * (Healing Salve's second mode, and the whole prevention family).
@@ -274,7 +294,65 @@ export type Effect =
    * target it was handed; without this field nothing ever asked for one, so
    * the targeted printing could not be written down at all.
    */
-  | { kind: "addCounter"; amount: number; target?: TargetSelector }
+  | {
+      kind: "addCounter";
+      /**
+       * An `Amount` rather than a number because of The Ozolith: "put **those**
+       * counters on it" means however many the creature that just left was
+       * carrying, which the event supplies as `{ kind: "event-amount" }`.
+       */
+      amount: Amount;
+      target?: TargetSelector;
+    }
+  /**
+   * "Move all counters from this permanent onto target creature" - The
+   * Ozolith's second ability.
+   *
+   * A move rather than an add-and-remove pair, because the two halves must not
+   * be separable: an ability that added the counters without emptying the
+   * source would let The Ozolith pay out every turn from one death.
+   */
+  | { kind: "moveAllCounters"; target: TargetSelector }
+  /**
+   * "Mill N cards" - the top N cards of a library into its owner's graveyard.
+   *
+   * Not a draw and not a loss: milling the last card of a library is legal and
+   * does nothing further. Only *drawing* from an empty library loses the game
+   * (rule 104.3c), which is why this deliberately does not touch
+   * `attemptedDrawFromEmptyLibrary`.
+   */
+  | { kind: "mill"; amount: Amount }
+  /**
+   * "Look at the top N cards of your library. You may put any of them on the
+   * bottom" - scry, as printed on Path of Ancestry.
+   *
+   * The same interaction as surveil and rides on the same machinery (see
+   * `PendingSearch.noShuffle`); only the destination differs, which is exactly
+   * the difference between the two keywords.
+   */
+  | { kind: "scry"; amount: 1 }
+  /**
+   * "You may sacrifice another creature. **If you do**, ..." - Disciple of
+   * Freyalise.
+   *
+   * Distinct from `AdditionalCost`'s sacrifice, and the difference is not
+   * cosmetic: a cost is paid as the spell is cast and is not optional once
+   * announced, where this is a choice made *while the ability resolves* and can
+   * be declined. Tend the Pests cannot be cast at all without a creature to
+   * give up; Disciple of Freyalise is a perfectly good 3/3 with none.
+   *
+   * Stops the game and asks - see `PendingSacrifice`. `then` runs only if a
+   * creature was actually given up, with `sacrificed-power` substituted.
+   */
+  | {
+      kind: "sacrificeChosen";
+      /** "You **may** sacrifice" - false would be "sacrifice a creature", which no card here prints. */
+      optional?: boolean;
+      /** "Another creature" - excludes the permanent whose ability this is. */
+      excludeSelf?: boolean;
+      /** The "if you do" half. */
+      then?: Effect;
+    }
   /**
    * "Put `amount` +1/+1 counters on each other creature you control" (The
    * Falcon, Sam Wilson), optionally narrowed to a subtype - "each other Hero
@@ -405,6 +483,17 @@ export type Effect =
        * right home for it rather than a separate effect.
        */
       grants?: Keyword[];
+      /**
+       * "...and gain **'Whenever this creature attacks, you gain 1 life'**" -
+       * Root Manipulation, which hands out a whole triggered ability rather
+       * than a keyword.
+       *
+       * The same problem granted keywords had, one level up: the moment an
+       * ability can be given to a creature that never printed it, no fire site
+       * may read `CardDefinition.triggeredAbilities` directly. See
+       * `effectiveTriggers`.
+       */
+      grantsTriggers?: TriggeredAbility[];
       /**
        * Heroic Intervention says **permanents**, not creatures. Everything else
        * in this family says creatures, so that stays the default - widening it
@@ -632,7 +721,15 @@ export type BoardCondition =
    * "you control two or more green permanents" - Sapseep Forest. Colour, not
    * colour identity: a Forest is a colourless permanent. See `cardColors`.
    */
-  | { kind: "controls-color"; color: Color; count: number };
+  | { kind: "controls-color"; color: Color; count: number }
+  /**
+   * "If you control a commander" - Deadly Rollick and the free-spell cycle.
+   *
+   * On the battlefield only, which is what "control" means: a commander sitting
+   * in the command zone is not controlled by anybody in play, and reading the
+   * command zone here would make the card free on turn one of every game.
+   */
+  | { kind: "controls-commander" };
 
 /**
  * "If an effect would X instead" - a replacement effect.
@@ -704,6 +801,34 @@ export type TriggerEvent =
    */
   | "permanent-dies"
   /**
+   * "Whenever a player sacrifices a nontoken creature" - Fumulus, the
+   * Infestation.
+   *
+   * Not the same event as `permanent-dies`, even though every sacrifice is
+   * also a death. A creature killed in combat dies and is not sacrificed, so a
+   * card written the other way round would pay out on every board stall; and
+   * `watches: "any"` here means genuinely any player's sacrifice, which is what
+   * "a player" says.
+   */
+  | "permanent-sacrificed"
+  /**
+   * "Whenever an Insect, Leech, Slug, or Worm you control attacks" - Fumulus.
+   *
+   * The watcher twin of `attacks`, which only ever watches the card it is
+   * printed on. Fired once per declared attacker, after every attacker is
+   * declared, because declaring attackers is one simultaneous action.
+   */
+  | "permanent-attacks"
+  /**
+   * "Whenever a creature you control **leaves the battlefield**" - The Ozolith.
+   *
+   * Wider than `permanent-dies` on purpose: a creature exiled, bounced or
+   * tucked has left the battlefield without dying, and The Ozolith catches its
+   * counters all the same. The number it was carrying is handed to the effect
+   * as `{ kind: "event-amount" }`, captured before the move clears them.
+   */
+  | "leaves-battlefield"
+  /**
    * "Whenever you gain life." Watches the *controller* of the permanent the
    * ability is printed on, so it fires however the life arrived - a spell, a
    * land, lifelink in combat - rather than needing every source to know about
@@ -755,6 +880,16 @@ export type TriggerEvent =
 export type TriggerCondition =
   /** Deathreap Ritual's morbid. Counts deaths anywhere, not just the controller's. */
   | { kind: "creature-died-this-turn" }
+  /**
+   * "if The Ozolith has counters on it" - a question about the permanent
+   * printing the trigger rather than about the board, which is why it is not a
+   * `BoardCondition`.
+   *
+   * Being an intervening-if matters here more than usual: the counters can be
+   * moved away in response, and a condition checked only once would let the
+   * ability resolve and put nothing anywhere.
+   */
+  | { kind: "source-has-counters" }
   /** Ophiomancer: "if you control no Snakes". A `BoardCondition` read as a negation. */
   | { kind: "not"; condition: BoardCondition };
 
@@ -804,7 +939,13 @@ export interface TriggeredAbility {
      * than two, because it is one question.
      */
     type?: CardType | CardType[];
-    subtype?: string;
+    /**
+     * The creature type the subject has to have. A list means any one of them
+     * qualifies - Fumulus watches "an **Insect, Leech, Slug, or Worm** you
+     * control", which is one question with four acceptable answers, exactly as
+     * `type` above is.
+     */
+    subtype?: string | string[];
     /**
      * "a creature you control **with a +1/+1 counter on it**" - Meltstrider
      * Eulogist. Read at the moment of the event, which for a death means the
@@ -917,6 +1058,14 @@ export interface ActivatedAbility {
    */
   producesRestrictedMana?: ManaSpendRestriction;
   /**
+   * "When that mana is spent to cast ..., scry 1" - Path of Ancestry.
+   *
+   * Marks the mana this ability produces without restricting it. The mana goes
+   * into the ordinary pool and can pay for anything; the mark only decides
+   * whether a trigger fires when it is spent. See `ManaMark`.
+   */
+  marksMana?: ManaSpendRider;
+  /**
    * "Activate only if you control a Swamp." - Tainted Wood, Wastewood Verge,
    * Sapseep Forest.
    *
@@ -939,6 +1088,92 @@ export interface ActivatedAbility {
    * remember to run.
    */
   damageToController?: number;
+}
+
+/**
+ * "As an additional cost to cast this spell, ..." - a price paid on top of the
+ * mana, at the moment of casting (rule 601.2f-h).
+ *
+ * Additional rather than alternative, and the word is the whole rule: Toxic
+ * Deluge costs {2}{B} *and* X life. A cost is also not the same thing as an
+ * effect that happens to do the same job - it is paid before the spell is on
+ * the stack, it cannot be responded to, and a spell whose additional cost
+ * cannot be paid cannot be cast at all. That last part is why Tend the Pests is
+ * uncastable with an empty board, where a card that sacrificed on resolution
+ * would still be a legal, useless spell.
+ */
+export type AdditionalCost =
+  /**
+   * "Pay X life" - Toxic Deluge, where X is announced as the spell is cast and
+   * then read by its effect. The `Amount` is `{ kind: "x" }` for that card and
+   * a plain number for anything printing a fixed figure.
+   */
+  | { kind: "pay-life"; amount: Amount }
+  /**
+   * "Sacrifice a creature" - Tend the Pests. Which creature is the caster's
+   * choice, announced with the spell rather than asked for afterwards, because
+   * that is when the cost is paid.
+   */
+  | { kind: "sacrifice-creature" };
+
+/**
+ * "If you control a commander, you may cast this spell without paying its mana
+ * cost." - Deadly Rollick.
+ *
+ * An *alternative* cost replaces the mana cost outright, where an
+ * `AdditionalCost` is paid beside it. Optional in every printing of this shape,
+ * so it is offered rather than applied: casting Deadly Rollick for its mana
+ * cost is sometimes right, and always legal.
+ */
+export interface AlternativeCost {
+  /** When the alternative is available at all. */
+  condition: BoardCondition;
+  /** The printed wording, for the client's offer - "cast without paying its mana cost?". */
+  label: string;
+}
+
+/**
+ * A rider carried by a specific lump of mana, which fires when that mana is
+ * spent on a particular kind of spell - Path of Ancestry.
+ *
+ * Deliberately not a `ManaSpendRestriction`: this mana may be spent on anything
+ * at all, and writing it as a restriction would forbid the very plays the card
+ * allows. What it carries is a *marking*, not a limit. See `ManaMark`.
+ */
+export type ManaSpendRider = {
+  kind: "scry-on-creature-sharing-commander-type";
+  amount: 1;
+};
+
+/**
+ * One lump of mana in the ordinary pool that remembers where it came from.
+ *
+ * Unlike `RestrictedMana` this is *not* held apart from the pool - the mana is
+ * fully interchangeable and every affordability check should count it. The mark
+ * is an annotation alongside, consumed when the pool's count of that colour
+ * actually drops to pay for a spell.
+ */
+export interface ManaMark {
+  color: ManaColor;
+  amount: number;
+  /** The permanent that made it, so its trigger has a source to fire from. */
+  sourceInstanceId: string;
+  rider: ManaSpendRider;
+}
+
+/**
+ * Rules the card changes about the turn itself, rather than about any
+ * permanent's characteristics.
+ *
+ * A separate field rather than another `staticBuff` because these are not
+ * continuous effects on objects at all - they are permissions granted to the
+ * controller, read by `playLand` rather than by anything that computes stats.
+ */
+export interface StaticRules {
+  /** "You may play an additional land on each of your turns" - Icetill Explorer. */
+  extraLandDrops?: number;
+  /** "You may play lands from your graveyard" - Icetill Explorer's second line. */
+  playLandsFromGraveyard?: boolean;
 }
 
 /**
@@ -971,6 +1206,14 @@ export interface CardDefinition {
   keywords?: Keyword[];
   /** Only meaningful when `keywords` includes "Ward" - the mana cost an opponent must pay when targeting this permanent, or their spell/ability is countered. */
   wardCost?: ManaCost;
+  /**
+   * "Ward-Pay 3 life" - Sedgemoor Witch. Ward's cost is not always mana, and a
+   * life ward written as a mana ward would be both easier and harder to pay
+   * than the card at once.
+   *
+   * Set instead of `wardCost`, not beside it: no printing asks for both.
+   */
+  wardLifeCost?: number;
   /**
    * A continuous "other creatures you control get +N/+N" effect, optionally
    * narrowed to a subtype (the "lord" pattern - "other Elves you control get
@@ -1097,6 +1340,15 @@ export interface CardDefinition {
    * engine answers on its own from the board.
    */
   entersTappedUnlessPayLife?: number;
+  /**
+   * Rules this permanent changes about its controller's turn - extra land
+   * drops, and where lands may be played from. Battlefield only.
+   */
+  staticRules?: StaticRules;
+  /** "As an additional cost to cast this spell, ..." - paid at cast time. */
+  additionalCost?: AdditionalCost;
+  /** "You may cast this spell without paying its mana cost" - offered at cast time. */
+  alternativeCost?: AlternativeCost;
   triggeredAbilities?: TriggeredAbility[];
   activatedAbilities?: ActivatedAbility[];
   /** What resolving this spell does, for instants/sorceries. */
@@ -1176,6 +1428,15 @@ export interface CardInstance {
    * granting.
    */
   grantedKeywords: Keyword[];
+  /**
+   * Whole triggered abilities handed to this permanent until end of turn -
+   * Root Manipulation's "Whenever this creature attacks, you gain 1 life".
+   *
+   * The exact twin of `grantedKeywords`, cleared at the same two moments, and
+   * carrying the same rule: nothing may read `CardDefinition.triggeredAbilities`
+   * directly any more. Ask `effectiveTriggers`.
+   */
+  grantedTriggers: TriggeredAbility[];
   /**
    * A shield of damage yet to be prevented - "prevent the next N damage that
    * would be dealt to this creature this turn". Consumed by the next damage
@@ -1293,6 +1554,44 @@ export interface PendingConfirmation {
  * is doing this to you. There is nothing to decline - discarding is not
  * optional, and a player with an empty hand is simply never asked.
  */
+/**
+ * A resolving ability that has stopped to ask which of your creatures you are
+ * giving up - Disciple of Freyalise's "you may sacrifice another creature".
+ *
+ * Distinct from `AdditionalCost`'s sacrifice, which is announced as the spell
+ * is cast and never reaches this state. The difference shows in the two things
+ * this carries and a cost does not: it can be declined, and the "if you do"
+ * half is held here until the answer is known.
+ *
+ * A single slot rather than a queue, like `pendingSearch` and for the same
+ * reason: it interrupts one resolution, and nothing can start another while the
+ * game is holding priority for it.
+ */
+export interface PendingSacrifice {
+  playerId: string;
+  /** The permanent whose ability this is, so the client can show it beside the question. */
+  sourceInstanceId: string;
+  /** The creatures that may be given up, worked out by the engine. */
+  candidateInstanceIds: string[];
+  /** "You **may** sacrifice" - whether declining is allowed. */
+  optional: boolean;
+  prompt: string;
+  /**
+   * The "if you do" half, run only if a creature was actually sacrificed, with
+   * `sacrificed-power` substituted for the creature's power at the moment it
+   * was still on the battlefield.
+   */
+  then?: Effect;
+  /** Whose ability it is, which is who the follow-up belongs to. */
+  effectControllerId: string;
+  /**
+   * The rest of a `sequence` this choice interrupted, held for the same reason
+   * `PendingSearch.followUp` is: anything printed after the sacrifice has to
+   * wait until it is answered, or it happens in the wrong order.
+   */
+  followUp?: Effect[];
+}
+
 export interface PendingDiscard {
   /** Whose hand it comes out of, and who chooses. Not the caster. */
   playerId: string;
@@ -1356,7 +1655,7 @@ export interface PendingSearch {
   sourceInstanceId: string;
   /** Card instances in that player's library that match the search restriction. */
   candidateInstanceIds: string[];
-  destination: "hand" | "battlefield" | "library-top" | "graveyard";
+  destination: "hand" | "battlefield" | "library-top" | "graveyard" | "library-bottom";
   tapped?: boolean;
   /**
    * "Then shuffle" is on every tutor and on no surveil, so the shuffle is
@@ -1456,6 +1755,11 @@ export interface Player {
    * Emptied with the pool at end of turn.
    */
   restrictedMana: RestrictedMana[];
+  /**
+   * Marks on mana sitting in the ordinary pool - see `ManaMark`. Emptied with
+   * the pool, because a mark cannot outlive the mana it is on.
+   */
+  manaMarks: ManaMark[];
   /** How many times each of this player's commanders has been cast from the command zone this game (for commander tax). */
   commanderCastCount: Record<string, number>;
   hasLost: boolean;
@@ -1552,6 +1856,11 @@ export interface GameState {
    * while this is non-empty nobody gets priority and no step advances.
    */
   pendingDiscards: PendingDiscard[];
+  /**
+   * A resolution waiting on "which creature do you sacrifice?". Gates priority
+   * and step advance exactly like `pendingSearch`. See `PendingSacrifice`.
+   */
+  pendingSacrifice: PendingSacrifice | null;
   /**
    * How many creatures have died this turn, for morbid ("if a creature died
    * this turn"). Reset in cleanup with everything else that lasts a turn.

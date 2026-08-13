@@ -363,15 +363,32 @@ describe("which ability, when a permanent has more than one", () => {
 });
 
 describe("what the generator refused", () => {
-  it("has no Path of Ancestry", () => {
+  it("Path of Ancestry carries its scry rider, not just Command Tower's mana", () => {
     /*
-     * Its mana half is Command Tower, which works. The rest of the line -
+     * This test used to assert the card was *absent*, because its second line -
      * "when that mana is spent to cast a creature spell that shares a creature
-     * type with your commander, scry 1" - needs mana to remember where it came
-     * from, a scry, and a creature-type match against the commander. Written
-     * without them it would be a Command Tower that also enters tapped, which
-     * is a strictly worse card than the one printed.
+     * type with your commander, scry 1" - needed mana to remember where it came
+     * from. Written without that it would be a Command Tower that also enters
+     * tapped, which is strictly worse than the printed card.
+     *
+     * All three pieces exist now (`ManaMark`, the scry effect, and
+     * `commanderCreatureTypes`), so the assertion is the other way round: every
+     * one of its mana abilities must carry the rider, or the half that was
+     * missing is missing again on whichever colour was forgotten.
      */
-    expect(TEST_CARD_DEFINITIONS["path-of-ancestry"]).toBeUndefined();
+    const path = TEST_CARD_DEFINITIONS["path-of-ancestry"];
+    expect(path).toBeDefined();
+    expect(path!.entersTapped).toBe(true);
+    expect(path!.activatedAbilities).toHaveLength(5);
+    for (const ability of path!.activatedAbilities ?? []) {
+      expect(ability.colorFrom).toBe("commander-identity");
+      expect(ability.marksMana).toEqual({
+        kind: "scry-on-creature-sharing-commander-type",
+        amount: 1,
+      });
+      // Marked, never restricted: this mana may pay for anything at all, and
+      // writing it as restricted would forbid the plays the card allows.
+      expect(ability.producesRestrictedMana).toBeUndefined();
+    }
   });
 });

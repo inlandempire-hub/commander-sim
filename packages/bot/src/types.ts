@@ -9,7 +9,22 @@ import type { AttackerDeclaration, BlockerDeclaration, StackTarget } from "@mtg-
  */
 export type BotAction =
   | { kind: "playLand"; instanceId: string }
-  | { kind: "castSpell"; instanceId: string; targets: StackTarget[]; fromCommandZone: boolean }
+  | {
+      kind: "castSpell";
+      instanceId: string;
+      targets: StackTarget[];
+      fromCommandZone: boolean;
+      /**
+       * The value announced for {X}, when the card asks for one. Omitted for
+       * every card that does not, and the engine refuses a card that needs one
+       * without it - which is why this is decided here rather than left out.
+       */
+      chosenX?: number;
+      /** The creature given up for "as an additional cost, sacrifice a creature". */
+      sacrificeInstanceId?: string;
+      /** "You may cast this spell without paying its mana cost." */
+      useAlternativeCost?: boolean;
+    }
   | { kind: "activateAbility"; instanceId: string; abilityIndex: number; targets: StackTarget[] }
   | { kind: "declareAttackers"; declarations: AttackerDeclaration[] }
   | { kind: "declareBlockers"; declarations: BlockerDeclaration[] }
@@ -21,6 +36,7 @@ export type BotAction =
   | { kind: "chooseTriggerTarget"; target: StackTarget }
   /** Choosing which card to pitch when an opponent's spell demands a discard. */
   | { kind: "resolveDiscard"; instanceId: string }
+  | { kind: "resolveSacrificeChoice"; instanceId: string | null }
   /** Settling an opening hand, before the game has begun. */
   | { kind: "takeMulligan" }
   | { kind: "keepHand" }

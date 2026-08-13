@@ -183,6 +183,28 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
     return { kind: "resolveDiscard", instanceId: chooseDiscard(state, me) };
   }
 
+  /*
+   * "You may sacrifice another creature." Declined outright when the card
+   * allows it.
+   *
+   * Not because giving one up is never right - Disciple of Freyalise trades a
+   * creature for that many cards and that much life, which is often a fine
+   * deal - but because the bot has no way to weigh a creature against cards,
+   * and a rule that always said yes would feed it its best creature every
+   * time. Declining is the play it can defend.
+   */
+  if (state.pendingSacrifice?.playerId === botPlayerId) {
+    const pending = state.pendingSacrifice;
+    if (pending.optional) return { kind: "resolveSacrificeChoice", instanceId: null };
+    // Not optional: give up the weakest thing on the board, the same rule the
+    // additional-cost version uses.
+    const weakest = pending.candidateInstanceIds
+      .map((id) => me.battlefield.find((c) => c.instanceId === id))
+      .filter((c): c is NonNullable<typeof c> => c !== undefined)
+      .sort((a, b) => power(state, a) - power(state, b))[0];
+    return { kind: "resolveSacrificeChoice", instanceId: weakest?.instanceId ?? null };
+  }
+
   // Opening hands come before even that: the game has not started, nobody has
   // priority, and nothing at all can happen until this is settled.
   if (state.mulligan?.playerId === botPlayerId) {
@@ -697,10 +719,15 @@ function gainLifeIfDesperate(state: GameState, me: Player): BotAction | null {
   if (me.life > 15) return null;
   const heals = castableFromHand(state, me, (def) => def.castEffect?.kind === "gainLife");
   if (heals.length === 0) return null;
-  heals.sort((a, b) => {
-    const aAmount = a.definition.castEffect?.kind === "gainLife" ? a.definition.castEffect.amount : 0;
-    const bAmount = b.definition.castEffect?.kind === "gainLife" ? b.definition.castEffect.amount : 0;
-    return bAmount - aAmount;
-  });
+  // A gain-life amount can now be a phrase rather than a number - Disciple of
+  // Freyalise gains "that creature's power". Sorting is only about which heal
+  // is biggest, so anything the bot cannot read a number out of sorts last
+  // rather than being excluded: it is still a heal, just not a countable one.
+  const healFor = (entry: (typeof heals)[number]): number => {
+    const effect = entry.definition.castEffect;
+    if (effect?.kind !== "gainLife") return 0;
+    return typeof effect.amount === "number" ? effect.amount : 0;
+  };
+  heals.sort((a, b) => healFor(b) - healFor(a));
   return castOrTapToward(state, me, heals[0]!, [{ kind: "player", playerId: me.id }]);
 }

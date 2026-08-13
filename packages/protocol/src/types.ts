@@ -21,6 +21,14 @@ export type ClientMessage =
       fromCommandZone?: boolean;
       chosenMode?: number;
       chosenX?: number;
+      /**
+       * The creature given up for "as an additional cost, sacrifice a
+       * creature", and whether the card's alternative cost is being taken.
+       * Both are announced with the spell for the same reason the two above
+       * are: they are part of casting it, not of resolving it.
+       */
+      sacrificeInstanceId?: string;
+      useAlternativeCost?: boolean;
     }
   | { type: "activateAbility"; instanceId: string; abilityIndex: number; targets?: StackTarget[] }
   | { type: "declareAttackers"; declarations: AttackerDeclaration[] }
@@ -33,6 +41,12 @@ export type ClientMessage =
   | { type: "chooseTriggerTarget"; target: StackTarget }
   /** Choosing which card to discard, from your own hand, when a spell demands it. */
   | { type: "resolveDiscard"; instanceId: string }
+  /**
+   * Which creature is being given up for a "you may sacrifice a creature"
+   * that has stopped mid-resolution. `null` declines, which the engine
+   * refuses unless the card said "may".
+   */
+  | { type: "resolveSacrificeChoice"; instanceId: string | null }
   | { type: "takeMulligan" }
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }

@@ -44,6 +44,9 @@ function toClientMessage(action: BotAction): ClientMessage | null {
         instanceId: action.instanceId,
         targets: action.targets,
         fromCommandZone: action.fromCommandZone,
+        chosenX: action.chosenX,
+        sacrificeInstanceId: action.sacrificeInstanceId,
+        useAlternativeCost: action.useAlternativeCost,
       };
     case "activateAbility":
       return {
@@ -64,6 +67,8 @@ function toClientMessage(action: BotAction): ClientMessage | null {
       return { type: "chooseTriggerTarget", target: action.target };
     case "resolveDiscard":
       return { type: "resolveDiscard", instanceId: action.instanceId };
+    case "resolveSacrificeChoice":
+      return { type: "resolveSacrificeChoice", instanceId: action.instanceId };
     case "takeMulligan":
       return { type: "takeMulligan" };
     case "keepHand":

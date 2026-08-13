@@ -90,6 +90,9 @@ function perform(controller: GameController, playerId: string, action: BotAction
       return;
     case "castSpell":
       controller.castSpell(playerId, action.instanceId, action.targets, {
+        chosenX: action.chosenX,
+        sacrificeInstanceId: action.sacrificeInstanceId,
+        useAlternativeCost: action.useAlternativeCost,
         fromCommandZone: action.fromCommandZone,
       });
       return;
@@ -113,6 +116,9 @@ function perform(controller: GameController, playerId: string, action: BotAction
       return;
     case "resolveDiscard":
       controller.resolveDiscard(playerId, action.instanceId);
+      break;
+    case "resolveSacrificeChoice":
+      controller.resolveSacrificeChoice(playerId, action.instanceId);
       return;
     case "takeMulligan":
       controller.takeMulligan(playerId);

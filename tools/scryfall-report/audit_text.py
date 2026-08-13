@@ -92,6 +92,22 @@ def card_features(fx):
         feat.add("replacementEffects")
     if fx.get("wardCost"):
         feat.add("ward")
+    # Ward's cost is not always mana - Sedgemoor Witch asks for life.
+    if fx.get("wardLifeCost") is not None:
+        feat.add("ward")
+    if fx.get("additionalCost"):
+        feat.add("additionalCost")
+        if fx["additionalCost"].get("kind") == "pay-life":
+            feat.add("additionalCostLife")
+        if fx["additionalCost"].get("kind") == "sacrifice-creature":
+            feat.add("additionalCostSacrifice")
+    if fx.get("alternativeCost"):
+        feat.add("alternativeCost")
+    rules = fx.get("staticRules") or {}
+    if rules.get("extraLandDrops"):
+        feat.add("extraLandDrops")
+    if rules.get("playLandsFromGraveyard"):
+        feat.add("playLandsFromGraveyard")
     if fx.get("equipCost"):
         feat.add("equipCost")
     for ability in fx.get("activatedAbilities") or []:
@@ -102,6 +118,11 @@ def card_features(fx):
             feat.add("sacrificeSelf")
         if ability.get("activateOnlyIf"):
             feat.add("activateOnlyIf")
+        # Path of Ancestry's "when that mana is spent ..., scry 1" - a rider on
+        # the mana rather than a triggered ability, so it is a feature of the
+        # ability that made it.
+        if ability.get("marksMana"):
+            feat.add("manaSpendRider")
         if ability.get("damageToController"):
             feat.add("damageToController")
         if ability.get("anyColour") or ability.get("anyColor"):
@@ -216,6 +237,25 @@ RULES = [
     (r"\bif an effect would\b", {"replacementEffects"}),
     (r"\bif one or more counters would be put on\b", {"replacementEffects"}),
     (r"^ward\b", {"ward"}),
+    # Costs that are not mana. Tied to the specific `additionalCost` kind
+    # rather than to the words "additional cost", because the two halves are
+    # paid in completely different ways and a card written with the wrong one
+    # is exactly what this should catch.
+    (r"^as an additional cost to cast this spell, pay x? ?\d* ?life", {"additionalCostLife"}),
+    (r"^as an additional cost to cast this spell, sacrifice a creature", {"additionalCostSacrifice"}),
+    (r"you may cast this spell without paying its mana cost", {"alternativeCost"}),
+    # Rules the card changes about the turn itself - Icetill Explorer.
+    (r"you may play an additional land", {"extraLandDrops"}),
+    (r"you may play lands from your graveyard", {"playLandsFromGraveyard"}),
+    # Path of Ancestry's rider.
+    (r"^when that mana is spent", {"manaSpendRider"}),
+    # A sacrifice the player chooses while the ability resolves, which is a
+    # different thing from `sacrifice: self` and from the cost above.
+    (r"\byou may sacrifice (another|a) creature\b", {"sacrificeChosen"}),
+    # The Ozolith, both halves.
+    (r"\bleaves the battlefield\b", {"addCounter"}),
+    (r"\bmove all counters\b", {"moveAllCounters"}),
+    (r"\bscry \d+\b", {"scry", "manaSpendRider"}),
 ]
 
 

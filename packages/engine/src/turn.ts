@@ -3,6 +3,7 @@ import { drawCard, requireDefinition } from "./state.js";
 import { emptyManaPool } from "./mana.js";
 import { combatHasFirstStrike, dealCombatDamage } from "./combat.js";
 import { pushTrigger } from "./permanents.js";
+import { effectiveTriggers } from "./counters.js";
 
 const TURN_SEQUENCE: Array<{ phase: Phase; step: Step }> = [
   { phase: "beginning", step: "untap" },
@@ -144,8 +145,7 @@ function fireTurnTriggers(state: GameState): void {
   for (let offset = 0; offset < state.players.length; offset++) {
     const player = state.players[(state.activePlayerIndex + offset) % state.players.length]!;
     for (const instance of [...player.battlefield]) {
-      const def = requireDefinition(state, instance.definitionId);
-      for (const trigger of def.triggeredAbilities ?? []) {
+      for (const trigger of effectiveTriggers(state, instance)) {
         if (trigger.event !== match.event) continue;
         if ((trigger.watches ?? "controller") === "controller" && player.id !== activePlayerId) continue;
         pushTrigger(state, instance.instanceId, player.id, trigger);
@@ -202,6 +202,7 @@ function runAutomaticStepActions(state: GameState): void {
           instance.damageMarked = 0;
           instance.deathtouchDamage = false;
           instance.grantedKeywords = []; // Heroic Intervention's hexproof wears off with everything else
+          instance.grantedTriggers = []; // as does Root Manipulation's granted ability
           instance.temporaryPowerBonus = 0; // "until end of turn" effects wear off here
           instance.temporaryToughnessBonus = 0;
           instance.damagePrevention = 0;

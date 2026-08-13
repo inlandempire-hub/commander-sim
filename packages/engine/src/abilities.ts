@@ -147,6 +147,20 @@ export function activateAbility(
       });
     } else {
       applyEffect(state, playerId, instanceId, ability.effect, targets);
+      /*
+       * Path of Ancestry's rider, recorded beside the mana rather than instead
+       * of it: the mana is already in the ordinary pool by the line above and
+       * stays fully spendable. All this adds is a note of where it came from,
+       * read when it is spent. See `ManaMark`.
+       */
+      if (ability.marksMana && ability.effect.kind === "addMana") {
+        player.manaMarks.push({
+          color: ability.effect.color,
+          amount: ability.effect.amount,
+          sourceInstanceId: instanceId,
+          rider: ability.marksMana,
+        });
+      }
     }
     /*
      * "Add {B}. This land deals 1 damage to you."

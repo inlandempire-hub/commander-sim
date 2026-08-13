@@ -6,6 +6,7 @@ import type {
   GameState,
   ManaColor,
   ManaCost,
+  ManaMark,
   ManaPool,
   ManaSpendRestriction,
   Player,
@@ -118,6 +119,8 @@ export function addMana(pool: ManaPool, color: ManaColor, amount: number): void 
 export function emptyManaPool(player: Player): void {
   player.manaPool = {};
   player.restrictedMana = [];
+  // A mark cannot outlive the mana it is on: the pool empties, so it goes too.
+  player.manaMarks = [];
 }
 
 /**
@@ -172,14 +175,26 @@ export function payManaCostFor(
   player: Player,
   cost: ManaCost,
   def?: CardDefinition,
-): ManaSpendRestriction[] {
+): PaymentDrawnOn {
   if (!canPayManaCostFromPool(spendablePool(player, def), cost)) {
     throw new Error(`${player.id} cannot pay mana cost`);
   }
+  /*
+   * Which colours the ordinary pool held before any of this, so the marks
+   * consumed can be worked out by comparison afterwards.
+   *
+   * A comparison rather than bookkeeping inside the payment routine, because
+   * the payment routine is shared with every non-casting cost and marks only
+   * matter when casting. It is also exact: a mark is spent precisely when the
+   * pool's count of that colour goes down, which is the only thing "that mana
+   * was spent" can mean once mana of a colour is interchangeable.
+   */
+  const before: ManaPool = { ...player.manaPool };
+
   const usable = player.restrictedMana.filter((lump) => restrictionAllows(lump.restriction, def));
   if (usable.length === 0) {
     payManaCost(player, cost);
-    return [];
+    return { restrictions: [], marks: consumeMarks(player, before) };
   }
 
   /*
@@ -228,7 +243,68 @@ export function payManaCostFor(
 
   player.restrictedMana = player.restrictedMana.filter((lump) => lump.amount > 0);
   payManaCost(player, remaining);
-  return [...used];
+  return { restrictions: [...used], marks: consumeMarks(player, before) };
+}
+
+/**
+ * What a casting payment actually drew on, beyond the raw numbers.
+ *
+ * Two lists rather than one because they are opposites: a restriction limited
+ * what the mana could be spent on and may change what the spell does, where a
+ * mark limited nothing and only says where the mana came from.
+ */
+export interface PaymentDrawnOn {
+  restrictions: ManaSpendRestriction[];
+  marks: ManaMark[];
+}
+
+/**
+ * Spends the marks on whatever mana just left the pool, and reports them.
+ *
+ * Reads the difference between the pool before and after paying rather than
+ * being told, so it cannot disagree with what was actually spent. Marks of a
+ * colour are taken in the order they were made, which is the order the lands
+ * were tapped - arbitrary between two identical marks, and identical marks are
+ * interchangeable anyway.
+ */
+function consumeMarks(player: Player, before: ManaPool): ManaMark[] {
+  if (player.manaMarks.length === 0) return [];
+  const spent: ManaMark[] = [];
+  for (const mark of player.manaMarks) {
+    // Colourless mana lands in the generic bucket - see addMana.
+    const key = mark.color === "C" ? "generic" : mark.color;
+    const used = (before[key] ?? 0) - (player.manaPool[key] ?? 0);
+    if (used <= 0) continue;
+    const take = Math.min(mark.amount, used);
+    mark.amount -= take;
+    // Charged against this mark so a second mark of the same colour is not
+    // paid for by the same point of mana.
+    before[key] = (before[key] ?? 0) - take;
+    spent.push({ ...mark, amount: take });
+  }
+  player.manaMarks = player.manaMarks.filter((mark) => mark.amount > 0);
+  return spent;
+}
+
+/**
+ * Every creature type printed on this player's commanders.
+ *
+ * The twin of `commanderColorIdentity`, and read the same way: from the
+ * commanders themselves in whatever zone they are in, because the commander is
+ * the rule rather than something the deck records.
+ */
+export function commanderCreatureTypes(state: GameState, playerId: string): string[] {
+  const player = requirePlayer(state, playerId);
+  const types = new Set<string>();
+  for (const zone of [player.command, player.battlefield, player.graveyard, player.hand, player.library, player.exile]) {
+    for (const instance of zone) {
+      if (!instance.isCommander) continue;
+      const def = requireDefinition(state, instance.definitionId);
+      if (!def.types.includes("Creature")) continue;
+      for (const subtype of def.subtypes ?? []) types.add(subtype);
+    }
+  }
+  return [...types];
 }
 
 /**

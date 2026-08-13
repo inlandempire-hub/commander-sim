@@ -76,6 +76,14 @@ export function meetsBoardCondition(
       });
       return matching.length >= condition.count;
     }
+    case "controls-commander":
+      /*
+       * On the battlefield, which is what "control" means. A commander waiting
+       * in the command zone is not controlled by anyone in play, and counting
+       * it would make Deadly Rollick free from the opening hand of every game
+       * - which is precisely the drawback the card is built around.
+       */
+      return others.some((card) => card.isCommander);
   }
 }
 

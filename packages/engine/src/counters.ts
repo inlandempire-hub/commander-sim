@@ -1,4 +1,4 @@
-import type { CardDefinition, CardInstance, GameState, Keyword } from "./types.js";
+import type { CardDefinition, CardInstance, GameState, Keyword, TriggeredAbility } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 
 /**
@@ -107,6 +107,26 @@ export function effectiveKeywords(state: GameState, instance: CardInstance): Key
 /** Convenience for the common single-keyword question. */
 export function hasKeyword(state: GameState, instance: CardInstance, keyword: Keyword): boolean {
   return effectiveKeywords(state, instance).includes(keyword);
+}
+
+/**
+ * Every triggered ability this permanent has right now - printed, and handed to
+ * it for the turn by something like Root Manipulation.
+ *
+ * **Nothing may read `CardDefinition.triggeredAbilities` directly**, for exactly
+ * the reason nothing may read the printed keyword list: the moment an ability
+ * can be granted, the printed list is a stale answer, and the failure is silent
+ * - the card panel shows the granted ability and combat simply never fires it.
+ *
+ * Off the battlefield only the printed abilities apply. That is not a shortcut:
+ * an until-end-of-turn grant is cleared by the zone change anyway, so this is
+ * the same answer arrived at sooner, and it keeps every fire site that reads a
+ * card in hand or graveyard behaving as it always did.
+ */
+export function effectiveTriggers(state: GameState, instance: CardInstance): TriggeredAbility[] {
+  const printed = requireDefinition(state, instance.definitionId).triggeredAbilities ?? [];
+  if (instance.zone !== "battlefield" || instance.grantedTriggers.length === 0) return printed;
+  return [...printed, ...instance.grantedTriggers];
 }
 
 /** A creature's power including +1/+1 counters, any until-end-of-turn bonus, and any anthem effects - use this instead of reading `CardDefinition.power` directly wherever combat or state-based actions care about a creature's current stats. */

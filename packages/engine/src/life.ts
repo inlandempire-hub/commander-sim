@@ -1,6 +1,7 @@
 import type { GameState } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 import { pushTrigger } from "./permanents.js";
+import { effectiveTriggers } from "./counters.js";
 
 /**
  * Gaining life, and the one door it all goes through.
@@ -31,8 +32,7 @@ export function gainLife(state: GameState, playerId: string, amount: number): vo
    * is the sort of thing that works until the day a token maker is added.
    */
   for (const instance of [...player.battlefield]) {
-    const def = requireDefinition(state, instance.definitionId);
-    for (const trigger of def.triggeredAbilities ?? []) {
+    for (const trigger of effectiveTriggers(state, instance)) {
       if (trigger.event !== "gain-life") continue;
       pushTrigger(state, instance.instanceId, playerId, trigger);
     }

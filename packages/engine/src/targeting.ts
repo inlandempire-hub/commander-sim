@@ -139,6 +139,16 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "returnFromExile":
     case "preventDamage":
     case "regenerate":
+    /*
+     * "Move all counters from The Ozolith onto **target creature**" - always
+     * targeted, never optional, which is why it sits with this group.
+     *
+     * Missing from this list is not a compile error and is silent in play: the
+     * ability goes on the stack with no target at all, resolves, finds nothing
+     * to move the counters onto, and does nothing. It looked exactly like a
+     * broken effect handler.
+     */
+    case "moveAllCounters":
       return effect.target;
     /*
      * The optional cases: the same effect kind is printed both with and

@@ -1,9 +1,9 @@
 import type { CardInstance, GameState } from "./types.js";
 import { log, requireDefinition, requirePlayer } from "./state.js";
 import { gainLife } from "./life.js";
-import { effectivePower, effectiveToughness, hasKeyword } from "./counters.js";
+import { effectivePower, effectiveToughness, effectiveTriggers, hasKeyword } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
-import { pushTrigger } from "./permanents.js";
+import { describeSubject, fireWatchers, pushTrigger } from "./permanents.js";
 
 /**
  * Combat damage happens in two sub-steps once anything has First or Double
@@ -130,12 +130,23 @@ export function declareAttackers(state: GameState, playerId: string, declaration
   for (const { attackerInstanceId } of declarations) {
     const instance = player.battlefield.find((c) => c.instanceId === attackerInstanceId);
     if (!instance) continue;
-    const def = requireDefinition(state, instance.definitionId);
-    for (const trigger of def.triggeredAbilities ?? []) {
+    for (const trigger of effectiveTriggers(state, instance)) {
       if (trigger.event === "attacks") {
         pushTrigger(state, instance.instanceId, playerId, trigger);
       }
     }
+    /*
+     * Everything else on the table watching for somebody *else* to attack -
+     * Fumulus, the Infestation's "whenever an Insect, Leech, Slug, or Worm you
+     * control attacks".
+     *
+     * A watcher event rather than a second meaning for `attacks`, and the
+     * distinction is the same one `permanent-enters` draws against
+     * `enters-battlefield`: one watches the card it is printed on and the other
+     * watches the table. A card written with the wrong one of the pair fires
+     * either far too often or never at all.
+     */
+    fireWatchers(state, "permanent-attacks", describeSubject(state, instance));
   }
 
   if (declarations.length > 0) {

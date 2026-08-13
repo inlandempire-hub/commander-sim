@@ -18,7 +18,15 @@ export interface GameController {
     playerId: string,
     instanceId: string,
     targets?: StackTarget[],
-    options?: { fromCommandZone?: boolean; chosenMode?: number; chosenX?: number },
+    options?: {
+      fromCommandZone?: boolean;
+      chosenMode?: number;
+      chosenX?: number;
+      /** The creature given up for "as an additional cost, sacrifice a creature". */
+      sacrificeInstanceId?: string;
+      /** "You may cast this spell without paying its mana cost." */
+      useAlternativeCost?: boolean;
+    },
   ): void;
   activateAbility(playerId: string, instanceId: string, abilityIndex: number, targets?: StackTarget[]): void;
   declareAttackers(playerId: string, declarations: AttackerDeclaration[]): void;
@@ -38,6 +46,8 @@ export interface GameController {
   chooseTriggerTarget(playerId: string, target: StackTarget): void;
   /** Discards one named card from this player's own hand, when a spell has demanded it. */
   resolveDiscard(playerId: string, instanceId: string): void;
+  /** Answers a "you may sacrifice a creature" - `null` declines. */
+  resolveSacrificeChoice(playerId: string, instanceId: string | null): void;
   /** Opening hands, before the game starts. See the engine's mulligan.ts. */
   takeMulligan(playerId: string): void;
   keepHand(playerId: string): void;

@@ -1,7 +1,7 @@
 import type { GameState } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition } from "./state.js";
 import { describeSubject, fireWatchers, pushTrigger } from "./permanents.js";
-import { effectiveToughness, hasKeyword } from "./counters.js";
+import { effectiveToughness, effectiveTriggers, hasKeyword } from "./counters.js";
 import { useRegenerationShield } from "./regeneration.js";
 
 const COMMANDER_DAMAGE_THRESHOLD = 21;
@@ -43,9 +43,11 @@ function moveDyingCreatureToItsZone(state: GameState, instanceId: string, isComm
 
   if (def?.types.includes("Creature")) state.creatureDeathsThisTurn += 1;
 
-  for (const trigger of def?.triggeredAbilities ?? []) {
-    if (trigger.event === "dies") {
-      pushTrigger(state, instanceId, controllerId, trigger);
+  if (dyingInstance) {
+    for (const trigger of effectiveTriggers(state, dyingInstance)) {
+      if (trigger.event === "dies") {
+        pushTrigger(state, instanceId, controllerId, trigger);
+      }
     }
   }
 
@@ -53,7 +55,46 @@ function moveDyingCreatureToItsZone(state: GameState, instanceId: string, isComm
   // separately because it is no longer on the battlefield to be scanned, and
   // some cards of this family ("this creature or another creature dies") watch
   // their own.
-  if (subject && dyingInstance) fireWatchers(state, "permanent-dies", subject, dyingInstance);
+  if (subject && dyingInstance) {
+    fireWatchers(state, "permanent-dies", subject, dyingInstance);
+    // A death is also a departure. The Ozolith catches the counters here and,
+    // by way of `leaveBattlefield` below, on every other way out too.
+    fireWatchers(state, "leaves-battlefield", subject, dyingInstance);
+  }
+}
+
+/**
+ * A permanent leaving the battlefield without dying - exiled, bounced, tucked.
+ *
+ * Separate from the death path because the two are genuinely different events
+ * and a card may watch either: nothing that says "dies" should fire for an
+ * exile, and The Ozolith - which says "leaves the battlefield" - fires for
+ * both. The subject is captured before the move for the usual reason: the
+ * counters are gone a line later.
+ */
+export function leaveBattlefield(state: GameState, instanceId: string, destination: "exile" | "hand"): void {
+  const found = findInstance(state, instanceId);
+  if (!found || found.instance.zone !== "battlefield") return;
+  const subject = describeSubject(state, found.instance);
+  const leavingInstance = found.instance;
+  moveCard(state, instanceId, destination);
+  fireWatchers(state, "leaves-battlefield", subject, leavingInstance);
+}
+
+/**
+ * Destroys a permanent, with every consequence a death carries.
+ *
+ * Exported because `destroy` in effects.ts used to call `moveCard` on its own,
+ * which quietly skipped the dies triggers, the death count and the commander
+ * replacement effect all at once: a creature killed in combat fired its
+ * ability and the same creature killed by Assassin's Trophy did not. Indestructible
+ * and regeneration are checked by the caller, which is where the card's own
+ * wording decides whether they apply.
+ */
+export function destroyPermanent(state: GameState, instanceId: string): void {
+  const found = findInstance(state, instanceId);
+  if (!found || found.instance.zone !== "battlefield") return;
+  moveDyingCreatureToItsZone(state, instanceId, found.instance.isCommander === true);
 }
 
 /**
@@ -71,7 +112,21 @@ export function sacrificePermanent(state: GameState, instanceId: string): void {
   if (!found || found.instance.zone !== "battlefield") return;
   const def = state.cardDefinitions[found.instance.definitionId];
   log(state, `${found.instance.controllerId} sacrifices ${def?.name ?? "a permanent"}`);
+  /*
+   * Captured before the move, and the watchers fired after it, so a card
+   * created by the sacrifice (Fumulus makes an Insect) arrives on a board where
+   * the sacrificed permanent has already gone.
+   */
+  const subject = describeSubject(state, found.instance, def);
+  const sacrificedInstance = found.instance;
   moveDyingCreatureToItsZone(state, instanceId, found.instance.isCommander === true);
+  /*
+   * "Whenever a player sacrifices a nontoken creature" - a separate event from
+   * the death, because every sacrifice is a death and almost no death is a
+   * sacrifice. Fired after the death handler so both sets of triggers go on the
+   * stack, which is what really happens.
+   */
+  fireWatchers(state, "permanent-sacrificed", subject, sacrificedInstance);
 }
 
 /**

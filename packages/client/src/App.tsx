@@ -6,7 +6,9 @@ import {
   blockProblem,
   canMulliganAgain,
   canPlayCardNow,
+  canPlayLandsFromGraveyard,
   castingCostOf,
+  meetsBoardCondition,
   modesOf,
   mustNotAutoPass,
   planManaPayment,
@@ -15,6 +17,7 @@ import {
   targetSelectorOf,
   type CardDefinition,
   type Effect,
+  type StackTarget,
 } from "@mtg-commander-sim/engine";
 import type { GameController } from "./gameController.js";
 import { PlayerBoard } from "./components/PlayerBoard.js";
@@ -153,6 +156,30 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
    * and before a mode, since the other face has neither.
    */
   const [pendingFace, setPendingFace] = useState<{ ownerId: string; instanceId: string } | null>(null);
+  /**
+   * What has already been announced for a spell part-way through being cast -
+   * the creature given up for an additional cost, and whether the alternative
+   * cost is being taken.
+   *
+   * Held beside the flow rather than threaded through `pendingX`, `pendingMode`
+   * and `pendingTarget` in turn, because a card can want all of them at once
+   * and each hop would have to carry the others. Keyed by instance so a stale
+   * answer cannot attach itself to the next spell cast.
+   */
+  const [castExtras, setCastExtras] = useState<{
+    instanceId: string;
+    sacrificeInstanceId?: string;
+    useAlternativeCost?: boolean;
+  } | null>(null);
+  /**
+   * "As an additional cost to cast this spell, sacrifice a creature" - waiting
+   * on which one. Asked before X, a mode or targets, because a cost that
+   * cannot be paid means the spell is not cast at all.
+   */
+  const [pendingSacrificeCost, setPendingSacrificeCost] = useState<{
+    ownerId: string;
+    instanceId: string;
+  } | null>(null);
   const [sound, setSound] = useState(soundEnabled);
   const [volume, setVolume] = useState(soundVolume);
   const [particles, setParticles] = useState(particlesEnabled);
@@ -406,6 +433,26 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     state.pendingDiscards[0] && controller.canControlPlayer(state.pendingDiscards[0].playerId)
       ? state.pendingDiscards[0]
       : undefined;
+  /**
+   * A resolution that has stopped to ask which creature you are giving up -
+   * Disciple of Freyalise. Only shown to the seat it belongs to, like every
+   * other mid-resolution question.
+   */
+  const pendingSacrifice =
+    state.pendingSacrifice && controller.canControlPlayer(state.pendingSacrifice.playerId)
+      ? state.pendingSacrifice
+      : null;
+  const sacrificeCandidates = pendingSacrifice
+    ? (state.players.find((p) => p.id === pendingSacrifice.playerId)?.battlefield ?? []).filter((c) =>
+        pendingSacrifice.candidateInstanceIds.includes(c.instanceId),
+      )
+    : [];
+  /** The creatures that could pay an additional cost on the spell being cast. */
+  const sacrificeCostCandidates = pendingSacrificeCost
+    ? (state.players.find((p) => p.id === pendingSacrificeCost.ownerId)?.battlefield ?? []).filter(
+        (c) => state.cardDefinitions[c.definitionId]?.types.includes("Creature"),
+      )
+    : [];
   const discardCandidates = pendingDiscard
     ? (state.players.find((p) => p.id === pendingDiscard.playerId)?.hand ?? [])
     : [];
@@ -495,7 +542,16 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     return new Set(planManaPayment(state, owner, cost).taps.map((t) => t.instanceId));
   })();
 
-  function handleHandCardClick(ownerId: string, instanceId: string) {
+  function handleHandCardClick(
+    ownerId: string,
+    instanceId: string,
+    /**
+     * Answers already collected this pass, handed straight in rather than read
+     * back from state - a `setState` in the same tick has not landed yet, so
+     * re-entering the flow would ask the same question again forever.
+     */
+    already: { sacrificeInstanceId?: string } = {},
+  ) {
     const owner = state!.players.find((p) => p.id === ownerId)!;
     const instance = owner.hand.find((c) => c.instanceId === instanceId);
     if (!instance) return;
@@ -503,6 +559,32 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
 
     if (def.types.includes("Land")) {
       controller.playLand(ownerId, instanceId);
+      return;
+    }
+
+    /*
+     * "You may cast this spell without paying its mana cost."
+     *
+     * Taken rather than offered. It is a "may" on the card, and the real rules
+     * let you decline - but nothing in this engine makes paying the mana
+     * better, so an overlay here would be a question with one sensible answer.
+     * The same shortcut ward and "unless its controller pays" already take,
+     * and the day a card punishes free spells this is where the question goes.
+     */
+    const freeCast =
+      def.alternativeCost !== undefined &&
+      meetsBoardCondition(state!, ownerId, def.alternativeCost.condition);
+    if (freeCast && castExtras?.instanceId !== instanceId) {
+      setCastExtras({ instanceId, useAlternativeCost: true });
+    }
+
+    /*
+     * The additional cost comes before everything else, because a cost that
+     * cannot be paid means the spell was never cast - not a spell that resolves
+     * and does less.
+     */
+    if (def.additionalCost?.kind === "sacrifice-creature" && !already.sacrificeInstanceId) {
+      setPendingSacrificeCost({ ownerId, instanceId });
       return;
     }
     /*
@@ -519,7 +601,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     // X is announced first of all - before the mode and before targets -
     // because it is part of the cost, and the cost is what decides whether the
     // spell can be cast at all.
-    if (requiresX(def.manaCost) && !def.types.includes("Land")) {
+    if (affordableXValues(state!, ownerId, instanceId).length > 0 && !def.types.includes("Land")) {
       setPendingX({ ownerId, instanceId });
       return;
     }
@@ -536,7 +618,57 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
       setPendingTarget({ ownerId, sourceInstanceId: instanceId, cardName: def.name, effect: def.castEffect, kind: "cast" });
       return;
     }
-    controller.castSpell(ownerId, instanceId);
+    finishCast(ownerId, instanceId, [], {
+      // Handed in rather than read back: a spell that asked no further question
+      // reaches here in the same tick the free cast was decided.
+      justDecided: {
+        useAlternativeCost: freeCast || undefined,
+        sacrificeInstanceId: already.sacrificeInstanceId,
+      },
+    });
+  }
+
+  /**
+   * Casts, folding in whatever was announced earlier in the flow.
+   *
+   * Every cast that came through the hand goes through here, so a card that
+   * asks two questions cannot have one of the answers dropped on the way - the
+   * exact failure `chosenMode` had over the network.
+   */
+  function finishCast(
+    ownerId: string,
+    instanceId: string,
+    targets: StackTarget[] = [],
+    options: {
+      chosenMode?: number;
+      chosenX?: number;
+      /**
+       * Answers decided in this same tick, which `castExtras` cannot supply -
+       * a `setState` has not landed by the time the cast goes out, so a spell
+       * that asked no further question would be cast without them.
+       */
+      justDecided?: { sacrificeInstanceId?: string; useAlternativeCost?: boolean };
+    } = {},
+  ) {
+    const stored = castExtras?.instanceId === instanceId ? castExtras : null;
+    const { justDecided, ...rest } = options;
+    setCastExtras(null);
+    controller.castSpell(ownerId, instanceId, targets, {
+      ...rest,
+      sacrificeInstanceId: justDecided?.sacrificeInstanceId ?? stored?.sacrificeInstanceId,
+      useAlternativeCost: justDecided?.useAlternativeCost ?? stored?.useAlternativeCost,
+    });
+  }
+
+  /** The creature chosen to pay an additional cost - the spell carries on from here. */
+  function handleSacrificeCostChosen(sacrificeInstanceId: string) {
+    if (!pendingSacrificeCost) return;
+    const { ownerId, instanceId } = pendingSacrificeCost;
+    setPendingSacrificeCost(null);
+    setCastExtras((current) => ({ ...(current ?? { instanceId }), instanceId, sacrificeInstanceId }));
+    // Re-enter the ordinary path now the cost is settled. The guard in
+    // `handleHandCardClick` reads `castExtras`, so it does not ask again.
+    handleHandCardClick(ownerId, instanceId, { sacrificeInstanceId });
   }
 
   function handleCommandCardClick(ownerId: string, instanceId: string) {
@@ -555,7 +687,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
       if (kind === "ability") {
         controller.activateAbility(casterId, sourceInstanceId, abilityIndex ?? 0, [{ kind: "card", instanceId }]);
       } else {
-        controller.castSpell(casterId, sourceInstanceId, [{ kind: "card", instanceId }], {
+        finishCast(casterId, sourceInstanceId, [{ kind: "card", instanceId }], {
           chosenMode: pendingTarget.chosenMode,
           chosenX: pendingTarget.chosenX,
         });
@@ -680,13 +812,30 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
 
   /** Recursion: the chosen target is a card sitting in a graveyard. */
   function handleGraveyardCardClick(instanceId: string) {
-    if (!pendingTarget) return;
+    /*
+     * "You may play lands from your graveyard" - Icetill Explorer.
+     *
+     * Checked before the targeting path, because with no spell waiting for a
+     * target a click on the graveyard can only mean this. The engine re-checks
+     * the permission, the land drop and the timing, so an illegal click gets
+     * the ordinary refusal rather than a silent nothing.
+     */
+    if (!pendingTarget) {
+      const found = findInstance(state!, instanceId);
+      if (!found) return;
+      const def = state!.cardDefinitions[found.definitionId];
+      if (!def?.types.includes("Land")) return;
+      if (!controller.canControlPlayer(found.ownerId)) return;
+      if (!canPlayLandsFromGraveyard(state!, found.ownerId)) return;
+      controller.playLand(found.ownerId, instanceId);
+      return;
+    }
     const { ownerId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
     const target = { kind: "card" as const, instanceId };
     if (kind === "ability") {
       controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target]);
     } else {
-      controller.castSpell(ownerId, sourceInstanceId, [target], {
+      finishCast(ownerId, sourceInstanceId, [target], {
         chosenMode: pendingTarget.chosenMode,
         chosenX: pendingTarget.chosenX,
       });
@@ -702,7 +851,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     if (kind === "ability") {
       controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target]);
     } else {
-      controller.castSpell(ownerId, sourceInstanceId, [target], {
+      finishCast(ownerId, sourceInstanceId, [target], {
         chosenMode: pendingTarget.chosenMode,
         chosenX: pendingTarget.chosenX,
       });
@@ -720,7 +869,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     if (kind === "ability") {
       controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [{ kind: "player", playerId }]);
     } else {
-      controller.castSpell(ownerId, sourceInstanceId, [{ kind: "player", playerId }], {
+      finishCast(ownerId, sourceInstanceId, [{ kind: "player", playerId }], {
         chosenMode: pendingTarget.chosenMode,
         chosenX: pendingTarget.chosenX,
       });
@@ -771,7 +920,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
       });
       return;
     }
-    controller.castSpell(ownerId, instanceId, [], { chosenX: x });
+    finishCast(ownerId, instanceId, [], { chosenX: x });
   }
 
   function handleModeChosen(index: number) {
@@ -796,7 +945,7 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
       });
       return;
     }
-    controller.castSpell(ownerId, instanceId, [], { chosenMode: index });
+    finishCast(ownerId, instanceId, [], { chosenMode: index });
   }
 
   /**
@@ -901,7 +1050,13 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
     onBattlefieldCardClick: (instanceId: string) => handleBattlefieldCardClick(player.id, instanceId),
     onGraveyardCardClick: handleGraveyardCardClick,
     selectingGraveyardTarget:
-      pendingSelectorKind === "card-in-your-graveyard" && player.id === pendingTarget?.ownerId,
+      (pendingSelectorKind === "card-in-your-graveyard" && player.id === pendingTarget?.ownerId) ||
+      // Or the graveyard is a place you can play a land from, which is the
+      // only other reason a card in it is ever clickable.
+      (controller.canControlPlayer(player.id) &&
+        player.id === priorityPlayerId &&
+        canPlayLandsFromGraveyard(state, player.id) &&
+        player.graveyard.some((c) => state.cardDefinitions[c.definitionId]?.types.includes("Land"))),
     selectingPermanentTypes: pendingPermanentTypes,
     triggerTargetIds: triggerCandidateInstanceIds,
     canPlay:
@@ -1140,6 +1295,46 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
             cards={discardCandidates}
             cardDefinitions={state.cardDefinitions}
             onChoose={(instanceId) => controller.resolveDiscard(pendingDiscard.playerId, instanceId)}
+            onHover={handleHover}
+          />
+        )}
+
+        {/* A resolution waiting on which creature you give up. Declining is
+            offered only when the card said "may" - the engine refuses it
+            otherwise, so a button that led to an error would be worse than
+            none. */}
+        {pendingSacrifice && (
+          <CardPicker
+            title="Sacrifice a creature"
+            prompt={pendingSacrifice.prompt}
+            cards={sacrificeCandidates}
+            cardDefinitions={state.cardDefinitions}
+            onChoose={(instanceId) =>
+              controller.resolveSacrificeChoice(pendingSacrifice.playerId, instanceId)
+            }
+            onDecline={
+              pendingSacrifice.optional
+                ? () => controller.resolveSacrificeChoice(pendingSacrifice.playerId, null)
+                : undefined
+            }
+            declineLabel="Sacrifice nothing"
+            onHover={handleHover}
+          />
+        )}
+
+        {/* The same question asked a step earlier, as part of casting: "as an
+            additional cost, sacrifice a creature". No decline - a cost is not
+            optional, and a spell whose cost goes unpaid is not cast. Cancelling
+            is the picker's own escape, which leaves the card in hand. */}
+        {pendingSacrificeCost && (
+          <CardPicker
+            title="Additional cost"
+            prompt="Sacrifice a creature to cast this spell"
+            cards={sacrificeCostCandidates}
+            cardDefinitions={state.cardDefinitions}
+            onChoose={handleSacrificeCostChosen}
+            onDecline={() => setPendingSacrificeCost(null)}
+            declineLabel="Don't cast it"
             onHover={handleHover}
           />
         )}

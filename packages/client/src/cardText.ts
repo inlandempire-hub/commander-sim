@@ -106,7 +106,46 @@ function signedAmount(amount: Amount): string {
   // pool - Return of the Wildspeaker's +3/+3 is a plain number, and the count
   // is on its other mode. Rendered rather than thrown, like the case above.
   if (amount.kind === "count") return describeCount(amount.of);
+  // Likewise never in a power/toughness slot: the sacrificed creature's power
+  // counts tokens on Tend the Pests and cards on Disciple of Freyalise.
+  if (amount.kind === "sacrificed-power") return "that creature's power";
   return amount.negate ? "-X" : "+X";
+}
+
+/**
+ * An `Amount` in a counting slot - "create **X** tokens", "mill **three**".
+ *
+ * Separate from `signedAmount` because these read as quantities rather than as
+ * bonuses: "+X" is right on a pump and wrong in front of a noun.
+ */
+function countAmount(amount: Amount): string {
+  if (typeof amount === "number") return countWord(amount);
+  if (amount.kind === "event-amount") return "that many";
+  if (amount.kind === "count") return describeCount(amount.of);
+  if (amount.kind === "sacrificed-power") return "X";
+  return "X";
+}
+
+/** Whether an `Amount` is a plain 1, for the singular/plural decisions below. */
+function isOne(amount: Amount): boolean {
+  return amount === 1;
+}
+
+/**
+ * An `Amount` in a slot that prints a figure rather than a word - "you gain
+ * **1** life", where the cards use the numeral and "you gain a life" would be
+ * wrong.
+ *
+ * The third of these because the three slots really do read differently:
+ * `signedAmount` for a bonus, `countAmount` in front of a noun ("**a** +1/+1
+ * counter"), and this where the number stands alone.
+ */
+function plainAmount(amount: Amount): string {
+  if (typeof amount === "number") return String(amount);
+  if (amount.kind === "event-amount") return "that much";
+  if (amount.kind === "count") return describeCount(amount.of);
+  if (amount.kind === "sacrificed-power") return "X";
+  return "X";
 }
 
 export function describeEffect(effect: Effect, definitions: Definitions = {}): string {
@@ -118,6 +157,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       // and the plain numeric printings. The dynamic form reads as a phrase
       // rather than a number, because a number is exactly what it is not.
       if (typeof effect.amount !== "number") {
+        // "Draw X cards" - Disciple of Freyalise, whose X is the power of the
+        // creature you gave up. "That many" would be right for an event's
+        // number and is wrong here: nothing has been counted yet.
+        if (effect.amount.kind === "sacrificed-power") return "Draw X cards.";
         if (effect.amount.kind !== "count") return "Draw that many cards.";
         // "Draw cards equal to the greatest power ..." reads as a quantity;
         // "draw a card for each creature ..." reads as a repetition. Different
@@ -136,7 +179,13 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         .map((part) => `{${part.color}}`.repeat(part.amount))
         .join("")}.`;
     case "gainLife":
-      return `You gain ${effect.amount} life.`;
+      /*
+       * Through `countAmount` rather than interpolated straight in. The amount
+       * is an `Amount` now - Disciple of Freyalise gains "X life, where X is
+       * that creature's power" - and a template string would happily print
+       * "You gain [object Object] life", which TypeScript does not object to.
+       */
+      return `You gain ${plainAmount(effect.amount)} life.`;
     case "discard":
       return `Each opponent discards ${countWord(effect.amount)} ${plural(effect.amount, "card")}.`;
     case "surveil":
@@ -173,9 +222,36 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       // unnamed on "{cost}: put a +1/+1 counter on this creature".
       const who = effect.target ? describeTarget(effect.target) : "this creature";
       // "a +1/+1 counter", not "1 +1/+1 counter" - no printed card says the latter.
+      // The Ozolith's "those counters" is not a number at all, and reads as one
+      // phrase rather than a quantity in front of a noun.
+      if (typeof effect.amount !== "number" && effect.amount.kind === "event-amount") {
+        return sentence(`Put those counters on ${who}.`);
+      }
       return sentence(
-        `Put ${countWord(effect.amount)} +1/+1 ${plural(effect.amount, "counter")} on ${who}.`,
+        `Put ${countAmount(effect.amount)} +1/+1 ${isOne(effect.amount) ? "counter" : "counters"} on ${who}.`,
       );
+    }
+    case "moveAllCounters":
+      return sentence(`Move all counters from this permanent onto ${describeTarget(effect.target)}.`);
+    case "mill":
+      return `Mill ${countAmount(effect.amount)} ${isOne(effect.amount) ? "card" : "cards"}.`;
+    case "scry":
+      return `Scry ${effect.amount}.`;
+    case "sacrificeChosen": {
+      const what = effect.excludeSelf ? "another creature" : "a creature";
+      const head = effect.optional ? `You may sacrifice ${what}.` : sentence(`Sacrifice ${what}.`);
+      if (!effect.then) return head;
+      // "If you do, ..." - the printed wording for the half that only happens
+      // when the sacrifice actually did.
+      const rest = describeEffect(effect.then, definitions);
+      /*
+       * "...where X is that creature's power." Printed on the card and worth
+       * carrying: without it the panel says X twice and never says what it is,
+       * which is the one thing a player reading the card needs to know.
+       */
+      const definesX = JSON.stringify(effect.then).includes('"sacrificed-power"');
+      const tail = definesX ? " Where X is that creature's power." : "";
+      return `${head.slice(0, -1)}. If you do, ${rest.charAt(0).toLowerCase()}${rest.slice(1)}${tail}`;
     }
     case "addCounterToEachOther": {
       // "each other Hero you control" vs "each Pest, Bat, Insect, Snake, and
@@ -410,7 +486,12 @@ function watchedNoun(watchFor: TriggeredAbility["watchFor"]): string {
   const typeNoun = Array.isArray(types)
     ? types.map((t) => t.toLowerCase()).join(" or ")
     : types?.toLowerCase();
-  const base = watchFor?.subtype ?? typeNoun ?? "permanent";
+  // A list of subtypes is printed as the card prints it - "an Insect, Leech,
+  // Slug, or Worm" - for the same reason a list of types is: anything else
+  // reads as "[object Object]" or silently drops three of the four.
+  const subtypes = watchFor?.subtype;
+  const subtypeNoun = Array.isArray(subtypes) ? listOr(subtypes) : subtypes;
+  const base = subtypeNoun ?? typeNoun ?? "permanent";
   // "nontoken creature" is printed as one noun phrase, so it belongs here
   // rather than as a clause tacked on the end.
   return watchFor?.nontoken ? `nontoken ${base}` : base;
@@ -499,6 +580,10 @@ function watchedSubject(ability: TriggeredAbility, self: CardDefinition): string
     // +1/+1 counter on it" reads "another" anyway - Meltstrider Eulogist is a
     // creature watching creatures, whatever counters happen to be about.
     hadCounters: true,
+    // Likewise no instance to count them on, and no card in the pool narrows a
+    // watcher by *how many* - only The Ozolith reads the number, and it reads
+    // it from the event rather than filtering on it.
+    counters: 1,
     isToken: self.isToken === true,
   });
   /*
@@ -519,6 +604,8 @@ function describeTriggerCondition(condition: TriggerCondition): string {
   switch (condition.kind) {
     case "creature-died-this-turn":
       return "if a creature died this turn";
+    case "source-has-counters":
+      return "if it has counters on it";
     case "not":
       return `if ${negateCondition(condition.condition)}`;
   }
@@ -542,6 +629,8 @@ function negateCondition(condition: BoardCondition): string {
       return "you control no other lands";
     case "opponents":
       return "you have no opponents";
+    case "controls-commander":
+      return "you control no commander";
   }
 }
 
@@ -588,6 +677,22 @@ function describeTrigger(
       return `Whenever ${watchedSubject(ability, self)} enters the battlefield, ${tail}`;
     case "permanent-dies":
       return `Whenever ${watchedSubject(ability, self)} dies, ${tail}`;
+    case "permanent-sacrificed":
+      /*
+       * "Whenever **a player** sacrifices a nontoken creature" - the subject of
+       * this one is the player doing the sacrificing, not the permanent, so
+       * `watchedSubject`'s "you control" vocabulary is the wrong shape and the
+       * sentence is built the way Fumulus prints it.
+       */
+      return `Whenever ${
+        (ability.watches ?? "controller") === "any" ? "a player" : "you"
+      } sacrifice${(ability.watches ?? "controller") === "any" ? "s" : ""} ${
+        ability.watchFor?.nontoken ? "a nontoken creature" : "a creature"
+      }, ${tail}`;
+    case "leaves-battlefield":
+      return `Whenever ${watchedSubject(ability, self)} leaves the battlefield, ${tail}`;
+    case "permanent-attacks":
+      return `Whenever ${watchedSubject(ability, self)} attacks, ${tail}`;
     case "spell-cast":
       // The subject is a spell, so `watchedSubject`'s permanent vocabulary is
       // wrong here - "an instant or sorcery spell", not "an instant permanent".
@@ -635,6 +740,8 @@ function describeCondition(condition: BoardCondition): string {
     }
     case "controls-color":
       return `you control ${condition.count} or more ${colorWord(condition.color)} permanents`;
+    case "controls-commander":
+      return "you control a commander";
   }
 }
 
@@ -710,13 +817,48 @@ export function describeActivated(
 export function describeCard(def: CardDefinition, definitions: Definitions = {}): string[] {
   const lines: string[] = [];
 
-  // Ward is the one keyword that carries a cost, so it prints with it.
-  const keywords: string[] = (def.keywords ?? []).map((keyword) =>
-    keyword === "Ward" && def.wardCost ? `Ward ${formatManaCost(def.wardCost)}` : keyword,
-  );
+  // Ward is the one keyword that carries a cost, so it prints with it - and
+  // that cost is not always mana: Sedgemoor Witch asks for life.
+  const keywords: string[] = (def.keywords ?? []).map((keyword) => {
+    if (keyword !== "Ward") return keyword;
+    if (def.wardLifeCost !== undefined) return `Ward-Pay ${def.wardLifeCost} life`;
+    return def.wardCost ? `Ward ${formatManaCost(def.wardCost)}` : keyword;
+  });
   if (keywords.length > 0) lines.push(keywords.join(", "));
 
   if (def.cantBeCountered) lines.push("This spell can't be countered.");
+
+  /*
+   * Both cost lines come before everything else, exactly where the card prints
+   * them - and leaving either off would misdescribe the card in the direction
+   * that matters. A Tend the Pests panel with no sacrifice line reads as a
+   * two-mana spell that makes free tokens; a Deadly Rollick with no free line
+   * reads as a four-mana removal spell nobody would play.
+   */
+  if (def.additionalCost?.kind === "pay-life") {
+    const amount = typeof def.additionalCost.amount === "number" ? String(def.additionalCost.amount) : "X";
+    lines.push(`As an additional cost to cast this spell, pay ${amount} life.`);
+  }
+  if (def.additionalCost?.kind === "sacrifice-creature") {
+    lines.push("As an additional cost to cast this spell, sacrifice a creature.");
+  }
+  if (def.alternativeCost) {
+    lines.push(
+      sentence(`If ${describeCondition(def.alternativeCost.condition)}, you may ${def.alternativeCost.label}.`),
+    );
+  }
+
+  if (def.staticRules?.extraLandDrops) {
+    const n = def.staticRules.extraLandDrops;
+    lines.push(
+      n === 1
+        ? "You may play an additional land on each of your turns."
+        : `You may play ${countWord(n)} additional lands on each of your turns.`,
+    );
+  }
+  if (def.staticRules?.playLandsFromGraveyard) {
+    lines.push("You may play lands from your graveyard.");
+  }
 
   // First, and before the abilities, exactly as the card prints it. This is the
   // whole drawback of a tapland: leaving it out makes Golgari Guildgate read as

@@ -1,6 +1,7 @@
 import type { CardInstance, GameState, Player } from "./types.js";
 import { log, requireDefinition } from "./state.js";
 import { pushTrigger } from "./permanents.js";
+import { effectiveTriggers } from "./counters.js";
 
 /**
  * The one place damage is actually dealt.
@@ -93,7 +94,7 @@ export function damageCreature(
    * through, so a burn spell and a blocker set it off alike.
    */
   if (result.dealt > 0) {
-    for (const trigger of requireDefinition(state, instance.definitionId).triggeredAbilities ?? []) {
+    for (const trigger of effectiveTriggers(state, instance)) {
       if (trigger.event !== "damaged") continue;
       pushTrigger(state, instance.instanceId, instance.controllerId, trigger, result.dealt);
     }

@@ -37,7 +37,7 @@ export function resolveTopOfStack(state: GameState): void {
    * rather than the turn's history genuinely can be undone in response, and
    * checking only once would let the ability resolve anyway.
    */
-  if (obj.onlyIf && !triggerConditionMet(state, obj.controllerId, obj.onlyIf)) {
+  if (obj.onlyIf && !triggerConditionMet(state, obj.controllerId, obj.onlyIf, obj.sourceInstanceId)) {
     log(state, `${cardName(state, obj.sourceInstanceId)} does nothing - its condition is no longer met`);
     finishResolution(state, obj);
     return;

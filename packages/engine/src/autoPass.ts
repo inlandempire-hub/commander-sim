@@ -1,7 +1,7 @@
 import type { Effect, GameState, ManaCost } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 import { applyCommanderTax, canPayManaCostFromPool, potentialAvailableMana } from "./mana.js";
-import { canCastAtSorcerySpeed } from "./casting.js";
+import { canCastAtSorcerySpeed, canPayAdditionalCost, landDropsAllowed } from "./casting.js";
 import { controllerMeets } from "./conditions.js";
 import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
 import { costWithX, requiresX } from "./x.js";
@@ -55,17 +55,50 @@ export function canPlayCardNow(state: GameState, playerId: string, instanceId: s
    * telling you the land was not there.
    */
   const back = def.backFaceId ? requireDefinition(state, def.backFaceId) : undefined;
-  if (back?.types.includes("Land") && isMainPhaseWindow && player.landsPlayedThisTurn < 1) return true;
+  if (back?.types.includes("Land") && isMainPhaseWindow && hasLandDropLeft(state, playerId)) return true;
 
   const castableAnytime = def.types.includes("Instant") || (def.keywords?.includes("Flash") ?? false);
   if (!castableAnytime && !isMainPhaseWindow) return false;
 
   if (def.types.includes("Land")) {
-    return isMainPhaseWindow && player.landsPlayedThisTurn < 1;
+    return isMainPhaseWindow && hasLandDropLeft(state, playerId);
+  }
+
+  /*
+   * An additional cost that cannot be paid makes the spell uncastable, not
+   * merely a bad idea (rule 601.2f) - so a card lit up on mana alone would be
+   * offering Tend the Pests with an empty board and then refusing it.
+   *
+   * X is passed as 0 because that is the cheapest legal announcement: the
+   * question here is whether the card can be cast *at all*, and Toxic Deluge
+   * for X = 0 always can be.
+   */
+  if (!canPayAdditionalCost(state, playerId, def, 0)) return false;
+
+  /*
+   * "You may cast this spell without paying its mana cost" - affordable
+   * whatever the pool holds, as long as its condition is met. Without this the
+   * card sits greyed out in a hand that could cast it for free.
+   */
+  if (def.alternativeCost && controllerMeets(state, playerId, def.alternativeCost.condition)) {
+    return hasSomethingToTarget(state, playerId, def.castEffect);
   }
 
   if (!canPayManaCostFromPool(potentialMana, def.manaCost ?? EMPTY_COST)) return false;
   return hasSomethingToTarget(state, playerId, def.castEffect);
+}
+
+/**
+ * Whether this player has a land drop left - one a turn, plus whatever their
+ * permanents grant.
+ *
+ * A helper rather than the bare `< 1` this used to be, because Icetill Explorer
+ * makes the cap a board reading. Every place that asked the old question has to
+ * ask this one, or a second land sits greyed out in hand while `playLand`
+ * would happily take it.
+ */
+function hasLandDropLeft(state: GameState, playerId: string): boolean {
+  return requirePlayer(state, playerId).landsPlayedThisTurn < landDropsAllowed(state, playerId);
 }
 
 /**
@@ -92,12 +125,24 @@ export function affordableXValues(
   const instance = player.hand.find((c) => c.instanceId === instanceId);
   if (!instance) return [];
   const def = requireDefinition(state, instance.definitionId);
-  if (!requiresX(def.manaCost)) return [];
+  /*
+   * Toxic Deluge prints no {X} in its mana cost at all - its X is the life in
+   * the additional cost - so a check on the mana cost alone would offer no
+   * chooser and cast it for nothing.
+   */
+  const lifeX =
+    def.additionalCost?.kind === "pay-life" &&
+    typeof def.additionalCost.amount !== "number" &&
+    def.additionalCost.amount.kind === "x";
+  if (!requiresX(def.manaCost) && !lifeX) return [];
 
   const potentialMana = potentialAvailableMana(state, playerId);
   const affordable: number[] = [];
   for (let x = 0; x <= cap; x++) {
     if (!canPayManaCostFromPool(potentialMana, costWithX(def.manaCost ?? EMPTY_COST, x))) break;
+    // And the life, which is the whole limit on Toxic Deluge: you may pay down
+    // to nothing and no further.
+    if (!canPayAdditionalCost(state, playerId, def, x)) break;
     affordable.push(x);
   }
   return affordable;
@@ -188,6 +233,7 @@ export function mustNotAutoPass(state: GameState, playerId: string): boolean {
   if (state.pendingTargetChoices.length > 0) return true;
   // And for an opponent who owes a discard.
   if (state.pendingDiscards.length > 0) return true;
+  if (state.pendingSacrifice) return true;
 
   const activePlayerId = state.players[state.activePlayerIndex]?.id;
 

@@ -39,6 +39,9 @@ export function passPriority(state: GameState, playerId: string): void {
   if (state.pendingTargetChoices.length > 0) {
     throw new Error(`${state.pendingTargetChoices[0]!.playerId} must choose a target first`);
   }
+  if (state.pendingSacrifice) {
+    throw new Error(`${state.pendingSacrifice.playerId} must choose a creature to sacrifice first`);
+  }
   if (state.pendingDiscards.length > 0) {
     throw new Error(`${state.pendingDiscards[0]!.playerId} must discard first`);
   }

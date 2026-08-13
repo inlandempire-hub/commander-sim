@@ -57,7 +57,22 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
     // useLocalGameController's signature) but intentionally unused.
     playLand: (_playerId, instanceId) => send({ type: "playLand", instanceId }),
     castSpell: (_playerId, instanceId, targets, options) =>
-      send({ type: "castSpell", instanceId, targets, fromCommandZone: options?.fromCommandZone }),
+      /*
+       * Every announcement travels with the cast. `chosenMode` and `chosenX`
+       * used to be dropped here even though the server reads them, so a modal
+       * or {X} spell played over the network was refused for not naming what
+       * the client had already chosen.
+       */
+      send({
+        type: "castSpell",
+        instanceId,
+        targets,
+        fromCommandZone: options?.fromCommandZone,
+        chosenMode: options?.chosenMode,
+        chosenX: options?.chosenX,
+        sacrificeInstanceId: options?.sacrificeInstanceId,
+        useAlternativeCost: options?.useAlternativeCost,
+      }),
     activateAbility: (_playerId, instanceId, abilityIndex, targets) =>
       send({ type: "activateAbility", instanceId, abilityIndex, targets: targets ?? [] }),
     declareAttackers: (_playerId, declarations) => send({ type: "declareAttackers", declarations }),
@@ -66,6 +81,8 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
     resolveConfirmation: (_playerId, accept) => send({ type: "resolveConfirmation", accept }),
     chooseTriggerTarget: (_playerId, target) => send({ type: "chooseTriggerTarget", target }),
     resolveDiscard: (_playerId, instanceId) => send({ type: "resolveDiscard", instanceId }),
+    resolveSacrificeChoice: (_playerId, instanceId) =>
+      send({ type: "resolveSacrificeChoice", instanceId }),
     takeMulligan: () => send({ type: "takeMulligan" }),
     keepHand: () => send({ type: "keepHand" }),
     putOnBottom: (_playerId, instanceIds) => send({ type: "putOnBottom", instanceIds }),

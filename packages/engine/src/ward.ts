@@ -1,5 +1,5 @@
 import type { GameState, StackTarget } from "./types.js";
-import { findInstance, requirePlayer, requireDefinition } from "./state.js";
+import { findInstance, log, requirePlayer, requireDefinition } from "./state.js";
 import { canPayManaCost, payManaCost } from "./mana.js";
 import { hasKeyword } from "./counters.js";
 
@@ -26,6 +26,22 @@ export function attemptWardPayments(state: GameState, casterId: string, targets:
     if (found.instance.controllerId === casterId) continue; // Ward only triggers against opponents' spells/abilities
     const def = requireDefinition(state, found.instance.definitionId);
     if (!hasKeyword(state, found.instance, "Ward")) continue;
+    /*
+     * "Ward-Pay 3 life" - Sedgemoor Witch. Ward's cost is not always mana, and
+     * the same auto-pay shortcut applies: paid without asking if it can be
+     * afforded, and the spell countered if it cannot.
+     *
+     * Strictly more life than the cost, never exactly enough. The shortcut pays
+     * without asking, so a player who could pay down to 0 would be conceded on
+     * their behalf by a spell they chose to cast - which is the one place this
+     * simplification would do real damage rather than merely remove a choice.
+     */
+    if (def.wardLifeCost !== undefined) {
+      if (caster.life <= def.wardLifeCost) return false;
+      caster.life -= def.wardLifeCost;
+      log(state, `${casterId} pays ${def.wardLifeCost} life for ward`);
+      continue;
+    }
     const cost = def.wardCost ?? { generic: 0, colors: {} };
     if (!canPayManaCost(caster, cost)) return false;
     payManaCost(caster, cost);

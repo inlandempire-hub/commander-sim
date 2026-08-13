@@ -11,6 +11,7 @@ import {
   resolveSearch,
   chooseTriggerTarget,
   resolveDiscard,
+  resolveSacrificeChoice,
   resolveConfirmation,
   takeMulligan,
   keepHand,
@@ -62,6 +63,8 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
         // one and the message left it behind.
         chosenMode: message.chosenMode,
         chosenX: message.chosenX,
+        sacrificeInstanceId: message.sacrificeInstanceId,
+        useAlternativeCost: message.useAlternativeCost,
       });
       return;
     case "activateAbility":
@@ -96,6 +99,9 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       break;
     case "resolveDiscard":
       resolveDiscard(state, playerId, message.instanceId);
+      break;
+    case "resolveSacrificeChoice":
+      resolveSacrificeChoice(state, playerId, message.instanceId);
       return;
     case "passPriority":
       passPriority(state, playerId);
