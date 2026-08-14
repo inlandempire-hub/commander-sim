@@ -1,4 +1,4 @@
-# MTG Commander Sim
+# MTG Commander simulatioooon
 
 A real, rules-enforcing digital Magic: The Gathering client for the Commander
 format. Not a virtual tabletop where players agree on what happened - the
