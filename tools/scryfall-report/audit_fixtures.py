@@ -62,6 +62,16 @@ def load_scryfall():
             # one side of it.
             merged["legalities"] = card.get("legalities", {})
             merged["color_identity"] = card.get("color_identity", [])
+            # Power, toughness and loyalty belong to the *face* and must be
+            # cleared when it has none - not inherited from the card.
+            #
+            # Scryfall's "prepare" layout (Eccentric Pestfinder // Turn Stones)
+            # repeats the front face's 5/5 at the top level, and the update
+            # above only overwrites keys the face actually carries. That left a
+            # Sorcery face claiming to be a 5/5 and reported a correct fixture
+            # as broken.
+            for stat in ("power", "toughness", "loyalty"):
+                merged[stat] = face.get(stat)
             by_name[name] = merged
     return by_name
 

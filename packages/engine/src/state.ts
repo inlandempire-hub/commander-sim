@@ -104,6 +104,7 @@ export function createCardInstance(
     loyalty: 0,
     loyaltyUsedThisTurn: false,
     timeCounters: 0,
+    prepared: false,
     isTokenCopy: false,
     bestowed: false,
     chosenX: 0,
@@ -214,6 +215,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.otherCounters = 0;
   instance.loyaltyUsedThisTurn = false;
   instance.bestowed = false; // an Aura that leaves play is a creature card again
+  instance.prepared = false; // and a prepared creature that leaves is a new object
   instance.temporaryPowerBonus = 0; // likewise, until-end-of-turn pumps don't follow a card between zones
   instance.temporaryToughnessBonus = 0;
   instance.damagePrevention = 0; // a shield protects the object it was cast on, not the new one this became

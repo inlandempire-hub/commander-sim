@@ -85,6 +85,10 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
       send({ type: "resolveSacrificeChoice", instanceId }),
     resolveCardChoice: (_playerId, instanceIds) => send({ type: "resolveCardChoice", instanceIds }),
     resolveAmountChoice: (_playerId, amount) => send({ type: "resolveAmountChoice", amount }),
+    suspendCard: (_playerId, instanceId) => send({ type: "suspendCard", instanceId }),
+    castPreparedSpell: (_playerId, instanceId) => send({ type: "castPreparedSpell", instanceId }),
+    activateLoyaltyAbility: (_playerId, instanceId, abilityIndex) =>
+      send({ type: "activateLoyaltyAbility", instanceId, abilityIndex }),
     takeMulligan: () => send({ type: "takeMulligan" }),
     keepHand: () => send({ type: "keepHand" }),
     putOnBottom: (_playerId, instanceIds) => send({ type: "putOnBottom", instanceIds }),

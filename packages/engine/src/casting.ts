@@ -11,7 +11,7 @@ import { controllerMeets } from "./conditions.js";
 import { effectivePower } from "./counters.js";
 import { sacrificePermanent } from "./sba.js";
 import { describeSubject, fireWatchers, pushOntoStack, putOntoBattlefield } from "./permanents.js";
-import { isValidTarget, targetSelectorOf } from "./targeting.js";
+import { isValidTarget, legalTargetsFor, targetCountOf, targetSelectorOf } from "./targeting.js";
 import { attemptWardPayments } from "./ward.js";
 import { costWithX, requiresX, resolveAmounts } from "./x.js";
 
@@ -82,6 +82,15 @@ export interface CastOptions {
    * creature while it is attached to one.
    */
   bestowOnto?: string;
+  /**
+   * Skip the sorcery-speed check.
+   *
+   * Only suspend uses it: the card is cast as its last time counter is removed,
+   * which happens in the upkeep - a step where a sorcery could never normally
+   * be cast. The rules say to cast it then regardless, so the timing rule is
+   * the thing that has to give.
+   */
+  ignoreTiming?: boolean;
 }
 
 /**
@@ -176,7 +185,7 @@ export function castSpell(
   const def = requireDefinition(state, instance.definitionId);
   const isPermanentSpell = def.types.some((t) => PERMANENT_TYPES.has(t));
 
-  if (isSorcerySpeedOnly(def) && !canCastAtSorcerySpeed(state, playerId)) {
+  if (isSorcerySpeedOnly(def) && !options.ignoreTiming && !canCastAtSorcerySpeed(state, playerId)) {
     throw new Error(`${def.name} can only be cast at sorcery speed`);
   }
 
@@ -278,7 +287,18 @@ export function castSpell(
   // targets can disappear in response to a spell.
   const selector = targetSelectorOf(effect);
   if (selector) {
-    if (targets.length === 0) throw new Error(`${def.name} requires a target`);
+    /*
+     * How many, not merely whether. "Up to X target artifacts" with X = 2 is a
+     * legal cast for nought, one or two of them and an illegal cast for three -
+     * and "choose two target players" is not satisfied by one.
+     */
+    const { min, max } = targetCountOf(selector, chosenX);
+    if (targets.length < min) {
+      throw new Error(
+        min === 1 ? `${def.name} requires a target` : `${def.name} requires ${min} targets`,
+      );
+    }
+    if (targets.length > max) throw new Error(`${def.name} takes at most ${max} target(s)`);
     for (const target of targets) {
       if (!isValidTarget(state, selector, target, playerId)) {
         throw new Error(`Illegal target for ${def.name}`);
@@ -394,6 +414,112 @@ function additionalCostNeedsX(def: CardDefinition): boolean {
 /** A definition's name, for an error raised before anything has an instance to look up. */
 function cardNameOf(state: GameState, definitionId: string): string {
   return state.cardDefinitions[definitionId]?.name ?? "That permanent";
+}
+
+
+/**
+ * "Rather than cast this card from your hand, pay {1}{B} and exile it with two
+ * time counters on it." - Profane Tutor.
+ *
+ * A way of *playing* the card rather than a way of casting it, which is why it
+ * is its own function: nothing goes on the stack, no cast triggers fire, and it
+ * is sorcery-speed because the real rule ties it to when you could cast the
+ * card.
+ */
+export function suspendCard(state: GameState, playerId: string, instanceId: string): void {
+  if (state.players[state.priorityPlayerIndex]?.id !== playerId) {
+    throw new Error(`${playerId} does not have priority`);
+  }
+  const player = requirePlayer(state, playerId);
+  const found = findInstance(state, instanceId);
+  if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
+  const { instance } = found;
+  if (instance.zone !== "hand" || instance.ownerId !== playerId) {
+    throw new Error(`${instanceId} is not in ${playerId}'s hand`);
+  }
+  const def = requireDefinition(state, instance.definitionId);
+  if (!def.suspend) throw new Error(`${def.name} has no suspend cost`);
+  if (!canCastAtSorcerySpeed(state, playerId)) {
+    throw new Error(`${def.name} can only be suspended at sorcery speed`);
+  }
+  if (!canPayManaCostFromPool(spendablePool(player, def), def.suspend.cost)) {
+    throw new Error(`${playerId} cannot afford to suspend ${def.name}`);
+  }
+  payManaCostFor(player, def.suspend.cost, def);
+  moveCard(state, instanceId, "exile");
+  instance.timeCounters = def.suspend.timeCounters;
+  log(state, `${playerId} suspends ${def.name} with ${def.suspend.timeCounters} time counters`);
+  state.passesInSuccession = 0;
+}
+
+/**
+ * Casts a suspended card as its last time counter is removed, free.
+ *
+ * Exported for turn.ts, which is the only caller: the upkeep is the one moment
+ * this can happen. A card whose spell has no legal target is simply left in
+ * exile with no counters rather than being cast into nothing.
+ */
+export function castSuspended(state: GameState, playerId: string, instanceId: string): void {
+  const found = findInstance(state, instanceId);
+  if (!found || found.instance.zone !== "exile") return;
+  const def = requireDefinition(state, found.instance.definitionId);
+  const selector = targetSelectorOf(def.castEffect ?? { kind: "draw", amount: 0 });
+  const targets = selector ? legalTargetsFor(state, selector, playerId).slice(0, 1) : [];
+  if (selector && targets.length === 0) return;
+
+  /*
+   * Cast from exile, which no other card in the pool does - so the zone check
+   * in `castSpell` is bypassed by moving the card to hand first. That is not a
+   * cheat: the card is genuinely being cast, and every other consequence of
+   * casting (cast triggers, ward, a permanent arriving properly) has to follow.
+   */
+  moveCard(state, instanceId, "hand");
+  const priorityBefore = state.priorityPlayerIndex;
+  state.priorityPlayerIndex = state.players.findIndex((p) => p.id === playerId);
+  try {
+    castSpell(state, playerId, instanceId, targets, { free: true, ignoreTiming: true });
+  } finally {
+    state.priorityPlayerIndex = priorityBefore;
+  }
+}
+
+/**
+ * "While it's prepared, you may cast a copy of its spell." - Eccentric
+ * Pestfinder.
+ *
+ * A copy of a spell is not a card, so nothing moves zones: the back face's
+ * effect goes on the stack on its own, paid for at the back face's cost, and
+ * the permanent stays where it is with its flag cleared.
+ */
+export function castPreparedSpell(state: GameState, playerId: string, instanceId: string): void {
+  if (state.players[state.priorityPlayerIndex]?.id !== playerId) {
+    throw new Error(`${playerId} does not have priority`);
+  }
+  const player = requirePlayer(state, playerId);
+  const found = findInstance(state, instanceId);
+  if (!found || found.instance.zone !== "battlefield") {
+    throw new Error(`${instanceId} is not on the battlefield`);
+  }
+  if (found.instance.controllerId !== playerId) throw new Error(`${playerId} does not control ${instanceId}`);
+  if (!found.instance.prepared) throw new Error("That permanent is not prepared");
+
+  const front = requireDefinition(state, found.instance.definitionId);
+  const back = front.backFaceId ? requireDefinition(state, front.backFaceId) : undefined;
+  if (!back?.castEffect) throw new Error(`${front.name} has no spell to copy`);
+  const cost = back.manaCost ?? { generic: 0, colors: {} };
+  if (!canCastAtSorcerySpeed(state, playerId) && !back.types.includes("Instant")) {
+    throw new Error(`${back.name} can only be cast at sorcery speed`);
+  }
+  if (!canPayManaCostFromPool(spendablePool(player, back), cost)) {
+    throw new Error(`${playerId} cannot afford ${back.name}`);
+  }
+  payManaCostFor(player, cost, back);
+  // Unprepared by the casting, whether or not the copy resolves - "doing so
+  // unprepares it" is about the cast, not the outcome.
+  found.instance.prepared = false;
+  log(state, `${playerId} casts a copy of ${back.name}`);
+  pushOntoStack(state, instanceId, playerId, back.castEffect, [], false);
+  state.passesInSuccession = 0;
 }
 
 /** Playing a land is not "casting a spell" - it doesn't use the stack and is capped at one per turn. */

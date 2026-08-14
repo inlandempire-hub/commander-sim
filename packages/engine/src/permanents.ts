@@ -12,7 +12,7 @@ import { cardName, findInstance, log, moveCard, requireDefinition, requirePlayer
 import { meetsBoardCondition } from "./conditions.js";
 import { effectiveTriggers, hasKeyword } from "./counters.js";
 import { resolveAmounts } from "./x.js";
-import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
+import { legalTargetsFor, targetCountOf, targetSelectorOf } from "./targeting.js";
 
 /**
  * The two ways an object arrives somewhere and may set triggers off: onto the
@@ -430,7 +430,13 @@ export function pushTrigger(
   const selector = targetSelectorOf(effect);
   if (selector) {
     const candidates = legalTargetsFor(state, selector, controllerId);
-    if (candidates.length === 0) {
+    const { min } = targetCountOf(selector, chosenX);
+    /*
+     * "Return **up to one** target creature card" - Moseo. A trigger that may
+     * legally point at nothing still resolves, so it is only removed from the
+     * stack when the card genuinely demanded a target and there is none.
+     */
+    if (candidates.length === 0 && min > 0) {
       log(state, `${cardName(state, sourceInstanceId)} has no legal target and does nothing`);
       return null;
     }

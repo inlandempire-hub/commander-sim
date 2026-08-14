@@ -11,7 +11,10 @@ import {
   resolveSearch,
   chooseTriggerTarget,
   resolveDiscard,
+  activateLoyaltyAbility,
+  castPreparedSpell,
   resolveAmountChoice,
+  suspendCard,
   resolveCardChoice,
   resolveSacrificeChoice,
   resolveConfirmation,
@@ -110,6 +113,15 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       break;
     case "resolveAmountChoice":
       resolveAmountChoice(state, playerId, message.amount);
+      break;
+    case "suspendCard":
+      suspendCard(state, playerId, message.instanceId);
+      break;
+    case "castPreparedSpell":
+      castPreparedSpell(state, playerId, message.instanceId);
+      break;
+    case "activateLoyaltyAbility":
+      activateLoyaltyAbility(state, playerId, message.instanceId, message.abilityIndex);
       return;
     case "passPriority":
       passPriority(state, playerId);

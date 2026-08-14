@@ -55,6 +55,15 @@ export type ClientMessage =
   | { type: "resolveCardChoice"; instanceIds: string[] }
   /** The number named for "pay any amount of life" - Necrodominance. */
   | { type: "resolveAmountChoice"; amount: number }
+  /**
+   * Playing a card by suspending it, which is not casting it - nothing goes on
+   * the stack and no cast trigger fires.
+   */
+  | { type: "suspendCard"; instanceId: string }
+  /** Casting a copy of a prepared permanent's other face. */
+  | { type: "castPreparedSpell"; instanceId: string }
+  /** Activating a planeswalker's loyalty ability, whose cost is loyalty. */
+  | { type: "activateLoyaltyAbility"; instanceId: string; abilityIndex: number }
   | { type: "takeMulligan" }
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }

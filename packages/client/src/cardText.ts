@@ -7,6 +7,7 @@ import type {
   Countable,
   Effect,
   ReplacementEffect,
+  TargetCount,
   TargetSelector,
   TriggerCondition,
   TriggeredAbility,
@@ -41,7 +42,9 @@ export function describeTarget(selector: TargetSelector): string {
         ? `target ${listOr(selector.subtypes)}`
         : "target creature";
     case "player":
-      return "target player";
+      return `${countPrefix(selector.count)}target player${
+        selector.count && selector.count.max !== "x" && selector.count.max > 1 ? "s" : ""
+      }`;
     case "opponent-of-controller":
       return "target opponent";
     case "spell":
@@ -56,17 +59,35 @@ export function describeTarget(selector: TargetSelector): string {
         ? listOr(selector.cardTypes.map((t) => `${prefix}${t.toLowerCase()}`))
         : `${prefix}permanent`;
       const whose = selector.controlledBy === "opponent" ? " an opponent controls" : "";
-      return `target ${noun}${whose}`;
+      return `${countPrefix(selector.count)}target ${noun}${whose}`;
     }
-    case "card-in-your-graveyard":
-      return selector.cardType
-        ? `target ${selector.cardType.toLowerCase()} card in your graveyard`
-        : "target card in your graveyard";
+    case "card-in-your-graveyard": {
+      const noun = selector.cardType
+        ? `${selector.cardType.toLowerCase()} card in your graveyard`
+        : "card in your graveyard";
+      // "with mana value X or less" - the cap is a phrase, not a number: it is
+      // read when the ability goes on the stack, not when the card was written.
+      const cap = selector.maxManaValue !== undefined ? " with mana value X or less" : "";
+      return `${countPrefix(selector.count)}target ${noun}${cap}`;
+    }
     case "card-in-your-exile":
       return selector.cardType
         ? `target ${selector.cardType.toLowerCase()} card you own in exile`
         : "target card you own in exile";
   }
+}
+
+/**
+ * "up to X ", "two " - the words a card puts in front of "target".
+ *
+ * Empty for the ordinary single target, which is every card in the pool but
+ * three, so nothing else reads any differently for this existing.
+ */
+function countPrefix(count: TargetCount | undefined): string {
+  if (!count) return "";
+  if (count.min === 0) return count.max === "x" ? "up to X " : `up to ${countWord(count.max)} `;
+  if (count.max === "x") return "X ";
+  return count.min === count.max && count.max > 1 ? `${countWord(count.max)} ` : "";
 }
 
 /** "a Swamp or a Forest", "Insect, Rat, Spider, or Squirrel" - the printed list form. */
@@ -231,6 +252,22 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         `Put ${countAmount(effect.amount)} +1/+1 ${isOne(effect.amount) ? "counter" : "counters"} on ${who}.`,
       );
     }
+    case "mayPay": {
+      const price = [
+        effect.cost.mana ? formatManaCost(effect.cost.mana) : null,
+        effect.cost.life ? `${effect.cost.life} life` : null,
+      ]
+        .filter(Boolean)
+        .join(" and ");
+      const yes = lowerFirst(describeEffect(effect.then, definitions));
+      // "If you didn't ..." is half of Springheart Nantuko, so it prints.
+      const no = effect.otherwise
+        ? ` If you didn't, ${lowerFirst(describeEffect(effect.otherwise, definitions))}`
+        : "";
+      return `You may pay ${price}. If you do, ${yes}${no}`;
+    }
+    case "becomePrepared":
+      return "This creature becomes prepared.";
     case "conditional":
       // "If you control six or more lands, ... instead." The branch reads as
       // the card prints it, with the condition first.

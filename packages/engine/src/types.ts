@@ -191,6 +191,22 @@ export type Countable =
   /** "For each opponent" - Turn Stones. One in a duel, three in a pod. */
   | { what: "opponents" };
 
+/**
+ * How many things an effect points at.
+ *
+ * Absent means exactly one, which is every card in the pool bar two: Pest
+ * Infestation says "up to X target artifacts and/or enchantments" and Scheming
+ * Symmetry says "choose two target players". Both are counts the caster
+ * announces, so they belong beside the selector rather than being inferred from
+ * however many targets a client happened to send.
+ *
+ * `max: "x"` is Pest Infestation's, read from the announced X at cast time.
+ */
+export interface TargetCount {
+  min: number;
+  max: number | "x";
+}
+
 export type TargetSelector =
   | { kind: "any-target" }
   /**
@@ -198,7 +214,7 @@ export type TargetSelector =
    * Squirrel" (Swarmyard). Any one of the listed subtypes qualifies.
    */
   | { kind: "creature"; subtypes?: string[] }
-  | { kind: "player" }
+  | { kind: "player"; count?: TargetCount }
   | { kind: "opponent-of-controller" }
   /** "Target spell" - a spell on the stack, as opposed to a triggered or activated ability. */
   | { kind: "spell" }
@@ -239,6 +255,8 @@ export type TargetSelector =
        * would let it exile itself in response to its own ability.
        */
       noncreature?: boolean;
+      /** "up to X target artifacts and/or enchantments" - Pest Infestation. */
+      count?: TargetCount;
     }
   /**
    * "Target creature card in your graveyard", and the other card types the
@@ -256,6 +274,15 @@ export type TargetSelector =
        * and much better card.
        */
       anyGraveyard?: boolean;
+      /**
+       * "target creature card with mana value X or less" - Moseo, whose X is
+       * the life gained this turn. An `Amount` rather than a number because the
+       * cap is read when the trigger is put on the stack, not when the card was
+       * written.
+       */
+      maxManaValue?: Amount;
+      /** "return **up to one** target creature card" - Moseo. */
+      count?: TargetCount;
     }
   /**
    * "Target card you own in exile" - the return-from-exile effects. Separate
@@ -388,6 +415,13 @@ export type Effect =
       optional?: boolean;
       /** "Another creature" - excludes the permanent whose ability this is. */
       excludeSelf?: boolean;
+      /**
+       * Which permanent types may be given up. Absent means creatures, which is
+       * every printing but one: Braids says "an artifact, creature,
+       * enchantment, land, or planeswalker", and offering only creatures would
+       * make the card far narrower than it is.
+       */
+      types?: CardType[];
       /** The "if you do" half. */
       then?: Effect;
     }
@@ -714,6 +748,14 @@ export type Effect =
        * player is read off the effect's first card target.
        */
       who?: "controller" | "target-controller" | "each-target-player";
+      /**
+       * Who the spell points at, when the searchers are chosen rather than
+       * implied - Scheming Symmetry's "choose two target players".
+       *
+       * Every other tutor names its searcher ("you", "its controller") and
+       * needs none of this.
+       */
+      target?: TargetSelector;
     }
   /**
    * "Sacrifice it" as an *effect*, as opposed to a cost.
@@ -817,6 +859,28 @@ export type Effect =
       addLoyalty: number;
       max: number;
     }
+  /**
+   * "You may pay {1}{G}. If you do, ... If you didn't, ..." - Springheart
+   * Nantuko.
+   *
+   * A yes-or-no with a price attached, which is why it is not just an optional
+   * trigger: declining and being unable to afford it are the same outcome, and
+   * both have to reach the "if you didn't" branch.
+   */
+  | {
+      kind: "mayPay";
+      cost: { mana?: ManaCost; life?: number };
+      then: Effect;
+      otherwise?: Effect;
+    }
+  /**
+   * "This creature becomes prepared." - Eccentric Pestfinder.
+   *
+   * A flag on the permanent rather than a counter, because that is what it is:
+   * while it holds, its controller may cast a copy of the spell on its other
+   * face, and doing so clears it.
+   */
+  | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
 /**
@@ -1671,6 +1735,14 @@ export interface CardInstance {
   /** Time counters, while this card sits suspended in exile. */
   timeCounters: number;
   /**
+   * "While it's prepared, you may cast a copy of its spell." - Eccentric
+   * Pestfinder.
+   *
+   * A flag rather than a counter, because that is what the card prints: it is
+   * either prepared or it is not, and casting the copy clears it.
+   */
+  prepared: boolean;
+  /**
    * True on a token that is a *copy* of a real card.
    *
    * Flagged on the instance and not the definition, because the definition it
@@ -1784,6 +1856,17 @@ export interface PendingConfirmation {
    * the stack are independent of their source.
    */
   object: StackObject;
+  /**
+   * A price the yes costs - Springheart Nantuko's {1}{G}. Absent on every
+   * ordinary "you may", which is free to accept.
+   */
+  cost?: { mana?: ManaCost; life?: number };
+  /**
+   * What happens on a no. Absent on every ordinary "you may", where declining
+   * simply means nothing happens - and present on Springheart Nantuko, where
+   * "if you didn't" is half the card.
+   */
+  otherwise?: Effect;
 }
 
 /**

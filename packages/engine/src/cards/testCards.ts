@@ -12702,6 +12702,280 @@ export const GRIST_THE_HUNGER_TIDE: CardDefinition = {
   tier: "weird",
 };
 
+
+/*
+ * "{X}{X}{G} - Destroy up to X target artifacts and/or enchantments. Create
+ * twice X 1/1 black and green Pest creature tokens with 'When this token dies,
+ * you gain 1 life.'"
+ *
+ * Three different numbers on one card: the {X}{X} charges X twice, "up to X"
+ * is a target count, and "twice X" doubles the tokens. They are three separate
+ * readings of the same announced value, which is why `x` is a count on the
+ * cost, a `TargetCount` on the selector, and a multiplier on the Amount.
+ */
+export const PEST_INFESTATION: CardDefinition = {
+  id: "pest-infestation",
+  name: "Pest Infestation",
+  scryfallId: "c9b8626d-d3d8-4460-9adf-112f48f173f6",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { G: 1 }, x: 2 },
+  colorIdentity: ["G"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      {
+        kind: "destroy",
+        target: {
+          kind: "permanent",
+          cardTypes: ["Artifact", "Enchantment"],
+          count: { min: 0, max: "x" },
+        },
+      },
+      {
+        kind: "createToken",
+        count: { kind: "x", multiply: 2 },
+        tokenDefinitionId: "token-bg-11-pest-dies-gain-life",
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+/*
+ * "Choose two target players. Each of them searches their library for a card,
+ * then shuffles and puts that card on top."
+ *
+ * Two targets is the whole card - it is symmetrical on purpose, and a version
+ * that only tutored for you would be a one-mana Vampiric Tutor.
+ */
+export const SCHEMING_SYMMETRY: CardDefinition = {
+  id: "scheming-symmetry",
+  name: "Scheming Symmetry",
+  scryfallId: "01acc50b-856d-442d-9880-1a892b40643b",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  castEffect: {
+    kind: "searchLibrary",
+    destination: "library-top",
+    who: "each-target-player",
+    target: { kind: "player", count: { min: 2, max: 2 } },
+  },
+  tier: "scripted",
+};
+
+/*
+ * "At the beginning of your end step, you may sacrifice an artifact, creature,
+ * enchantment, land, or planeswalker. If you do, each opponent may sacrifice a
+ * permanent of their choice that shares a card type with it. For each opponent
+ * who doesn't, that player loses 2 life and you draw a card."
+ *
+ * The punishment is what declining costs, which is why the offer to the
+ * opponents is optional and the "if they don't" half lives on the choice.
+ */
+export const BRAIDS_ARISEN_NIGHTMARE: CardDefinition = {
+  id: "braids-arisen-nightmare",
+  name: "Braids, Arisen Nightmare",
+  scryfallId: "f96223d0-04c4-40c2-87a9-0c6bc74adddb",
+  types: ["Creature"],
+  subtypes: ["Nightmare"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 1, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 3,
+  toughness: 3,
+  canBeCommander: true,
+  triggeredAbilities: [
+    {
+      event: "end-step",
+      watches: "controller",
+      effect: {
+        kind: "sacrificeChosen",
+        optional: true,
+        types: ["Artifact", "Creature", "Enchantment", "Land", "Planeswalker"],
+        then: {
+          kind: "offerSacrificeToOpponents",
+          sharesTypeWith: "the-sacrificed-permanent",
+          ifDeclined: {
+            kind: "sequence",
+            effects: [
+              { kind: "loseLife", amount: 2, who: "target", target: { kind: "player" } },
+              { kind: "draw", amount: 1 },
+            ],
+          },
+        },
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/*
+ * "Flying. When Moseo enters, create a 1/1 black and green Pest creature token
+ * with 'Whenever this token attacks, you gain 1 life.' Infusion - At the
+ * beginning of your end step, if you gained life this turn, return up to one
+ * target creature card with mana value X or less from your graveyard to the
+ * battlefield, where X is the amount of life you gained this turn."
+ *
+ * The cap moves during the turn, so the legal targets move with it - which is
+ * why `maxManaValue` is an `Amount` read when the trigger is put on the stack
+ * rather than a number baked into the card.
+ */
+export const MOSEO_VEINS_NEW_DEAN: CardDefinition = {
+  id: "moseo-veins-new-dean",
+  name: "Moseo, Vein's New Dean",
+  scryfallId: "6877180c-22a1-4c4d-9178-316f4c34661b",
+  types: ["Creature"],
+  subtypes: ["Bird", "Skeleton", "Warlock"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 2, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 1,
+  keywords: ["Flying"],
+  canBeCommander: true,
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "createToken",
+        count: 1,
+        tokenDefinitionId: "token-bg-11-pest-attacks-gain-life",
+      },
+    },
+    {
+      event: "end-step",
+      watches: "controller",
+      onlyIf: { kind: "gained-life-this-turn" },
+      effect: {
+        kind: "returnFromGraveyard",
+        destination: "battlefield",
+        target: {
+          kind: "card-in-your-graveyard",
+          cardType: "Creature",
+          maxManaValue: { kind: "count", of: { what: "life-gained-this-turn" } },
+          count: { min: 0, max: 1 },
+        },
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/*
+ * "Suspend 2-{1}{B}. Search your library for a card, put that card into your
+ * hand, then shuffle."
+ *
+ * The card has no mana cost at all: suspending it is the only way to play it,
+ * which is what makes a two-mana unconditional tutor fair.
+ */
+export const PROFANE_TUTOR: CardDefinition = {
+  id: "profane-tutor",
+  name: "Profane Tutor",
+  scryfallId: "2afc6f7d-ab59-4d64-bd11-6bd0fd4bfcd2",
+  types: ["Sorcery"],
+  colorIdentity: ["B"],
+  suspend: { timeCounters: 2, cost: { generic: 1, colors: { B: 1 } } },
+  castEffect: { kind: "searchLibrary", destination: "hand" },
+  tier: "scripted",
+};
+
+/*
+ * "Bestow {1}{G}. Enchanted creature gets +1/+1. Landfall - Whenever a land you
+ * control enters, you may pay {1}{G} if this permanent is attached to a
+ * creature you control. If you do, create a token that's a copy of that
+ * creature. If you didn't create a token this way, create a 1/1 green Insect
+ * creature token."
+ *
+ * Three shapes at once: an alternative cost that changes what the card *is*, a
+ * static buff that reaches exactly one permanent, and an optional payment whose
+ * "if you didn't" branch is half the card.
+ */
+export const SPRINGHEART_NANTUKO: CardDefinition = {
+  id: "springheart-nantuko",
+  name: "Springheart Nantuko",
+  scryfallId: "54a3ea87-005e-4985-b2a5-21711d0b71c0",
+  types: ["Enchantment", "Creature"],
+  subtypes: ["Insect", "Monk"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  bestowCost: { generic: 1, colors: { G: 1 } },
+  staticBuff: { power: 1, toughness: 1 },
+  triggeredAbilities: [
+    {
+      event: "landfall",
+      watches: "controller",
+      effect: {
+        kind: "conditional",
+        condition: { kind: "attached-to-a-creature" },
+        then: {
+          kind: "mayPay",
+          cost: { mana: { generic: 1, colors: { G: 1 } } },
+          then: { kind: "createCopyToken", of: "attached-creature" },
+          otherwise: { kind: "createToken", count: 1, tokenDefinitionId: "token-g-11-insect" },
+        },
+        otherwise: { kind: "createToken", count: 1, tokenDefinitionId: "token-g-11-insect" },
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/*
+ * "For each opponent, you create a 1/1 black and green Pest creature token with
+ * 'When this token dies, you gain 1 life.'" - the spell half of Eccentric
+ * Pestfinder, castable only as a copy while the creature is prepared.
+ */
+export const TURN_STONES: CardDefinition = {
+  id: "turn-stones",
+  name: "Turn Stones",
+  scryfallId: "508e1dd7-edbd-4b76-90bc-ff58c55b58a3",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  isBackFace: true,
+  castEffect: {
+    kind: "createToken",
+    count: { kind: "count", of: { what: "opponents" } },
+    tokenDefinitionId: "token-bg-11-pest-dies-gain-life",
+  },
+  tier: "scripted",
+};
+
+/*
+ * "Trample. At the beginning of each end step, if you gained life this turn,
+ * this creature becomes prepared. (While it's prepared, you may cast a copy of
+ * its spell. Doing so unprepares it.)"
+ *
+ * A copy of a spell is not a card, so casting it moves nothing: the back face's
+ * effect goes on the stack by itself and the creature stays where it is with
+ * its flag cleared. See `castPreparedSpell`.
+ */
+export const ECCENTRIC_PESTFINDER: CardDefinition = {
+  id: "eccentric-pestfinder",
+  name: "Eccentric Pestfinder",
+  scryfallId: "508e1dd7-edbd-4b76-90bc-ff58c55b58a3",
+  types: ["Creature"],
+  subtypes: ["Troll", "Druid"],
+  manaCost: { generic: 2, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 5,
+  toughness: 5,
+  keywords: ["Trample"],
+  backFaceId: "turn-stones",
+  triggeredAbilities: [
+    {
+      event: "end-step",
+      watches: "any",
+      onlyIf: { kind: "gained-life-this-turn" },
+      effect: { kind: "becomePrepared" },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -13637,5 +13911,13 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     SCUTE_SWARM,
     SPRINGLEAF_PARADE,
     GRIST_THE_HUNGER_TIDE,
+    PEST_INFESTATION,
+    SCHEMING_SYMMETRY,
+    BRAIDS_ARISEN_NIGHTMARE,
+    MOSEO_VEINS_NEW_DEAN,
+    PROFANE_TUTOR,
+    SPRINGHEART_NANTUKO,
+    TURN_STONES,
+    ECCENTRIC_PESTFINDER,
   ].map((def) => [def.id, def]),
 );

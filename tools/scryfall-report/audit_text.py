@@ -308,6 +308,14 @@ RULES = [
     (r"^[+\u2212-]\d+:", {"loyalty"}),
     (r"^if you do, draw that many cards", {"payLifeDrawThatMany"}),
     (r"^when you do, destroy", {"sacrificeChosen"}),
+    # The last seven cards.
+    (r"you may sacrifice an? (artifact|creature|enchantment|land|planeswalker)", {"sacrificeChosen"}),
+    (r"\bbecomes prepared\b", {"becomePrepared"}),
+    (r"^destroy up to x target", {"destroy"}),
+    (r"^choose (two|three) target players", {"searchLibrary"}),
+    (r"each of them searches their library", {"searchLibrary"}),
+    (r"you may pay \{[^}]+\}", {"mayPay"}),
+    (r"\breturn up to one target\b", {"returnFromGraveyard"}),
 ]
 
 

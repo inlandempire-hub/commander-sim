@@ -1,6 +1,8 @@
 import type { GameState, StackObject, StackTarget, TargetSelector, Effect } from "./types.js";
 import { findInstance, requireDefinition } from "./state.js";
 import { hasKeyword } from "./counters.js";
+import { evaluateAmount } from "./amounts.js";
+import { manaValue } from "./mana.js";
 
 /**
  * True if this stack object is a *spell* rather than a triggered or activated
@@ -84,8 +86,18 @@ export function isValidTarget(
       // "your graveyard" - control of a card outside the battlefield always
       // sits with its owner. Feral Appetite says "a graveyard", anybody's.
       if (!selector.anyGraveyard && found.instance.ownerId !== controllerId) return false;
-      if (!selector.cardType) return true;
-      return requireDefinition(state, found.instance.definitionId).types.includes(selector.cardType);
+      const graveDef = requireDefinition(state, found.instance.definitionId);
+      if (selector.cardType && !graveDef.types.includes(selector.cardType)) return false;
+      /*
+       * "with mana value X or less", where X is the life gained this turn -
+       * Moseo. Evaluated here rather than baked into the selector, because the
+       * cap moves during the turn and the legal targets have to move with it.
+       */
+      if (selector.maxManaValue !== undefined) {
+        const cap = evaluateAmount(state, controllerId, selector.maxManaValue, "target mana value cap");
+        if (manaValue(graveDef.manaCost ?? { generic: 0, colors: {} }) > cap) return false;
+      }
+      return true;
     }
     case "card-in-your-exile": {
       if (target.kind !== "card") return false;
@@ -129,6 +141,23 @@ export function legalTargetsFor(state: GameState, selector: TargetSelector, cont
  * silently skip target validation - which is how "destroy target creature"
  * would otherwise have been castable with no target at all.
  */
+/**
+ * How many targets an effect takes, with X already announced.
+ *
+ * One unless the card says otherwise, which is every card in the pool but two.
+ * Read from the selector rather than from however many targets a client sent,
+ * so "up to X" is checked against the X that was actually paid for.
+ */
+export function targetCountOf(
+  selector: TargetSelector | undefined,
+  chosenX = 0,
+): { min: number; max: number } {
+  const count =
+    selector && "count" in selector && selector.count ? selector.count : undefined;
+  if (!count) return { min: 1, max: 1 };
+  return { min: count.min, max: count.max === "x" ? chosenX : count.max };
+}
+
 export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
   switch (effect.kind) {
     case "damage":
@@ -162,6 +191,12 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
      * `who`: "each opponent loses 1 life" names nobody, "target player loses 1
      * life" names one.
      */
+    /*
+     * "Choose two target players. Each of them searches their library" -
+     * Scheming Symmetry, the one tutor whose searchers are targeted rather
+     * than implied. Every other printing names them and carries no selector.
+     */
+    case "searchLibrary":
     case "pump":
     case "addCounter":
     case "loseLife":

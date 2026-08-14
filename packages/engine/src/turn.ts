@@ -2,6 +2,7 @@ import type { GameState, Phase, Step, TriggerEvent } from "./types.js";
 import { drawCard, log, moveCard, requireDefinition } from "./state.js";
 import { emptyManaPool } from "./mana.js";
 import { combatHasFirstStrike, dealCombatDamage } from "./combat.js";
+import { castSuspended } from "./casting.js";
 import { pushTrigger } from "./permanents.js";
 import { effectiveTriggers } from "./counters.js";
 
@@ -158,6 +159,25 @@ function runAutomaticStepActions(state: GameState): void {
   const activePlayer = state.players[state.activePlayerIndex]!;
 
   switch (state.step) {
+    case "upkeep": {
+      /*
+       * Suspend: "At the beginning of your upkeep, remove a time counter. When
+       * the last is removed, cast it without paying its mana cost."
+       *
+       * The exile zone is scanned rather than a list being kept, for the same
+       * reason land drops are counted fresh: no second place for the answer to
+       * go stale. The card is cast immediately when the last counter goes,
+       * which is a shortcut - the real rule puts a trigger on the stack first -
+       * and it is the same one every other "then do it" here takes.
+       */
+      for (const card of [...activePlayer.exile]) {
+        if (card.timeCounters <= 0) continue;
+        card.timeCounters -= 1;
+        log(state, `${requireDefinition(state, card.definitionId).name} loses a time counter`);
+        if (card.timeCounters === 0) castSuspended(state, activePlayer.id, card.instanceId);
+      }
+      break;
+    }
     case "untap": {
       for (const instance of activePlayer.battlefield) {
         instance.tapped = false;

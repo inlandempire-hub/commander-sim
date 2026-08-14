@@ -86,7 +86,10 @@ function value(amount: Amount, values: AmountContext): number | Amount {
     }
     return amount;
   }
-  return amount.negate ? -values.x : values.x;
+  // "Create **twice X**" - Pest Infestation. Declared on the Amount and, until
+  // this line, quietly ignored: the card made X tokens instead of 2X.
+  const scaled = values.x * (amount.multiply ?? 1);
+  return amount.negate ? -scaled : scaled;
 }
 
 /**

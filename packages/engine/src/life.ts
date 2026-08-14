@@ -18,9 +18,19 @@ import { effectiveTriggers } from "./counters.js";
  * the more common one in play.
  */
 export function gainLife(state: GameState, playerId: string, amount: number): void {
+  /*
+   * The tally three cards read - Moseo's infusion, Eccentric Pestfinder's, and
+   * anything else that asks "did you gain life this turn".
+   *
+   * Kept here because this is the one door all life gain goes through, which is
+   * also why the "whenever you gain life" watchers live here. It is a tally and
+   * not a comparison against a remembered total: gaining 4 and losing 4 still
+   * counts as having gained life this turn.
+   */
   if (amount <= 0) return;
   const player = requirePlayer(state, playerId);
   player.life += amount;
+  player.lifeGainedThisTurn += amount;
 
   /*
    * One trigger per permanent, not per point of life. "Whenever you gain life"

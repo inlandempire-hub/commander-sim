@@ -1,4 +1,5 @@
-import type { CardDefinition, CardInstance, Effect, GameState, StackTarget } from "./types.js";
+import type { CardDefinition, CardInstance, Effect, GameState, ManaCost, StackTarget } from "./types.js";
+import { ALL_COLORS } from "./types.js";
 import {
   cardName,
   createCardInstance,
@@ -387,6 +388,48 @@ export function applyEffect(
       }
       return;
     }
+    case "mayPay": {
+      /*
+       * "You may pay {1}{G}. If you do, ... If you didn't, ..." - Springheart
+       * Nantuko.
+       *
+       * Offered only when it can be afforded: an offer the player cannot take
+       * is not a choice, and declining and being unable to pay reach the same
+       * branch anyway. The question rides on `pendingConfirmation`, which now
+       * carries the price and both halves.
+       */
+      const mana = effect.cost.mana;
+      const life = effect.cost.life ?? 0;
+      const affordable = (!mana || canPayManaCost(controller, mana)) && controller.life > life;
+      if (!affordable) {
+        if (effect.otherwise) applyEffect(state, controllerId, sourceInstanceId, effect.otherwise, targets);
+        return;
+      }
+      state.pendingConfirmation = {
+        playerId: controllerId,
+        sourceInstanceId,
+        prompt: `${cardName(state, sourceInstanceId)}: pay ${describePrice(effect.cost)}?`,
+        cost: effect.cost,
+        otherwise: effect.otherwise,
+        object: {
+          id: `pay-${state.nextStackObjectId++}`,
+          sourceInstanceId,
+          controllerId,
+          effect: effect.then,
+          targets,
+          isPermanentSpell: false,
+        },
+      };
+      return;
+    }
+    case "becomePrepared": {
+      const source = findInstance(state, sourceInstanceId);
+      if (!source || source.instance.zone !== "battlefield") return;
+      if (source.instance.prepared) return;
+      source.instance.prepared = true;
+      log(state, `${cardName(state, sourceInstanceId)} becomes prepared`);
+      return;
+    }
     case "sacrificeChosen": {
       /*
        * Stops and asks which creature is being given up - see
@@ -397,9 +440,16 @@ export function applyEffect(
        * half simply does not happen: Disciple of Freyalise with an empty board
        * is a 3/3 that draws no cards.
        */
+      /*
+       * Creatures unless the card names other types - Braids says "an artifact,
+       * creature, enchantment, land, or planeswalker", and offering only
+       * creatures would make it a far narrower card than it is.
+       */
+      const wantedTypes = effect.types ?? ["Creature"];
       const candidates = controller.battlefield.filter((instance) => {
         if (effect.excludeSelf && instance.instanceId === sourceInstanceId) return false;
-        return requireDefinition(state, instance.definitionId).types.includes("Creature");
+        const types = requireDefinition(state, instance.definitionId).types;
+        return wantedTypes.some((wanted) => types.includes(wanted));
       });
       if (candidates.length === 0) return;
       state.pendingSacrifice = {
@@ -1188,7 +1238,16 @@ export function resolveSacrificeChoice(state: GameState, playerId: string, insta
       // The moment `sacrificed-power` becomes a number - see the note in x.ts
       // on why this could not be substituted any earlier.
       resolveAmounts(then, { x: 0, sacrificedPower }),
-      [],
+      /*
+       * The card that was given up, handed on as the target.
+       *
+       * Braids' opponents have to match *its* card types, and the permanent is
+       * in a graveyard by now - which is fine, because its type line is what is
+       * being read rather than its presence on the battlefield. Passing nothing
+       * here left the offer with no types to match and no candidates at all,
+       * so every opponent "declined" without ever being asked.
+       */
+      [{ kind: "card", instanceId }],
     );
   }
   if (followUp?.length) {
@@ -1342,6 +1401,17 @@ function castForFree(state: GameState, playerId: string, instanceId: string): vo
   } finally {
     state.priorityPlayerIndex = priorityBefore;
   }
+}
+
+/** "{1}{G} and 3 life" - the price on an optional payment, for its prompt. */
+function describePrice(cost: { mana?: ManaCost; life?: number }): string {
+  const parts: string[] = [];
+  if (cost.mana) {
+    const pips = ALL_COLORS.flatMap((c) => Array((cost.mana!.colors[c] ?? 0)).fill(`{${c}}`));
+    parts.push([cost.mana.generic > 0 ? `{${cost.mana.generic}}` : "", ...pips].filter(Boolean).join(""));
+  }
+  if (cost.life) parts.push(`${cost.life} life`);
+  return parts.join(" and ");
 }
 
 /** Exported for the bot and UI: the creatures a pumpAll would actually touch. */

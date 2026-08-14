@@ -52,6 +52,12 @@ export interface GameController {
   resolveCardChoice(playerId: string, instanceIds: string[]): void;
   /** Answers "pay any amount of life". */
   resolveAmountChoice(playerId: string, amount: number): void;
+  /** Suspends a card out of hand - not a cast. */
+  suspendCard(playerId: string, instanceId: string): void;
+  /** Casts a copy of a prepared permanent's other face. */
+  castPreparedSpell(playerId: string, instanceId: string): void;
+  /** Activates a planeswalker's loyalty ability. */
+  activateLoyaltyAbility(playerId: string, instanceId: string, abilityIndex: number): void;
   /** Opening hands, before the game starts. See the engine's mulligan.ts. */
   takeMulligan(playerId: string): void;
   keepHand(playerId: string): void;

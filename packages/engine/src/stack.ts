@@ -1,5 +1,6 @@
 import type { GameState, StackObject } from "./types.js";
-import { cardName, findInstance, log, moveCard } from "./state.js";
+import { cardName, findInstance, log, moveCard, requirePlayer } from "./state.js";
+import { canPayManaCost, payManaCost } from "./mana.js";
 import { applyEffect } from "./effects.js";
 import { putOntoBattlefield, triggerConditionMet } from "./permanents.js";
 
@@ -78,12 +79,38 @@ export function resolveConfirmation(state: GameState, playerId: string, accept: 
   if (pending.playerId !== playerId) throw new Error(`The choice belongs to ${pending.playerId}`);
 
   const obj = pending.object;
+  const cost = pending.cost;
+  const otherwise = pending.otherwise;
   state.pendingConfirmation = null;
 
-  if (accept) {
+  /*
+   * A yes with a price is only a yes if the price is paid - Springheart
+   * Nantuko's {1}{G}. A player who says yes and cannot afford it lands on the
+   * "if you didn't" branch, which is the same place declining leads, because
+   * the card draws no distinction between the two.
+   */
+  let paid = accept;
+  if (accept && cost) {
+    const player = requirePlayer(state, playerId);
+    const affordable = (!cost.mana || canPayManaCost(player, cost.mana)) && player.life > (cost.life ?? 0);
+    if (affordable) {
+      if (cost.mana) payManaCost(player, cost.mana);
+      if (cost.life) {
+        player.life -= cost.life;
+        log(state, `${playerId} pays ${cost.life} life`);
+      }
+    } else {
+      paid = false;
+    }
+  }
+
+  if (paid) {
     applyEffect(state, obj.controllerId, obj.sourceInstanceId, obj.effect, obj.targets);
   } else {
     log(state, `${playerId} declines ${cardName(state, obj.sourceInstanceId)}`);
+    // "If you didn't create a token this way, create a 1/1 Insect" - the half
+    // of the card that only happens on a no.
+    if (otherwise) applyEffect(state, obj.controllerId, obj.sourceInstanceId, otherwise, obj.targets);
   }
   finishResolution(state, obj);
 }
