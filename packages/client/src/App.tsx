@@ -138,9 +138,20 @@ export interface AppProps {
   modeNotice: string;
   /** Per-deck card art choices, keyed by the seat that chose them. */
   artOverrides?: ArtOverridesByPlayer;
+  /**
+   * Turn every hand face up, including the ones across the table.
+   *
+   * Off in both modes anybody plays a game in, and it must stay that way: an
+   * opponent's hand being hidden is not a UI preference, it is the game. The
+   * card lab passes it because the lab is not a game - it is one board per card
+   * with both seats in your hands, and half this deck's text ("whenever an
+   * opponent casts", "each opponent may sacrifice") cannot be exercised at all
+   * unless you can reach into the other hand and cast from it.
+   */
+  revealAllHands?: boolean;
 }
 
-export function App({ controller, modeNotice, artOverrides }: AppProps) {
+export function App({ controller, modeNotice, artOverrides, revealAllHands }: AppProps) {
   const { state, lastError, clearError } = controller;
   const [pendingTarget, setPendingTarget] = useState<PendingTarget | null>(null);
   const [selectedAttackerIds, setSelectedAttackerIds] = useState<Set<string>>(new Set());
@@ -1196,10 +1207,11 @@ export function App({ controller, modeNotice, artOverrides }: AppProps) {
           </a>
         </header>
 
-        {/* Face-down, always. There is no mode in which you may look at
-            another player's hand - see the note on `hideHand`. */}
+        {/* Face-down in every mode anybody plays a game in - see the note on
+            `hideHand`. The card lab is the one caller that turns them over, and
+            it is not a game: see `revealAllHands`. */}
         {topPlayers.map((player) => (
-          <PlayerBoard key={player.id} flipped hideHand {...boardProps(player)} />
+          <PlayerBoard key={player.id} flipped hideHand={!revealAllHands} {...boardProps(player)} />
         ))}
 
         {/* The controls ride in the gap under the bottom seat's command zone -

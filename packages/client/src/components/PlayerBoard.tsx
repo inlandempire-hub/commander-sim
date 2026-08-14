@@ -340,7 +340,13 @@ export function PlayerBoard({
         <div className="rail__identity">
           <span className="rail__name">{player.id}</span>
           {hasPriority && <span className="rail__priority">Priority</span>}
-          {isActivePlayer && <span className="rail__turn">Their turn</span>}
+          {/* "Their turn" across the table, "Your turn" at the near edge -
+              `flipped` is what tells the two apart, and is the one prop that
+              means "this board is not yours" regardless of whether its hand
+              happens to be revealed. The label used to read "Their turn" on
+              both, which on your own board is simply wrong, and wrong in the
+              one place you look to find out whose turn it is. */}
+          {isActivePlayer && <span className="rail__turn">{flipped ? "Their turn" : "Your turn"}</span>}
         </div>
         {/* Keyed on the life total so a change remounts the element, which is
             what makes a CSS animation play again rather than only the first

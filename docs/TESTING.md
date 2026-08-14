@@ -8,7 +8,7 @@ Everything here assumes you've done the first-run steps in [SETUP.md](SETUP.md).
 npm test
 ```
 
-Runs all 235 tests through Vitest. Takes about 8 seconds. Then:
+Runs all 1,061 tests through Vitest. Takes about 4 seconds. Then:
 
 ```bash
 npm run typecheck
@@ -51,6 +51,7 @@ components deliberately hold almost none.
 | `landAndUncounterable.test.ts` | Land and permanent destruction, "can't be countered". |
 | `autoPass.test.ts` | When the UI is allowed to pass priority for you. |
 | `demoGame.test.ts` | The shipped demo decks actually build and are legal. |
+| `cardLab.test.ts` | Every card lab scenario stands up and its card is playable from it. |
 
 ### Bot (`packages/bot/src/__tests__/`)
 
@@ -155,6 +156,52 @@ and reports any that have drifted. It needs the bulk file, so run
 `py fetch_bulk_data.py` first if `data/` is empty. Expect **zero** problems.
 
 See [ADDING-CARDS.md](ADDING-CARDS.md) before changing the card pool itself.
+
+## The card lab: playing every card by hand
+
+```
+http://localhost:5180/?mode=lab
+```
+
+93 boards, one per card in the Blech, Loafing Pest deck. Each one puts that card
+in your hand with exactly the board its text needs around it - a creature with
+counters to move, a graveyard to exile, an artifact to destroy, an opponent with
+something worth sacrificing - and a checklist down the side saying what to try
+and what should happen.
+
+**It exists because the engine suite cannot answer the question it answers.** A
+test proves an effect handler works when called, on a board the test placed
+itself. It says nothing about whether the card can be found in a hand, paid for,
+aimed, resolved, and *seen* to have happened. Every bug of that second kind
+found in this project so far was found by hand: a targeted ability that went on
+the stack with no targets, an anthem that rendered as an empty sentence, a
+removal spell that skipped dies triggers. All three passed their unit tests.
+
+Three things about it are deliberate:
+
+- **You drive both seats.** Salty Mike is not a bot, and every hand is face up
+  (see `revealAllHands` in App.tsx - the one caller that turns them over). Half
+  this deck's text can only be exercised from the other side of the table:
+  "whenever an opponent casts", "each opponent may sacrifice", anything that
+  wants somebody to be attacking you.
+- **Reset is part of the method.** Several cards have two branches that cannot
+  both be reached in one turn - a land that enters tapped unless a condition
+  holds, a modal spell, a "you may pay" with an "if you didn't" half. Those
+  checklists say to reset and take the other line.
+- **Nothing is random.** No shuffle, no mulligan, the same board every time you
+  open the same card. A lab you cannot reproduce is not a lab.
+
+Verdicts and notes are kept in localStorage, so you can stop and come back. The
+index's **Show everything broken** button prints just the faults and their
+notes - that list is the point of the whole exercise, and it is what to hand
+over to get things fixed.
+
+The scenarios live in `packages/engine/src/cardLabScenarios.ts` and the board
+builder in `cardLab.ts`. `cardLab.test.ts` is what keeps them honest: it builds
+every scenario, checks every card id it names exists, and asserts the card under
+test is genuinely playable from the board it was handed - a land base written
+before a fixture's cost was corrected would otherwise leave the card uncastable
+and make the *engine* look broken.
 
 ## What good looks like before you call something done
 

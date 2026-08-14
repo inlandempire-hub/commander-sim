@@ -27,3 +27,7 @@ export * from "./concede.js";
 export * from "./cards/testCards.js";
 export * from "./demoGame.js";
 export * from "./archetypes.js";
+// The card lab: one board per card in the Blech list, stood up so that card's
+// whole text can be put to work. See cardLab.ts for why it exists.
+export * from "./cardLab.js";
+export * from "./cardLabScenarios.js";

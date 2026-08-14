@@ -12,6 +12,7 @@ import { useLocalGameController } from "./useLocalGameController.js";
 import { useNetworkGameController } from "./useNetworkGameController.js";
 import { useBotOpponent } from "./useBotOpponent.js";
 import { DeckBuilder } from "./deckbuilder/DeckBuilder.js";
+import { CardLab } from "./lab/CardLab.js";
 import { FontLab } from "./FontLab.js";
 import { allFontFaceCss } from "./fontCatalogue.js";
 import { applyPrefs, installFontFaces, loadPrefs } from "./fontPrefs.js";
@@ -20,6 +21,7 @@ import type { ArtOverrides } from "./cardArt.js";
 import type { ArtOverridesByPlayer } from "./artContext.js";
 import "./styles.css";
 import "./deckbuilder/deckbuilder.css";
+import "./lab/lab.css";
 
 const SEAT_LABELS: Record<string, string> = { donny: "Deadly Donny", mike: "Salty Mike" };
 
@@ -192,6 +194,9 @@ function Root() {
 
   if (mode === "deck") return <DeckBuilder />;
   if (mode === "fonts") return <FontLab />;
+  // The card lab: every card in the Blech deck, one at a time, on a board built
+  // for it. ?mode=lab for the index, &card=<id> for one board.
+  if (mode === "lab") return <CardLab />;
 
   // Both seats read the same pair of parameters everywhere: ?deck=/&vs= name
   // the built-in archetypes, ?mydeck=/&vsdeck= take ids from the deck builder.

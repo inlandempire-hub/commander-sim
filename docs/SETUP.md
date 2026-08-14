@@ -70,6 +70,7 @@ the URL:
 | `?delay=1500` | Slows the bot down (default 800ms between its actions). |
 | `?mode=deck` | The deck builder. |
 | `?mode=fonts` | The font lab - choose the type on the buttons and the combat banner. |
+| `?mode=lab` | The card lab - every card in the Blech deck on a board built for it, with a checklist. See TESTING.md. |
 | `?mode=network&seat=donny` | Join a networked game as Deadly Donny. |
 
 Deck names are matched loosely, so `deck=white` and `deck=Radiant` both work.
@@ -79,6 +80,12 @@ network. Hotseat - two people on one screen - was removed on 2026-08-06. Magic
 is a hidden-information game and one screen has one pair of eyes on it, so
 either both hands are face up and neither player can play honestly, or the
 screen gets handed over and re-hidden every turn.
+
+The card lab (`?mode=lab`) does drive both seats from one screen with every hand
+face up, and that is not hotseat coming back: it is not a game. It is one board
+per card with no opponent to be honest towards, and it exists so a card's whole
+text can be exercised - including the half that needs an opponent to be doing
+something. See [TESTING.md](TESTING.md).
 
 ### Networked play
 

@@ -4,6 +4,7 @@ import {
   castSpellWithAutoTap,
   createDemoGame,
   createGameFromDecks,
+  createLabGame,
   declareAttackers,
   declareBlockers,
   resolveSearch,
@@ -24,6 +25,7 @@ import {
   playLand,
   type DeckList,
   type GameState,
+  type LabScenario,
 } from "@mtg-commander-sim/engine";
 import type { GameController } from "./gameController.js";
 
@@ -43,12 +45,25 @@ export interface LocalGameOptions {
    * wants a board to poke at.
    */
   mulligan?: boolean;
+  /**
+   * A card lab board instead of a game: one card's scenario, stood up mid-turn.
+   * Wins over `decks`, because a scenario names its own board entirely.
+   */
+  scenario?: LabScenario;
 }
 
-export function useLocalGameController({ decks, mulligan = true }: LocalGameOptions = {}): GameController {
+export function useLocalGameController({
+  decks,
+  mulligan = true,
+  scenario,
+}: LocalGameOptions = {}): GameController {
   const stateRef = useRef<GameState>();
   if (!stateRef.current) {
-    stateRef.current = decks ? createGameFromDecks(decks, { mulligan }) : createDemoGame({ mulligan });
+    stateRef.current = scenario
+      ? createLabGame(scenario)
+      : decks
+        ? createGameFromDecks(decks, { mulligan })
+        : createDemoGame({ mulligan });
   }
 
   const [, setTick] = useState(0);
