@@ -85,7 +85,13 @@ export function describeTarget(selector: TargetSelector): string {
  */
 function countPrefix(count: TargetCount | undefined): string {
   if (!count) return "";
-  if (count.min === 0) return count.max === "x" ? "up to X " : `up to ${countWord(count.max)} `;
+  // "up to **one** target", not "up to a target". `countWord(1)` is "a", which
+  // is the right article in front of a noun ("create a token") and the wrong
+  // word after "up to" - the cards spell this one out.
+  if (count.min === 0) {
+    if (count.max === "x") return "up to X ";
+    return count.max === 1 ? "up to one " : `up to ${countWord(count.max)} `;
+  }
   if (count.max === "x") return "X ";
   return count.min === count.max && count.max > 1 ? `${countWord(count.max)} ` : "";
 }
@@ -100,6 +106,24 @@ function listOr(items: string[]): string {
 /** Capitalises a sentence that may start with a target phrase ("target creature gets..."). */
 function sentence(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * A whole ability handed to another permanent, in quotes - and the full stop
+ * goes *inside* them, which is how the cards print it and the only way the
+ * sentence ends once rather than twice.
+ */
+function quoted(text: string): string {
+  return `"${lowerFirst(finish(text))}"`;
+}
+
+/**
+ * Ends a sentence, unless it already ends in one - a line finishing with a
+ * quoted ability has its full stop inside the quotes and must not collect
+ * another outside them.
+ */
+function finish(text: string): string {
+  return /[.!?]"?$/.test(text) ? text : `${text}.`;
 }
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
@@ -144,7 +168,47 @@ function countAmount(amount: Amount): string {
   if (amount.kind === "event-amount") return "that many";
   if (amount.kind === "count") return describeCount(amount.of);
   if (amount.kind === "sacrificed-power") return "X";
+  // "Create **twice X**" - Pest Infestation, whose {X}{X} cost charges X twice
+  // and whose token count is doubled again on top. Printing a plain "X" here
+  // halves the card in the panel you decide what to cast it for.
+  if (amount.multiply === 2) return "twice X";
+  if (amount.multiply !== undefined && amount.multiply !== 1) return `${amount.multiply} times X`;
   return "X";
+}
+
+/**
+ * The noun after "for each" - "for each **counter on this creature**".
+ *
+ * A second phrasing of `describeCount` rather than a reuse of it, because the
+ * two slots genuinely read differently: "draw cards equal to **the number of**
+ * creature cards in your graveyard" and "for each **creature card in your
+ * graveyard**" are the same count and neither sentence accepts the other's
+ * wording. Returns undefined for the counts no card puts after "for each",
+ * which is the caller's signal to use the "equal to" form instead.
+ */
+function perThing(of: Countable): string | undefined {
+  switch (of.what) {
+    case "creatures":
+      return of.withCounter
+        ? `${of.excludeSubtype ? `non-${of.excludeSubtype} ` : ""}creature you control with a +1/+1 counter on it`
+        : `${of.excludeSubtype ? `non-${of.excludeSubtype} ` : ""}creature you control`;
+    case "counters-placed-this-turn":
+      return "+1/+1 counter you've put on creatures under your control this turn";
+    case "counters-on-source":
+      return "counter on this creature";
+    case "creature-cards-in-your-graveyard":
+      return "creature card in your graveyard";
+    case "creatures-attacking-you":
+      return "creature attacking you";
+    case "opponents":
+      return "opponent";
+    case "life-gained-this-turn":
+      return "life you gained this turn";
+    // "The greatest power among creatures you control" is a single number, not
+    // a thing there can be several of, so it never follows "for each".
+    case "greatest-power":
+      return undefined;
+  }
 }
 
 /** Whether an `Amount` is a plain 1, for the singular/plural decisions below. */
@@ -346,10 +410,27 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       const token = definitions[effect.tokenDefinitionId];
       if (!token) return `Create ${effect.count} ${effect.tokenDefinitionId}.`;
       const name = tokenName(token);
-      // "Create that many ..." - Hornet Nest, where the count is the damage
-      // the event carried and is not known until it fires.
+      const many = name.replace(" token", " tokens");
+      /*
+       * Three different unknown counts, and they were all printing as "that
+       * many" - a phrase that only makes sense when a preceding sentence said
+       * how many. On Springleaf Parade and Iridescent Hornbeetle there was no
+       * preceding sentence at all, so the panel simply did not say how many
+       * tokens the card made.
+       */
       if (typeof effect.count !== "number") {
-        return `Create that many ${name.replace(" token", " tokens")}.`;
+        // "Create **that many**" is right for exactly one shape: Hornet Nest,
+        // where the sentence before it named the damage.
+        if (effect.count.kind === "event-amount") return `Create that many ${many}.`;
+        if (effect.count.kind === "count") {
+          const per = perThing(effect.count.of);
+          // "Create **a** 1/1 ... for each" - `tokenName` returns the token
+          // without an article, because the numeric branch below supplies one.
+          return per
+            ? `Create a ${name} for each ${per}.`
+            : `Create ${many} equal to ${describeCount(effect.count.of)}.`;
+        }
+        return `Create ${countAmount(effect.count)} ${many}.`;
       }
       // "Create a 1/1 black Snake creature token with deathtouch." / "Create
       // four 1/1 green Insect creature tokens with flying and deathtouch."
@@ -383,8 +464,27 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       const pumps = effect.power !== 0 || effect.toughness !== 0;
       const parts: string[] = [];
       if (pumps) parts.push(`get ${signedAmount(effect.power)}/${signedAmount(effect.toughness)}`);
-      if (effect.grants?.length) parts.push(`gain ${listAnd(effect.grants.map((k) => k.toLowerCase()))}`);
-      return `${who} ${parts.join(" and ")} until end of turn.`;
+      /*
+       * Keywords and whole triggered abilities are one "gain" between them, as
+       * the cards write it: "gain menace and 'whenever this creature attacks,
+       * you gain 1 life'", not "gain menace and gain '...'".
+       *
+       * The granted ability was missing entirely (see `grantsTriggers` and
+       * `effectiveTriggers` - the engine has always granted it), which left
+       * Root Manipulation reading as a plain pump-and-menace trick.
+       */
+      const gains = [
+        ...(effect.grants ?? []).map((k) => k.toLowerCase()),
+        ...(effect.grantsTriggers ?? []).map((t) => quoted(describeGrantedTrigger(t, definitions))),
+      ];
+      if (gains.length > 0) parts.push(`gain ${listAnd(gains)}`);
+      // "Until end of turn, creatures you control get ..." is how Root
+      // Manipulation prints it, and putting the duration first is what stops a
+      // sentence that ends in a quoted ability from trailing off into
+      // "...you gain 1 life." until end of turn."
+      return gains.some((g) => g.startsWith('"'))
+        ? finish(`Until end of turn, ${lowerFirst(who)} ${parts.join(" and ")}`)
+        : `${who} ${parts.join(" and ")} until end of turn.`;
     }
     case "loseLife":
       // Loss, not damage, and the panel says so - a player who reads "deals 1
@@ -598,7 +698,36 @@ function watchedSpell(watchFor: TriggeredAbility["watchFor"]): string {
  * keywords and narrowing who they reach. A panel that silently drops "and have
  * menace" is worse than one that says nothing: it reads as a complete card.
  */
-function describeStaticBuff(buff: NonNullable<CardDefinition["staticBuff"]>): string {
+function describeStaticBuff(
+  buff: NonNullable<CardDefinition["staticBuff"]>,
+  self: CardDefinition,
+  definitions: Definitions,
+): string {
+  /*
+   * An Equipment's and an Aura's buff reach exactly one permanent, and the
+   * cards say so in their own words: "equipped creature", "enchanted creature".
+   *
+   * `staticBuff` is reused for both because it is the same kind of continuous
+   * effect narrowed to one permanent - see `buffApplies`, which checks
+   * `attachedTo` and gets this right. Only the panel had it wrong, and wrong in
+   * the worst direction: Skullclamp read "other creatures you control get
+   * +1/-1", which is a board wipe of your own 1-toughness creatures rather than
+   * a card you would ever equip.
+   */
+  const attaches = self.equipCost ? "Equipped creature" : self.bestowCost ? "Enchanted creature" : undefined;
+  if (attaches) {
+    const parts: string[] = [];
+    if (buff.power !== 0 || buff.toughness !== 0) {
+      parts.push(`gets ${signed(buff.power)}/${signed(buff.toughness)}`);
+    }
+    const has = [
+      ...(buff.grants ?? []).map((k) => k.toLowerCase()),
+      ...(buff.grantsAbilities?.length ? [grantedAbilityList(buff.grantsAbilities, definitions, self)] : []),
+    ];
+    if (has.length > 0) parts.push(`has ${listAnd(has)}`);
+    return sentence(finish(`${attaches} ${parts.join(" and ")}`));
+  }
+
   const noun = buff.subtype ? `${buff.subtype}s` : "creatures";
   // "Attacking Pests you control", "Each creature you control with a +1/+1
   // counter on it" - the restriction is part of the subject, not a trailing
@@ -612,7 +741,12 @@ function describeStaticBuff(buff: NonNullable<CardDefinition["staticBuff"]>): st
       ? `Attacking ${noun} you control`
       : singular
         ? `Each ${buff.subtype ?? "creature"} you control with a +1/+1 counter on it`
-        : `${buff.includesSelf ? "" : "Other "}${noun} you control`;
+        : // "Creature **tokens** you control" - Springleaf Parade. A card that
+          // only reaches tokens says so, and "other" is not part of that
+          // phrasing on any card in the pool.
+          buff.tokensOnly
+          ? `${buff.subtype ? `${buff.subtype} ` : "Creature "}tokens you control`
+          : `${buff.includesSelf ? "" : "Other "}${noun} you control`;
 
   const parts: string[] = [];
   if (buff.power !== 0 || buff.toughness !== 0) {
@@ -621,7 +755,78 @@ function describeStaticBuff(buff: NonNullable<CardDefinition["staticBuff"]>): st
   if (buff.grants?.length) {
     parts.push(`${singular ? "has" : "have"} ${listAnd(buff.grants.map((k) => k.toLowerCase()))}`);
   }
-  return sentence(`${subject} ${parts.join(" and ")}.`);
+  /*
+   * A granted activated ability, printed in quotes as the cards print it.
+   *
+   * Without this, Springleaf Parade's whole static line rendered as "Other
+   * creatures you control ." - a subject, a space and a full stop, because the
+   * buff is +0/+0 and grants no keywords. An empty sentence is the one output
+   * worse than no sentence: it reads as a card whose text failed to load.
+   */
+  if (buff.grantsAbilities?.length) {
+    parts.push(`${singular ? "has" : "have"} ${grantedAbilityList(buff.grantsAbilities, definitions, self)}`);
+  }
+  return sentence(finish(`${subject} ${parts.join(" and ")}`));
+}
+
+/**
+ * Granted activated abilities, quoted - '"{T}: Add one mana of any colour"'.
+ *
+ * The five halves of an "any colour" ability are held separately by the engine
+ * (see `colorFrom`), so a card that hands out one prints as five. They are
+ * folded back into a single quoted line here for the same reason
+ * `describeActivated` says "any colour in your commander's colour identity"
+ * rather than listing five: the card prints one ability and the panel is meant
+ * to look like the card.
+ */
+function grantedAbilityList(
+  abilities: NonNullable<NonNullable<CardDefinition["staticBuff"]>["grantsAbilities"]>,
+  definitions: Definitions,
+  self: CardDefinition,
+): string {
+  const rendered = foldAnyColour(abilities.map((ability) => describeActivated(ability, definitions, self)));
+  return listAnd(rendered.map((line) => `"${finish(line)}"`));
+}
+
+/**
+ * Folds the five halves of an "add one mana of any colour" ability back into
+ * the one line the card prints.
+ *
+ * The engine holds that ability as five, one per colour, because each is
+ * separately legal or not (see `colorFrom`). Printed as five it takes over the
+ * panel: Path of Ancestry read as five near-identical lines, each repeating the
+ * whole scry rider, for a card whose text is two sentences.
+ *
+ * Matched by rendering rather than by field, so any rider the five carry - the
+ * scry, Twitching Doll's counter, the spend restriction - has to be identical
+ * across all five before they are folded. Five abilities that differ in
+ * anything but their colour stay five lines.
+ */
+function foldAnyColour(lines: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const five = lines.slice(i, i + 5);
+    const shapes = new Set(five.map((line) => line.replace(/Add \{[WUBRG]\}/, "Add {}")));
+    const colours = new Set(five.map((line) => /Add \{([WUBRG])\}/.exec(line)?.[1]));
+    if (five.length === 5 && shapes.size === 1 && colours.size === 5 && !colours.has(undefined)) {
+      /*
+       * The parenthetical that narrows the five is folded into the sentence
+       * rather than left trailing after it. "Add one mana of any colour. (any
+       * colour in your commander's colour identity)" says the same thing twice
+       * and contradicts itself doing it - the note exists to qualify a line
+       * that named one colour, and once folded there is no such line.
+       */
+      out.push(
+        five[0]!
+          .replace(/Add \{[WUBRG]\}\. \(any colour ([^)]+)\)/, "Add one mana of any colour $1.")
+          .replace(/Add \{[WUBRG]\}/, "Add one mana of any colour"),
+      );
+      i += 4;
+      continue;
+    }
+    out.push(lines[i]!);
+  }
+  return out;
 }
 
 /** "a creature you control with a +1/+1 counter on it" - the whole subject. */
@@ -796,6 +1001,27 @@ function describeTrigger(
   }
 }
 
+/**
+ * A triggered ability being handed to somebody else, so it has no card of its
+ * own to be named after.
+ *
+ * `describeTrigger` words its subject from the card it belongs to ("when this
+ * *land* enters", "whenever this *token* attacks"), and a granted ability
+ * belongs to whatever it lands on. A creature is the only thing anything in the
+ * pool grants a trigger to, so that is what it is described as.
+ */
+const GRANTED_TO_A_CREATURE: CardDefinition = {
+  id: "",
+  name: "",
+  types: ["Creature"],
+  colorIdentity: [],
+  tier: "scripted",
+};
+
+function describeGrantedTrigger(trigger: TriggeredAbility, definitions: Definitions): string {
+  return describeTrigger(trigger, definitions, GRANTED_TO_A_CREATURE);
+}
+
 function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
@@ -896,7 +1122,30 @@ export function describeActivated(
         ability.producesRestrictedMana.grantsUncounterable ? ", and that spell can't be countered" : ""
       }.`
     : "";
-  return `${cost}: ${describeEffect(ability.effect, definitions)}${from}${pain}${spend}${restriction}`;
+  /*
+   * "Put a nest counter on this creature" - Twitching Doll, whose second
+   * ability then counts them. Without this the panel showed a mana ability that
+   * did nothing else, and a sacrifice ability that made a Spider "for each
+   * counter on this creature" with no counters ever visibly arriving.
+   *
+   * Called a counter rather than a nest counter because the engine keeps one
+   * generic bucket (`otherCounters`) rather than named kinds - saying "nest"
+   * would be describing a distinction it does not make.
+   */
+  const counter = ability.addsOtherCounterToSelf
+    ? ` Put ${countWord(ability.addsOtherCounterToSelf)} counter on this ${selfNoun(self)}.`
+    : "";
+  // "When that mana is spent to cast a creature spell that shares a creature
+  // type with your commander, scry 1" - Path of Ancestry. The rider follows the
+  // mana rather than the spell, which is exactly the part a player gets wrong
+  // if the panel does not mention it at all.
+  const mark = ability.marksMana
+    ? ` When that mana is spent to cast a creature spell that shares a creature type with your commander, scry ${ability.marksMana.amount}.`
+    : "";
+  // Last, as the cards print it: "Equip {1}" ends with "Equip only as a
+  // sorcery", not the other way round.
+  const timing = ability.sorcerySpeedOnly ? " Activate only as a sorcery." : "";
+  return `${cost}: ${describeEffect(ability.effect, definitions)}${from}${pain}${counter}${spend}${mark}${restriction}${timing}`;
 }
 
 /**
@@ -938,6 +1187,29 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
     );
   }
 
+  /*
+   * The three keyword abilities that are a way of playing the card rather than
+   * anything it does once it is out, printed where the cards print them: at the
+   * top, above the rules text.
+   *
+   * Suspend mattered most. Profane Tutor has no mana cost at all, so its panel
+   * read as a tutor you simply could not cast - the one line explaining how the
+   * card is ever played was the line that was missing.
+   */
+  if (def.suspend) {
+    lines.push(`Suspend ${def.suspend.timeCounters}-${formatManaCost(def.suspend.cost)}`);
+  }
+  if (def.devour !== undefined) lines.push(`Devour ${def.devour}`);
+  if (def.bestowCost) lines.push(`Bestow ${formatManaCost(def.bestowCost)}`);
+  if (def.alsoCreatureOffBattlefield) {
+    const also = def.alsoCreatureOffBattlefield;
+    lines.push(
+      `As long as this card isn't on the battlefield, it's a ${also.power}/${also.toughness} ${also.subtypes.join(
+        " ",
+      )} creature in addition to its other types.`,
+    );
+  }
+
   if (def.staticRules?.extraLandDrops) {
     const n = def.staticRules.extraLandDrops;
     lines.push(
@@ -948,6 +1220,16 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
   }
   if (def.staticRules?.playLandsFromGraveyard) {
     lines.push("You may play lands from your graveyard.");
+  }
+  /*
+   * Necrodominance's two costs, and they are the reason it is a card you can
+   * lose to rather than a free draw engine. The panel printed the draw ability
+   * and neither of these, which reads as strictly better than the real card -
+   * the same failure the tapland line below exists to prevent.
+   */
+  if (def.staticRules?.skipDrawStep) lines.push("Skip your draw step.");
+  if (def.staticRules?.maxHandSize !== undefined) {
+    lines.push(`Your maximum hand size is ${countWord(def.staticRules.maxHandSize)}.`);
   }
 
   // First, and before the abilities, exactly as the card prints it. This is the
@@ -980,7 +1262,7 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
   }
 
   if (def.staticBuff) {
-    lines.push(describeStaticBuff(def.staticBuff));
+    lines.push(describeStaticBuff(def.staticBuff, def, definitions));
   }
 
   for (const replacement of def.replacementEffects ?? []) {
@@ -990,8 +1272,30 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
   for (const trigger of def.triggeredAbilities ?? []) {
     lines.push(describeTrigger(trigger, definitions, def));
   }
-  for (const ability of def.activatedAbilities ?? []) {
-    lines.push(describeActivated(ability, definitions, def));
+  /*
+   * Folded, so a card that prints one "add one mana of any colour" ability
+   * shows one line rather than the five the engine holds it as. Command Tower,
+   * Birds of Paradise, Delighted Halfling, Exotic Orchard, Twitching Doll and
+   * Path of Ancestry all read as near-identical five-line walls otherwise -
+   * and Path of Ancestry repeated its whole scry rider on every one of them.
+   */
+  for (const line of foldAnyColour(
+    (def.activatedAbilities ?? []).map((ability) => describeActivated(ability, definitions, def)),
+  )) {
+    lines.push(line);
+  }
+  /*
+   * A planeswalker's loyalty abilities - the entire card, in Grist's case.
+   *
+   * These were not walked at all, so Grist's panel was blank below the type
+   * line: a card with three abilities that appeared to have no rules text
+   * whatsoever. The printed `label` is preferred where a fixture carries one,
+   * because these are the sentences the effect DSL expresses least well and the
+   * label is the card's own wording.
+   */
+  for (const loyalty of def.loyaltyAbilities ?? []) {
+    const cost = loyalty.cost > 0 ? `+${loyalty.cost}` : String(loyalty.cost);
+    lines.push(`${cost}: ${loyalty.label ?? describeEffect(loyalty.effect, definitions)}`);
   }
   if (def.castEffect) lines.push(describeEffect(def.castEffect, definitions));
 

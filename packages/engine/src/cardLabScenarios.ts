@@ -466,9 +466,6 @@ export const LAB_SCENARIOS: LabScenario[] = [
       "Get to 5 loyalty and activate -5: Salty Mike loses 3 life, one for each creature card in your graveyard.",
       "Grist is a 1/1 Insect creature everywhere except the battlefield: check the card in your hand reads as a creature too.",
     ],
-    gaps: [
-      "The card detail panel prints nothing for a planeswalker's abilities - the engine has all three, the renderer does not describe them.",
-    ],
   },
   {
     cardId: "haywire-mite",
@@ -684,7 +681,6 @@ export const LAB_SCENARIOS: LabScenario[] = [
       "Reset. Spend the Path's mana on Sakura-Tribe Elder instead, a Snake Shaman: no scry.",
       "Reset. Tap the Path but pay for Pest Mascot entirely out of the other lands: no scry. The rider follows the mana, not the spell.",
     ],
-    gaps: ["The card detail panel does not mention the scry rider, though the engine applies it."],
   },
   {
     cardId: "pest-infestation",
@@ -834,9 +830,6 @@ export const LAB_SCENARIOS: LabScenario[] = [
       "Pass the turn: the pump, the menace and the granted trigger are all gone.",
       "A creature that arrives after the spell resolved gets nothing.",
     ],
-    gaps: [
-      "The card detail panel does not mention the granted attack trigger, though the engine grants it.",
-    ],
   },
   {
     cardId: "sakura-tribe-elder",
@@ -948,9 +941,6 @@ export const LAB_SCENARIOS: LabScenario[] = [
       "Kill an unequipped creature: no draw. The trigger is 'whenever *equipped* creature dies'.",
       "Equip is sorcery speed - try it on Salty Mike's turn and it should be refused.",
     ],
-    gaps: [
-      "The card detail panel renders the buff as 'other creatures you control get +1/-1'. The engine scopes it correctly to the equipped creature; the wording is the renderer's.",
-    ],
   },
   {
     cardId: "sol-ring",
@@ -990,9 +980,6 @@ export const LAB_SCENARIOS: LabScenario[] = [
       "Pass a turn, then tap a Shapeshifter token for mana: it can make any colour.",
       "Tap Grizzly Bears for mana: refused. The ability is granted to creature *tokens* only.",
       "Reset with X = 0: no tokens at all.",
-    ],
-    gaps: [
-      "The card detail panel prints the static as an empty sentence ('Other creatures you control .'). The engine grants the mana ability correctly; the renderer has nothing to say about granted abilities.",
     ],
   },
   {

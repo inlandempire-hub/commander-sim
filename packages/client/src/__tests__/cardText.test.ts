@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TEST_CARD_DEFINITIONS } from "@mtg-commander-sim/engine";
+import { TEST_CARD_DEFINITIONS, type CardDefinition } from "@mtg-commander-sim/engine";
 import { describeActivated, describeCard, tokenName } from "../cardText.js";
 
 /**
@@ -400,5 +400,212 @@ describe("X in a cost", () => {
   it("shows the {X} in the printed cost", () => {
     const def = TEST_CARD_DEFINITIONS["the-meathook-massacre"]!;
     expect(def.manaCost?.x).toBe(1);
+  });
+});
+
+/*
+ * The nine fields the renderer used to walk straight past.
+ *
+ * Found by building the card lab (2026-08-14): with 93 panels stood up beside
+ * the cards they describe, a dropped clause is obvious in a way it never is one
+ * card at a time. Every one of these was a card that read as something other
+ * than what it is - usually better, which is the direction that loses games.
+ */
+describe("clauses the renderer used to drop", () => {
+  it("prints a planeswalker's loyalty abilities at all", () => {
+    // Grist's panel was blank below the type line: three abilities, no text.
+    const text = textOf("grist-the-hunger-tide");
+    expect(text).toContain("+1:");
+    expect(text).toContain("-2:");
+    expect(text).toContain("-5:");
+    expect(text).toContain("As long as this card isn't on the battlefield, it's a 1/1 Insect creature");
+  });
+
+  it("says how a suspended card is played, when it has no other way in", () => {
+    // Profane Tutor has no mana cost. Without this line its panel described a
+    // spell there was no legal way to cast.
+    expect(textOf("profane-tutor")).toContain("Suspend 2-{1}{B}");
+  });
+
+  it("scopes an Equipment's buff to the equipped creature", () => {
+    // "Other creatures you control get +1/-1" is a board wipe of your own
+    // one-toughness creatures, not a card anybody would equip.
+    const text = textOf("skullclamp");
+    expect(text).toContain("Equipped creature gets +1/-1.");
+    expect(text).not.toContain("Other creatures");
+    expect(text).toContain("Activate only as a sorcery.");
+  });
+
+  it("scopes a bestowed Aura's buff, and says it can be bestowed", () => {
+    const text = textOf("springheart-nantuko");
+    expect(text).toContain("Bestow {1}{G}");
+    expect(text).toContain("Enchanted creature gets +1/+1.");
+  });
+
+  it("does not print an empty sentence for a buff that only grants an ability", () => {
+    // Springleaf Parade rendered as "Other creatures you control ." - a subject,
+    // a space and a full stop, which reads as text that failed to load.
+    const text = textOf("springleaf-parade");
+    expect(text).not.toMatch(/ \.$/m);
+    expect(text).toContain("Creature tokens you control");
+    expect(text).toContain("Add one mana of any colour");
+  });
+
+  it("prints a granted triggered ability in quotes", () => {
+    // Root Manipulation read as a plain pump-and-menace trick.
+    const text = textOf("root-manipulation");
+    expect(text).toContain("whenever this creature attacks, you gain 1 life");
+    expect(text).toContain("menace");
+  });
+
+  it("prints the rider on the mana rather than only the mana", () => {
+    expect(textOf("path-of-ancestry")).toContain("shares a creature type with your commander, scry 1");
+    expect(textOf("twitching-doll")).toContain("Put a counter on this creature.");
+  });
+
+  it("prints both of Necrodominance's costs", () => {
+    // Without them the card reads as a free draw engine rather than one you can
+    // lose to.
+    const text = textOf("necrodominance");
+    expect(text).toContain("Skip your draw step.");
+    expect(text).toContain("Your maximum hand size is five.");
+  });
+
+  it("says how many tokens a card makes when the count is not a plain number", () => {
+    // "Create that many" with no preceding sentence to give "that many" a
+    // meaning - so the panel simply did not say how many.
+    expect(textOf("springleaf-parade")).toContain("create X 1/1");
+    expect(textOf("iridescent-hornbeetle")).toContain("for each +1/+1 counter you've put on creatures");
+    expect(textOf("ribtruss-roaster")).toContain("for each counter on this creature");
+    expect(textOf("arachnogenesis")).toContain("for each creature attacking you");
+    // Pest Infestation prints {X} twice and doubles the tokens on top, so a
+    // plain "X" halves the card.
+    expect(textOf("pest-infestation")).toContain("twice X");
+    // Hornet Nest is the one card where "that many" is the printed wording -
+    // the sentence before it named the damage.
+    expect(textOf("hornet-nest")).toContain("is dealt damage, create that many");
+  });
+
+  it("says 'up to one target', not 'up to a target'", () => {
+    expect(textOf("moseo-veins-new-dean")).toContain("up to one target creature card");
+  });
+
+  it("mentions devour", () => {
+    expect(textOf("ribtruss-roaster")).toContain("Devour 1");
+  });
+
+  it("prints one line for the one ability the card prints, not five", () => {
+    // The engine holds "add one mana of any colour" as five abilities, one per
+    // colour, because each is separately legal or not. Printed as five it takes
+    // over the panel - Path of Ancestry was five near-identical lines, each
+    // repeating the whole scry rider, for a card whose text is two sentences.
+    const path = describeCard(TEST_CARD_DEFINITIONS["path-of-ancestry"]!, TEST_CARD_DEFINITIONS);
+    expect(path.filter((line) => line.includes("Add"))).toHaveLength(1);
+    // And the parenthetical folds into the sentence rather than trailing after
+    // it, contradicting what it just said.
+    expect(path.join("\n")).toContain("Add one mana of any colour in your commander's colour identity.");
+    expect(path.join("\n")).not.toContain("colour. (any colour");
+
+    const tower = describeCard(TEST_CARD_DEFINITIONS["command-tower"]!, TEST_CARD_DEFINITIONS);
+    expect(tower).toHaveLength(1);
+
+    // Delighted Halfling's plain {C} ability is not one of the five and stays
+    // on its own line.
+    const halfling = describeCard(TEST_CARD_DEFINITIONS["delighted-halfling"]!, TEST_CARD_DEFINITIONS);
+    expect(halfling).toHaveLength(2);
+    expect(halfling[0]).toBe("{T}: Add {C}.");
+  });
+
+  it("leaves abilities that differ in more than their colour alone", () => {
+    // Llanowar Wastes and Tainted Wood have two coloured halves, not five, and
+    // Twilight Mire's three outputs are not one-per-colour at all. Folding any
+    // of them would be inventing colours the card cannot make.
+    const wastes = describeCard(TEST_CARD_DEFINITIONS["llanowar-wastes"]!, TEST_CARD_DEFINITIONS);
+    expect(wastes).toHaveLength(3);
+    expect(textOf("twilight-mire")).toContain("{B/G}, {T}: Add {B}{B}.");
+  });
+});
+
+/*
+ * A field-by-field sweep of the whole pool, which is the part that matters
+ * going forward. Each entry names a fixture field and a fragment its panel must
+ * therefore contain; a fixture that sets the field and produces no such
+ * fragment fails.
+ *
+ * Cheaper than a test per card, and it covers cards nobody has written a test
+ * for yet - which is the point. The renderer's failure mode is silence, and
+ * silence is invisible one card at a time.
+ */
+describe("no fixture carries a clause the panel never mentions", () => {
+  const checks: Array<{
+    field: string;
+    applies: (def: CardDefinition) => boolean;
+    expect: RegExp;
+  }> = [
+    { field: "suspend", applies: (d) => d.suspend !== undefined, expect: /Suspend \d/ },
+    { field: "devour", applies: (d) => d.devour !== undefined, expect: /Devour \d/ },
+    { field: "bestowCost", applies: (d) => d.bestowCost !== undefined, expect: /Bestow \{/ },
+    { field: "loyaltyAbilities", applies: (d) => (d.loyaltyAbilities?.length ?? 0) > 0, expect: /^[+-]\d:/m },
+    {
+      field: "alsoCreatureOffBattlefield",
+      applies: (d) => d.alsoCreatureOffBattlefield !== undefined,
+      expect: /isn't on the battlefield/,
+    },
+    {
+      field: "staticRules.skipDrawStep",
+      applies: (d) => d.staticRules?.skipDrawStep === true,
+      expect: /Skip your draw step/,
+    },
+    {
+      field: "staticRules.maxHandSize",
+      applies: (d) => d.staticRules?.maxHandSize !== undefined,
+      expect: /maximum hand size/,
+    },
+    {
+      field: "equipCost",
+      applies: (d) => d.equipCost !== undefined && d.staticBuff !== undefined,
+      expect: /Equipped creature/,
+    },
+    {
+      field: "staticBuff.grantsAbilities",
+      applies: (d) => (d.staticBuff?.grantsAbilities?.length ?? 0) > 0,
+      expect: /"/,
+    },
+    {
+      field: "activated.marksMana",
+      applies: (d) => (d.activatedAbilities ?? []).some((a) => a.marksMana !== undefined),
+      expect: /scry \d/,
+    },
+    {
+      field: "activated.addsOtherCounterToSelf",
+      applies: (d) => (d.activatedAbilities ?? []).some((a) => a.addsOtherCounterToSelf !== undefined),
+      expect: /counter on this/,
+    },
+    {
+      field: "activated.sorcerySpeedOnly",
+      applies: (d) => (d.activatedAbilities ?? []).some((a) => a.sorcerySpeedOnly === true),
+      expect: /only as a sorcery/,
+    },
+  ];
+
+  for (const check of checks) {
+    it(check.field, () => {
+      const offenders = Object.values(TEST_CARD_DEFINITIONS)
+        .filter(check.applies)
+        .filter((def) => !check.expect.test(describeCard(def, TEST_CARD_DEFINITIONS).join("\n")))
+        .map((def) => def.name);
+      expect(offenders).toEqual([]);
+    });
+  }
+
+  it("never renders an empty clause", () => {
+    // "Other creatures you control ." and its relatives - a sentence whose only
+    // content was its subject, which is exactly what a dropped field looks like.
+    const offenders = Object.values(TEST_CARD_DEFINITIONS)
+      .filter((def) =>
+        describeCard(def, TEST_CARD_DEFINITIONS).some((line) => / \.$/.test(line) || /\s{2,}/.test(line)),
+      )
+      .map((def) => def.name);
+    expect(offenders).toEqual([]);
   });
 });
