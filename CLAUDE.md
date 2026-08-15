@@ -57,3 +57,37 @@ See [ROADMAP.md](ROADMAP.md) for build phases and current status.
 
 ## Collaboration note
 This repo may be worked on simultaneously by multiple people. This file is meant to give any Claude Code session (yours or a collaborator's) full context on the project's intent and constraints without re-deriving them from scratch — keep it up to date as decisions change.
+
+## Working rules for Claude sessions
+These apply to anyone's session on this repo, not just one machine.
+
+**Batch tool calls.** Every tool call re-sends the entire prior transcript, so
+cost scales with the *number* of calls multiplied by how long the conversation
+has got — not with how much each call does. A long push of small sequential
+calls is the expensive shape. Chain related shell work into one call with `&&`
+(build, test, commit and push together; an audit and the report it feeds
+together), gather reference data in one pass and read it once rather than one
+item per call, and put independent calls in the same message so they run in
+parallel. This is not a licence to skip verification — the full suite and
+typecheck still run before every commit, just chained into the same call.
+
+**Work on a branch.** Cut a branch per unit of work (a decklist, a feature) off
+current `main`, push it as work lands, and merge to `main` only once its scope
+is finished *and* tested. Two people push here; straight-to-main means either
+can be mid-edit on a file the other just rewrote, and the first sign is a
+conflict.
+
+**Fetch before starting.** `git fetch --all --prune` and read anything upstream
+before doing any work — including before reading code to answer a question. Read
+the incoming diff rather than trusting the commit message.
+
+**Read Scryfall before any claim about a card.** What it does, whether it is
+implemented, whether it is even a real card. Code comments are not a source. See
+docs/ADDING-CARDS.md.
+
+**A decklist gets a legality sweep first.** This sim exists to test *paper*
+decks, so before any engine work is scoped, check every card for
+`legalities.commander != "legal"` and for cards whose `games` array is
+`["arena"]` only. The `A-` name prefix is not a reliable filter — some
+Arena-only cards carry no prefix. Report those as a decklist problem to fix
+rather than as work to do.
