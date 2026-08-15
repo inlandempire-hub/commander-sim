@@ -1227,8 +1227,16 @@ def emit_spell(card, effect, uncounterable=False):
 
 
 def emit(card, keywords, triggers, activated=(), uncounterable=False):
-    parsed = parse_mana_cost(card.get("mana_cost"))
-    generic, colors = parsed
+    # Formatted by ts_mana_cost rather than unpacked here. parse_mana_cost grew
+    # a third member when {X} costs shipped on 2026-08-10 and this was still
+    # unpacking two, so every creature and artifact routed through emit_named
+    # crashed the whole run - which is why nothing has been generated through
+    # this path since. One formatter, one place to change.
+    mana_cost = ts_mana_cost(card.get("mana_cost"))
+    if mana_cost is None:
+        # Hybrid or phyrexian. The colour-spread paths filter the cost before
+        # calling this; emit_named does not, and reports the skip itself.
+        return None
     subtypes = card["type_line"].split("—")[-1].strip().split() if "—" in card["type_line"] else []
     types = [t for t in ("Artifact", "Creature", "Enchantment") if t in card["type_line"].split("—")[0]]
     supertypes = ["Legendary"] if "Legendary" in card["type_line"] else []
@@ -1247,10 +1255,7 @@ def emit(card, keywords, triggers, activated=(), uncounterable=False):
         lines.append("  subtypes: [%s]," % ", ".join('"%s"' % s for s in subtypes))
     if supertypes:
         lines.append('  supertypes: ["Legendary"],')
-    lines.append(
-        "  manaCost: { generic: %d, colors: { %s } },"
-        % (generic, ", ".join("%s: %d" % (c, n) for c, n in sorted(colors.items())))
-    )
+    lines.append("  manaCost: %s," % mana_cost)
     lines.append("  colorIdentity: [%s]," % ", ".join('"%s"' % c for c in card.get("color_identity") or []))
     lines.append("  power: %s," % card["power"])
     lines.append("  toughness: %s," % card["toughness"])

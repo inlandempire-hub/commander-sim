@@ -12976,8 +12976,239 @@ export const ECCENTRIC_PESTFINDER: CardDefinition = {
   tier: "weird",
 };
 
+
+// --- Winota list, step 1: the mana base ---
+export const ANCIENT_TOMB: CardDefinition = {
+  id: "ancient-tomb",
+  name: "Ancient Tomb",
+  scryfallId: "bd3d4b4b-cf31-4f89-8140-9650edb03c7b",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 2 }, damageToController: 2 }],
+  tier: "vanilla",
+};
+
+export const ARID_MESA: CardDefinition = {
+  id: "arid-mesa",
+  name: "Arid Mesa",
+  scryfallId: "25ac5405-df7b-4097-914a-022cb18e20d4",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, payLife: 1, sacrificeSelf: true }, effect: { kind: "searchLibrary", cardType: "Land", subtypes: ["Mountain", "Plains"], destination: "battlefield" } }],
+  tier: "vanilla",
+};
+
+export const BATTLEFIELD_FORGE: CardDefinition = {
+  id: "battlefield-forge",
+  name: "Battlefield Forge",
+  scryfallId: "c47c1bf5-f11e-4f86-b20b-5d899a11dc56",
+  types: ["Land"],
+  colorIdentity: ["R", "W"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 }, damageToController: 1 }, { cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 }, damageToController: 1 }],
+  tier: "vanilla",
+};
+
+export const CLIFFTOP_RETREAT: CardDefinition = {
+  id: "clifftop-retreat",
+  name: "Clifftop Retreat",
+  scryfallId: "4a7f7767-1959-4812-8654-0a22634096b1",
+  types: ["Land"],
+  colorIdentity: ["R", "W"],
+  entersTapped: true,
+  entersTappedUnless: { kind: "controls-subtype", subtypes: ["Mountain", "Plains"] },
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const PLATEAU: CardDefinition = {
+  id: "plateau",
+  name: "Plateau",
+  scryfallId: "bb979a96-a57d-4fb5-8ebe-0bd398272abe",
+  types: ["Land"],
+  subtypes: ["Mountain", "Plains"],
+  colorIdentity: ["R", "W"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const SCALDING_TARN: CardDefinition = {
+  id: "scalding-tarn",
+  name: "Scalding Tarn",
+  scryfallId: "71e491c5-8c07-449b-b2f1-ffa052e6d311",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, payLife: 1, sacrificeSelf: true }, effect: { kind: "searchLibrary", cardType: "Land", subtypes: ["Island", "Mountain"], destination: "battlefield" } }],
+  tier: "vanilla",
+};
+
+export const SUNBILLOW_VERGE: CardDefinition = {
+  id: "sunbillow-verge",
+  name: "Sunbillow Verge",
+  scryfallId: "94ed132f-b818-4dbf-9b4a-e5acb067e0a4",
+  types: ["Land"],
+  colorIdentity: ["R", "W"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 }, activateOnlyIf: { kind: "controls-subtype", subtypes: ["Mountain", "Plains"] } }],
+  tier: "vanilla",
+};
+
+export const ARCANE_SIGNET: CardDefinition = {
+  id: "arcane-signet",
+  name: "Arcane Signet",
+  scryfallId: "1cad1bd2-7c56-4ce0-99a6-b2a49c1288dd",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 }, colorFrom: "commander-identity" }],
+  tier: "vanilla",
+};
+
+export const ORNITHOPTER_OF_PARADISE: CardDefinition = {
+  id: "ornithopter-of-paradise",
+  name: "Ornithopter of Paradise",
+  scryfallId: "18bbdc6c-b6c9-4f89-8f0a-6266e53c1fb9",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Thopter"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  power: 0,
+  toughness: 2,
+  keywords: ["Flying"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const ORNITHOPTER: CardDefinition = {
+  id: "ornithopter",
+  name: "Ornithopter",
+  scryfallId: "305078a5-ac18-4721-bba2-3434eba5b1cf",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Thopter"],
+  manaCost: { generic: 0, colors: {} },
+  colorIdentity: [],
+  power: 0,
+  toughness: 2,
+  keywords: ["Flying"],
+  tier: "vanilla",
+};
+
+export const PHYREXIAN_WALKER: CardDefinition = {
+  id: "phyrexian-walker",
+  name: "Phyrexian Walker",
+  scryfallId: "9f8a3979-2947-4692-8b2f-d4c07c534777",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Phyrexian", "Construct"],
+  manaCost: { generic: 0, colors: {} },
+  colorIdentity: [],
+  power: 0,
+  toughness: 3,
+  tier: "vanilla",
+};
+
+/**
+ * "{T}, Sacrifice this artifact: Add one mana of any color."
+ *
+ * Five abilities, one per colour - the shape Birds of Paradise established, and
+ * the one `activatedAbilities` already is. The generator refuses this card for
+ * want of a pattern, not for want of an engine feature: tap, sacrificeSelf and
+ * addMana all exist.
+ */
+export const LOTUS_PETAL: CardDefinition = {
+  id: "lotus-petal",
+  name: "Lotus Petal",
+  scryfallId: "f85ab5f9-508e-45de-8fa1-ce1f16552ffc",
+  types: ["Artifact"],
+  manaCost: { generic: 0, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "scripted",
+};
+
+/** "{T}, Pay 1 life: Add one mana of any color." */
+export const MANA_CONFLUENCE: CardDefinition = {
+  id: "mana-confluence",
+  name: "Mana Confluence",
+  scryfallId: "504a69eb-3c2d-4bb1-b117-252b15acf0c2",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "As this land enters, you may pay 2 life. If you don't, it enters tapped."
+ *
+ * Overgrown Tomb's cycle, in Boros. Its mana comes from its printed basic land
+ * types, which is why the ability list is two entries and not a reading of
+ * rules text - the card's text is nothing but the shock clause.
+ */
+export const SACRED_FOUNDRY: CardDefinition = {
+  id: "sacred-foundry",
+  name: "Sacred Foundry",
+  scryfallId: "a7758cc6-4e18-48a5-8720-5f42b5cd9d31",
+  types: ["Land"],
+  subtypes: ["Mountain", "Plains"],
+  colorIdentity: ["R", "W"],
+  entersTappedUnlessPayLife: 2,
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } },
+  ],
+  tier: "scripted",
+};
+
+
+/**
+ * "{T}, Pay 1 life: Add {R} or {W}." and "{1}, {T}, Sacrifice this land: Draw
+ * a card."
+ *
+ * A horizon land: the mana costs life, and the land cashes itself in for a card
+ * once it has done its job. Both halves are ordinary `ActivatedAbilityCost`
+ * fields - payLife on the two mana abilities, mana plus tap plus sacrificeSelf
+ * on the draw - which is why this is a fixture rather than engine work.
+ */
+export const SUNBAKED_CANYON: CardDefinition = {
+  id: "sunbaked-canyon",
+  name: "Sunbaked Canyon",
+  scryfallId: "c36820fa-ee86-4206-9a0d-737a67cf5208",
+  types: ["Land"],
+  colorIdentity: ["R", "W"],
+  activatedAbilities: [
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { mana: { generic: 1, colors: {} }, tap: true, sacrificeSelf: true }, effect: { kind: "draw", amount: 1 } },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    SUNBAKED_CANYON,
+    ANCIENT_TOMB,
+    ARID_MESA,
+    BATTLEFIELD_FORGE,
+    CLIFFTOP_RETREAT,
+    PLATEAU,
+    SCALDING_TARN,
+    SUNBILLOW_VERGE,
+    ARCANE_SIGNET,
+    ORNITHOPTER_OF_PARADISE,
+    ORNITHOPTER,
+    PHYREXIAN_WALKER,
+    LOTUS_PETAL,
+    MANA_CONFLUENCE,
+    SACRED_FOUNDRY,
     MOUNTAIN,
     FOREST,
     PLAINS,

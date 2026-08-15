@@ -2977,3 +2977,99 @@ mid-combat, before it did anything at all. This deck needs one combat capability
 single well-built "may this action be taken" layer that sixteen cards share. Two
 things, both general, both useful to every list after this one. That is exactly
 what the deck-led loop is supposed to produce.
+
+## Step 1 of the Winota list: the mana base (2026-08-15)
+
+Chosen first because 37 of the list's 100 cards are lands or mana sources, and
+because the pool held five Boros lands and Sol Ring — there was no legal board
+to test anything else on.
+
+**The list went from 6 playable to 21. The pool went from 941 fixtures to 956.**
+
+### A generator bug that had gone unnoticed for five days
+
+`gen_fixtures.py --named` crashed on the first run, and the traceback is worth
+recording because of how quiet the failure was.
+
+`parse_mana_cost` grew a third return member when `{X}` costs shipped on
+2026-08-10. `ts_mana_cost` was updated to unpack three; `emit` — the creature
+and artifact path — was not, and still read `generic, colors = parsed`. So every
+creature or artifact routed through `emit_named` raised `ValueError: too many
+values to unpack` and **took the whole run down with it**, discarding the lands
+that had already been built successfully in the same pass.
+
+The tell was that the first run emitted *nothing at all* while reporting
+twenty-one skips. A generator that quietly emits fewer cards than asked for is
+the failure this mode's docstring was written to prevent; this was the same
+failure one level up, and it had been sitting there since the day X costs
+landed. `emit` now formats through `ts_mana_cost` like `emit_spell` does — one
+formatter, one place to change — and returns `None` for a cost it cannot
+represent, which `emit_named` already knew how to report.
+
+Ornithopter, Ornithopter of Paradise and Phyrexian Walker only exist in the pool
+because of that fix.
+
+### What the generator wrote
+
+Eleven, untouched by hand: **Ancient Tomb**, **Arid Mesa**, **Battlefield
+Forge**, **Clifftop Retreat**, **Plateau**, **Scalding Tarn**, **Sunbillow
+Verge**, **Arcane Signet**, **Ornithopter**, **Ornithopter of Paradise** and
+**Phyrexian Walker**.
+
+Clifftop Retreat is the one worth pointing at: `entersTappedUnless: { kind:
+"controls-subtype", subtypes: ["Mountain", "Plains"] }` is Woodland Cemetery's
+shape exactly, so the card the report filed as blocked was a straight
+application of something built for the Blech list. That is the deck-led loop
+paying out, which is the whole premise of it.
+
+### What was written by hand, and why that was the point
+
+Four cards the generator refuses for want of a *pattern*, not for want of an
+engine feature. Each was named in this list's roadmap as writable today, and
+writing them is a better test of that claim than re-reading the heuristics
+table:
+
+- **Lotus Petal** — tap, `sacrificeSelf`, five abilities one per colour.
+- **Mana Confluence** — tap, `payLife: 1`, the same five.
+- **Sacred Foundry** — `entersTappedUnlessPayLife: 2`, mana from its printed
+  basic land types. Overgrown Tomb's cycle in Boros.
+- **Sunbaked Canyon** — `payLife` on the mana halves, and mana plus tap plus
+  `sacrificeSelf` on the draw.
+
+All four were in the report's BLOCKED column, three of them charged to
+"sacrificing something other than the card itself" while sacrificing themselves.
+**The staleness is now demonstrated rather than asserted**, which is what batch 0
+has to fix.
+
+### What is still refused, and where each one goes
+
+The generator's remaining refusals are honest, and each maps to a named batch:
+
+- **Cavern of Souls**, **Multiversal Passage** — a choice remembered on a
+  permanent (batch 3).
+- **City of Brass** — a "becomes tapped" trigger. **City of Traitors** — a
+  land-drop watcher. **Mana Vault** — an untap payment and a draw-step trigger.
+  **Gemstone Caverns** — opening-hand placement. **Chrome Mox**, **Mox Amber**,
+  **Mox Diamond** — imprint, board-read mana, a discard replacement.
+  **Simian Spirit Guide** — a cost paid from hand. **Eiganjo**, **Sokenzan** —
+  Channel. **Starting Town** — a turn-number condition. All batch 7.
+- **Blinkmoth Nexus**, **Inkmoth Nexus** — lands that become creatures, also
+  batch 7.
+- **Homeward Path** — handing every creature back to its owner, batch 5.
+
+### One more tool gap, not fixed
+
+`gen_fixtures.emit_named` indexes cards by full name only, so **Emeria's Call**,
+**Needleverge Pathway** and **Shatterskull Smashing** came back as "no such card
+in the bulk data" — they are the front halves of modal double-faced cards whose
+Scryfall names carry both faces. `deck_report.py` has a half-name index for
+exactly this and the generator does not.
+
+Left alone deliberately: all three want their front faces built regardless, so
+resolving the name would only move them from one refusal to another. Worth
+fixing alongside the flavour-name lookup in batch 0, so the two name-resolution
+gaps are closed together.
+
+956 fixtures, `audit_fixtures` and `audit_triggers` clean, `audit_text` clean bar
+the two long-known gaps (Incinerate's regeneration clause, Winding Constrictor's
+counters-on-a-player line). 1,087 tests, typecheck clean.
