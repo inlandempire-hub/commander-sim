@@ -9,6 +9,7 @@ import {
   declareAttackers,
   declareBlockers,
   resolveSearch,
+  resolveArrange,
   chooseTriggerTarget,
   resolveDiscard,
   activateLoyaltyAbility,
@@ -95,6 +96,9 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       return;
     case "resolveSearch":
       resolveSearch(state, playerId, message.instanceId);
+      return;
+    case "resolveArrange":
+      resolveArrange(state, playerId, message.order, message.shuffle ?? false);
       return;
     case "resolveConfirmation":
       resolveConfirmation(state, playerId, message.accept);

@@ -35,6 +35,7 @@ export type ClientMessage =
   | { type: "declareBlockers"; declarations: BlockerDeclaration[] }
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */
   | { type: "resolveSearch"; instanceId: string | null }
+  | { type: "resolveArrange"; order: string[]; shuffle?: boolean }
   /** Answering a "you may" trigger that stopped mid-resolution. */
   | { type: "resolveConfirmation"; accept: boolean }
   /** Pointing a parked triggered ability at one of the targets the engine offered. */

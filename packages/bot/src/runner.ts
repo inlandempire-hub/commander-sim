@@ -61,6 +61,8 @@ function toClientMessage(action: BotAction): ClientMessage | null {
       return { type: "declareBlockers", declarations: action.declarations };
     case "resolveSearch":
       return { type: "resolveSearch", instanceId: action.instanceId };
+    case "resolveArrange":
+      return { type: "resolveArrange", order: action.order, shuffle: action.shuffle };
     case "resolveConfirmation":
       return { type: "resolveConfirmation", accept: action.accept };
     case "chooseTriggerTarget":

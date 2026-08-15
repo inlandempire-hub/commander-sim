@@ -11021,6 +11021,29 @@ export const OPULENT_PALACE: CardDefinition = {
   tier: "vanilla",
 };
 
+export const PONDER: CardDefinition = {
+  id: "ponder",
+  name: "Ponder",
+  scryfallId: "dc69f960-68ba-4315-8146-6a7a82047503",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "sequence", effects: [{ kind: "lookAndArrange", amount: 3, mayShuffle: true }, { kind: "draw", amount: 1 }] },
+  tier: "scripted",
+};
+
+export const HALIMAR_DEPTHS: CardDefinition = {
+  id: "halimar-depths",
+  name: "Halimar Depths",
+  scryfallId: "63eb18e0-c723-4de4-8498-c5362c75b2b4",
+  types: ["Land"],
+  colorIdentity: ["U"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "lookAndArrange", amount: 3 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } }],
+  tier: "scripted",
+};
+
 export const TEMPLE_OF_DECEIT: CardDefinition = {
   id: "temple-of-deceit",
   name: "Temple of Deceit",
@@ -13982,5 +14005,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     OPULENT_PALACE,
     TEMPLE_OF_DECEIT,
     TEMPLE_OF_MALADY,
+    PONDER,
+    HALIMAR_DEPTHS,
   ].map((def) => [def.id, def]),
 );

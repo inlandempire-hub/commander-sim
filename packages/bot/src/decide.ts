@@ -167,6 +167,13 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
     return { kind: "resolveSearch", instanceId: chooseSearchResult(state, botPlayerId) };
   }
 
+  // A look-at-top ability of the bot's own (Ponder, Halimar Depths). It keeps
+  // the cards in the order it saw them - a legal answer that spends no thought
+  // on an optimisation worth almost nothing to a heuristic player.
+  if (state.pendingArrange?.playerId === botPlayerId) {
+    return { kind: "resolveArrange", order: [...state.pendingArrange.cardInstanceIds], shuffle: false };
+  }
+
   // Same for a "you may" trigger of the bot's own.
   if (state.pendingConfirmation?.playerId === botPlayerId) {
     return { kind: "resolveConfirmation", accept: shouldAcceptTrigger(state, botPlayerId) };

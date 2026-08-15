@@ -388,6 +388,14 @@ export type Effect =
    */
   | { kind: "mill"; amount: Amount }
   /**
+   * "Look at the top N cards of your library, then put them back in any order"
+   * - Halimar Depths, and Ponder (which adds `mayShuffle` and a follow-up
+   * draw). Distinct from scry: every card goes back on top, none to the bottom,
+   * so the only choice is the ordering. Stops resolution and asks, exactly like
+   * a search - see `PendingArrange` and `resolveArrange`.
+   */
+  | { kind: "lookAndArrange"; amount: number; mayShuffle?: boolean }
+  /**
    * "Look at the top N cards of your library. You may put any of them on the
    * bottom" - scry, as printed on Path of Ancestry.
    *
@@ -2082,6 +2090,30 @@ export interface PendingSearch {
 }
 
 /**
+ * The top N cards of a library, shown to one player, waiting on the order they
+ * go back on top - Halimar Depths and Ponder.
+ *
+ * Like `PendingSearch` this stops resolution: while it is set nobody gets
+ * priority and no step advances, because the game is mid-spell showing a player
+ * hidden information. The cards never leave the library, so putting them back is
+ * a reorder, not a zone change - no triggers, no counters cleared. Identified by
+ * instance id, so an opponent's view of them is already the hidden-card
+ * placeholder. Cleared by `resolveArrange`.
+ */
+export interface PendingArrange {
+  playerId: string;
+  sourceInstanceId: string;
+  /** The top cards, in their current top-to-bottom order. */
+  cardInstanceIds: string[];
+  /** Ponder's "You may shuffle your library" - offered only when set. */
+  mayShuffle: boolean;
+  /** Printed wording, for the picker's heading. */
+  prompt: string;
+  /** The rest of a `sequence` this interrupted - Ponder's "Then draw a card". */
+  followUp?: Effect[];
+}
+
+/**
  * Whose opening hand is being decided, and how far into it they are.
  *
  * Players are taken one at a time. The real rule has everyone decide together
@@ -2241,6 +2273,12 @@ export interface GameState {
    * and no step advances - the game is mid-spell. Cleared by `resolveSearch`.
    */
   pendingSearch: PendingSearch | null;
+  /**
+   * The top N cards of a library shown to a player, waiting on the order they
+   * go back. Gated exactly like `pendingSearch`: no priority, no step advance.
+   * Cleared by `resolveArrange`. See `PendingArrange`.
+   */
+  pendingArrange: PendingArrange | null;
   /**
    * A "you may" trigger waiting on a yes or no. Gated exactly like
    * `pendingSearch`: no priority, no step advance. Cleared by

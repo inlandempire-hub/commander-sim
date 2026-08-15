@@ -373,6 +373,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Mill ${countAmount(effect.amount)} ${isOne(effect.amount) ? "card" : "cards"}.`;
     case "scry":
       return `Scry ${effect.amount}.`;
+    case "lookAndArrange": {
+      const look = `Look at the top ${effect.amount} ${effect.amount === 1 ? "card" : "cards"} of your library, then put them back in any order.`;
+      return effect.mayShuffle ? `${look} You may shuffle.` : look;
+    }
     case "sacrificeChosen": {
       const what = effect.excludeSelf ? "another creature" : "a creature";
       const head = effect.optional ? `You may sacrifice ${what}.` : sentence(`Sacrifice ${what}.`);

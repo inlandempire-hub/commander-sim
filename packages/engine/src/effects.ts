@@ -227,6 +227,34 @@ export function applyEffect(
       };
       return;
     }
+    case "lookAndArrange": {
+      /*
+       * "Look at the top N cards of your library, then put them back in any
+       * order" - Halimar Depths, Ponder. Unlike scry no card leaves the top, so
+       * the only decision is the ordering; `resolveArrange` applies it. Stops
+       * resolution and asks, holding on to anything printed after it.
+       *
+       * A library shorter than N is fine: show whatever is there. An empty one
+       * has nothing to arrange, so the follow-up (Ponder's draw) runs straight
+       * away rather than stranding on a picker with no cards.
+       */
+      const top = controller.library.slice(0, effect.amount).map((card) => card.instanceId);
+      if (top.length === 0) {
+        if (pendingFollowUp?.length) {
+          for (const next of pendingFollowUp) applyEffect(state, controllerId, sourceInstanceId, next, targets);
+        }
+        return;
+      }
+      state.pendingArrange = {
+        playerId: controllerId,
+        sourceInstanceId,
+        cardInstanceIds: top,
+        mayShuffle: effect.mayShuffle ?? false,
+        prompt: `Look at the top ${top.length} card${top.length === 1 ? "" : "s"} of your library, then put them back in any order`,
+        followUp: pendingFollowUp,
+      };
+      return;
+    }
     case "conditional": {
       /*
        * "If you control six or more lands, create a copy instead." One branch
@@ -945,6 +973,9 @@ export function applyEffect(
         // Both of the steps that stop and ask. A sacrifice choice suspends the
         // rest of the card exactly as a search does, for the same reason.
         if (state.pendingSearch) return;
+        // A look-at-top (Ponder) stops the same way - it has already taken the
+        // rest as its follow-up, so carrying on here would run it twice.
+        if (state.pendingArrange) return;
         if (state.pendingSacrifice) {
           state.pendingSacrifice.followUp = rest;
           return;
@@ -1142,6 +1173,55 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
       { kind: "sequence", effects: followUp },
       followUpTargets ?? [],
     );
+  }
+}
+
+/**
+ * Puts the looked-at cards back on top of the library in the order the player
+ * named - Halimar Depths, Ponder. Ponder may instead shuffle, throwing the look
+ * away.
+ *
+ * Re-checked against the pending entry rather than trusted, like every other
+ * mid-resolution answer: the order must be exactly the cards that were shown,
+ * so a client cannot smuggle in a card it was never allowed to see. The cards
+ * never left the library, so this is a reorder, not a zone change - no triggers
+ * fire and no counters clear. Nothing else can have happened since they were
+ * shown (priority is held), so the top N slots still hold exactly those cards.
+ */
+export function resolveArrange(
+  state: GameState,
+  playerId: string,
+  orderedInstanceIds: string[],
+  shuffle = false,
+): void {
+  const pending = state.pendingArrange;
+  if (!pending) throw new Error("No arrangement is waiting to be resolved");
+  if (pending.playerId !== playerId) throw new Error(`The arrangement belongs to ${pending.playerId}`);
+
+  const shown = pending.cardInstanceIds;
+  const sameSet =
+    orderedInstanceIds.length === shown.length &&
+    shown.every((id) => orderedInstanceIds.includes(id));
+  if (!sameSet) throw new Error("The order must be exactly the cards you were shown");
+
+  const followUp = pending.followUp;
+  const sourceInstanceId = pending.sourceInstanceId;
+  const doShuffle = shuffle && pending.mayShuffle;
+  state.pendingArrange = null;
+
+  const library = requirePlayer(state, playerId).library;
+  if (doShuffle) {
+    shuffleLibrary(state, playerId);
+  } else {
+    const byId = new Map(library.slice(0, shown.length).map((card) => [card.instanceId, card]));
+    for (let i = 0; i < orderedInstanceIds.length; i++) {
+      const card = byId.get(orderedInstanceIds[i]!);
+      if (card) library[i] = card;
+    }
+  }
+
+  if (followUp?.length) {
+    applyEffect(state, playerId, sourceInstanceId, { kind: "sequence", effects: followUp }, []);
   }
 }
 

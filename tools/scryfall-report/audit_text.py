@@ -281,6 +281,10 @@ RULES = [
     (r"\bleaves the battlefield\b", {"addCounter"}),
     (r"\bmove all counters\b", {"moveAllCounters"}),
     (r"\bscry \d+\b", {"scry", "manaSpendRider"}),
+    # Ponder, Halimar Depths - look at the top N and reorder them. The trailing
+    # "You may shuffle." is Ponder's own second sentence, tied to the same kind.
+    (r"look at the top \w+ cards? of your library, then put them back in any order", {"lookAndArrange"}),
+    (r"^you may shuffle$", {"lookAndArrange"}),
     # The 2026-08-13 sweep.
     (r"^devour \d+", {"devour"}),
     (r"^suspend \d+", {"suspend"}),

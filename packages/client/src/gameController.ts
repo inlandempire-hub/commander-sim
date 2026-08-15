@@ -38,6 +38,12 @@ export interface GameController {
    */
   resolveSearch(playerId: string, instanceId: string | null): void;
   /**
+   * Puts the cards a `lookAndArrange` showed back on top in the named order, or
+   * shuffles instead when the card allowed it (Ponder). Gated like
+   * `resolveSearch` - the game is stopped mid-spell until it is answered.
+   */
+  resolveArrange(playerId: string, order: string[], shuffle?: boolean): void;
+  /**
    * Answers a "you may" trigger. Gated exactly like `resolveSearch` - the game
    * is mid-resolution and nobody has priority until this comes back.
    */

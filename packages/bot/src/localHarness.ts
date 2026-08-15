@@ -4,6 +4,7 @@ import {
   declareAttackers,
   declareBlockers,
   resolveSearch,
+  resolveArrange,
   resolveConfirmation,
   takeMulligan,
   keepHand,
@@ -58,6 +59,9 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
       return;
     case "resolveSearch":
       resolveSearch(state, playerId, action.instanceId);
+      return;
+    case "resolveArrange":
+      resolveArrange(state, playerId, action.order, action.shuffle ?? false);
       return;
     case "resolveConfirmation":
       resolveConfirmation(state, playerId, action.accept);
