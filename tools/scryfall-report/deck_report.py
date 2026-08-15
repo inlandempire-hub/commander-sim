@@ -136,19 +136,35 @@ BLOCKERS = [
     (r"counters? on target|put a \+1/\+1 counter on target",
      "Counters placed on a chosen target",
      "addCounter always applies to the card the ability is printed on"),
-    (r"\bmill\b|\bmills\b",
-     "Mill",
-     "nothing can move cards from a library to a graveyard"),
+    # Removed 2026-08-15: { kind: "mill"; amount: Amount } is in types.ts. A
+    # card mentioning mill is blocked by whatever else is printed on it.
     (r"Activate only as a sorcery|Activate only (?:during|before|after|any time)|Cast this spell only",
      "Timing restrictions on activating or casting",
      "activateOnlyIf asks about the board; nothing asks what step it is or whether the stack is empty"),
-    (r"\bpay (any amount of|X) life\b|Pay \d+ life",
-     "Paying life as a cost",
-     "costs are mana and tapping"),
+    # Narrowed 2026-08-15. A flat "Pay N life" has been an
+    # ActivatedAbilityCost (`payLife`) and an AdditionalCost (`pay-life`) for
+    # weeks, and a land's "you may pay N life or it enters tapped" is
+    # `entersTappedUnlessPayLife`. This heading still claimed all three, which
+    # put Mana Confluence, Prismatic Vista, Sacred Foundry and Sunbaked Canyon
+    # in the engine queue when every one of them was a fixture somebody could
+    # have written that afternoon. What is left is a payment whose *amount* is
+    # not a printed number.
+    (r"\bpay (any amount of|X) life\b",
+     "Paying an unfixed amount of life",
+     "payLife and the pay-life additional cost both take a literal; nothing "
+     "announces X life as it is paid"),
     (r"^Attacking .* get |you control with .* (have|has|get)|creatures you control get .* and (have|gain)",
      "Statics that are conditional or restricted",
      "staticBuff is an unconditional +N/+N, optionally narrowed by subtype"),
-    (r"\bSacrifice\b|\bsacrifices\b|\bsacrificed\b",
+    # The lookahead is the whole entry. Oracle text has the card's own name
+    # replaced with "~" before it reaches here, so "Sacrifice this creature"
+    # and "Sacrifice ~" are the two ways a card gives *itself* up - which
+    # `ActivatedAbilityCost.sacrificeSelf` has done since the fetchlands
+    # landed in step 2. Without this, the heading charged Lotus Petal,
+    # Prismatic Vista, Strip Mine, Gingerbrute, Hope of Ghirapur and seven
+    # more for a capability none of them needs, and twice claimed to be the
+    # last thing standing between the pool and an already-writable card.
+    (r"\bSacrifice (?!this\b|~)|\bsacrifices\b|\bsacrificed\b",
      "Sacrificing something other than the card itself",
      "sacrificing *this* permanent works both as a cost (every fetchland) "
      "and as an effect (Riveteers Overlook); choosing which of your "
@@ -156,9 +172,14 @@ BLOCKERS = [
     (r"^Equip|^Enchant |^Enchanted |\battach\b|\bAttached\b|\bequipped\b",
      "Attach - Equipment and Auras",
      "no attachment relationship between permanents exists"),
-    (r"\bdiscard",
-     "Discard",
-     "no effect can move a card from a hand to a graveyard"),
+    # Narrowed 2026-08-15. { kind: "discard"; who: "each-opponent" } exists
+    # and the discarding player chooses, which was the hard half. What is left
+    # is discarding as a *cost* (Channel, cycling) and the caster picking the
+    # card out of a revealed hand (Thoughtseize).
+    (r"Discard this card|discards? a card at random|You choose a .* card from it",
+     "Discard the caster chooses, or discard as a cost",
+     "the discard effect is the opponent's own choice made on resolution; "
+     "nothing pays a cost out of a hand, and nothing picks for somebody else"),
     (r"\bequal to\b|\bfor each\b|\btimes\b|-X/-X|\+X/\+X|\bX (creature|1/1|target)"
      r"|\bwhere X is\b|\bX \d+/\d+",
      "Dynamic amounts",
@@ -184,10 +205,23 @@ BLOCKERS = [
     # Plain "This land enters tapped." is supported. What survives to here is
     # the conditional forms, which are a different problem entirely: a condition
     # on the permanent's own arrival.
-    (r"enters tapped unless|As this .* enters|enters the battlefield tapped unless",
-     "Permanents that enter tapped only under a condition",
-     "entersTapped is a flat yes or no; writing a conditional one as flat makes "
-     "the card strictly worse than it is"),
+    # Split 2026-08-15, and the split is the point. "As this ... enters" was
+    # filed here as a conditional tapland; on the Winota list it matched five
+    # cards and not one of them was a land - Cavern of Souls choosing a
+    # creature type, Sanctum Prelate a number, Greymond two abilities,
+    # Windcrag Siege a mode, Multiversal Passage a basic land type. The
+    # misfire hid a real capability behind a solved one.
+    (r"^As (this|~)[^.]*enters, choose",
+     "A choice made as a permanent enters, and remembered",
+     "nothing records a decision on a CardInstance, so a permanent cannot "
+     "read back what was chosen for it"),
+    # The shockland arrival ("As this land enters, you may pay N life") is
+    # entersTappedUnlessPayLife, and is deliberately not matched here.
+    (r"enters tapped unless|enters the battlefield tapped unless",
+     "Permanents that enter tapped under a condition the engine cannot ask",
+     "entersTappedUnless takes a BoardCondition - other lands, opponents, a "
+     "subtype, a colour, a commander. A condition about the turn number, or "
+     "one reading 'two or fewer' rather than 'two or more', has no member"),
     (r"\bproliferate\b|\b(charge|loyalty|\-1/\-1|time|oil) counter",
      "Counters other than +1/+1",
      "counters.ts models plusOneCounters only"),
@@ -197,9 +231,15 @@ BLOCKERS = [
     (r"\{X\}",
      "X in a cost",
      "parse_mana_cost refuses hybrid and phyrexian symbols; {X} is supported"),
-    (r"\bscry\b|\bsurveil\b|top of your library|look at the top",
-     "Library manipulation (scry, surveil, top-of-library)",
-     "the library is a list nothing can look at"),
+    # Narrowed 2026-08-15. scry 1, surveil 1 and a `library-top` search
+    # destination all exist; this heading claimed the library was untouchable,
+    # which stopped being true three batches ago. What is left is the sizes
+    # the engine refuses out loud, and the move it has no shape for.
+    (r"\bscry [2-9]\b|\bsurveil [2-9]\b|from your hand on top of your library",
+     "Sorting more than one card between library and hand",
+     "scry and surveil are capped at 1 deliberately - sorting several cards "
+     "between two zones is a different interaction, not this one repeated - "
+     "and nothing moves a card from a hand to the top of a library"),
     (r"\bcan't be blocked\b|\bmenace\b.*\bcan't\b|\bunblockable\b",
      "Evasion beyond flying and menace",
      "declareBlockers only knows flying, reach and menace"),

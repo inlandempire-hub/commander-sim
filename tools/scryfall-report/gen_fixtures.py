@@ -1357,15 +1357,36 @@ def emit_named(names):
     """
     wanted = {n.strip().lower(): n.strip() for n in names if n.strip()}
     found = {}
+    # Half-names, indexed separately and consulted only for names the
+    # full-name pass could not answer. A modal double-faced card is stored
+    # under "Emeria's Call // Emeria, Shattered Skyclave" and everybody types
+    # the front face, so without this the generator calls a real card "no
+    # such card in the bulk data" - the same wrong answer deck_report.py grew
+    # a halves index to stop giving. Second dict for the reason that one is:
+    # a half-name must never shadow a card that genuinely has that name.
+    halves = {}
     with gzip.open(DATA, "rt", encoding="utf-8") as fh:
         for line in fh:
             card = json.loads(line)
-            key = card["name"].lower()
-            if key not in wanted or key in found:
-                continue
             if card.get("layout") in ("art_series", "token", "double_faced_token"):
                 continue
+            key = card["name"].lower()
+            # Half-names are collected *before* the wanted-name check below,
+            # which skips every card whose full name nobody asked for - which is
+            # every modal double-faced card, i.e. precisely the ones this index
+            # exists to catch. Collected the first time round it did nothing at
+            # all.
+            if " // " in card["name"]:
+                for half in card["name"].split(" // "):
+                    stripped = half.strip().lower()
+                    if stripped in wanted:
+                        halves.setdefault(stripped, card)
+            if key not in wanted or key in found:
+                continue
             found[key] = card
+
+    for key, card in halves.items():
+        found.setdefault(key, card)
 
     for key, original in wanted.items():
         card = found.get(key)

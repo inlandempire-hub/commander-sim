@@ -578,8 +578,43 @@ export function applyEffect(
          * here by hand, which meant three Soldier tokens beside a Soul Warden
          * gained nothing.
          */
-        enteredBattlefield(state, token);
+        enteredBattlefield(state, token, deployOptions(state, controllerId, effect.attacking));
       }
+      return;
+    }
+    case "deployFromTop": {
+      /*
+       * The six cards exist only inside this resolution, so they are held on
+       * the pending search rather than moved anywhere first. Nothing leaves the
+       * library until somebody answers - a card looked at and put back on the
+       * bottom never changed zones, which is why no zone-change trigger fires
+       * for the five Winota does not take.
+       */
+      const player = requirePlayer(state, controllerId);
+      const looked = player.library.slice(0, effect.amount);
+      if (looked.length === 0) return;
+      const candidates = looked.filter((card) => {
+        const def = requireDefinition(state, card.definitionId);
+        if (!def.types.includes(effect.cardType)) return false;
+        return !effect.subtype || (def.subtypes ?? []).includes(effect.subtype);
+      });
+      state.pendingSearch = {
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: candidates.map((card) => card.instanceId),
+        destination: "battlefield",
+        tapped: effect.tapped,
+        attacking: effect.attacking,
+        grants: effect.grants,
+        // Every card looked at, not just the ones on offer: Winota buries the
+        // five she could never have taken alongside the one she declined.
+        bottomInstanceIds: looked.map((card) => card.instanceId),
+        // The library is reordered, never shuffled - the whole point of looking
+        // is the information, and a shuffle would throw it away.
+        noShuffle: true,
+        prompt: `put a ${effect.subtype ? effect.subtype + " " : ""}${effect.cardType.toLowerCase()} card onto the battlefield`,
+      };
       return;
     }
     case "pump": {
@@ -1065,7 +1100,13 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
       throw new Error("That card was not among the search results");
     }
     if (pending.destination === "battlefield") {
-      putOntoBattlefield(state, instanceId, { tapped: pending.tapped });
+      const deployed = putOntoBattlefield(state, instanceId, {
+        tapped: pending.tapped,
+        ...deployOptions(state, playerId, pending.attacking),
+      });
+      for (const keyword of pending.grants ?? []) {
+        if (!deployed.grantedKeywords.includes(keyword)) deployed.grantedKeywords.push(keyword);
+      }
     } else if (pending.destination === "hand") {
       moveCard(state, instanceId, "hand");
     } else if (pending.destination === "graveyard") {
@@ -1088,6 +1129,7 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
   const destination = pending.destination;
   const noShuffle = pending.noShuffle;
   const followUpTargets = pending.followUpTargets;
+  const bottomInstanceIds = pending.bottomInstanceIds;
   state.pendingSearch = null;
   // Surveil never shuffles - you looked at the top card and put it back, or
   // did not. Shuffling would throw away the information the card just bought.
@@ -1120,6 +1162,28 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
     const library = requirePlayer(state, playerId).library;
     const index = library.findIndex((card) => card.instanceId === instanceId);
     if (index >= 0) library.push(...library.splice(index, 1));
+  }
+
+  /*
+   * "Put the rest on the bottom of your library in a random order."
+   *
+   * A reorder, not a zone change - the cards never left the library, so
+   * nothing triggers. Whatever was taken is filtered out first, so a card
+   * cannot be both deployed and buried.
+   */
+  if (bottomInstanceIds?.length) {
+    const library = requirePlayer(state, playerId).library;
+    const buried: typeof library = [];
+    for (const id of bottomInstanceIds) {
+      if (id === instanceId) continue;
+      const index = library.findIndex((card) => card.instanceId === id);
+      if (index >= 0) buried.push(...library.splice(index, 1));
+    }
+    for (let i = buried.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [buried[i], buried[j]] = [buried[j]!, buried[i]!];
+    }
+    library.push(...buried);
   }
 
   /*
@@ -1424,4 +1488,25 @@ export function creaturesAffectedByPumpAll(
   return players.flatMap((p) =>
     p.battlefield.filter((c) => state.cardDefinitions[c.definitionId]?.types.includes("Creature")),
   );
+}
+
+/**
+ * The arrival options for a permanent joining a combat already under way.
+ *
+ * Which player it attacks is read off the combat in progress rather than
+ * chosen: every card that does this is an attack trigger, so there is always
+ * exactly one defending player by the time it resolves. With no combat running
+ * the permanent simply arrives normally - "tapped and attacking" outside combat
+ * is not a thing, and quietly tapping it would be a worse answer than doing
+ * nothing.
+ */
+function deployOptions(
+  state: GameState,
+  controllerId: string,
+  attacking?: boolean,
+): { tapped?: boolean; attackingPlayerId?: string } {
+  if (!attacking) return {};
+  const defenderId = Object.values(state.attackers)[0];
+  if (!defenderId) return {};
+  return { tapped: true, attackingPlayerId: defenderId };
 }

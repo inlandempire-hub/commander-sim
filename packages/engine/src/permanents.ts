@@ -76,7 +76,7 @@ export function pushOntoStack(
 export function putOntoBattlefield(
   state: GameState,
   instanceId: string,
-  options: { tapped?: boolean } = {},
+  options: { tapped?: boolean; attackingPlayerId?: string } = {},
 ): CardInstance {
   const instance = moveCard(state, instanceId, "battlefield");
   enteredBattlefield(state, instance, options);
@@ -97,9 +97,28 @@ export function putOntoBattlefield(
 export function enteredBattlefield(
   state: GameState,
   instance: CardInstance,
-  options: { tapped?: boolean } = {},
+  options: { tapped?: boolean; attackingPlayerId?: string } = {},
 ): void {
   const def = requireDefinition(state, instance.definitionId);
+  /*
+   * "...onto the battlefield tapped and attacking."
+   *
+   * Joining a combat already in progress, which nothing else in the engine
+   * does. Deliberately *not* routed through declareAttackers: a creature put
+   * onto the battlefield attacking was never declared as an attacker (rule
+   * 508.3b), so no attack trigger fires for it - not its own, and not another
+   * permanent watching. Winota making a Human that makes more Winota triggers
+   * is the shape that rule exists to stop, and this engine gets it for free by
+   * writing straight into the map.
+   *
+   * Summoning sickness is irrelevant to a creature that is already attacking,
+   * but it is cleared anyway so the board does not draw a creature as unable
+   * to act while it is in the middle of combat.
+   */
+  if (options.attackingPlayerId) {
+    state.attackers[instance.instanceId] = options.attackingPlayerId;
+    instance.summoningSickness = false;
+  }
   if (hasKeyword(state, instance, "Haste")) instance.summoningSickness = false;
   // Either the card says so on its face, or whatever put it here said so (a
   // ramp spell fetching a land onto the battlefield tapped). Not exclusive:
@@ -367,6 +386,12 @@ export function matchesWatchFor(
   if (watchFor.subtype) {
     const wanted = Array.isArray(watchFor.subtype) ? watchFor.subtype : [watchFor.subtype];
     if (!wanted.some((subtype) => (subject.def.subtypes ?? []).includes(subtype))) return false;
+  }
+  if (watchFor.excludeSubtype) {
+    // Winota's "a non-Human creature you control". Any one of the listed
+    // subtypes disqualifies the subject.
+    const barred = Array.isArray(watchFor.excludeSubtype) ? watchFor.excludeSubtype : [watchFor.excludeSubtype];
+    if (barred.some((subtype) => (subject.def.subtypes ?? []).includes(subtype))) return false;
   }
   if (watchFor.withCounter && !subject.hadCounters) return false;
   if (watchFor.nontoken && subject.isToken) return false;

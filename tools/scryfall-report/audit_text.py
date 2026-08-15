@@ -210,11 +210,21 @@ RULES = [
     # Mana, in all the shapes the engine writes it.
     (r"^\{t\}: add (\{[wubrgc]\})+$", {"addMana", "addManaCombination"}),
     (r"^\{t\}: add \{[wubrgc]\} or \{[wubrgc]\}$", {"addMana", "addManaCombination"}),
+    # Sunbaked Canyon. The horizon lands charge life for their coloured mana,
+    # which is `ActivatedAbilityCost.payLife` on an otherwise ordinary mana
+    # ability - the existing patterns all assume the cost is nothing but a tap.
+    (r"^\{t\}, pay \d+ life: add ", {"payLife"}),
     # A filter land prints every output it offers as one sentence: "Add {B}{B},
     # {B}{G}, or {G}{G}." Each option is a separate ability on the fixture.
     (r"^\{[wubrg]/[wubrg]\}, \{t\}: add .*\{[wubrgc]\}", {"addManaCombination"}),
     (r"^add (\{[wubrgc]\})+$", {"addMana", "addManaCombination"}),
     (r"\badd one mana of any color\b", {"anyColour"}),
+    # Winota's three sentences. One effect covers all of them, which is why
+    # they name the same feature: looking, choosing, and burying the rest are a
+    # single printed ability and a single `deployFromTop`.
+    (r"look at the top \w+ cards of your library", {"deployFromTop"}),
+    (r"put a .*card from among them onto the battlefield", {"deployFromTop"}),
+    (r"put the rest of the cards on the bottom of your library", {"deployFromTop"}),
     (r"\bspend this mana only\b", {"spendRestriction"}),
     (r"\bthis (land|creature|artifact) deals \d+ damage to you\b", {"damageToController"}),
     (r"\bactivate only if\b", {"activateOnlyIf"}),

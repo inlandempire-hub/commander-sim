@@ -3073,3 +3073,120 @@ gaps are closed together.
 956 fixtures, `audit_fixtures` and `audit_triggers` clean, `audit_text` clean bar
 the two long-known gaps (Incinerate's regeneration clause, Winding Constrictor's
 counters-on-a-player line). 1,087 tests, typecheck clean.
+
+## Steps 0 and 1 of the Winota list: the report, and creatures that arrive attacking (2026-08-15)
+
+Taken together because the first makes the second's numbers mean anything.
+
+**The list is at 22 of 100. The pool is at 957 fixtures.**
+
+### Batch 0: the report told the truth about itself
+
+Six `BLOCKERS` entries in `deck_report.py` were describing an engine from
+several batches ago. Each is now either gone or narrowed to the shape that is
+genuinely absent, with a comment saying when and why:
+
+- **Mill** — removed outright. `{ kind: "mill"; amount: Amount }` is in types.ts.
+- **Paying life as a cost** — narrowed to *an unfixed amount*. A flat "Pay N
+  life" is an `ActivatedAbilityCost.payLife`, an `AdditionalCost`, or
+  `entersTappedUnlessPayLife`, and has been for weeks. This one heading was
+  putting four already-writable cards in the engine queue.
+- **Library manipulation** — narrowed to scry/surveil of 2 or more and to
+  hand-to-library-top. scry 1, surveil 1 and a `library-top` search destination
+  all exist; the heading claimed the library was untouchable.
+- **Discard** — narrowed to discard-as-a-cost and to the caster choosing from a
+  revealed hand. The printed each-opponent discard, where the *discarding*
+  player chooses, was the hard half and shipped in August.
+- **Sacrificing something other than the card itself** — now carries a negative
+  lookahead. Oracle text has the card's own name replaced with `~` before it
+  gets here, so `Sacrifice this` and `Sacrifice ~` are the two ways a card gives
+  itself up, which `sacrificeSelf` has done since the fetchlands. It was
+  charging twelve cards on the Winota list for a capability none of them needs.
+- **Permanents that enter tapped only under a condition** — split in two, and
+  **the split is the finding**. `As this ... enters` was filed here as a
+  conditional tapland. On this list it matched five cards and not one was a
+  land: Cavern of Souls choosing a creature type, Sanctum Prelate a number,
+  Greymond two abilities, Windcrag Siege a mode, Multiversal Passage a basic
+  land type. **A choice made as a permanent enters, and remembered** is now its
+  own heading, because it is a real capability that was hiding behind a solved
+  one.
+
+**`gen_fixtures` learned half-names.** A modal double-faced card is stored under
+"Emeria's Call // Emeria, Shattered Skyclave" and everybody types the front
+face, so three real cards were reported as "no such card in the bulk data" —
+the same wrong answer `deck_report.py` grew a halves index to stop giving. The
+first attempt at this did nothing at all, because the index was being filled
+*after* an early `continue` that skips every card whose full name nobody asked
+for, which is exactly the case it exists for. All three now resolve and are
+refused for their actual content, which is the right answer.
+
+**Two audit bugs, both surfaced by the new cards rather than by reading.**
+
+`audit_fixtures` compared mana costs as *rendered strings* in WUBRG order.
+Winota is the first Boros spell in the pool and prints `{2}{R}{W}`, because a
+card's pips follow the colour wheel rather than the WUBRG canon — so a correct
+fixture was reported as broken. A fixture stores `colors` as a map and a map has
+no order, so the fixture could not have been "fixed"; the comparison is now
+between bags of symbols. Left alone it would have rejected every gold card whose
+printed order is not WUBRG.
+
+`audit_text` needed the two shapes the pool had just gained: a mana ability
+whose cost includes life (the horizon lands), and Winota's three sentences,
+which name one feature between them because they are one printed ability.
+
+### Batch 1: a permanent can now join a combat already under way
+
+Nothing in this engine could add to combat after attackers were declared, and
+six cards on this list do exactly that. The primitive is one option on the
+arrival path — `enteredBattlefield` and `putOntoBattlefield` take an
+`attackingPlayerId`, and write straight into `state.attackers`.
+
+**Deliberately not routed through `declareAttackers`.** A creature *put* onto
+the battlefield attacking was never *declared* as an attacker (rule 508.3b), so
+no attack trigger fires for it — not its own, and not another permanent
+watching. That is the rule, and here it is also load-bearing: it is what stops
+Winota's own output from setting Winota off again, and what stops Myrel's
+Soldiers from making more Soldiers forever. Writing into the map rather than
+calling the declaration path gets it for free.
+
+Three smaller pieces around it:
+
+- **`createToken.attacking`** — "create a 1/1 red Goblin token that's tapped and
+  attacking", which five cards on this list print.
+- **`watchFor.excludeSubtype`** — Winota watches "a **non-Human** creature you
+  control". Its own field rather than a flag on `subtype`, because a card asking
+  for a non-Human is asking two questions and folding them together would make
+  "Human" and "not Human" indistinguishable on the fixture.
+- **`deployFromTop`** — Winota's whole ability as one effect: look at the top
+  six, optionally take a Human creature card onto the battlefield tapped and
+  attacking with indestructible until end of turn, and put the rest on the
+  bottom in a random order. It rides on `PendingSearch` for the reason surveil
+  does — one picker, one place to get hidden information wrong. The cards it
+  looks at never leave the library unless one is taken, so nothing triggers for
+  the five it buries.
+
+**Winota, Joiner of Forces is in the pool**, with eight tests: that a non-Human
+attacking fires her and a Human does not, that only Humans among the top six are
+offered while a seventh below them is not, that the chosen card arrives tapped,
+attacking the right player and indestructible, that declining still buries the
+six, and — the one that matters — that the deployed Human does not set her off
+again.
+
+**One renderer bug, caught by reading the output rather than by a test.** The
+card panel described Winota as "whenever a creature you control attacks",
+silently dropping the "non-Human". That is every attacker rather than half of
+them, and the difference is the entire deck the card is built for. `watchedNoun`
+now prints the excluded subtype.
+
+**What this batch does *not* finish, and the report now says so.** The
+token-attacking half completes no card on this list by itself: Ainok Strike
+Leader also wants a per-opponent count and a sacrifice, Anim Pakal a dynamic
+amount, Myrel a hate static, Voice of Victory the same. The primitive is
+necessary for all four and sufficient for none, which is exactly the distinction
+the report's two columns exist to draw.
+
+957 fixtures. `audit_fixtures` and `audit_triggers` clean, `audit_text` clean bar
+the two long-known gaps. 1,095 tests, typecheck clean.
+
+**Next by value:** the hate statics — "may this action be taken" — which the
+refreshed report now shows as the largest single group on the list.

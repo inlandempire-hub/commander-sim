@@ -13192,8 +13192,52 @@ export const SUNBAKED_CANYON: CardDefinition = {
   tier: "scripted",
 };
 
+
+/**
+ * "Whenever a non-Human creature you control attacks, look at the top six cards
+ * of your library. You may put a Human creature card from among them onto the
+ * battlefield tapped and attacking. It gains indestructible until end of turn.
+ * Put the rest of the cards on the bottom of your library in a random order."
+ *
+ * The deployed Human was never *declared* as an attacker, so it sets nothing
+ * off - not another Winota trigger, and not its own attack trigger. That is
+ * rule 508.3b and it is what stops a Human that happens to be non-Human-
+ * adjacent from looping.
+ */
+export const WINOTA_JOINER_OF_FORCES: CardDefinition = {
+  id: "winota-joiner-of-forces",
+  name: "Winota, Joiner of Forces",
+  scryfallId: "5dd13a6c-23d3-44ce-a628-cb1c19d777c4",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Human", "Warrior"],
+  manaCost: { generic: 2, colors: { R: 1, W: 1 } },
+  colorIdentity: ["R", "W"],
+  power: 4,
+  toughness: 4,
+  canBeCommander: true,
+  triggeredAbilities: [
+    {
+      event: "permanent-attacks",
+      watches: "controller",
+      watchFor: { type: "Creature", excludeSubtype: "Human", controlledBy: "you" },
+      effect: {
+        kind: "deployFromTop",
+        amount: 6,
+        cardType: "Creature",
+        subtype: "Human",
+        tapped: true,
+        attacking: true,
+        grants: ["Indestructible"],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    WINOTA_JOINER_OF_FORCES,
     SUNBAKED_CANYON,
     ANCIENT_TOMB,
     ARID_MESA,

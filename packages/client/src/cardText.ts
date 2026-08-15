@@ -407,38 +407,29 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
     case "regenerate":
       return `Regenerate ${describeTarget(effect.target)}.`;
     case "createToken": {
-      const token = definitions[effect.tokenDefinitionId];
-      if (!token) return `Create ${effect.count} ${effect.tokenDefinitionId}.`;
-      const name = tokenName(token);
-      const many = name.replace(" token", " tokens");
-      /*
-       * Three different unknown counts, and they were all printing as "that
-       * many" - a phrase that only makes sense when a preceding sentence said
-       * how many. On Springleaf Parade and Iridescent Hornbeetle there was no
-       * preceding sentence at all, so the panel simply did not say how many
-       * tokens the card made.
-       */
-      if (typeof effect.count !== "number") {
-        // "Create **that many**" is right for exactly one shape: Hornet Nest,
-        // where the sentence before it named the damage.
-        if (effect.count.kind === "event-amount") return `Create that many ${many}.`;
-        if (effect.count.kind === "count") {
-          const per = perThing(effect.count.of);
-          // "Create **a** 1/1 ... for each" - `tokenName` returns the token
-          // without an article, because the numeric branch below supplies one.
-          return per
-            ? `Create a ${name} for each ${per}.`
-            : `Create ${many} equal to ${describeCount(effect.count.of)}.`;
-        }
-        return `Create ${countAmount(effect.count)} ${many}.`;
-      }
-      // "Create a 1/1 black Snake creature token with deathtouch." / "Create
-      // four 1/1 green Insect creature tokens with flying and deathtouch."
-      // `countWord(1)` is "a", which is the article the cards use rather than
-      // a number - "create 1 Snake token" is not a phrase any card prints.
-      return effect.count === 1
-        ? `Create ${countWord(1)} ${name}.`
-        : `Create ${countWord(effect.count)} ${name.replace(" token", " tokens")}.`;
+      const base = describeCreateToken(effect, definitions);
+      if (!effect.attacking) return base;
+      // "...that's tapped and attacking" - appended rather than woven through
+      // the five returns above, which each phrase the count differently and
+      // would each need the clause spelling out again.
+      const one = effect.count === 1;
+      return `${base.slice(0, -1)} ${one ? "that's" : "that are"} tapped and attacking.`;
+    }
+    case "deployFromTop": {
+      const what = `${effect.subtype ? effect.subtype + " " : ""}${effect.cardType.toLowerCase()} card`;
+      const arrives = effect.attacking
+        ? " onto the battlefield tapped and attacking"
+        : effect.tapped
+          ? " onto the battlefield tapped"
+          : " onto the battlefield";
+      const gains = effect.grants?.length
+        ? ` It gains ${effect.grants.join(" and ").toLowerCase()} until end of turn.`
+        : "";
+      return (
+        `Look at the top ${effect.amount} cards of your library. You may put a ${what}` +
+        ` from among them${arrives}.${gains}` +
+        " Put the rest on the bottom of your library in a random order."
+      );
     }
     case "pump": {
       const who = effect.target ? describeTarget(effect.target) : "this creature";
@@ -671,7 +662,16 @@ function watchedNoun(watchFor: TriggeredAbility["watchFor"]): string {
   // reads as "[object Object]" or silently drops three of the four.
   const subtypes = watchFor?.subtype;
   const subtypeNoun = Array.isArray(subtypes) ? listOr(subtypes) : subtypes;
-  const base = subtypeNoun ?? typeNoun ?? "permanent";
+  let base = subtypeNoun ?? typeNoun ?? "permanent";
+  // "a **non-Human** creature you control attacks" - Winota. Left out, the
+  // panel described a materially different card: "whenever a creature you
+  // control attacks" is every attacker rather than half of them, and the
+  // difference is the entire deck the card is built for.
+  const barred = watchFor?.excludeSubtype;
+  if (barred) {
+    const list = Array.isArray(barred) ? barred : [barred];
+    base = `${list.map((s) => `non-${s}`).join(" ")} ${base}`;
+  }
   // "nontoken creature" is printed as one noun phrase, so it belongs here
   // rather than as a clause tacked on the end.
   return watchFor?.nontoken ? `nontoken ${base}` : base;
@@ -1341,4 +1341,46 @@ export function manaValue(def: CardDefinition): number {
     def.manaCost.generic +
     Object.values(def.manaCost.colors).reduce((sum, n) => sum + (n ?? 0), 0)
   );
+}
+
+/**
+ * The five ways a token count can be phrased, kept in one place so the
+ * "tapped and attacking" rider has a single sentence to attach itself to.
+ */
+function describeCreateToken(
+  effect: Extract<Effect, { kind: "createToken" }>,
+  definitions: Definitions,
+): string {
+      const token = definitions[effect.tokenDefinitionId];
+      if (!token) return `Create ${effect.count} ${effect.tokenDefinitionId}.`;
+      const name = tokenName(token);
+      const many = name.replace(" token", " tokens");
+      /*
+       * Three different unknown counts, and they were all printing as "that
+       * many" - a phrase that only makes sense when a preceding sentence said
+       * how many. On Springleaf Parade and Iridescent Hornbeetle there was no
+       * preceding sentence at all, so the panel simply did not say how many
+       * tokens the card made.
+       */
+      if (typeof effect.count !== "number") {
+        // "Create **that many**" is right for exactly one shape: Hornet Nest,
+        // where the sentence before it named the damage.
+        if (effect.count.kind === "event-amount") return `Create that many ${many}.`;
+        if (effect.count.kind === "count") {
+          const per = perThing(effect.count.of);
+          // "Create **a** 1/1 ... for each" - `tokenName` returns the token
+          // without an article, because the numeric branch below supplies one.
+          return per
+            ? `Create a ${name} for each ${per}.`
+            : `Create ${many} equal to ${describeCount(effect.count.of)}.`;
+        }
+        return `Create ${countAmount(effect.count)} ${many}.`;
+      }
+      // "Create a 1/1 black Snake creature token with deathtouch." / "Create
+      // four 1/1 green Insect creature tokens with flying and deathtouch."
+      // `countWord(1)` is "a", which is the article the cards use rather than
+      // a number - "create 1 Snake token" is not a phrase any card prints.
+      return effect.count === 1
+        ? `Create ${countWord(1)} ${name}.`
+        : `Create ${countWord(effect.count)} ${name.replace(" token", " tokens")}.`;
 }

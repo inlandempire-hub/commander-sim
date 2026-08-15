@@ -100,6 +100,11 @@ def mana_cost_to_string(cost):
     return "".join(parts) or "{0}"
 
 
+def symbols(cost_string):
+    """A mana cost split into its symbols - "{2}{R}{W}" into ["{2}", "{R}", "{W}"]."""
+    return re.findall(r"\{[^}]+\}", cost_string or "")
+
+
 def scryfall_keywords(card):
     """Lowercased, because Scryfall writes "First strike" where the engine's
     Keyword union writes "First Strike" - comparing raw strings reported 25
@@ -130,7 +135,14 @@ def audit(fixtures, by_name):
         if not fixture.get("types", []) == [] and "Land" not in fixture.get("types", []):
             expected = card.get("mana_cost") or ""
             actual = mana_cost_to_string(fixture.get("manaCost"))
-            if expected != actual:
+            # Compared as a bag of symbols rather than as a string, because a
+            # fixture's `colors` is a map and a map has no order. This renders
+            # in WUBRG order; Winota prints {2}{R}{W}, because a card's pips
+            # follow the colour wheel and not the WUBRG canon. As a string
+            # comparison that reported the first correct Boros spell in the pool
+            # as broken, and would have done the same to every gold card whose
+            # printed order is not WUBRG.
+            if sorted(symbols(expected)) != sorted(symbols(actual)):
                 issues.append("mana cost: fixture %s, Scryfall %s" % (actual or "(none)", expected or "(none)"))
 
         if card.get("power") is not None:

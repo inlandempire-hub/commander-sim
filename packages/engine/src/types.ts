@@ -510,7 +510,48 @@ export type Effect =
    * point of damage it was just dealt. Always a plain number by the time
    * `applyEffect` sees it.
    */
-  | { kind: "createToken"; count: Amount; tokenDefinitionId: string }
+  | {
+      kind: "createToken";
+      count: Amount;
+      tokenDefinitionId: string;
+      /**
+       * "...that's tapped and attacking" - Ainok Strike Leader, Anim Pakal,
+       * Myrel, and every other attack trigger that adds to the combat it fired
+       * in.
+       *
+       * A token put onto the battlefield attacking was never *declared* as an
+       * attacker (rule 508.3b), so nothing that watches for a creature
+       * attacking sees it. That is the rule and it is also load-bearing here:
+       * without it Myrel's own trigger would see the Soldiers it just made and
+       * make more, forever.
+       */
+      attacking?: boolean;
+    }
+  /**
+   * "Look at the top six cards of your library. You may put a Human creature
+   * card from among them onto the battlefield tapped and attacking. It gains
+   * indestructible until end of turn. Put the rest on the bottom of your
+   * library in a random order." - Winota, Joiner of Forces.
+   *
+   * One effect rather than a look, a choice and a reorder bolted together,
+   * because the three are one printed sentence and the middle one stops the
+   * game: the cards on offer exist only inside this resolution, exactly as
+   * `millThenMayTake`'s do. It rides on `PendingSearch` for the same reason
+   * surveil does - one picker, one place to get hidden information wrong.
+   */
+  | {
+      kind: "deployFromTop";
+      /** "the top **six** cards". */
+      amount: number;
+      /** "a **Human creature** card" - the type half. */
+      cardType: CardType;
+      /** ...and the subtype half. Absent means any card of that type. */
+      subtype?: string;
+      tapped?: boolean;
+      attacking?: boolean;
+      /** "It gains **indestructible** until end of turn." */
+      grants?: Keyword[];
+    }
   /**
    * "Target creature gets +N/+N until end of turn." Both numbers are signed, so
    * the same effect covers Giant Growth and the whole -N/-N removal family - a
@@ -1150,6 +1191,18 @@ export interface TriggeredAbility {
      * `type` above is.
      */
     subtype?: string | string[];
+    /**
+     * "Whenever a **non-Human** creature you control attacks" - Winota.
+     *
+     * The mirror of `subtype`, and it has to be its own field rather than a
+     * flag on that one: a card asking for "a non-Human creature" is asking two
+     * questions, and folding them together would make "Human" and "not Human"
+     * indistinguishable on the fixture.
+     *
+     * Read off the printed subtypes, like `subtype` above. The day a changeling
+     * enters this pool both need to move to `hasCreatureType` together.
+     */
+    excludeSubtype?: string | string[];
     /**
      * "a creature you control **with a +1/+1 counter on it**" - Meltstrider
      * Eulogist. Read at the moment of the event, which for a death means the
@@ -2079,6 +2132,26 @@ export interface PendingSearch {
    * second question has to be aimed at the player who has not answered yet.
    */
   followUpTargets?: StackTarget[];
+  /**
+   * "...onto the battlefield **tapped and attacking**" - Winota. Carried here
+   * rather than applied when the search is set up, because the card is not on
+   * the battlefield until somebody answers the picker.
+   */
+  attacking?: boolean;
+  /** "It gains indestructible until end of turn" - Winota, again. */
+  grants?: Keyword[];
+  /**
+   * "Put **the rest** on the bottom of your library in a random order."
+   *
+   * Every card this effect looked at, chosen or not. Whichever one is taken is
+   * removed from this list before the rest go to the bottom, so a card cannot
+   * be both deployed and buried.
+   *
+   * Distinct from the candidates: Winota looks at six and may only take a
+   * Human, so five of the six are never offered and all five still go to the
+   * bottom.
+   */
+  bottomInstanceIds?: string[];
 }
 
 /**
