@@ -1,3 +1,4 @@
+import { castRestrictionProblem } from "./restrictions.js";
 import type { Effect, GameState, ManaCost } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 import { applyCommanderTax, canPayManaCostFromPool, potentialAvailableMana } from "./mana.js";
@@ -41,6 +42,13 @@ export function canPlayCardNow(state: GameState, playerId: string, instanceId: s
   const potentialMana = potentialAvailableMana(state, playerId);
   const isMainPhaseWindow = canCastAtSorcerySpeed(state, playerId);
   const def = requireDefinition(state, instance.definitionId);
+
+  /*
+   * A hate piece makes a card unplayable as surely as an empty mana pool does,
+   * so the highlight has to know: without this the client lit a card up, the
+   * player clicked it, and the engine threw. See restrictions.ts.
+   */
+  if (castRestrictionProblem(state, playerId, def, inCommand ? "command" : "hand")) return false;
 
   if (inCommand) {
     if (!isMainPhaseWindow) return false;

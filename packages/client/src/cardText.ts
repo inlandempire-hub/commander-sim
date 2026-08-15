@@ -1,4 +1,5 @@
 import type {
+  ActionRestriction,
   ActivatedAbility,
   BoardCondition,
   CardDefinition,
@@ -415,6 +416,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       const one = effect.count === 1;
       return `${base.slice(0, -1)} ${one ? "that's" : "that are"} tapped and attacking.`;
     }
+    case "restrictThisTurn":
+      // Silence. Phrased for the turn rather than as a permanent's static,
+      // which is the only difference between the two on the card face.
+      return `${describeRestriction(effect.restriction)} this turn.`;
     case "deployFromTop": {
       const what = `${effect.subtype ? effect.subtype + " " : ""}${effect.cardType.toLowerCase()} card`;
       const arrives = effect.attacking
@@ -1265,6 +1270,16 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
     lines.push(describeStaticBuff(def.staticBuff, def, definitions));
   }
 
+  /*
+   * The hate pieces. Left off, the panel described Grand Abolisher as a vanilla
+   * 2/2 for {W}{W} and Deafening Silence as an enchantment that does nothing at
+   * all - which is the renderer's usual failure mode, and the reason the
+   * whole-pool sweep in the tests exists.
+   */
+  for (const restriction of def.staticRestrictions ?? []) {
+    lines.push(`${describeRestriction(restriction)}.`);
+  }
+
   for (const replacement of def.replacementEffects ?? []) {
     lines.push(describeReplacement(replacement));
   }
@@ -1383,4 +1398,56 @@ function describeCreateToken(
       return effect.count === 1
         ? `Create ${countWord(1)} ${name}.`
         : `Create ${countWord(effect.count)} ${name.replace(" token", " tokens")}.`;
+}
+
+/**
+ * The hate pieces, in the words the cards use.
+ *
+ * Shared by a permanent's `staticRestrictions` and by Silence's spell effect,
+ * because the sentence is the same and only the duration differs.
+ */
+/**
+ * "more than **one** spell", not "more than a spell".
+ *
+ * `countWord(1)` is deliberately the article "a", which is right in front of a
+ * token's name ("create a 1/1 Soldier") and wrong after "more than", where the
+ * cards print the numeral.
+ */
+function limitWord(n: number): string {
+  return n === 1 ? "one" : countWord(n);
+}
+
+export function describeRestriction(restriction: ActionRestriction): string {
+  switch (restriction.kind) {
+    case "cast-limit": {
+      const what =
+        restriction.only === "noncreature"
+          ? "noncreature spell"
+          : restriction.only === "nonartifact"
+            ? "nonartifact spell"
+            : "spell";
+      const plural = restriction.perTurn === 1 ? "" : "s";
+      return `Each player can't cast more than ${limitWord(restriction.perTurn)} ${what}${plural} each turn`;
+    }
+    case "opponents-cannot-cast": {
+      const what = restriction.only === "noncreature" ? "noncreature spells" : "spells";
+      return restriction.duringYourTurnOnly
+        ? `During your turn, your opponents can't cast ${what}`
+        : `Your opponents can't cast ${what}`;
+    }
+    case "opponents-cast-from-hand-only":
+      return "Your opponents can't cast spells from anywhere other than their hands";
+    case "cannot-activate": {
+      const types = listAnd(restriction.types.map((t) => `${t.toLowerCase()}s`));
+      const who = restriction.who === "opponents" ? "your opponents" : "players";
+      const when = restriction.duringYourTurnOnly ? "During your turn, " : "";
+      return restriction.who === "opponents"
+        ? `${when}${who} can't activate abilities of ${types}`
+        : `Activated abilities of ${types} can't be activated`;
+    }
+    case "draw-limit":
+      return `Each player can't draw more than ${limitWord(restriction.perTurn)} card${
+        restriction.perTurn === 1 ? "" : "s"
+      } each turn`;
+  }
 }

@@ -85,6 +85,11 @@ def card_features(fx):
             feat.add("grantsKeywords")
     if fx.get("cantBeCountered"):
         feat.add("cantBeCountered")
+    # The hate pieces. Each restriction contributes its own kind, so a card with
+    # two of them - Grand Abolisher stops casting *and* activating - accounts
+    # for both halves of its one printed sentence.
+    for restriction in fx.get("staticRestrictions") or []:
+        feat.add("restriction:%s" % restriction.get("kind"))
     if fx.get("entersTapped"):
         feat.add("entersTapped")
     if fx.get("entersTappedUnless"):
@@ -219,6 +224,21 @@ RULES = [
     (r"^\{[wubrg]/[wubrg]\}, \{t\}: add .*\{[wubrgc]\}", {"addManaCombination"}),
     (r"^add (\{[wubrgc]\})+$", {"addMana", "addManaCombination"}),
     (r"\badd one mana of any color\b", {"anyColour"}),
+    # The hate pieces - see restrictions.ts. Written against the printed
+    # sentences rather than against the fixture, so a card whose wording differs
+    # from the one modelled still reports.
+    (r"each player can't cast more than \w+ (noncreature |nonartifact )?spell",
+     {"restriction:cast-limit"}),
+    (r"can't cast additional (nonartifact|noncreature) spells",
+     {"restriction:cast-limit"}),
+    (r"your opponents can't cast spells from anywhere other than their hands",
+     {"restriction:opponents-cast-from-hand-only"}),
+    (r"your opponents can't cast (noncreature )?spells",
+     {"restriction:opponents-cannot-cast", "restrictThisTurn"}),
+    (r"can't activate abilities of|activated abilities of .* can't be activated",
+     {"restriction:cannot-activate"}),
+    (r"each player can't draw more than \w+ card",
+     {"restriction:draw-limit"}),
     # Winota's three sentences. One effect covers all of them, which is why
     # they name the same feature: looking, choosing, and burying the rest are a
     # single printed ability and a single `deployFromTop`.

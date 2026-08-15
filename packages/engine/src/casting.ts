@@ -1,3 +1,4 @@
+import { castRestrictionProblem } from "./restrictions.js";
 import type { CardDefinition, Effect, GameState, ManaCost, StackTarget } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import {
@@ -190,6 +191,14 @@ export function castSpell(
   }
 
   /*
+   * The hate pieces. Checked before anything is announced or paid, because
+   * "can't" in Magic means the action is never taken - not that it is taken and
+   * undone.
+   */
+  const forbidden = castRestrictionProblem(state, playerId, def, expectedZone);
+  if (forbidden) throw new Error(forbidden);
+
+  /*
    * {X} is announced as the spell is cast (rule 601.2b), before anything is
    * paid, and it never changes afterwards. Recorded on the card instance
    * rather than only on the stack object because a permanent spell's own
@@ -370,6 +379,12 @@ export function castSpell(
    * and resolves first. That is the real ordering, and it is visible: Arasta
    * has its Spider before the removal spell that provoked it resolves.
    */
+  /*
+   * Recorded here rather than on resolution: "cast" happens when the spell goes
+   * on the stack, so a countered spell still counts against Archon of Emeria.
+   * That is the rule, and it is also what makes these cards worth playing.
+   */
+  player.spellTypesCastThisTurn.push([...def.types]);
   fireWatchers(state, "spell-cast", describeSubject(state, instance, def));
 
   /*

@@ -18,6 +18,7 @@ export * from "./autoPass.js";
 export * from "./autoTap.js";
 export * from "./counters.js";
 export * from "./replacements.js";
+export * from "./restrictions.js";
 export * from "./x.js";
 export * from "./mulligan.js";
 export * from "./concede.js";

@@ -3190,3 +3190,115 @@ the two long-known gaps. 1,095 tests, typecheck clean.
 
 **Next by value:** the hate statics — "may this action be taken" — which the
 refreshed report now shows as the largest single group on the list.
+
+## Batch 2 of the Winota list: the hate pieces (2026-08-15)
+
+**The list is at 30 of 100. The pool is at 965 fixtures.**
+
+### A layer that answers whether an action may be taken at all
+
+Every continuous effect the engine had before this one *changes* something - a
+power, a keyword, whether a permanent enters tapped. These decide whether an
+action happens, which is a different question and has to be asked somewhere
+else: at the moment a player tries to cast, activate or draw.
+
+`restrictions.ts` is that layer. `ActionRestriction` is a closed list of the
+phrases real cards print, in the same spirit as `BoardCondition` - a general
+"forbid any action matching a predicate" language would have been quicker to
+write and impossible to read back against a card, which is the opposite of what
+this pool is for.
+
+Five shapes cover everything on this list:
+
+- **`cast-limit`** - "Each player can't cast more than one spell each turn",
+  narrowed by `only` to Deafening Silence's noncreature and Ethersworn
+  Canonist's nonartifact.
+- **`opponents-cannot-cast`** - Silence for the rest of the turn, Grand
+  Abolisher only while it is your turn.
+- **`opponents-cast-from-hand-only`** - Drannith Magistrate, which in Commander
+  mostly means switching off the command zone.
+- **`cannot-activate`** - Clarion Conqueror (everyone) and Grand Abolisher
+  (opponents, during your turn).
+- **`draw-limit`** - Spirit of the Labyrinth.
+
+Checked in three places, each *before* anything is announced or paid, because
+"can't" in Magic means the action is never taken rather than taken and undone:
+`castSpell`, `activateAbility`, and `drawCard`.
+
+**Four decisions worth writing down, because each is a way to get the cards
+quietly wrong:**
+
+**The tally is taken when a spell goes on the stack, not when it resolves.**
+"Cast" happens on announcement, so a countered spell still counts against Archon
+of Emeria. Counting on resolution would have made every card here materially
+weaker than printed, and it is the sort of error that never announces itself.
+
+**A limit binds its own controller.** These cards say "each player", and a
+version that exempted the controller would be a different and much stronger
+card. Archon of Emeria is a real cost to its own deck.
+
+**A forbidden draw is not a draw from an empty library.** Spirit of the
+Labyrinth simply stops the draw happening. Routing it through the empty-library
+path would lose the game to a card that only says you cannot draw - and the
+state-based action would have made it look like a rules-correct death.
+
+**Mana abilities are activated abilities.** Clarion Conqueror switches off Sol
+Ring exactly as it switches off a creature's tap ability. Exempting mana would
+have made the card far weaker than it reads. Lands are not on its list, which is
+what keeps it playable in its own deck, and there is a test for both halves.
+
+**Silence needed one more piece**: `restrictThisTurn`, which puts a restriction
+on `GameState.turnRestrictions` rather than on a permanent. It outlives the
+spell that made it and ends in the cleanup step, which is exactly what "this
+turn" means and what a permanent's static could not express.
+
+### Eight cards, and the highlight agrees with the engine
+
+**Deafening Silence, Ethersworn Canonist, Grand Abolisher, Drannith Magistrate,
+Spirit of the Labyrinth, Clarion Conqueror, High Noon and Silence.**
+
+Every one was transcribed by a script that **asserts the oracle text it expects**
+before writing the fixture, so a card whose printed wording differs from what is
+being modelled fails loudly instead of shipping a near-miss. All eight
+assertions passed first time.
+
+`canPlayCardNow` consults the same function `castSpell` does. Without that the
+client would light a card up, the player would click it, and the engine would
+throw - and there is a test asserting the two agree.
+
+### What the renderer would have dropped
+
+Left to itself the card panel described Grand Abolisher as a vanilla 2/2 for
+`{W}{W}` and Deafening Silence as an enchantment with no text at all: a
+restriction is not an effect, a trigger or a keyword, and `describeCard` walked
+straight past it. It prints them now.
+
+One wording bug on the way: `countWord(1)` returns the article "a", which is
+right in front of a token's name ("create a 1/1 Soldier") and wrong after "more
+than", where the cards print the numeral. "Each player can't cast more than a
+spell each turn" is now "more than one".
+
+`audit_text` learned `staticRestrictions` too, per restriction rather than per
+card - Grand Abolisher's one printed sentence is two restrictions, and a card
+that accounted for only half of it would pass while modelling half a card.
+
+### What is still blocked in this group, and why
+
+Eight of the sixteen. The rest each want something from another batch, and the
+report says so rather than crediting this one:
+
+- **Archon of Emeria** - also makes an opponent's nonbasic lands enter tapped,
+  which is a static reaching *their* permanents as they arrive.
+- **Myrel** and **Voice of Victory** carry the Grand Abolisher line already, but
+  also an attack trigger with a counted amount and Mobilize's delayed sacrifice.
+- **Ranger-Captain of Eos** is one step away: its sacrifice ability is exactly
+  `restrictThisTurn`, and it is held up by an enters-battlefield tutor narrowed
+  by mana value.
+- **Sanctum Prelate** wants batch 3 - a number chosen as it enters and
+  remembered.
+- **Hexing Squelcher** wants ward paid in life and "spells you control can't be
+  countered" as a granted static.
+- **Aven Mindcensor** does not forbid a search, it *shortens* one.
+
+965 fixtures. `audit_fixtures` and `audit_triggers` clean, `audit_text` clean bar
+the two long-known gaps. 1,105 tests, typecheck clean.

@@ -236,6 +236,10 @@ function runAutomaticStepActions(state: GameState): void {
         // "The amount of life you gained **this turn**" - the tally belongs to
         // the turn, so it ends with it.
         player.lifeGainedThisTurn = 0;
+        // Both tallies the hate pieces read. Archon of Emeria's limit and
+        // Spirit of the Labyrinth's are per turn, so they reset with it.
+        player.spellTypesCastThisTurn = [];
+        player.cardsDrawnThisTurn = 0;
       }
       /*
        * "Your maximum hand size is five." - Necrodominance, and the ordinary
@@ -290,6 +294,10 @@ function runAutomaticStepActions(state: GameState): void {
       state.creatureDeathsThisTurn = 0;
       // "Prevent all combat damage ... this turn" ends with the turn.
       state.combatDamagePrevention = null;
+      // "Your opponents can't cast spells **this turn**" - Silence. Ends here
+      // rather than when its spell left the stack, which is the whole point of
+      // holding it on the turn instead of on a permanent.
+      state.turnRestrictions = [];
       break;
     }
     default:

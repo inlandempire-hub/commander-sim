@@ -1,3 +1,4 @@
+import { mayDraw } from "./restrictions.js";
 import type {
   CardDefinition,
   CardInstance,
@@ -26,6 +27,8 @@ export function createPlayer(id: string): Player {
     damagePrevention: 0,
     attemptedDrawFromEmptyLibrary: false,
     landsPlayedThisTurn: 0,
+    spellTypesCastThisTurn: [],
+    cardsDrawnThisTurn: 0,
     poisonCounters: 0,
     lifeGainedThisTurn: 0,
     plusOneCountersPlacedThisTurn: 0,
@@ -42,6 +45,7 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     step: "untap",
     stack: [],
     stackCards: [],
+    turnRestrictions: [],
     passesInSuccession: 0,
     attackers: {},
     blockers: {},
@@ -269,6 +273,13 @@ export function drawCard(
   const player = requirePlayer(state, playerId);
   let drawn = 0;
   for (let i = 0; i < amount; i++) {
+    /*
+     * "Each player can't draw more than one card each turn" - Spirit of the
+     * Labyrinth. A forbidden draw simply does not happen, and crucially is not
+     * a draw from an empty library: treating it as one would lose the game to a
+     * card that only says you cannot draw.
+     */
+    if (!mayDraw(state, playerId)) break;
     const top = player.library.shift();
     if (!top) {
       player.attemptedDrawFromEmptyLibrary = true;
@@ -277,6 +288,7 @@ export function drawCard(
     }
     top.zone = "hand";
     player.hand.push(top);
+    player.cardsDrawnThisTurn += 1;
     drawn += 1;
   }
   if (drawn > 0 && !options.silent) {

@@ -13235,8 +13235,146 @@ export const WINOTA_JOINER_OF_FORCES: CardDefinition = {
   tier: "weird",
 };
 
+
+// --- Winota list, batch 2: the hate pieces ---
+/** Each player can't cast more than one noncreature spell each turn. */
+export const DEAFENING_SILENCE: CardDefinition = {
+  id: "deafening-silence",
+  name: "Deafening Silence",
+  scryfallId: "6072d9b0-d3c7-46f4-bd24-095bb13c4dea",
+  types: ["Enchantment"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  staticRestrictions: [{ kind: "cast-limit", perTurn: 1, only: "noncreature" }],
+  tier: "scripted",
+};
+
+/** Each player who has cast a nonartifact spell this turn can't cast additional nonartifact spells. */
+export const ETHERSWORN_CANONIST: CardDefinition = {
+  id: "ethersworn-canonist",
+  name: "Ethersworn Canonist",
+  scryfallId: "abc8e0f8-fdb9-4f24-a3e3-439f6cc3ebdc",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Human", "Cleric"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  staticRestrictions: [{ kind: "cast-limit", perTurn: 1, only: "nonartifact" }],
+  tier: "scripted",
+};
+
+/** During your turn, your opponents can't cast spells or activate abilities of artifacts, creatures, or enchantments. */
+export const GRAND_ABOLISHER: CardDefinition = {
+  id: "grand-abolisher",
+  name: "Grand Abolisher",
+  scryfallId: "ee793ed2-7d59-4640-8868-ad486600df2c",
+  types: ["Creature"],
+  subtypes: ["Human", "Cleric"],
+  manaCost: { generic: 0, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  staticRestrictions: [
+    { kind: "opponents-cannot-cast", duringYourTurnOnly: true },
+    {
+      kind: "cannot-activate",
+      types: ["Artifact", "Creature", "Enchantment"],
+      who: "opponents",
+      duringYourTurnOnly: true,
+    },
+  ],
+  tier: "scripted",
+};
+
+/** Your opponents can't cast spells from anywhere other than their hands. */
+export const DRANNITH_MAGISTRATE: CardDefinition = {
+  id: "drannith-magistrate",
+  name: "Drannith Magistrate",
+  scryfallId: "98b0a4a8-9319-451b-9b79-b0bca7a41e91",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 3,
+  staticRestrictions: [{ kind: "opponents-cast-from-hand-only" }],
+  tier: "scripted",
+};
+
+/** Each player can't draw more than one card each turn. */
+export const SPIRIT_OF_THE_LABYRINTH: CardDefinition = {
+  id: "spirit-of-the-labyrinth",
+  name: "Spirit of the Labyrinth",
+  scryfallId: "f44e5128-e146-4e46-b313-a40d82719d1d",
+  types: ["Creature", "Enchantment"],
+  subtypes: ["Spirit"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 1,
+  staticRestrictions: [{ kind: "draw-limit", perTurn: 1 }],
+  tier: "scripted",
+};
+
+/** Flying // Activated abilities of artifacts, creatures, and planeswalkers can't be activated. */
+export const CLARION_CONQUEROR: CardDefinition = {
+  id: "clarion-conqueror",
+  name: "Clarion Conqueror",
+  scryfallId: "f892d156-371c-4391-8ae6-25513c5032b0",
+  types: ["Creature"],
+  subtypes: ["Dragon"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 3,
+  keywords: ["Flying"],
+  staticRestrictions: [
+    { kind: "cannot-activate", types: ["Artifact", "Creature", "Planeswalker"], who: "each-player" },
+  ],
+  tier: "scripted",
+};
+
+/** Each player can't cast more than one spell each turn. // {4}{R}, Sacrifice this enchantment: It deals 5 damage to any target. */
+export const HIGH_NOON: CardDefinition = {
+  id: "high-noon",
+  name: "High Noon",
+  scryfallId: "9995e0e6-7c9c-4fef-8fd2-8fb1622e6ec8",
+  types: ["Enchantment"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["R", "W"],
+  staticRestrictions: [{ kind: "cast-limit", perTurn: 1 }],
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 4, colors: { R: 1 } }, sacrificeSelf: true },
+      effect: { kind: "damage", amount: 5, target: { kind: "any-target" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+/** Your opponents can't cast spells this turn. */
+export const SILENCE: CardDefinition = {
+  id: "silence",
+  name: "Silence",
+  scryfallId: "1c2b13b1-31f0-4676-88a7-53f3a190e9a2",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "restrictThisTurn", restriction: { kind: "opponents-cannot-cast" } },
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    DEAFENING_SILENCE,
+    ETHERSWORN_CANONIST,
+    GRAND_ABOLISHER,
+    DRANNITH_MAGISTRATE,
+    SPIRIT_OF_THE_LABYRINTH,
+    CLARION_CONQUEROR,
+    HIGH_NOON,
+    SILENCE,
     WINOTA_JOINER_OF_FORCES,
     SUNBAKED_CANYON,
     ANCIENT_TOMB,

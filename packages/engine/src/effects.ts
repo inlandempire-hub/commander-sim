@@ -582,6 +582,10 @@ export function applyEffect(
       }
       return;
     }
+    case "restrictThisTurn": {
+      state.turnRestrictions.push({ restriction: effect.restriction, controllerId });
+      return;
+    }
     case "deployFromTop": {
       /*
        * The six cards exist only inside this resolution, so they are held on

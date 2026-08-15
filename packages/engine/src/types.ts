@@ -30,6 +30,51 @@ export type CardType =
   | "Sorcery"
   | "Battle";
 
+/**
+ * A continuous effect that forbids an action outright - the hate pieces.
+ *
+ * Every other continuous effect here *changes* something. These decide whether
+ * an action may be taken at all, so they are asked at the moment somebody tries
+ * to cast, activate or draw rather than folded into a characteristic. See
+ * restrictions.ts.
+ *
+ * A closed list of printed phrases, in the same spirit as `BoardCondition`: a
+ * general predicate language would be quicker to write and impossible to check
+ * back against a card.
+ */
+export type ActionRestriction =
+  /**
+   * "Each player can't cast more than one spell each turn" - Archon of Emeria,
+   * High Noon. `only` narrows which spells count *and* which are stopped:
+   * Deafening Silence's noncreature, Ethersworn Canonist's nonartifact.
+   *
+   * Symmetrical, and it binds the controller too - Archon of Emeria is a real
+   * cost to its own deck, and a version that exempted its controller would be a
+   * different and much stronger card.
+   */
+  | { kind: "cast-limit"; perTurn: number; only?: "noncreature" | "nonartifact" }
+  /**
+   * "Your opponents can't cast spells" - Silence for the rest of the turn,
+   * Grand Abolisher only while it is your turn.
+   */
+  | { kind: "opponents-cannot-cast"; only?: "noncreature"; duringYourTurnOnly?: boolean }
+  /**
+   * "Your opponents can't cast spells from anywhere other than their hands" -
+   * Drannith Magistrate, which in this format mostly means the command zone.
+   */
+  | { kind: "opponents-cast-from-hand-only" }
+  /**
+   * "Activated abilities of artifacts, creatures, and planeswalkers can't be
+   * activated" - Clarion Conqueror (`each-player`) and Grand Abolisher
+   * (`opponents`, and only during your turn).
+   *
+   * Mana abilities are activated abilities and are stopped too. That is the
+   * rule and it is most of what these cards do.
+   */
+  | { kind: "cannot-activate"; types: CardType[]; who: "each-player" | "opponents"; duringYourTurnOnly?: boolean }
+  /** "Each player can't draw more than one card each turn" - Spirit of the Labyrinth. */
+  | { kind: "draw-limit"; perTurn: number };
+
 export type Keyword =
   | "Flying"
   | "Trample"
@@ -830,6 +875,15 @@ export type Effect =
    */
   | { kind: "conditional"; condition: BoardCondition; then: Effect; otherwise?: Effect }
   /**
+   * "Your opponents can't cast spells this turn." - Silence, and
+   * Ranger-Captain of Eos's sacrifice ability.
+   *
+   * The same restrictions the permanents carry, but attached to the turn rather
+   * than to a permanent: it survives the spell going to the graveyard, and ends
+   * in the cleanup step. `GameState.turnRestrictions` is where it lives.
+   */
+  | { kind: "restrictThisTurn"; restriction: ActionRestriction }
+  /**
    * "Create a token that's a copy of this creature" - Scute Swarm, and
    * Springheart Nantuko's copy of whatever it is attached to.
    *
@@ -1615,6 +1669,15 @@ export interface CardDefinition {
    * Checked as the permanent arrives; if the condition holds it enters
    * untapped, otherwise `entersTapped` applies as usual.
    */
+  /**
+   * "Each player can't cast more than one spell each turn" and the rest of the
+   * hate pieces - see `ActionRestriction` and restrictions.ts.
+   *
+   * A list because Grand Abolisher prints two of them in one sentence, and they
+   * are genuinely two: one stops casting and one stops activating, and a card
+   * that removed only half would be a different card.
+   */
+  staticRestrictions?: ActionRestriction[];
   entersTappedUnless?: EntersUntappedCondition;
   /**
    * "As this land enters, you may pay N life. If you don't, it enters tapped"
@@ -2233,6 +2296,17 @@ export interface Player {
   attemptedDrawFromEmptyLibrary: boolean;
   landsPlayedThisTurn: number;
   /**
+   * Every spell this player has cast this turn, as that spell's card types.
+   *
+   * The types rather than a count, because the cards ask three different
+   * questions of the same tally - "more than one spell", "more than one
+   * noncreature spell", "additional nonartifact spells" - and three counters
+   * would be three things to keep in step.
+   */
+  spellTypesCastThisTurn: CardType[][];
+  /** Cards drawn this turn - Spirit of the Labyrinth's limit is checked against it. */
+  cardsDrawnThisTurn: number;
+  /**
    * Poison counters. Ten of them loses the game, checked as a state-based
    * action beside the life total.
    */
@@ -2282,6 +2356,12 @@ export interface GameState {
   players: Player[];
   /** Card instances currently on the stack as spells (as opposed to abilities, which reference a source elsewhere). */
   stackCards: CardInstance[];
+  /**
+   * Restrictions that belong to the turn rather than to a permanent - Silence.
+   * Cleared in the cleanup step, so they outlive the spell that made them and
+   * nothing else.
+   */
+  turnRestrictions: { restriction: ActionRestriction; controllerId: string }[];
   activePlayerIndex: number;
   priorityPlayerIndex: number;
   turnNumber: number;

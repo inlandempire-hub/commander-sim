@@ -1,3 +1,4 @@
+import { activateRestrictionProblem } from "./restrictions.js";
 import type { GameState, StackTarget } from "./types.js";
 import { findInstance, log, requireDefinition, requirePlayer } from "./state.js";
 import {
@@ -142,6 +143,11 @@ export function activateAbility(
   const def = requireDefinition(state, instance.definitionId);
   const ability = def.activatedAbilities?.[abilityIndex];
   if (!ability) throw new Error(`${def.name} has no activated ability at index ${abilityIndex}`);
+
+  // Clarion Conqueror and Grand Abolisher. Before any cost is validated, for
+  // the same reason the cast check is: the ability is never activated at all.
+  const forbidden = activateRestrictionProblem(state, playerId, def);
+  if (forbidden) throw new Error(forbidden);
 
   // Validate every part of the cost before paying any of it - costs are paid
   // simultaneously, so an ability whose mana can't be covered must not leave
