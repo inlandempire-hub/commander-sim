@@ -377,6 +377,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       const look = `Look at the top ${effect.amount} ${effect.amount === 1 ? "card" : "cards"} of your library, then put them back in any order.`;
       return effect.mayShuffle ? `${look} You may shuffle.` : look;
     }
+    case "putFromHandOnTop":
+      return `Put ${effect.count} ${effect.count === 1 ? "card" : "cards"} from your hand on top of your library in any order.`;
     case "sacrificeChosen": {
       const what = effect.excludeSelf ? "another creature" : "a creature";
       const head = effect.optional ? `You may sacrifice ${what}.` : sentence(`Sacrifice ${what}.`);

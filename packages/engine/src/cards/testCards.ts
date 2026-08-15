@@ -11021,6 +11021,17 @@ export const OPULENT_PALACE: CardDefinition = {
   tier: "vanilla",
 };
 
+export const BRAINSTORM: CardDefinition = {
+  id: "brainstorm",
+  name: "Brainstorm",
+  scryfallId: "b5545882-6963-4729-b2c6-fb4bdc75ffcc",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "sequence", effects: [{ kind: "draw", amount: 3 }, { kind: "putFromHandOnTop", count: 2 }] },
+  tier: "scripted",
+};
+
 export const PONDER: CardDefinition = {
   id: "ponder",
   name: "Ponder",
@@ -14005,6 +14016,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     OPULENT_PALACE,
     TEMPLE_OF_DECEIT,
     TEMPLE_OF_MALADY,
+    BRAINSTORM,
     PONDER,
     HALIMAR_DEPTHS,
   ].map((def) => [def.id, def]),

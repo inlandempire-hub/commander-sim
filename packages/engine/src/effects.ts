@@ -255,6 +255,34 @@ export function applyEffect(
       };
       return;
     }
+    case "putFromHandOnTop": {
+      /*
+       * "Put N cards from your hand on top of your library in any order" -
+       * Brainstorm, after its draw. The choice is which cards and in what
+       * order, so it rides on `PendingCardChoice` with the `to-library-top`
+       * mode; `resolveCardChoice` does the moving. An empty hand has nothing to
+       * put back, so the rest of the card (there is none on Brainstorm) runs on.
+       */
+      const count = Math.min(effect.count, controller.hand.length);
+      if (count === 0) {
+        if (pendingFollowUp?.length) {
+          for (const next of pendingFollowUp) applyEffect(state, controllerId, sourceInstanceId, next, targets);
+        }
+        return;
+      }
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: controller.hand.map((card) => card.instanceId),
+        min: count,
+        max: count,
+        mode: "to-library-top",
+        prompt: `Put ${count} card${count === 1 ? "" : "s"} from your hand on top of your library`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
     case "conditional": {
       /*
        * "If you control six or more lands, create a copy instead." One branch
@@ -1387,6 +1415,21 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
     }
     // "cast-free" is handled below: it needs the caster, not the chooser, and
     // casting is not a zone move this function should be doing by hand.
+  }
+
+  /*
+   * Brainstorm's second half. moveCard drops each card at the bottom of the
+   * library, so pull them straight back to the top afterwards - in reverse of
+   * the named order, so the first card named ends up on top and is drawn next.
+   */
+  if (pending.mode === "to-library-top" && chosen.length > 0) {
+    for (const id of chosen) moveCard(state, id, "library");
+    const library = player.library;
+    for (let i = chosen.length - 1; i >= 0; i--) {
+      const idx = library.findIndex((card) => card.instanceId === chosen[i]);
+      if (idx >= 0) library.unshift(...library.splice(idx, 1));
+    }
+    log(state, `${playerId} puts ${chosen.length} card${chosen.length === 1 ? "" : "s"} on top of their library`);
   }
 
   if (pending.mode === "cast-free" && chosen.length > 0) {

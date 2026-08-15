@@ -396,6 +396,14 @@ export type Effect =
    */
   | { kind: "lookAndArrange"; amount: number; mayShuffle?: boolean }
   /**
+   * "Put N cards from your hand on top of your library in any order" -
+   * Brainstorm's second half. Stops and asks which cards (and in what order),
+   * riding on `PendingCardChoice` with the `to-library-top` mode: the chosen
+   * cards go on top in the order named, first-named on top. `count` is a
+   * ceiling - a hand shorter than N puts back only what it has.
+   */
+  | { kind: "putFromHandOnTop"; count: number }
+  /**
    * "Look at the top N cards of your library. You may put any of them on the
    * bottom" - scry, as printed on Path of Ancestry.
    *
@@ -1949,7 +1957,7 @@ export interface PendingCardChoice {
   min: number;
   max: number;
   /** What happens to the chosen cards. */
-  mode: "sacrifice" | "cast-free" | "to-hand";
+  mode: "sacrifice" | "cast-free" | "to-hand" | "to-library-top";
   /** A price paid only if something is chosen - Ripples of Undeath. */
   cost?: { mana?: ManaCost; life?: number };
   /**
