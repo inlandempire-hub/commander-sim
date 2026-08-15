@@ -11021,6 +11021,17 @@ export const OPULENT_PALACE: CardDefinition = {
   tier: "vanilla",
 };
 
+export const FABRICATE: CardDefinition = {
+  id: "fabricate",
+  name: "Fabricate",
+  scryfallId: "44e49332-b1e1-4b88-b508-516b55c67a1d",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "searchLibrary", cardType: "Artifact", destination: "hand" },
+  tier: "scripted",
+};
+
 export const BRAINSTORM: CardDefinition = {
   id: "brainstorm",
   name: "Brainstorm",
@@ -14017,6 +14028,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     TEMPLE_OF_DECEIT,
     TEMPLE_OF_MALADY,
     BRAINSTORM,
+    FABRICATE,
     PONDER,
     HALIMAR_DEPTHS,
   ].map((def) => [def.id, def]),
