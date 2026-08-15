@@ -2747,280 +2747,307 @@ Fell Mire, and the shockland question fired on top of it.
 
 ## The Tiger's Shadow list: the roadmap (2026-08-15)
 
-The second decklist through the deck-led loop, and the first one worked on a
-branch rather than straight onto `main` - `deck/tigers-shadow`, cut from
-`77a4079`. Nothing here is built yet; this section is the plan, written before
-any code so the shape of the work is arguable while it is still cheap.
+The second decklist through the deck-led loop, and the first worked on a branch
+rather than straight onto `main` - `deck/tigers-shadow`, cut from `77a4079`.
+Nothing here is built yet; this section is the plan, written before any code so
+the shape of the work is arguable while it is still cheap.
 
-The deck is Yuriko, the Tiger's Shadow: a two-colour Ninja list that wins by
-connecting with small evasive creatures rather than by building a board. That
-matters for sequencing, because it means the deck has a *single point of
-failure*. The Blech list degraded gracefully - unsupported cards were left out
-and the rest still played a game of Magic. This one does not. Yuriko is the
-whole deck, her trigger needs a combat event the engine has never had, and
-without it the other ninety-nine cards are a pile of 1/1s.
+**A first version of this list was withdrawn before any work started.** It
+contained five Alchemy rebalances, two further Arena-only cards and one card
+that does not exist under the name given, and the user's rule settles the
+general case: *this sim is for testing paper decks, so Alchemy and Arena-only
+cards are not useful*. The check is one line of Scryfall - `legalities.commander`
+plus `games` - and it now runs on every list before anything else. The eighth
+card was **Battle at the Big Bridge**, which turned out to be the TMNT reskin of
+**Fatal Push**; see the tool note below, because the report was wrong to call it
+unknown and that is worth fixing.
 
-### Eight of the hundred cards cannot be used, and that is a list problem
+The deck is Yuriko, the Tiger's Shadow, and the replacement list is a **cEDH**
+build rather than a midrange one. That changes the engineering problem more than
+it changes the card count, and the reason is in batch 2.
 
-Checked against a bulk file pulled the same day, so this is not staleness:
+### What the list is, and the one legality flag
 
-- **Five Alchemy rebalances** - A-Dokuchi Silencer, A-Moon-Circuit Hacker,
-  A-Prosperous Thief, A-Silver-Fur Master, A-Thousand-Faced Shadow. Scryfall has
-  every one of them at `legal_commander: not_legal`, `games: ["arena"]`. They
-  are digital-only rewrites of paper cards, and they are not cosmetic renames:
-  A-Prosperous Thief is a 2/4 where the paper card is a 3/2, A-Silver-Fur
-  Master's ninjutsu is hybrid `{U/B}` where the paper card's is `{U}{B}`, and
-  A-Thousand-Faced Shadow ninjutsus for `{2}{U}` against the paper `{2}{U}{U}`.
-  Swapping in the paper originals is the obvious fix and it changes the deck.
-- **Two more Arena-only cards** that the A- filter does not catch because their
-  names carry no prefix: **Hydroponics Architect** (its text turns on
-  *perpetually*, which has no paper rules meaning at all) and **Swarm Saboteur**
-  (*conjure*, likewise). Both `not_legal`, both `games: ["arena"]`.
-- **Battle at the Big Bridge does not exist.** No card by that name is in the
-  bulk data, and the TMNT sets are fully present - 270 cards across `tmt`,
-  `tmc` and `atmt` - so this is not a set that has yet to land. The closest
-  real names are *Battle at the Bridge* (Aether Revolt) and *Battle at the
-  Helvault*, neither of which is a card anybody puts in a Yuriko deck.
+100 cards, every one real, paper-legal and inside Yuriko's `{U}{B}` identity.
+**One issue: Mana Crypt is banned in Commander** - Scryfall gives it
+`legalities.commander: "banned"`, from the September 2024 update. Nothing else
+on the list is banned or restricted. It is a rules-legality question rather than
+an engine one, so it is yours to call: keep it and accept the deck is not
+tournament-legal, or cut it.
 
-Colour identity is otherwise clean: every one of the remaining cards sits inside
-Yuriko's `{U}{B}`, so there is no legality work beyond the eight above.
+Worth knowing separately: **Mana Crypt is also one of the more expensive cards
+here to implement**, because its upkeep trigger flips a coin and the engine has
+no randomness in an effect at all.
 
-### The report says 19 playable. It is under-reporting, and this is the third time
+### A tool bug the withdrawn list exposed
 
-`deck_report.py` answers **13 IMPLEMENTED, 6 ADDABLE, 75 BLOCKED, 6 UNKNOWN**.
-The first two numbers are trustworthy - they are computed by running the card
-through the generator rather than guessed. The third is not, and its own header
-comment says why: the `BLOCKERS` table is *kept current by hand*, and it has now
-gone stale for the third recorded time.
+`deck_report.py` reads `oracle-cards`, which carries **one representative
+printing per card**, and reskinned cards - the TMNT set, and Universes Beyond
+generally - print a different name on the card face while keeping the original
+oracle name. Scryfall records that as `flavor_name`, and only **3 rows** in the
+whole `oracle-cards` file carry one, because the representative printing chosen
+for Fatal Push is not the Teenage Mutant Ninja Turtles one.
 
-Checked against `types.ts` rather than against the report:
+So any card entered by its reskin name comes back UNKNOWN, and the report says
+"check the spelling, or refresh the data" - which is exactly the wrong advice.
+Fixing it means indexing flavour names from `default-cards` (every printing)
+rather than `oracle-cards`, or carrying a small alias table. Filed into batch 0.
 
-| The report says | What the engine actually has |
-| --- | --- |
-| "Mill - nothing can move cards from a library to a graveyard" | `{ kind: "mill"; amount: Amount }` |
-| "Library manipulation - the library is a list nothing can look at" | `scry`, `surveil`, and `searchLibrary` with a `library-top` destination |
-| "Discard - no effect can move a card from a hand to a graveyard" | `{ kind: "discard"; amount; who: "each-opponent" }` |
-| "Paying life as a cost - costs are mana and tapping" | `ActivatedAbilityCost.payLife`, `AdditionalCost.pay-life`, `entersTappedUnlessPayLife` |
-| "Permanents that enter tapped only under a condition" | `entersTappedUnless: BoardCondition`, shipped with Deathcap Glade |
-| "Sacrificing something other than the card itself - finishes 1: Strip Mine" | Strip Mine sacrifices *itself*; `ActivatedAbilityCost.sacrificeSelf` has carried every fetchland since step 2 |
+### The report says 23 playable, and it is under-reporting again
 
-So several cards the report files under BLOCKED need no engine work at all -
-they need a fixture written by hand. Spot-checked against the printed cards and
-the current type definitions, these five are expressible **today**:
+**12 IMPLEMENTED, 11 ADDABLE, 77 BLOCKED, 0 UNKNOWN.** The first two are
+computed by running each card through the generator and can be trusted. The
+third cannot: the `BLOCKERS` table in `deck_report.py` is maintained by hand and
+has gone stale for the third recorded time. Every stale heading found on the
+withdrawn list is still stale here - mill, scry, surveil, discard, paying life
+as a cost and conditional taplands are all named as missing and all shipped
+weeks ago - and this list adds a new family of the same error.
 
-- **Mana Confluence** - `{T}`, `payLife: 1`, five any-colour abilities.
+**Four cards are blamed for "sacrificing something other than the card itself",
+and all four sacrifice themselves**, which `ActivatedAbilityCost.sacrificeSelf`
+has done since every fetchland shipped in step 2: **Lotus Petal**, **Prismatic
+Vista**, **Gingerbrute** and **Hope of Ghirapur**. Two of those have no other
+blocker worth the name.
+
+Checked against `types.ts` rather than the report, these are writable **today**
+with no engine work at all - a hand-written fixture under the
+`docs/ADDING-CARDS.md` rules and nothing more:
+
+- **Lotus Petal** - `{T}`, `sacrificeSelf`, five any-colour abilities.
+- **Mana Confluence** - `{T}`, `payLife: 1`, the same five.
 - **Prismatic Vista** - `{T}`, `payLife: 1`, `sacrificeSelf`, `searchLibrary`
   for a basic onto the battlefield.
-- **Strip Mine** - `{T}`, `sacrificeSelf`, destroy target land.
 - **Watery Grave** - `entersTappedUnlessPayLife: 2` and a `{U}`/`{B}` ability.
-- **Undercity Sewers** - enters tapped, an enters-battlefield `surveil 1`, and
-  the same dual ability.
+- **Diabolic Intent** - Demonic Tutor is already implemented, and
+  `AdditionalCost` already has `sacrifice-creature`. The report files it under
+  "alternative and additional casting costs"; the cost it names exists.
 
-That is not a claim that they work; it is a claim that nothing has to be built
-first. Each still gets read against Scryfall and written by hand under the
-`docs/ADDING-CARDS.md` rules.
+**Batch 0 is therefore the report itself** - refresh the heuristics, and teach
+it flavour names. Every number below sits downstream of a tool that is currently
+wrong in a direction that makes the deck look further away than it is.
 
-**Batch 0 of this list is therefore refreshing the report's heuristics**, the
-same job as task #200. Every number below is downstream of a tool that is
-currently wrong, and the queue cannot be ordered honestly until it is right.
+### Batch 1 - Ninjutsu, and the trigger the deck is built on
 
-### Batch 1 - Ninjutsu, and the trigger the whole deck is built on
+Bigger on this list than on the withdrawn one. **Nine cards print Ninjutsu**:
+Moon-Circuit Hacker, Prosperous Thief, Thousand-Faced Shadow, Mist-Syndicate
+Naga, Mistblade Shinobi, Sakashima's Student, Ninja of the Deep Hours,
+Skullsnatcher and Ingenious Infiltrator - plus **commander ninjutsu** on Yuriko
+herself.
 
-Nothing else is worth starting first, because this is the deck.
-
-**A new trigger event: combat damage dealt to a player.** The engine has
-`damaged`, which is a *self* event - a permanent watching damage marked on
-itself - and nothing at all for a creature connecting with a player. Yuriko
-reads "whenever a **Ninja you control** deals combat damage to a player", so
-this wants the watcher shape the pool already uses for `permanent-dies` and
-`permanent-attacks`: `watchFor` narrowed by subtype and controller. There are
-exactly two places in `combat.ts` where damage reaches a player - the unblocked
-branch at line 284 and the trample spillover below it - so the hook points are
-clean.
-
-Cards it reaches, on the paper-legal list as written: **Yuriko**, **Ingenious
-Infiltrator**, **Ninja of the Deep Hours**, **Skullsnatcher** and **Psychic
-Frog**. Every paper substitute for the five Alchemy ninjas also wants it.
-
-**Yuriko's effect needs two more pieces.** "Reveal the top card of your library
-and put that card into your hand" is a new effect - `millThenMayTake` is the
-nearest thing and it is not the same move. "Each opponent loses life equal to
-that card's mana value" then needs a new `Amount` kind reading the mana value of
-the card revealed by the step before it, in the manner `sacrificed-power`
-already reads a creature that has left. The life loss itself is done:
-`loseLife` takes an `Amount` and the `opponents` selector exists.
-
-**Ninjutsu is a new keyword, and it is a genuinely new *kind* of thing.** It is
-an activated ability usable only during the declare-blockers step, whose cost
+It is a genuinely new *kind* of thing rather than a new keyword flag: an
+activated ability usable only during the declare-blockers step, whose cost
 returns an unblocked attacker you control to hand, and whose effect puts a card
 **from your hand** onto the battlefield tapped and attacking. Nothing in the
-engine currently moves a card from hand to battlefield as part of paying for an
-ability, and nothing puts a permanent into combat after attackers are declared.
-**Commander ninjutsu** is the same ability sourced from the command zone, which
-is the part Yuriko herself uses.
+engine moves a card out of hand as part of paying a cost, and nothing adds a
+permanent to combat after attackers are declared.
 
-**Sneak is the same idea wearing a different hat.** Splinter, Hamato Yoshi
-prints "Sneak {B}" - an alternative *cast* cost paid during declare blockers by
-returning an unblocked attacker. Worth building alongside ninjutsu rather than
-after it, because getting one shape wrong twice is the standing failure mode
-here.
+**A new trigger event: combat damage dealt to a player.** The engine's `damaged`
+is a *self* event - a permanent watching damage marked on itself - and there is
+nothing for connecting with a player. Yuriko reads "whenever a **Ninja you
+control** deals combat damage to a player", so this wants the watcher shape
+`permanent-dies` and `permanent-attacks` already use, narrowed by subtype and
+controller. Two clean hook points in `combat.ts`: the unblocked branch at line
+284 and the trample spillover below it.
 
-**Changeling matters more than it looks.** Changeling Outcast is every creature
-type, so it is a Ninja, so it turns Yuriko's trigger on. Written as a plain
-black 1/1 it silently stops being a Yuriko enabler, which is precisely the kind
-of quietly-wrong card the pool refuses to carry.
+**Eight cards on this list read that event** - Yuriko, Ingenious Infiltrator,
+Ninja of the Deep Hours, Skullsnatcher, Moon-Circuit Hacker, Mist-Syndicate
+Naga, Mistblade Shinobi and Prosperous Thief - and Hope of Ghirapur asks the
+related question of whether a player *was* dealt combat damage by it this turn.
 
-**Satoru, the Infiltrator pairs with this batch** rather than sitting in the
-tail: "if none of them were cast or no mana was spent to cast them" is a
-question about *how a creature arrived*, and a ninjutsu'd creature is the
-canonical answer. Cheap once the arrival already carries that fact.
+**Yuriko's own effect needs two more pieces.** "Reveal the top card of your
+library and put that card into your hand" is a new effect; `millThenMayTake` is
+the nearest thing and is not the same move. "Each opponent loses life equal to
+that card's mana value" then needs a new `Amount` reading the mana value of the
+card the step before it revealed, in the way `sacrificed-power` already reads a
+creature that has left. The life loss itself is done - `loseLife` takes an
+`Amount`, and the `opponents` selector exists.
 
-### Batch 2 - the free spells
+**Changeling is part of this batch, not a curiosity.** Changeling Outcast,
+Universal Automaton and Mothdust Changeling are every creature type, so all
+three are Ninjas, so all three turn Yuriko on and all three are cheap bodies to
+return to hand for a ninjutsu. Written as plain creatures they silently stop
+being enablers, which is the quietly-wrong-card failure this pool refuses.
 
-Ten cards, one shape, and the shape the engine has is too narrow.
-`AlternativeCost` today means exactly "cast this without paying its mana cost",
-gated on a `BoardCondition`. Every card below replaces the mana cost with a
-*different cost that is actually paid*:
+### Batch 2 - how this deck actually wins, and why it is the structural item
+
+**This is a consultation deck.** Demonic Consultation and Tainted Pact empty the
+library; **Thassa's Oracle** then wins on the spot because its devotion count is
+at least the number of cards left. Yuriko damage is the backup plan, not the
+plan. Doomsday is the third line of the same idea.
+
+**The engine cannot express any of it.** `sba.ts` knows exactly four ways to
+lose - life at zero or less, ten poison counters, drawing from an empty library,
+and 21 commander damage - and there is **no way for a card to say "you win the
+game" or "you lose the game" at all**. That is the single most important gap on
+this list after ninjutsu, because without it the deck has no win condition it
+was built around.
+
+What it takes:
+
+- **A win effect and a loss effect a card can cause**, checked as a state-based
+  action alongside the four that exist.
+- **Devotion** as an `Amount` - Thassa's Oracle counts `{U}` pips among
+  permanents you control.
+- **Reading the library's size** in a condition.
+- **Doomsday** - search library *and* graveyard, keep five, exile the rest,
+  stack them in a chosen order, then lose half your life rounded up.
+- **Demonic Consultation** - name a card, exile six, then reveal until you find
+  it. **Tainted Pact** - exile one at a time and stop on a duplicate name.
+  Neither is expressible; nothing in the DSL loops.
+- **Pact of Negation** wants the loss half too: a delayed cost at your next
+  upkeep that kills you if unpaid.
+
+### Batch 3 - counterspells, which are the largest single group
+
+Twelve cards. `counter` exists and takes `unlessPays`; what is missing is every
+way of *narrowing* which spell may be targeted, and a few riders:
+
+| Narrowing | Cards |
+| --- | --- |
+| instant only | Dispel |
+| instant or sorcery, unless pays | Flusterstorm `{1}`, Miscast `{3}` |
+| noncreature | Spell Pierce (unless pays `{2}`), Fierce Guardianship, Force of Negation |
+| mana value 1 | Mental Misstep |
+| enchantment, instant or sorcery | Swan Song, which also gives them a 2/2 Bird |
+| none | Force of Will, Pact of Negation |
+
+Three sit outside the pattern. **Flusterstorm has Storm**, which copies a spell
+once per spell cast earlier in the turn and needs a per-turn cast tally.
+**Misdirection** and **Commandeer** do not counter at all - one changes a
+spell's target, the other takes the spell. **Force of Negation** additionally
+exiles what it counters rather than binning it.
+
+### Batch 4 - free spells
+
+Nine cards replace their mana cost with a cost that is genuinely paid.
+`AlternativeCost` today means only "cast this without paying its mana cost",
+gated on a `BoardCondition`:
 
 | Card | What replaces the mana cost |
 | --- | --- |
 | Force of Will | pay 1 life **and** exile a blue card from hand |
-| Force of Negation | exile a blue card from hand, **and only if it is not your turn** |
+| Force of Negation | exile a blue card from hand, **only if it is not your turn** |
 | Commandeer | exile two blue cards from hand |
-| Flare of Denial | sacrifice a nontoken blue creature |
-| Flare of Malice | sacrifice a nontoken black creature |
-| Daze | return an Island you control to its owner's hand |
+| Misdirection | exile a blue card from hand |
+| Gush | return two Islands you control to hand |
 | Snuff Out | pay 4 life, if you control a Swamp |
-| Grief | Evoke - exile a black card from hand |
-| Subtlety | Evoke - exile a blue card from hand |
+| Submerge | free, if an opponent controls a Forest and you control an Island |
+| Pact of Negation | free now, `{3}{U}{U}` at your next upkeep or you lose |
 
 **Fierce Guardianship is already the supported shape** - "if you control a
-commander, you may cast this without paying its mana cost" is exactly Deadly
-Rollick, which is implemented. It is blocked only on targeting a *noncreature
-spell*, which belongs to batch 3.
+commander" is exactly Deadly Rollick, which is implemented. It is blocked only
+on targeting a noncreature spell, which belongs to batch 3. Submerge is close
+too: its condition is a board reading, which `BoardCondition` nearly covers.
 
-Two side effects worth naming now. `BoardCondition` needs a member for "it is
-not your turn", which is a question about the turn rather than the board and may
-want to live elsewhere. And Evoke is a keyword with a second half - the creature
-is sacrificed when it enters - so it is not purely a cost.
+`BoardCondition` needs a member for "it is not your turn", which is a question
+about the turn rather than the board.
 
-### Batch 3 - counterspells that read the spell they are pointed at
+### Batch 5 - the cards that switch parts of the rules off
 
-`counter` exists, with `unlessPays`. What is missing is every way of *narrowing*
-which spell may be targeted, and the alternate destinations:
+Four cards, and the engine has no concept for any of them. Nothing today can
+forbid an action; every restriction that exists is a targeting or timing check
+written into the one place that does the thing.
 
-- **noncreature spell** - Spell Pierce, Fierce Guardianship, Force of Negation
-- **mana value 2** - Spell Snare
-- **not cast from its owner's hand** - Wash Away (plus Cleave, a new keyword)
-- **to the top of its owner's library instead of the graveyard** - Memory Lapse
-- **exiled instead of put into the graveyard** - Force of Negation
-- **top or bottom of library, owner's choice** - Subtlety, and it is aimed at a
-  creature or planeswalker spell
+- **Null Rod** - activated abilities of artifacts can't be activated.
+- **Cursed Totem** - activated abilities of creatures can't be activated.
+- **Grafdigger's Cage** - creature cards in graveyards and libraries can't enter
+  the battlefield, and nobody may cast from either zone.
+- **Chains of Mephistopheles** - rewrites every draw after the first each draw
+  step into a discard-then-draw or a mill. A replacement effect on drawing,
+  which `replacements.ts` deliberately does not cover.
+- **Hope of Ghirapur** - a player can't cast noncreature spells until your next
+  turn.
 
-**Stifle is the outlier and should not be batched with these.** "Counter target
-activated or triggered ability" is refused by the engine on purpose -
-`isSpellOnStack` exists so that abilities cannot be targeted - and undoing that
-means abilities on the stack become targetable objects. That is a stack change,
-not a counterspell change. Commandeer is a second outlier: gaining control of a
-spell and changing its targets is not countering at all.
+These are worth doing as one batch because they all want the same thing: a
+continuous effect that answers "may this action be taken", asked at the point
+the action is attempted.
 
-### Batch 4 - creatures that cannot be blocked
+### Batch 6 - copying
 
-`declareBlockers` knows flying, reach and menace. This deck's whole plan is
+`createCopyToken` exists but only copies `self` or `attached-creature`:
+
+- **Mist-Syndicate Naga** copies itself - the shape that already exists, so this
+  one may be near-free once batch 1 lands.
+- **Thousand-Faced Shadow** copies *another target attacking creature*.
+- **Sakashima's Student** enters as a copy of any creature, plus Ninja.
+- **Chain of Vapor** copies the *spell*, repeatedly, at each player's option.
+- **Gilded Drake** exchanges control of two creatures, which is not copying but
+  is the same "creatures are not fixed to their controller" family.
+
+### Batch 7 - phyrexian mana
+
+Three cards, one change to `ManaCost`: **Dismember** `{1}{B/P}{B/P}`,
+**Gitaxian Probe** `{U/P}`, **Mental Misstep** `{U/P}`. Hybrid mana already
+landed in step 5, so this is the same job with life as the second half.
+
+### Batch 8 - the mana base
+
+Twenty-odd lands and rocks. After batch 0 several are writable already; what is
+genuinely new:
+
+- **A "becomes tapped" trigger** - City of Brass. Not the painland rider, which
+  is part of a mana ability; this fires however the land is tapped.
+- **Mox Diamond** - a replacement on the artifact entering, paid by discarding a
+  land, and it goes to the graveyard if declined.
+- **Chrome Mox** - imprint, and mana coloured by an exiled card.
+- **Mox Amber** - mana coloured by what is on the battlefield. `colorFrom` has
+  `commander-identity` and `opponent-lands`; this is a third source.
+- **Gemstone Caverns** - begins the game on the battlefield from your opening
+  hand, which is a mulligan-time effect and touches `mulligan.ts`.
+- **Mana Crypt** - an upkeep coin flip. No randomness exists in an effect.
+- **Channel** - Otawara and Takenuma: an ability activated by discarding the
+  card *from hand*, with a cost reduction per legendary creature.
+- **`entersTappedUnless` inverted** - Darkslick Shores is "two or **fewer**
+  other lands" where Deathcap Glade is "two or more".
+- **Shizo, Death's Storehouse** grants **fear**, which Cover of Darkness also
+  wants - see batch 9.
+
+Morphic Pool, Sunken Ruins, Underground Sea and Underground River are already
+ADDABLE. The MDFC lands - Agadeem's Awakening, Sea Gate Restoration, Clearwater
+Pathway - use arrival shapes that already exist, and MDFCs themselves are
+supported since Fell the Profane; their *front* faces are the work.
+
+### Batch 9 - evasion
+
+`declareBlockers` knows flying, reach and menace, and this deck's whole plan is
 getting a one-drop through:
 
-- **can't be blocked** - Slither Blade
 - **can't block and can't be blocked** - Changeling Outcast
-- **can't be blocked except by three or more creatures** - Troll of Khazad-dûm
-- **a static granting it to others** - Tetsuko Umezawa, Fugitive, narrowed to
-  "creatures you control with power or toughness 1 or less"
-- **Skulk** - Ingenious Prodigy, can't be blocked by greater power
-- **Shadow** - Dauthi Voidwalker, which is its own blocking sub-rule
+- **can't be blocked** - Tetsuko Umezawa, granted conditionally to creatures
+  with power or toughness 1 or less
+- **except by creatures with haste** - Gingerbrute, for `{1}`
+- **fear** - Cover of Darkness (on a chosen creature type) and Shizo
+- **swampwalk** - Street Wraith
+- **granted flying** - Wingcrafter via Soulbond, Mothdust Changeling by tapping
+  a creature
 
-Tetsuko is the interesting one: it is a conditional static reaching other
-permanents, which `staticBuff` does for power and toughness but not for
-restrictions.
+### Batch 10 - the singles
 
-### Batch 5 - the rest of the mana base
+**Mystic Remora** is three unbuilt things at once: cumulative upkeep, a trigger
+on an opponent casting a noncreature spell, and "unless that player pays {4}".
+**Dauthi Voidwalker** replaces every card going to an opponent's graveyard and
+then plays them from exile. **Opposition Agent** controls another player during
+their own search. **Blinkmoth Infusion** has affinity and untaps every artifact.
+**Street Wraith** cycles for life. **Temporal Trespass** is delve plus an extra
+turn. **Lim-Dûl's Vault** loops a five-card look for 1 life a time.
+**Brainstorm** puts two cards from hand back on top. **Imperial Seal** and
+**Vampiric Tutor** are close - `searchLibrary` already has a `library-top`
+destination and `loseLife` exists.
 
-Twenty-eight lands, and after batch 0 rewrites the report a good number are
-already writable. What genuinely needs building:
-
-- **`entersTappedUnless` with an inverted comparison** - Darkslick Shores is
-  "unless you control two or **fewer** other lands", where Deathcap Glade is
-  "two or more". One condition, opposite direction.
-- **A turn-number condition** - Starting Town's "unless it's your first,
-  second, or third turn of the game".
-- **Channel** - Otawara and Takenuma. An activated ability whose cost is
-  discarding the card *from your hand*, with a cost reduction per legendary
-  creature. Nothing activates from hand today.
-- **Threshold, and an activation restriction counting the graveyard** -
-  Cephalid Coliseum.
-- **Opening-hand replacement** - Gemstone Caverns begins the game on the
-  battlefield. This is a mulligan-time effect and touches `mulligan.ts`.
-- **Imprint, and mana coloured by an exiled card** - Chrome Mox.
-- **Mana coloured by what is on the battlefield** - Mox Amber. `colorFrom` has
-  `commander-identity` and `opponent-lands`; this is a third source.
-- **A land that changes every other land's type** - Urborg, Tomb of Yawgmoth.
-  A continuous effect in a layer the engine does not have.
-
-The four modal double-faced lands - Agadeem's Awakening, Sea Gate Restoration,
-Sink into Stupor, Hydroelectric Specimen - all use the shockland arrival shape
-that `entersTappedUnlessPayLife` already covers, and MDFCs themselves are
-supported (Fell the Profane is implemented). Their *front* faces are the work,
-and Sea Gate Restoration's "you have no maximum hand size for the rest of the
-game" is a static rules change with nowhere to live.
-
-### Batch 6 - selection, the graveyard, and the other ways to cast
-
-- **Delve** - Dig Through Time, Treasure Cruise, Murderous Cut, Temporal
-  Trespass. Four cards, one keyword, and the underlying spell effects are
-  mostly ordinary. Best value per unit of work on the list after batch 1.
-- **Escape** - Cling to Dust. **Warp** - Timeline Culler. **Cycling with a
-  type** - Lórien Revealed's islandcycling and Troll of Khazad-dûm's
-  swampcycling. Each is a way of casting from somewhere other than hand.
-- **scry 2** - Faerie Seer. `scry` is capped at 1 on purpose, and the cap is
-  the work.
-- **Hand to the top of the library** - Brainstorm.
-- **Tutors to the top** - Mystical Tutor and Vampiric Tutor are close to
-  writable now; `searchLibrary` already has a `library-top` destination.
-- **Tainted Pact** - an iterative exile that stops on a duplicate name. Nothing
-  in the DSL loops.
-- **Thassa's Oracle** - devotion, and a card that wins the game outright. The
-  engine has no win condition other than life, commander damage and decking.
-- **Extra turns** - Temporal Trespass.
-
-### Batch 7 - the singles
-
-Each of these is its own system and none of them helps another card:
-
-**Kaito, Bane of Nightmares** is a planeswalker, which is not a supported card
-type at all - the largest single item on the list and the only one that is more
-of a project than a batch. **Dauthi Voidwalker** replaces every card going to an
-opponent's graveyard and then plays them from exile. **Opposition Agent**
-controls another player during their own search. **Mockingbird** enters as a
-copy. **Shadow of Mortality** costs less by the difference in life totals.
-**Thoughtseize** and **Grief** need a discard where the *caster* chooses from a
-revealed hand, where the engine's discard is the opponent's choice.
-**Into the Flood Maw** brings Gift. **Faerie Mastermind** watches an opponent's
-second draw each turn. **Dismember** has phyrexian mana in its cost, which
-`ManaCost` cannot represent.
-
-Two are nearly free and should be swept up whenever a batch has room:
-**Fourth Bridge Prowler** is an optional enters-battlefield -1/-1, and **Cut
-Down** is an ordinary destroy needing one new target restriction on total power
-and toughness.
+**Fourth Bridge Prowler** is nearly free: an optional enters-battlefield -1/-1,
+and signed temporary modifiers already exist.
 
 ### Where the list stands before any work
 
-19 of 100 by the report, and higher than that in truth - the exact figure is the
-first thing batch 0 will tell us. 8 of the 100 need replacing in the list
-itself before they can ever be built.
+23 of 100 by the report, and higher in truth - the exact figure is the first
+thing batch 0 will produce.
 
-**The honest headline is that this deck is further from playable than the Blech
-list ever was**, and the reason is structural rather than a matter of card
-count. Blech was a deck of permanents doing ordinary things, and it worked
-partially all the way up. Yuriko needs a new combat trigger, a new keyword that
-moves cards out of hand mid-combat, and a commander whose text is three
-unsupported pieces stacked - and until all of that is standing, the deck does
-not do anything at all.
+**The honest headline is that this list is harder than the withdrawn one, not
+easier.** Trading the Alchemy cards for real ones fixed the legality problem and
+made the deck buildable in principle, but the replacement is a cEDH list, and
+cEDH decks are built out of exactly the things a young rules engine has not got:
+free spells, stax pieces that switch rules off, and a combo win that says "you
+win the game" in so many words. Blech degraded gracefully and played partially
+all the way up. This one needs ninjutsu, a combat-damage trigger and a win
+effect all standing before it does anything at all - and then another six
+batches before it does what it was built to do.
