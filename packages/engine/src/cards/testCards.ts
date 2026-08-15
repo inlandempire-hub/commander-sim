@@ -11090,6 +11090,53 @@ export const TEMPLE_OF_MALADY: CardDefinition = {
   tier: "vanilla",
 };
 
+export const BALEFUL_STRIX: CardDefinition = {
+  id: "baleful-strix",
+  name: "Baleful Strix",
+  scryfallId: "be8439e6-f779-49f0-806a-b04995697a6a",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Bird"],
+  manaCost: { generic: 0, colors: { U: 1, B: 1 } },
+  colorIdentity: ["B", "U"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying", "Deathtouch"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "draw", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const BOJUKA_BOG: CardDefinition = {
+  id: "bojuka-bog",
+  name: "Bojuka Bog",
+  scryfallId: "55b5b094-9d2d-4d96-b90c-78fecdae725a",
+  types: ["Land"],
+  colorIdentity: ["B"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "exileGraveyard", target: { kind: "player" } } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const SWIFTFOOT_BOOTS: CardDefinition = {
+  id: "swiftfoot-boots",
+  name: "Swiftfoot Boots",
+  scryfallId: "03f7e9fc-8e59-45c1-90fc-1d04d929b292",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 1, colors: {} },
+  staticBuff: { power: 0, toughness: 0, grants: ["Hexproof", "Haste"] },
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 1, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const SWARMYARD: CardDefinition = {
   id: "swarmyard",
   name: "Swarmyard",
@@ -14031,5 +14078,8 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     FABRICATE,
     PONDER,
     HALIMAR_DEPTHS,
+    BALEFUL_STRIX,
+    BOJUKA_BOG,
+    SWIFTFOOT_BOOTS,
   ].map((def) => [def.id, def]),
 );
