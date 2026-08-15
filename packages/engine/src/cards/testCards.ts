@@ -10987,6 +10987,64 @@ export const TWILIGHT_MIRE: CardDefinition = {
   tier: "vanilla",
 };
 
+export const ARCANE_SIGNET: CardDefinition = {
+  id: "arcane-signet",
+  name: "Arcane Signet",
+  scryfallId: "1cad1bd2-7c56-4ce0-99a6-b2a49c1288dd",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 }, colorFrom: "commander-identity" }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 }, colorFrom: "commander-identity" }],
+  tier: "vanilla",
+};
+
+export const HINTERLAND_HARBOR: CardDefinition = {
+  id: "hinterland-harbor",
+  name: "Hinterland Harbor",
+  scryfallId: "892451a1-5527-4857-84f8-62028d147489",
+  types: ["Land"],
+  colorIdentity: ["G", "U"],
+  entersTapped: true,
+  entersTappedUnless: { kind: "controls-subtype", subtypes: ["Forest", "Island"] },
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const OPULENT_PALACE: CardDefinition = {
+  id: "opulent-palace",
+  name: "Opulent Palace",
+  scryfallId: "f0001153-dbcb-44e5-99be-2c186c9b10b0",
+  types: ["Land"],
+  colorIdentity: ["B", "G", "U"],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const TEMPLE_OF_DECEIT: CardDefinition = {
+  id: "temple-of-deceit",
+  name: "Temple of Deceit",
+  scryfallId: "e18748ce-e52e-4cd1-89d4-cd2578a0d574",
+  types: ["Land"],
+  colorIdentity: ["B", "U"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "scry", amount: 1 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const TEMPLE_OF_MALADY: CardDefinition = {
+  id: "temple-of-malady",
+  name: "Temple of Malady",
+  scryfallId: "1ca36218-db87-4e44-8606-2a516504ed20",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "scry", amount: 1 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
 export const SWARMYARD: CardDefinition = {
   id: "swarmyard",
   name: "Swarmyard",
@@ -13919,5 +13977,10 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     SPRINGHEART_NANTUKO,
     TURN_STONES,
     ECCENTRIC_PESTFINDER,
+    ARCANE_SIGNET,
+    HINTERLAND_HARBOR,
+    OPULENT_PALACE,
+    TEMPLE_OF_DECEIT,
+    TEMPLE_OF_MALADY,
   ].map((def) => [def.id, def]),
 );
