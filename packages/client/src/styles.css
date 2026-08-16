@@ -985,6 +985,28 @@ body {
 }
 
 /*
+ * Finishing a choice that is only finished when you say so - "one or two
+ * target attacking creatures". Filled rather than outlined, because it is the
+ * action the prompt is asking for, where Cancel is the way out of it.
+ */
+.table-prompt__confirm {
+  flex: 0 0 auto;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #10151d;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.table-prompt__confirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
  * The stack, in the sidebar, always present whether or not anything is on it.
  *
  * Reserving the space is the point: a panel that appears and disappears is

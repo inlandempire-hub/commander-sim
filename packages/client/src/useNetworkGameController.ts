@@ -79,7 +79,7 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
     declareBlockers: (_playerId, declarations) => send({ type: "declareBlockers", declarations }),
     resolveSearch: (_playerId, instanceId) => send({ type: "resolveSearch", instanceId }),
     resolveConfirmation: (_playerId, accept) => send({ type: "resolveConfirmation", accept }),
-    chooseTriggerTarget: (_playerId, target) => send({ type: "chooseTriggerTarget", target }),
+    chooseTriggerTargets: (_playerId, targets) => send({ type: "chooseTriggerTargets", targets }),
     resolveDiscard: (_playerId, instanceId) => send({ type: "resolveDiscard", instanceId }),
     resolveSacrificeChoice: (_playerId, instanceId) =>
       send({ type: "resolveSacrificeChoice", instanceId }),

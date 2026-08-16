@@ -44,7 +44,12 @@ export interface GameController {
    */
   resolveConfirmation(playerId: string, accept: boolean): void;
   /** Points a triggered ability the engine parked at one of the targets it offered. */
-  chooseTriggerTarget(playerId: string, target: StackTarget): void;
+  /**
+   * "One or two target attacking creatures" - a list, because a trigger may
+   * point at more than one thing. Every card in the pool but Raph & Leo sends
+   * exactly one.
+   */
+  chooseTriggerTargets(playerId: string, targets: StackTarget[]): void;
   /** Discards one named card from this player's own hand, when a spell has demanded it. */
   resolveDiscard(playerId: string, instanceId: string): void;
   /** Answers a "you may sacrifice a creature" - `null` declines. */

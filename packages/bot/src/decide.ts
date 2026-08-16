@@ -98,6 +98,35 @@ function shouldAcceptTrigger(state: GameState, botPlayerId: string): boolean {
  * The engine only parks a choice when there are two or more legal targets, and
  * guarantees every candidate here is one of them.
  */
+function chooseTriggerTargets(state: GameState, botPlayerId: string): StackTarget[] {
+  const pending = state.pendingTargetChoices[0]!;
+  /*
+   * "Untap **one or two** target attacking creatures" - Raph & Leo, the first
+   * trigger that may point at more than one thing.
+   *
+   * The bot takes as many as it is allowed, which is right for every card of
+   * this shape in the pool today because all of them are pure upside on the
+   * bot's own board. It is a heuristic and not a rule: a card that made
+   * targeting a *cost* would need this to read the effect rather than assume
+   * more is better, exactly as `chooseTriggerTarget` below already warns.
+   */
+  if (pending.max > 1) {
+    const ranked = [...pending.candidates].sort(
+      (a, b) => targetPreference(state, botPlayerId, b) - targetPreference(state, botPlayerId, a),
+    );
+    return ranked.slice(0, pending.max);
+  }
+  return [chooseTriggerTarget(state, botPlayerId)];
+}
+
+/** How much the bot would rather have this target than another. */
+function targetPreference(state: GameState, botPlayerId: string, target: StackTarget): number {
+  if (target.kind !== "card") return 0;
+  const instance = findOnBattlefield(state, target.instanceId);
+  if (!instance || instance.controllerId !== botPlayerId) return -1;
+  return creatureValue(state, instance);
+}
+
 function chooseTriggerTarget(state: GameState, botPlayerId: string): StackTarget {
   const candidates = state.pendingTargetChoices[0]!.candidates;
   const opponent = candidates.find((c) => c.kind === "player" && c.playerId !== botPlayerId);
@@ -186,7 +215,7 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
 
   // And for a trigger of the bot's own waiting to be pointed at something.
   if (state.pendingTargetChoices[0]?.playerId === botPlayerId) {
-    return { kind: "chooseTriggerTarget", target: chooseTriggerTarget(state, botPlayerId) };
+    return { kind: "chooseTriggerTargets", targets: chooseTriggerTargets(state, botPlayerId) };
   }
 
   // A discard an opponent's spell has demanded. Not the bot's own spell - this

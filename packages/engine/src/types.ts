@@ -368,6 +368,16 @@ export type TargetSelector =
       noncreature?: boolean;
       /** "up to X target artifacts and/or enchantments" - Pest Infestation. */
       count?: TargetCount;
+      /**
+       * "one or two target **attacking** creatures" - Raph & Leo.
+       *
+       * A real narrowing and not a convenience: the card is an untap effect
+       * that would otherwise be pointable at any creature on the table, which
+       * is a materially better card than the one printed. Read off
+       * `state.attackers` every time it is asked, so a creature removed from
+       * combat stops being a legal target.
+       */
+      attacking?: boolean;
     }
   /**
    * "Target creature card in your graveyard", and the other card types the
@@ -594,6 +604,41 @@ export type Effect =
    * one sweeps the controller's own board where neither applies.
    */
   | { kind: "regenerateAll" }
+  /**
+   * "Untap one or two target attacking creatures" - Raph & Leo. With no target
+   * it means the permanent the ability is printed on, which is the form Mana
+   * Vault's upkeep payment takes and the same convention `pump` and
+   * `addCounter` already follow.
+   */
+  | { kind: "untap"; target?: TargetSelector }
+  /**
+   * "Untap all other creatures you control" - Combat Celebrant.
+   *
+   * Its own effect rather than `untap` with a scope, for the reason
+   * `regenerateAll` is: the targeted form checks hexproof and can fizzle, and
+   * this one sweeps the controller's own board where neither applies.
+   */
+  | { kind: "untapAll"; excludeSource?: boolean }
+  /**
+   * "You may **exert** it as it attacks" - Combat Celebrant. An exerted
+   * permanent does not untap during its controller's next untap step.
+   *
+   * An effect rather than a flag on the trigger, because that is what the card
+   * says: the exert is the price of an optional ability, and writing it as the
+   * first step of the sequence the ability resolves into keeps the "when you
+   * do" reading intact without a second mechanism.
+   */
+  | { kind: "exertSelf" }
+  /**
+   * "After this phase, there is an additional combat phase." - Combat
+   * Celebrant and Raph & Leo.
+   *
+   * Carries no "and an additional main phase after it", because neither card
+   * in this pool grants one. The two are separate clauses on the cards that
+   * print both, and inventing the second here would hand these two a phase
+   * they do not give you.
+   */
+  | { kind: "additionalCombatPhase" }
   /**
    * "Prevent all combat damage that would be dealt this turn by non-Spider
    * creatures" - Arachnogenesis, the second half of a fog.
@@ -1256,7 +1301,26 @@ export type TriggerCondition =
   /** "if you gained life this turn" - Moseo, and Eccentric Pestfinder's infusion. */
   | { kind: "gained-life-this-turn" }
   /** Ophiomancer: "if you control no Snakes". A `BoardCondition` read as a negation. */
-  | { kind: "not"; condition: BoardCondition };
+  | { kind: "not"; condition: BoardCondition }
+  /**
+   * "**If this creature hasn't been exerted this turn**, you may exert it as
+   * it attacks" - Combat Celebrant.
+   *
+   * A question about the permanent printing the trigger, like
+   * `source-has-counters`, so it needs the source instance and answers false
+   * without one.
+   */
+  | { kind: "source-not-exerted" }
+  /**
+   * "**if it's the first combat phase of the turn**" - Raph & Leo, which is
+   * the clause that stops it making combat phases forever.
+   *
+   * An intervening-if rather than an ordinary condition because that is how it
+   * is printed, and the difference is real: it is checked again on resolution,
+   * so a Raph & Leo whose trigger somehow waits until a later combat does
+   * nothing rather than adding another one.
+   */
+  | { kind: "first-combat-phase" };
 
 export interface TriggeredAbility {
   event: TriggerEvent;
@@ -1978,6 +2042,18 @@ export interface CardInstance {
    * in the second damage step. Cleared at end of combat.
    */
   removedFromCombat: boolean;
+  /**
+   * Exerted: this permanent does not untap during its controller's next untap
+   * step (Combat Celebrant).
+   *
+   * One flag doing two jobs, and deliberately so. The untap step reads it to
+   * skip the permanent and then clears it, which leaves it set for the whole
+   * of the turn it was exerted in - and that is exactly the window "if this
+   * creature hasn't been exerted **this turn**" asks about. A second
+   * `exertedThisTurn` field would be a second place for the same answer to go
+   * stale.
+   */
+  exerted: boolean;
   isCommander: boolean;
   summoningSickness: boolean;
 }
@@ -2201,6 +2277,17 @@ export interface PendingTargetChoice {
   candidates: StackTarget[];
   /** The question in the card's own words - "Blood Artist: choose a player". */
   prompt: string;
+  /**
+   * How many of the candidates the ability wants - "**one or two** target
+   * attacking creatures".
+   *
+   * Carried on the pending choice rather than re-derived by whoever is
+   * answering, because the client, the bot and the server all have to agree on
+   * it and the selector is the only thing that knows. Every trigger before
+   * Raph & Leo wanted exactly one, which is what both fields say for them.
+   */
+  min: number;
+  max: number;
   /**
    * The ability itself, built and ready, needing only its `targets` filled in.
    *
@@ -2449,6 +2536,25 @@ export interface GameState {
   stack: StackObject[];
   /** How many players in a row have passed priority without a new action. Resets on any action; hitting players.length means the stack resolves or the step advances. */
   passesInSuccession: number;
+  /**
+   * Combat phases still owed this turn - "after this phase, there is an
+   * additional combat phase".
+   *
+   * A count rather than a flag: two Combat Celebrants attacking together give
+   * two extra phases, and the turn machine spends one each time it would
+   * otherwise leave combat. Reset with the turn, so an extra phase granted and
+   * never reached (the game ended, or something removed combat) does not turn
+   * up on somebody else's turn.
+   */
+  extraCombatPhases: number;
+  /**
+   * Which combat phase of this turn is happening - 1 during the ordinary one,
+   * 2 in the first extra, and so on.
+   *
+   * Only "if it's the first combat phase of the turn" reads it today, and that
+   * clause is the whole reason Raph & Leo is not an infinite loop.
+   */
+  combatPhasesThisTurn: number;
   /** attacker instanceId -> defending player id */
   attackers: Record<string, string>;
   /** blocker instanceId -> attacker instanceId */

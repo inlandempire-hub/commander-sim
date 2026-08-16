@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { TEST_CARD_DEFINITIONS, type CardDefinition } from "@mtg-commander-sim/engine";
 import { describeActivated, describeCard, tokenName } from "../cardText.js";
+import { formatManaCost } from "../format.js";
+import { manaSymbols } from "../manaSymbols.js";
 
 /**
  * The card panel is the only place a player reads what a card does - there is
@@ -8,6 +10,15 @@ import { describeActivated, describeCard, tokenName } from "../cardText.js";
  * renderer does not know about is a card that silently reads better, or worse,
  * than it is.
  */
+
+/** Whether anything in this fixture points at "target attacking" something. */
+function hasAttackingSelector(node: unknown): boolean {
+  if (Array.isArray(node)) return node.some(hasAttackingSelector);
+  if (node === null || typeof node !== "object") return false;
+  const record = node as Record<string, unknown>;
+  if (record.kind === "permanent" && record.attacking === true) return true;
+  return Object.values(record).some(hasAttackingSelector);
+}
 
 function textOf(id: string): string {
   const def = TEST_CARD_DEFINITIONS[id];
@@ -543,6 +554,33 @@ describe("no fixture carries a clause the panel never mentions", () => {
     expect: RegExp;
   }> = [
     { field: "suspend", applies: (d) => d.suspend !== undefined, expect: /Suspend \d/ },
+    {
+      field: "effect.exertSelf",
+      applies: (d) => JSON.stringify(d).includes('"exertSelf"'),
+      expect: /exert it/,
+    },
+    {
+      field: "effect.additionalCombatPhase",
+      applies: (d) => JSON.stringify(d).includes('"additionalCombatPhase"'),
+      expect: /additional combat phase/,
+    },
+    {
+      field: "effect.untapAll",
+      applies: (d) => JSON.stringify(d).includes('"untapAll"'),
+      expect: /[Uu]ntap all/,
+    },
+    {
+      field: "selector.attacking",
+      /*
+       * The *selector* flag, not any field called `attacking`. A blunt string
+       * search matched Winota's `deployFromTop.attacking` too - a different
+       * field with the same name, saying the creature arrives attacking rather
+       * than that it must already be. The first version of this check reported
+       * her, correctly rendered, as a fault.
+       */
+      applies: (d) => hasAttackingSelector(d),
+      expect: /target attacking/,
+    },
     { field: "devour", applies: (d) => d.devour !== undefined, expect: /Devour \d/ },
     { field: "bestowCost", applies: (d) => d.bestowCost !== undefined, expect: /Bestow \{/ },
     { field: "loyaltyAbilities", applies: (d) => (d.loyaltyAbilities?.length ?? 0) > 0, expect: /^[+-]\d:/m },
@@ -607,5 +645,58 @@ describe("no fixture carries a clause the panel never mentions", () => {
       )
       .map((def) => def.name);
     expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * Batch 4, and the reason this file exists: dumping the renderer's real output
+ * for these three cards found four separate things wrong with it, none of which
+ * any test was watching. Three of them only became reachable when the first
+ * cards with a hybrid *card* cost arrived.
+ */
+describe("the extra-combat cards", () => {
+  it("prints a hybrid cost in the order the card prints it", () => {
+    // {R/W}, not {W/R}. Sorting the halves into WUBRG order produced a symbol
+    // that appears on no card.
+    expect(formatManaCost(TEST_CARD_DEFINITIONS["raph-and-leo-sibling-rivals"]!.manaCost)).toBe(
+      "{1}{R/W}{R/W}",
+    );
+    expect(formatManaCost(TEST_CARD_DEFINITIONS["blade-historian"]!.manaCost)).toBe(
+      "{R/W}{R/W}{R/W}{R/W}",
+    );
+  });
+
+  it("does not draw an all-hybrid cost as {0}", () => {
+    // Blade Historian has no generic and no plain pips, and read as free.
+    const symbols = manaSymbols(TEST_CARD_DEFINITIONS["blade-historian"]!.manaCost);
+    expect(symbols).toHaveLength(4);
+    expect(symbols.every((s) => s.label === "R/W")).toBe(true);
+    // No hybrid icon on disk, so the whole cost falls back to text - which is
+    // what `src: undefined` tells ManaCostView to do.
+    expect(symbols.every((s) => s.src === undefined)).toBe(true);
+  });
+
+  it("keeps the exert and what it buys in one sentence", () => {
+    const text = textOf("combat-celebrant");
+    expect(text).toContain(
+      "you may exert it. When you do, untap all other creatures you control. " +
+        "After this phase, there is an additional combat phase.",
+    );
+    // The reminder is the card's own, and sits at the end of the ability.
+    expect(text.trim().endsWith("(An exerted creature won't untap during your next untap step.)")).toBe(true);
+  });
+
+  it("says one or two, not 'a or two'", () => {
+    expect(textOf("raph-and-leo-sibling-rivals")).toContain(
+      "untap one or two target attacking creatures",
+    );
+  });
+
+  it("keeps the intervening-if that stops the loop", () => {
+    expect(textOf("raph-and-leo-sibling-rivals")).toContain("if it's the first combat phase of the turn");
+  });
+
+  it("says an attacking-only anthem is attacking-only", () => {
+    expect(textOf("blade-historian")).toContain("Attacking creatures you control have double strike.");
   });
 });

@@ -939,9 +939,13 @@ def ts_mana_cost(cost_string):
     parsed = parse_mana_cost(cost_string)
     if parsed is None:
         return None
-    generic, colors, x = parsed
+    generic, colors, x, hybrid = parsed
     pips = ", ".join("%s: %d" % (c, n) for c, n in sorted(colors.items()))
     suffix = ", x: %d" % x if x else ""
+    if hybrid:
+        suffix += ", hybrid: [%s]" % ", ".join(
+            '["%s", "%s"]' % (a, b) for a, b in hybrid
+        )
     return "{ generic: %d, colors: {%s}%s }" % (generic, " %s " % pips if pips else "", suffix)
 
 
@@ -1100,16 +1104,23 @@ def const_name(name):
 
 
 def parse_mana_cost(cost_string):
-    """Scryfall's '{2}{B}{B}' into the engine's {generic, colors, x} shape.
+    """Scryfall's '{2}{B}{B}' into the engine's {generic, colors, x, hybrid} shape.
 
-    Returns None for anything with hybrid or phyrexian symbols, which the engine
-    still cannot pay. {X} is counted rather than refused: the engine gained X
-    costs on 2026-08-10, and a card is now blocked by whatever its *text* needs
-    rather than by the symbol in its cost.
+    Refuses phyrexian, snow and anything else it does not recognise. Hybrid used
+    to be refused too, on the grounds that the engine could not pay it - which
+    stopped being true when ManaCost.hybrid shipped on 2026-08-10, and went on
+    blocking every hybrid card in the pool for six days after. A card is blocked
+    by what its *text* needs, not by a symbol the engine has understood all
+    along.
+
+    Two-colour hybrid only ({R/W}). The other kinds - {2/W}, {W/P} - genuinely
+    have no representation, so they are still refused rather than flattened into
+    something payable that the card does not print.
     """
     generic = 0
     colors = {}
     x = 0
+    hybrid = []
     for symbol in re.findall(r"\{([^}]+)\}", cost_string or ""):
         if symbol.isdigit():
             generic += int(symbol)
@@ -1117,9 +1128,11 @@ def parse_mana_cost(cost_string):
             colors[symbol] = colors.get(symbol, 0) + 1
         elif symbol == "X":
             x += 1
+        elif len(symbol) == 3 and symbol[1] == "/" and symbol[0] in "WUBRG" and symbol[2] in "WUBRG":
+            hybrid.append([symbol[0], symbol[2]])
         else:
-            return None  # hybrid, phyrexian, snow - not representable
-    return generic, colors, x
+            return None  # phyrexian, monocoloured hybrid, snow - not representable
+    return generic, colors, x, hybrid
 
 
 def interpret(card):

@@ -60,7 +60,13 @@ export function describeTarget(selector: TargetSelector): string {
         ? listOr(selector.cardTypes.map((t) => `${prefix}${t.toLowerCase()}`))
         : `${prefix}permanent`;
       const whose = selector.controlledBy === "opponent" ? " an opponent controls" : "";
-      return `${countPrefix(selector.count)}target ${noun}${whose}`;
+      // "one or two target attacking **creatures**" - a count above one takes a
+      // plural noun, the same way the player selector already does.
+      const many = selector.count && selector.count.max !== "x" && selector.count.max > 1 ? "s" : "";
+      // "target **attacking** creature" - the adjective sits in front of the
+      // noun, which is where the card prints it.
+      const attacking = selector.attacking ? "attacking " : "";
+      return `${countPrefix(selector.count)}target ${attacking}${noun}${many}${whose}`;
     }
     case "card-in-your-graveyard": {
       const noun = selector.cardType
@@ -94,6 +100,21 @@ function countPrefix(count: TargetCount | undefined): string {
     return count.max === 1 ? "up to one " : `up to ${countWord(count.max)} `;
   }
   if (count.max === "x") return "X ";
+  /*
+   * "**one or two** target attacking creatures" - Raph & Leo. A range with a
+   * floor, which is neither "up to N" nor a fixed count.
+   *
+   * Written only for a range of exactly two values, because that is the only
+   * shape any card prints this way. A wider range would need the card to say
+   * something this sentence does not, so it falls through to the fixed form
+   * rather than inventing "one or four".
+   */
+  // `countWord(1)` is "a", which is the right article in front of a noun and
+  // the wrong word here - the card says "**one** or two target attacking
+  // creatures". Same trap the "up to one" branch above already spells out.
+  if (count.max === count.min + 1) {
+    return `${count.min === 1 ? "one" : countWord(count.min)} or ${countWord(count.max)} `;
+  }
   return count.min === count.max && count.max > 1 ? `${countWord(count.max)} ` : "";
 }
 
@@ -234,6 +255,9 @@ function plainAmount(amount: Amount): string {
   return "X";
 }
 
+/** Exert's reminder text, kept in one place so it can be moved to the end of a sequence. */
+const EXERT_REMINDER = " (An exerted creature won't untap during your next untap step.)";
+
 export function describeEffect(effect: Effect, definitions: Definitions = {}): string {
   switch (effect.kind) {
     case "damage":
@@ -283,6 +307,20 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Pay ${effect.life} life.`;
     case "regenerateAll":
       return "Regenerate each creature you control.";
+    case "untap":
+      // No target named is the "untap this permanent" form, which is what the
+      // card says when it is talking about itself.
+      return effect.target ? sentence(`Untap ${describeTarget(effect.target)}.`) : "Untap it.";
+    case "untapAll":
+      return effect.excludeSource
+        ? "Untap all other creatures you control."
+        : "Untap all creatures you control.";
+    case "exertSelf":
+      // The reminder text is the card's, and it is the only place the rule is
+      // written down for a player who has never met the word.
+      return `Exert it.${EXERT_REMINDER}`;
+    case "additionalCombatPhase":
+      return "After this phase, there is an additional combat phase.";
     case "attach":
       // The equip ability's own text is rendered from `equipCost` beside the
       // rest of the card; this is the effect it puts on the stack.
@@ -507,13 +545,33 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       // The noun is filled in by describeCard, which knows the card; on its own
       // this effect has no idea what type it sits on.
       return "Sacrifice it.";
-    case "sequence":
+    case "sequence": {
       /*
        * Joined rather than bulleted, because the card prints it as prose:
        * "sacrifice it. When you do, search your library ... and you gain 1
        * life." Each step already ends in a full stop.
        */
-      return effect.effects.map((step) => describeEffect(step, definitions)).join(" ");
+      const steps = effect.effects.map((step) => describeEffect(step, definitions));
+      /*
+       * "You may exert it as it attacks. **When you do,** untap all other
+       * creatures you control ..." - Combat Celebrant.
+       *
+       * Without the reflexive phrase the untap reads as something that happens
+       * regardless, which is a materially better card than the one printed.
+       */
+      if (effect.effects[0]?.kind === "exertSelf" && steps.length > 1) {
+        // Only the sentence directly after "When you do," is folded into it.
+        // Lowercasing all of them turned the sentence after that into "after
+        // this phase, there is an additional combat phase", mid-paragraph.
+        const [next, ...later] = steps.slice(1);
+        const clause = `${next!.charAt(0).toLowerCase()}${next!.slice(1)}`;
+        // The reminder belongs at the end of the whole ability, where the card
+        // prints it, rather than in the middle of its first sentence.
+        const exert = steps[0]!.replace(EXERT_REMINDER, "");
+        return [`${exert} When you do, ${clause}`, ...later].join(" ") + EXERT_REMINDER;
+      }
+      return steps.join(" ");
+    }
     case "searchLibrary": {
       /**
        * "Search your library" against "its controller may search their
@@ -898,6 +956,10 @@ function describeTriggerCondition(condition: TriggerCondition): string {
       return "if it has counters on it";
     case "gained-life-this-turn":
       return "if you gained life this turn";
+    case "source-not-exerted":
+      return "if it hasn't been exerted this turn";
+    case "first-combat-phase":
+      return "if it's the first combat phase of the turn";
     case "not":
       return `if ${negateCondition(condition.condition)}`;
   }

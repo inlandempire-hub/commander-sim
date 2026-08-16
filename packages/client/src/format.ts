@@ -10,10 +10,18 @@ export function formatManaCost(cost: ManaCost | undefined): string {
     const count = cost.colors[color] ?? 0;
     for (let i = 0; i < count; i++) symbols.push(color);
   }
-  // "{B/G}" - printed as one symbol with its halves in the usual colour order,
-  // which is what makes a filter land's cost read as the single symbol it is.
+  /*
+   * "{B/G}", "{R/W}" - one symbol, its halves in the order the card prints
+   * them.
+   *
+   * Not sorted into WUBRG order, which is what this did until Raph & Leo
+   * arrived: hybrid pairs are printed in colour-wheel order, so {R/W} really
+   * is red-then-white and sorting it produced a symbol - {W/R} - that appears
+   * on no card. The fixtures carry Scryfall's order, so the honest thing is to
+   * print what is stored.
+   */
   for (const symbol of cost.hybrid ?? []) {
-    symbols.push(COLOR_ORDER.filter((c) => symbol.includes(c)).join("/"));
+    symbols.push(symbol.join("/"));
   }
   if (symbols.length === 0) return "{0}";
   return symbols.map((s) => `{${s}}`).join("");

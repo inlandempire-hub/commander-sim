@@ -286,6 +286,14 @@ RULES = [
     # "-X/-X" as well as "-2/-2" - The Meathook Massacre is the one card in the
     # pool that prints a letter here, and a digits-only pattern missed it.
     (r"[+-](\d+|x)/[+-](\d+|x)", {"pump", "pumpAll", "staticBuff"}),
+    # Batch 4. Every one of these is a sentence the engine now genuinely does,
+    # and each names the effect kind that does it rather than a family - a rule
+    # too loose here hides the bug this tool exists to find.
+    (r"\battacking creatures you control have\b", {"grantsKeywords"}),
+    (r"\byou may exert (it|this creature) as it attacks\b", {"exertSelf"}),
+    (r"\buntap all other creatures you control\b", {"untapAll"}),
+    (r"\bthere is an additional combat phase\b", {"additionalCombatPhase"}),
+    (r"\buntap (one or two|up to \w+|)\s*target\b", {"untap"}),
     (r"\bgains? (hexproof|indestructible|trample|menace|deathtouch|flying)\b", {"grantsKeywords"}),
     (r"\bhas? (hexproof|indestructible|trample|menace|deathtouch|flying)\b", {"grantsKeywords"}),
     (r"\+1/\+1 counters?\b", {"addCounter", "addCounterToEachOther"}),

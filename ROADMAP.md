@@ -3499,3 +3499,141 @@ against Grizzly Bears leaves nobody eligible, and adding a Giant Spider brings
 the decision back.
 
 1,124 tests, typecheck clean.
+
+## Batch 4 of the Winota list: a turn with two combat phases (2026-08-16)
+
+**The list is at 34 of 100. The pool is at 969 fixtures.**
+
+Three cards, and the reason the roadmap called this batch the one that turns the
+deck into what it is: with a copy effect on the board these are the combo kills,
+and until today the turn machine had exactly one combat phase and no way to
+insert another.
+
+### The extra phase loops back into a fixed sequence
+
+`TURN_SEQUENCE` stays a fixed list of steps, and leaving `end-combat` with
+`extraCombatPhases` owed sets the phase back to `begin-combat` instead of moving
+on. The alternative - rewriting the sequence mid-turn - would have made
+`currentIndex` unanswerable, and everything that asks where the game is asks
+through it.
+
+Taken on the way *out* of end-combat rather than on the way in, because that is
+where the phase genuinely ends: after damage, after the last priority window,
+and after `attackers` has been cleared, so the new phase opens with nothing
+declared and creatures that were untapped in the meantime free to attack again.
+
+`combatPhasesThisTurn` counts them, and it exists for one clause: **"if it's the
+first combat phase of the turn" is the whole of what stops Raph & Leo giving
+itself a third phase, and a fourth.** Both counters reset with the turn, so a
+phase promised and never reached is not owed to anybody else.
+
+### Exert is one flag doing two jobs, deliberately
+
+`CardInstance.exerted` is read by the untap step, which skips the permanent and
+clears the flag. That leaves it set for the whole of the turn it was exerted in,
+which is exactly the window "if this creature hasn't been exerted **this turn**"
+asks about. A separate `exertedThisTurn` would have been a second place for the
+same answer to go stale.
+
+Summoning sickness still wears off: an exerted creature is not a new arrival, it
+is simply still tapped.
+
+Combat Celebrant's ability is an optional `attacks` trigger whose effect is a
+sequence beginning with the exert. Real exert is chosen as attackers are
+declared; an attack trigger goes on the stack in that same step and resolves
+before blockers, so the difference is invisible in play - and writing it this way
+kept the "when you do" reading intact without a second mechanism.
+
+### A trigger that points at more than one thing
+
+`chooseTriggerTarget` pushed the ability onto the stack the instant it was handed
+anything, so every trigger in the pool before Raph & Leo took exactly one target.
+"Untap one or two target attacking creatures" needed the plural.
+
+The pending choice carries `min` and `max` now, `chooseTriggerTargets` is the
+real entry point with the singular kept as a wrapper, and the transport went
+plural everywhere rather than growing a second message beside the old one - two
+ways to answer one question is two things to keep in step. The client collects
+clicks and offers a Confirm, because **stopping at one is a legal answer and
+nothing else can tell that it was meant.**
+
+Everything is re-checked in the engine: how many were named, that each was
+offered, and that none was named twice.
+
+### The bot action the headless harness has been dropping
+
+Found by a test that should have passed and did not. **`applyBotAction` has never
+had a case for pointing a trigger at something.** The bot decided the action, the
+switch fell through, the function returned, and the parked choice sat there until
+the turn cap ended the game. Silently, in every bot-vs-bot run that met a
+targeted trigger, since triggers learned to target.
+
+Four other cases were missing with it - discard, sacrifice, card choice, amount.
+
+The fix that matters is not the five cases. It is the `never` guard now at the
+bottom of that switch: a missing case is a compile error, and an action that
+somehow arrives unhandled says so out loud. The same guard on `useBotOpponent`'s
+switch is what forced batch 3's entry choice through the whole controller stack,
+which is why that one could not have gone wrong this way.
+
+### Four things wrong with the renderer, found by reading its output
+
+The lesson written down after batch 3 was: anything added to `CardDefinition`
+needs a line in the renderer and a rule in `audit_text` in the same change. That
+was done - and dumping the actual rendered text still found four faults, three of
+them nothing to do with the new fields.
+
+- **`{W/R}`.** `formatManaCost` sorted a hybrid symbol's halves into WUBRG order,
+  producing a symbol that appears on no card. Hybrid pairs print in colour-wheel
+  order; the fixtures carry Scryfall's, so it prints what is stored now.
+- **Blade Historian read as free.** `manaSymbols` ignored `hybrid` entirely, so a
+  cost with no generic and no plain pips drew the `{0}` icon. Only reachable
+  today, because these are the first cards whose *own* cost is hybrid - every
+  hybrid before them sat in an activated ability.
+- **"untap a or two target attacking creatures."** `countWord(1)` is "a", the
+  right article in front of a noun and the wrong word here. The same trap the
+  "up to one" branch beside it already spelled out.
+- **"you may exert it. Untap all other creatures you control."** Two sentences,
+  reading as though the untap happens regardless - a materially better card than
+  the one printed. It says "When you do," now, and the reminder text sits at the
+  end of the ability where the card puts it.
+
+All four are now asserted, and there are pool-wide checks so a later card
+carrying any of the new fields cannot render without the sentence that explains
+it. One of those checks reported Winota as a fault on its first run: a blunt
+search for `"attacking":true` matched `deployFromTop.attacking`, a different
+field with the same name saying a creature *arrives* attacking rather than that
+it must already be.
+
+### The generator had been refusing hybrid for six days
+
+`parse_mana_cost` returned None for any hybrid symbol, on the stated grounds that
+"the engine still cannot pay" it. `ManaCost.hybrid` shipped on 2026-08-10.
+Blade Historian needed no engine work at all - the conditional keyword-granting
+static has existed since the anthem layer learned `restriction: "attacking"` for
+Blight Mound - and was blocked by nothing but this.
+
+Two-colour hybrid only. Phyrexian and monocoloured hybrid ({2/W}) genuinely have
+no representation and are still refused, rather than flattened into something
+payable that the card does not print.
+
+The deck report's "Untap effects" heading went the same way: untapping a creature
+is not a blocker any more, and what is left of that heading is the permanent that
+refuses to untap on its own.
+
+### What is verified, and what is not
+
+969 fixtures. `audit_fixtures`, `audit_triggers` and `audit_text` all clean, bar
+the two long-known gaps in the last. 1,154 tests, typecheck clean.
+
+**Checked in the browser:** all three cards in the deck builder's pool - text as
+printed, `{1}{R/W}{R/W}` and `{R/W}{R/W}{R/W}{R/W}` rendering as the fallback
+text they should, and Raph & Leo offered as a commander.
+
+**Not walked by a human:** an actual second combat phase in the client. The card
+lab is built around the Blech deck - its commander, its colour identity, its
+land-base helper - so there is no Boros board to stand these on, and neither
+archetype deck contains them. The behaviour has seventeen engine tests and three
+bot tests behind it, including the bot playing on into the phase it just bought.
+That is construction plus coverage rather than having been seen, and it is the
+same caveat the entry-choice overlay carries from the batch before.

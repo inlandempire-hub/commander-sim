@@ -68,6 +68,9 @@ export function isValidTarget(
       // "noncreature artifact" excludes an Artifact Creature, which is a legal
       // target for plain "target artifact" and not for this.
       if (selector.noncreature && def.types.includes("Creature")) return false;
+      // "target **attacking** creature" - asked of the live combat rather than
+      // of a remembered list, so a creature taken out of combat stops being one.
+      if (selector.attacking && state.attackers[found.instance.instanceId] === undefined) return false;
       return !isProtectedByHexproof(state, target.instanceId, controllerId);
     }
     case "player":
@@ -201,6 +204,13 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "addCounter":
     case "loseLife":
     case "exileGraveyard":
+      return effect.target;
+    /*
+     * "Untap one or two target attacking creatures" targets; "untap this
+     * artifact" does not, and applies to its own source. The same question
+     * `pump` and `addCounter` are asked, and it has to be read off the card.
+     */
+    case "untap":
       return effect.target;
     /*
      * A sequence targets if one of its steps does, and the targets chosen for

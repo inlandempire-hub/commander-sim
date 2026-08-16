@@ -19,6 +19,8 @@ import {
   targetSelectorOf,
   type CardDefinition,
   type Effect,
+  type GameState,
+  type PendingTargetChoice,
   type StackTarget,
 } from "@mtg-commander-sim/engine";
 import type { GameController } from "./gameController.js";
@@ -154,9 +156,33 @@ export interface AppProps {
   revealAllHands?: boolean;
 }
 
+/** Two references to the same thing - the client's copy of the engine's own check. */
+function sameStackTarget(a: StackTarget, b: StackTarget): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "player" && b.kind === "player") return a.playerId === b.playerId;
+  if (a.kind === "card" && b.kind === "card") return a.instanceId === b.instanceId;
+  if (a.kind === "spell" && b.kind === "spell") return a.stackObjectId === b.stackObjectId;
+  return false;
+}
+
+/** What to call a chosen target in the prompt, so the list reads as names. */
+function describeChosenTarget(state: GameState, target: StackTarget): string {
+  if (target.kind === "player") return target.playerId;
+  if (target.kind === "spell") return "a spell on the stack";
+  const found = findInstance(state, target.instanceId);
+  return state.cardDefinitions[found?.definitionId ?? ""]?.name ?? "something";
+}
+
 export function App({ controller, modeNotice, artOverrides, revealAllHands }: AppProps) {
   const { state, lastError, clearError } = controller;
   const [pendingTarget, setPendingTarget] = useState<PendingTarget | null>(null);
+  /**
+   * Targets picked so far for a parked trigger that wants more than one.
+   *
+   * Only Raph & Leo's "one or two" needs it today. A trigger that wants exactly
+   * one is still sent on the first click, because there is nothing to confirm.
+   */
+  const [triggerTargets, setTriggerTargets] = useState<StackTarget[]>([]);
   const [selectedAttackerIds, setSelectedAttackerIds] = useState<Set<string>>(new Set());
   const [selectedBlockerSourceId, setSelectedBlockerSourceId] = useState<string | null>(null);
   const [blockerAssignments, setBlockerAssignments] = useState<Record<string, string>>({});
@@ -495,6 +521,12 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     state.pendingTargetChoices[0] && controller.canControlPlayer(state.pendingTargetChoices[0].playerId)
       ? state.pendingTargetChoices[0]
       : undefined;
+  /*
+   * A part-made selection belongs to the trigger that asked for it. Cleared
+   * the moment there is no trigger waiting, so answering one and meeting
+   * another cannot carry a stale pick across.
+   */
+  if (!pendingTriggerChoice && triggerTargets.length > 0) setTriggerTargets([]);
   const triggerCandidateInstanceIds = new Set(
     (pendingTriggerChoice?.candidates ?? [])
       .filter((c): c is Extract<typeof c, { kind: "card" }> => c.kind === "card")
@@ -700,6 +732,27 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     });
   }
 
+  /**
+   * One click on a legal target for a parked trigger.
+   *
+   * A trigger that wants exactly one target is sent straight off - there is no
+   * decision left to confirm, and making the player press a button after the
+   * only click they could make is noise. One that wants a range collects
+   * instead, and clicking a chosen target again takes it back.
+   */
+  function chooseTriggerTargetClicked(pending: PendingTargetChoice, target: StackTarget) {
+    if (pending.max <= 1) {
+      controller.chooseTriggerTargets(pending.playerId, [target]);
+      return;
+    }
+    setTriggerTargets((current) => {
+      const already = current.findIndex((t) => sameStackTarget(t, target));
+      if (already >= 0) return current.filter((_, i) => i !== already);
+      if (current.length >= pending.max) return current;
+      return [...current, target];
+    });
+  }
+
   /** The creature chosen to pay an additional cost - the spell carries on from here. */
   function handleSacrificeCostChosen(sacrificeInstanceId: string) {
     if (!pendingSacrificeCost) return;
@@ -719,7 +772,7 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     // A parked trigger comes first: nobody has priority while one is waiting,
     // so no other click on the board can mean anything yet.
     if (pendingTriggerChoice && triggerCandidateInstanceIds.has(instanceId)) {
-      controller.chooseTriggerTarget(pendingTriggerChoice.playerId, { kind: "card", instanceId });
+      chooseTriggerTargetClicked(pendingTriggerChoice, { kind: "card", instanceId });
       return;
     }
     if (pendingTarget) {
@@ -907,7 +960,7 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
 
   function handlePlayerTargetClick(playerId: string) {
     if (pendingTriggerChoice && triggerCandidatePlayerIds.has(playerId)) {
-      controller.chooseTriggerTarget(pendingTriggerChoice.playerId, { kind: "player", playerId });
+      chooseTriggerTargetClicked(pendingTriggerChoice, { kind: "player", playerId });
       return;
     }
     if (!pendingTarget) return;
@@ -1280,7 +1333,13 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
             // A parked trigger holds the whole game, so its question comes
             // first - there is nothing else the player could be doing.
             pendingTriggerChoice
-              ? pendingTriggerChoice.prompt
+              ? pendingTriggerChoice.max > 1
+                ? `${pendingTriggerChoice.prompt} - ${
+                    triggerTargets.length === 0
+                      ? "none chosen yet"
+                      : `chosen: ${triggerTargets.map((t) => describeChosenTarget(state!, t)).join(", ")}`
+                  }`
+                : pendingTriggerChoice.prompt
               : pendingTarget
               ? `Choose a target for ${pendingTarget.cardName}`
               : // Blocking is two clicks and neither is guessable, so say so.
@@ -1299,6 +1358,18 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
           }}
           showCancel={pendingTarget !== null}
           onCancel={() => setPendingTarget(null)}
+          confirm={
+            pendingTriggerChoice && pendingTriggerChoice.max > 1
+              ? {
+                  label: `Confirm ${triggerTargets.length} target${triggerTargets.length === 1 ? "" : "s"}`,
+                  disabled: triggerTargets.length < pendingTriggerChoice.min,
+                  onConfirm: () => {
+                    controller.chooseTriggerTargets(pendingTriggerChoice.playerId, triggerTargets);
+                    setTriggerTargets([]);
+                  },
+                }
+              : undefined
+          }
         />
 
         {/* What you're looking at, what is resolving, what has happened. The

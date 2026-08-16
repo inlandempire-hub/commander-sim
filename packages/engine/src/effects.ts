@@ -685,6 +685,56 @@ export function applyEffect(
       }
       return;
     }
+    case "untap": {
+      const cardTargets = targets.filter((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card");
+      // No target named means "this permanent", the same convention `pump` and
+      // `addCounter` follow for their activated-ability forms.
+      const ids = cardTargets.length > 0 ? cardTargets.map((t) => t.instanceId) : [sourceInstanceId];
+      for (const id of ids) {
+        const found = findInstance(state, id);
+        // Gone from the battlefield is simply not there to untap - the ability
+        // fizzles on it rather than following it into a graveyard.
+        if (!found || found.instance.zone !== "battlefield") continue;
+        if (!found.instance.tapped) continue;
+        found.instance.tapped = false;
+        log(state, `${cardName(state, id)} untaps`);
+      }
+      return;
+    }
+    case "untapAll": {
+      /*
+       * "Untap all **other** creatures you control" - Combat Celebrant, which
+       * stays tapped itself because it is the one attacking.
+       *
+       * Untargeted, so no hexproof check and nothing to fizzle on. Attacking
+       * creatures untapped here stay attacking: untapping does not remove a
+       * creature from combat, which is the entire trick the card is built on.
+       */
+      let untapped = 0;
+      for (const instance of controller.battlefield) {
+        if (effect.excludeSource && instance.instanceId === sourceInstanceId) continue;
+        if (!state.cardDefinitions[instance.definitionId]?.types.includes("Creature")) continue;
+        if (!instance.tapped) continue;
+        instance.tapped = false;
+        untapped += 1;
+      }
+      if (untapped > 0) {
+        log(state, `${controllerId} untaps ${untapped} creature${untapped === 1 ? "" : "s"}`);
+      }
+      return;
+    }
+    case "exertSelf": {
+      const found = findInstance(state, sourceInstanceId);
+      if (!found || found.instance.zone !== "battlefield") return;
+      found.instance.exerted = true;
+      log(state, `${cardName(state, sourceInstanceId)} is exerted and will not untap next turn`);
+      return;
+    }
+    case "additionalCombatPhase": {
+      state.extraCombatPhases += 1;
+      log(state, `there will be an additional combat phase after this one`);
+      return;
+    }
     case "regenerateAll": {
       // Untargeted, so no hexproof check and nothing to fizzle on - the
       // shield simply lands on everything its controller has in play.

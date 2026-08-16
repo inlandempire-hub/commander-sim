@@ -111,8 +111,8 @@ function perform(controller: GameController, playerId: string, action: BotAction
     case "resolveConfirmation":
       controller.resolveConfirmation(playerId, action.accept);
       return;
-    case "chooseTriggerTarget":
-      controller.chooseTriggerTarget(playerId, action.target);
+    case "chooseTriggerTargets":
+      controller.chooseTriggerTargets(playerId, action.targets);
       return;
     case "resolveDiscard":
       controller.resolveDiscard(playerId, action.instanceId);

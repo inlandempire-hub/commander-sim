@@ -9,7 +9,7 @@ import {
   declareAttackers,
   declareBlockers,
   resolveSearch,
-  chooseTriggerTarget,
+  chooseTriggerTargets,
   resolveDiscard,
   activateLoyaltyAbility,
   castPreparedSpell,
@@ -99,8 +99,8 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
     case "resolveConfirmation":
       resolveConfirmation(state, playerId, message.accept);
       break;
-    case "chooseTriggerTarget":
-      chooseTriggerTarget(state, playerId, message.target);
+    case "chooseTriggerTargets":
+      chooseTriggerTargets(state, playerId, message.targets);
       break;
     case "resolveDiscard":
       resolveDiscard(state, playerId, message.instanceId);

@@ -48,6 +48,8 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     turnRestrictions: [],
     pendingEnterChoice: null,
     passesInSuccession: 0,
+    extraCombatPhases: 0,
+    combatPhasesThisTurn: 0,
     attackers: {},
     blockers: {},
     blockersDeclared: false,
@@ -118,6 +120,7 @@ export function createCardInstance(
     damagePrevention: 0,
     regenerationShields: 0,
     removedFromCombat: false,
+    exerted: false,
     isCommander: options.isCommander ?? false,
     summoningSickness: true,
   };
@@ -226,6 +229,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.damagePrevention = 0; // a shield protects the object it was cast on, not the new one this became
   instance.regenerationShields = 0; // likewise - a regenerated creature that later leaves keeps nothing
   instance.removedFromCombat = false;
+  instance.exerted = false; // a new object has not been exerted, whatever the old one did
   instance.attachedTo = undefined; // an Equipment that changes zones falls off
   instance.controllerId = owner.id; // zone changes return control to the owner
   instance.summoningSickness = destination === "battlefield";

@@ -102,6 +102,19 @@ def clauses(card):
             # land is already sacrificed by then - but the day a card makes
             # that window matter, it needs a genuine reflexive trigger and
             # not a sequence.
+            # "If this creature hasn't been exerted this turn, **you may exert
+            # it as it attacks**" - Combat Celebrant, the one triggered ability
+            # in the pool that never says "when". Named explicitly rather than
+            # by loosening the trigger-word test below, which would sweep in
+            # every conditional sentence on every card and quietly report a
+            # hundred cards as having triggers they do not have.
+            #
+            # Collected before the reflexive branch, so the "When you do ..."
+            # half that follows it folds into this clause rather than being
+            # dropped for having nothing to attach to.
+            if re.search(r"you may exert .*\bas it attacks", s, re.I):
+                found.append(s)
+                continue
             if re.match(r"^When you do\b", s, re.I):
                 if found:
                     found[-1] = "%s %s" % (found[-1], s)
@@ -138,7 +151,16 @@ def classify(clause, card_name):
     """
     c = clause.lower()
     # "Soul Warden" in older templating, "this creature" in newer.
-    self_ref = r"(this creature|this permanent|this artifact|this enchantment|%s)" % re.escape(card_name.lower())
+    #
+    # A card whose name carries a title says the short half in its own rules
+    # text: "Whenever **Raph & Leo** attack" on a card called "Raph & Leo,
+    # Sibling Rivals". Both halves are accepted, or every legendary written this
+    # way reports its own trigger as invented.
+    short_name = card_name.split(",")[0].strip().lower()
+    self_ref = r"(this creature|this permanent|this artifact|this enchantment|%s|%s)" % (
+        re.escape(card_name.lower()),
+        re.escape(short_name),
+    )
 
     # Turn-based triggers became real events on 2026-08-10 (Deathreap Ritual).
     # The draw step is deliberately still not one: no card in the pool wants
@@ -195,7 +217,14 @@ def classify(clause, card_name):
     if re.search(r"deals damage", c):
         return None, "damage-dealt trigger - not modelled"
 
-    if re.search(r"^when(ever)?\s+%s\s+attacks" % self_ref, c) or re.search(
+    # "You may exert it as it attacks" - Combat Celebrant. A triggered ability
+    # that never says "whenever", and the only shape in the pool that does not.
+    if re.search(r"you may exert (it|this creature|%s) as it attacks" % self_ref, c):
+        return "attacks", None
+
+    # "Whenever Raph & Leo **attack**" - a card named for two creatures takes a
+    # plural verb. Nothing else about the trigger differs.
+    if re.search(r"^when(ever)?\s+%s\s+attacks?\b" % self_ref, c) or re.search(
         r"whenever .*attacks", c
     ):
         # "Whenever an Insect, Leech, Slug, or Worm you control attacks" -

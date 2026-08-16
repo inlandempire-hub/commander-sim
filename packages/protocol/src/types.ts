@@ -38,7 +38,7 @@ export type ClientMessage =
   /** Answering a "you may" trigger that stopped mid-resolution. */
   | { type: "resolveConfirmation"; accept: boolean }
   /** Pointing a parked triggered ability at one of the targets the engine offered. */
-  | { type: "chooseTriggerTarget"; target: StackTarget }
+  | { type: "chooseTriggerTargets"; targets: StackTarget[] }
   /** Choosing which card to discard, from your own hand, when a spell demands it. */
   | { type: "resolveDiscard"; instanceId: string }
   /**

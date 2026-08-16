@@ -6,6 +6,11 @@ import {
   declareBlockers,
   resolveSearch,
   resolveConfirmation,
+  chooseTriggerTargets,
+  resolveDiscard,
+  resolveSacrificeChoice,
+  resolveCardChoice,
+  resolveAmountChoice,
   takeMulligan,
   keepHand,
   putOnBottom,
@@ -66,8 +71,39 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
     case "resolveConfirmation":
       resolveConfirmation(state, playerId, action.accept);
       return;
+    case "chooseTriggerTargets":
+      chooseTriggerTargets(state, playerId, action.targets);
+      return;
+    case "resolveDiscard":
+      resolveDiscard(state, playerId, action.instanceId);
+      return;
+    case "resolveSacrificeChoice":
+      resolveSacrificeChoice(state, playerId, action.instanceId);
+      return;
+    case "resolveCardChoice":
+      resolveCardChoice(state, playerId, action.instanceIds);
+      return;
+    case "resolveAmountChoice":
+      resolveAmountChoice(state, playerId, action.amount);
+      return;
     case "passPriority":
       passPriority(state, playerId);
       return;
+    default: {
+      /*
+       * Exhaustiveness, and the reason it is here: this switch was missing the
+       * trigger-target case entirely, and had been since triggers learned to
+       * target. The bot decided the action, this function fell out of the
+       * switch and returned, and the game sat on a parked choice nobody
+       * answered until the turn cap ended it - silently, in every bot-vs-bot
+       * run that met one.
+       *
+       * A missing case is a compile error now, and an action that somehow
+       * arrives unhandled at runtime says so out loud rather than doing
+       * nothing.
+       */
+      const unhandled: never = action;
+      throw new Error(`Bot action not handled by the local harness: ${JSON.stringify(unhandled)}`);
+    }
   }
 }

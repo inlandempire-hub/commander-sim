@@ -92,6 +92,28 @@ function advanceStepOnce(state: GameState): void {
   const idx = currentIndex(state);
   const isLastStep = idx === TURN_SEQUENCE.length - 1;
 
+  /*
+   * "After this phase, there is an additional combat phase." - Combat
+   * Celebrant, Raph & Leo.
+   *
+   * The turn sequence stays a fixed list and this loops back into it, rather
+   * than the list being rewritten mid-turn: everything that asks where the
+   * game is asks `phase`/`step`, and a sequence that changed shape underneath
+   * `currentIndex` would make that question unanswerable.
+   *
+   * Taken here, on the way out of end-combat, because that is where the phase
+   * genuinely ends - after damage, after the last priority window, and after
+   * `attackers` has been cleared, so the new phase starts with nothing
+   * declared.
+   */
+  if (state.step === "end-combat" && state.extraCombatPhases > 0) {
+    state.extraCombatPhases -= 1;
+    state.phase = "combat";
+    state.step = "begin-combat";
+    runAutomaticStepActions(state);
+    return;
+  }
+
   if (isLastStep) {
     startNextTurn(state);
   } else {
@@ -105,6 +127,10 @@ function advanceStepOnce(state: GameState): void {
 
 function startNextTurn(state: GameState): void {
   state.turnNumber += 1;
+  // Both belong to the turn. An extra combat phase promised but never reached -
+  // the game ended in it, or the permanent left - is not owed to anybody else.
+  state.extraCombatPhases = 0;
+  state.combatPhasesThisTurn = 0;
   state.activePlayerIndex = (state.activePlayerIndex + 1) % state.players.length;
   state.phase = "beginning";
   state.step = "untap";
@@ -180,7 +206,20 @@ function runAutomaticStepActions(state: GameState): void {
     }
     case "untap": {
       for (const instance of activePlayer.battlefield) {
-        instance.tapped = false;
+        /*
+         * "An exerted creature won't untap during your next untap step."
+         *
+         * Cleared as it is skipped, so the permanent untaps normally the turn
+         * after - the flag is spent here, which is the whole of what exert is.
+         * Summoning sickness still wears off: an exerted creature is not a new
+         * arrival, it is simply still tapped.
+         */
+        if (instance.exerted) {
+          instance.exerted = false;
+          log(state, `${requireDefinition(state, instance.definitionId).name} was exerted and does not untap`);
+        } else {
+          instance.tapped = false;
+        }
         instance.summoningSickness = false;
       }
       activePlayer.landsPlayedThisTurn = 0;
@@ -212,6 +251,12 @@ function runAutomaticStepActions(state: GameState): void {
       // finding seven cards in hand reads as the mulligan being broken.
       const isOpeningTurn = state.turnNumber === 1 && state.players.length === 2;
       if (!isOpeningTurn) drawCard(state, activePlayer.id, 1);
+      break;
+    }
+    case "begin-combat": {
+      // Counted on the way in, so "if it's the first combat phase of the turn"
+      // reads 1 throughout the ordinary combat and 2 in the first extra one.
+      state.combatPhasesThisTurn += 1;
       break;
     }
     case "first-strike-damage": {

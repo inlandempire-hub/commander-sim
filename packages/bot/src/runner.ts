@@ -71,8 +71,8 @@ function toClientMessage(action: BotAction): ClientMessage | null {
       throw new Error("Entry choices are not carried over the network protocol yet");
     case "resolveConfirmation":
       return { type: "resolveConfirmation", accept: action.accept };
-    case "chooseTriggerTarget":
-      return { type: "chooseTriggerTarget", target: action.target };
+    case "chooseTriggerTargets":
+      return { type: "chooseTriggerTargets", targets: action.targets };
     case "resolveDiscard":
       return { type: "resolveDiscard", instanceId: action.instanceId };
     case "resolveSacrificeChoice":

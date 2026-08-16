@@ -23,6 +23,12 @@ export interface TablePromptProps {
   /** Only a real pending choice can be cancelled; guidance has nothing to undo. */
   showCancel?: boolean;
   onCancel: () => void;
+  /**
+   * A choice that is only finished when the player says so - "one or two
+   * target attacking creatures", where stopping at one is a legal answer and
+   * nothing else can tell that it was meant.
+   */
+  confirm?: { label: string; disabled?: boolean; onConfirm: () => void };
 }
 
 export function TablePrompt({
@@ -31,6 +37,7 @@ export function TablePrompt({
   onClearError,
   showCancel,
   onCancel,
+  confirm,
 }: TablePromptProps) {
   if (error) {
     return (
@@ -45,6 +52,16 @@ export function TablePrompt({
   return (
     <div className="table-prompt">
       <span>{prompt}</span>
+      {confirm && (
+        <button
+          type="button"
+          className="table-prompt__confirm"
+          disabled={confirm.disabled}
+          onClick={confirm.onConfirm}
+        >
+          {confirm.label}
+        </button>
+      )}
       {showCancel && (
         <button type="button" className="table-prompt__cancel" onClick={onCancel}>
           Cancel

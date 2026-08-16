@@ -41,8 +41,8 @@ export type BotAction =
   | { kind: "chooseOnEntry"; answer: ChosenOnEntry }
   /** Answering a "you may" trigger that stopped mid-resolution. */
   | { kind: "resolveConfirmation"; accept: boolean }
-  /** Pointing a triggered ability at something before it goes on the stack. */
-  | { kind: "chooseTriggerTarget"; target: StackTarget }
+  /** Pointing a triggered ability at one or more things before it goes on the stack. */
+  | { kind: "chooseTriggerTargets"; targets: StackTarget[] }
   /** Choosing which card to pitch when an opponent's spell demands a discard. */
   | { kind: "resolveDiscard"; instanceId: string }
   | { kind: "resolveSacrificeChoice"; instanceId: string | null }

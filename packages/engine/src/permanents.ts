@@ -477,6 +477,7 @@ export function pushTrigger(
   if (selector) {
     const candidates = legalTargetsFor(state, selector, controllerId);
     const { min } = targetCountOf(selector, chosenX);
+
     /*
      * "Return **up to one** target creature card" - Moseo. A trigger that may
      * legally point at nothing still resolves, so it is only removed from the
@@ -505,11 +506,17 @@ export function pushTrigger(
       state.stack.push(object);
       return object;
     }
+    const { max } = targetCountOf(selector, chosenX);
     state.pendingTargetChoices.push({
       playerId: controllerId,
       sourceInstanceId,
       candidates,
-      prompt: `${cardName(state, sourceInstanceId)}: choose a target`,
+      prompt:
+        max > 1
+          ? `${cardName(state, sourceInstanceId)}: choose up to ${max} targets`
+          : `${cardName(state, sourceInstanceId)}: choose a target`,
+      min,
+      max,
       object,
     });
     return null;
@@ -533,14 +540,46 @@ export function pushTrigger(
  * engine did not offer.
  */
 export function chooseTriggerTarget(state: GameState, playerId: string, target: StackTarget): void {
+  chooseTriggerTargets(state, playerId, [target]);
+}
+
+/**
+ * Points a parked trigger at one *or more* things and puts it on the stack.
+ *
+ * The plural is the real entry point and the singular above is a wrapper, so
+ * every caller that only ever names one target - which is every card in the
+ * pool but Raph & Leo - is unchanged.
+ *
+ * Everything is re-checked here rather than trusted: how many were named, that
+ * each is a target the engine actually offered, and that no target was named
+ * twice. A client cannot answer a question asked of somebody else, cannot
+ * invent a target, and cannot untap the same creature twice by sending it
+ * along with itself.
+ */
+export function chooseTriggerTargets(state: GameState, playerId: string, targets: StackTarget[]): void {
   const pending = state.pendingTargetChoices[0];
   if (!pending) throw new Error("No trigger is waiting for a target");
   if (pending.playerId !== playerId) throw new Error(`The choice belongs to ${pending.playerId}`);
-  const chosen = pending.candidates.find((candidate) => sameTarget(candidate, target));
-  if (!chosen) throw new Error("That is not a legal target for this ability");
+  if (targets.length < pending.min || targets.length > pending.max) {
+    throw new Error(
+      pending.min === pending.max
+        ? `This ability needs exactly ${pending.min} target${pending.min === 1 ? "" : "s"}`
+        : `This ability needs between ${pending.min} and ${pending.max} targets`,
+    );
+  }
+
+  const chosen: StackTarget[] = [];
+  for (const target of targets) {
+    const candidate = pending.candidates.find((c) => sameTarget(c, target));
+    if (!candidate) throw new Error("That is not a legal target for this ability");
+    if (chosen.some((already) => sameTarget(already, candidate))) {
+      throw new Error("The same target cannot be chosen twice");
+    }
+    chosen.push(candidate);
+  }
 
   state.pendingTargetChoices.shift();
-  pending.object.targets = [chosen];
+  pending.object.targets = chosen;
   state.stack.push(pending.object);
 }
 
@@ -580,6 +619,14 @@ export function triggerConditionMet(
       if (!found || found.instance.zone !== "battlefield") return false;
       return found.instance.plusOneCounters > 0;
     }
+    case "source-not-exerted": {
+      if (!sourceInstanceId) return false;
+      const found = findInstance(state, sourceInstanceId);
+      if (!found) return false;
+      return !found.instance.exerted;
+    }
+    case "first-combat-phase":
+      return state.combatPhasesThisTurn <= 1;
     case "not":
       return !meetsBoardCondition(state, controllerId, condition.condition);
   }
@@ -601,6 +648,16 @@ function describeOptionalEffect(effect: Effect): string {
       return `gain ${effect.amount} life?`;
     case "addCounter":
       return effect.amount === 1 ? "put a +1/+1 counter on it?" : `put ${effect.amount} +1/+1 counters on it?`;
+    /*
+     * "You may **exert** it as it attacks." Combat Celebrant's whole ability is
+     * a sequence whose first step is the exert, and the exert is what the
+     * player is being asked about - the untap and the extra phase are what
+     * saying yes buys, not part of the question.
+     */
+    case "sequence":
+      return effect.effects[0]?.kind === "exertSelf" ? "exert it?" : "use this ability?";
+    case "exertSelf":
+      return "exert it?";
     default:
       return "use this ability?";
   }

@@ -13389,6 +13389,126 @@ export const SANCTUM_PRELATE: CardDefinition = {
   tier: "weird",
 };
 
+
+/**
+ * "If this creature hasn't been exerted this turn, you may exert it as it
+ * attacks. When you do, untap all other creatures you control and after this
+ * phase, there is an additional combat phase."
+ *
+ * Exert is modelled as an optional attack trigger whose first step is the
+ * exert itself, rather than as a choice made during the declaration. The
+ * difference is invisible in play: an attack trigger goes on the stack in the
+ * declare-attackers step and resolves before blockers are declared, which is
+ * exactly when the real choice is made and seen.
+ */
+export const COMBAT_CELEBRANT: CardDefinition = {
+  id: "combat-celebrant",
+  name: "Combat Celebrant",
+  scryfallId: "28b63c3d-2e55-4343-b49a-11fa602ec473",
+  types: ["Creature"],
+  subtypes: ["Human", "Warrior"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 4,
+  toughness: 1,
+  triggeredAbilities: [
+    {
+      event: "attacks",
+      // "you **may** exert it", and "**if** this creature hasn't been exerted
+      // this turn" - the second is what stops a Celebrant untapped by another
+      // one exerting twice in a turn.
+      optional: true,
+      onlyIf: { kind: "source-not-exerted" },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "exertSelf" },
+          // "all **other** creatures you control" - the Celebrant is the one
+          // attacking, and stays tapped.
+          { kind: "untapAll", excludeSource: true },
+          { kind: "additionalCombatPhase" },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * "Whenever Raph & Leo attack, if it's the first combat phase of the turn,
+ * untap one or two target attacking creatures. After this phase, there is an
+ * additional combat phase."
+ *
+ * The intervening-if is the card's own brake: without it the second combat
+ * phase would trigger a third, and so on for as long as the game lasted.
+ */
+export const RAPH_AND_LEO_SIBLING_RIVALS: CardDefinition = {
+  id: "raph-and-leo-sibling-rivals",
+  name: "Raph & Leo, Sibling Rivals",
+  scryfallId: "49293f77-5d7b-4106-b485-db6ce0ed37e6",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Mutant", "Ninja", "Turtle"],
+  // The first hybrid cost in the pool: {1}{R/W}{R/W}, three mana, either half
+  // of each symbol paid with red or white.
+  manaCost: { generic: 1, colors: {}, hybrid: [["R", "W"], ["R", "W"]] },
+  colorIdentity: ["R", "W"],
+  power: 2,
+  toughness: 4,
+  canBeCommander: true,
+  triggeredAbilities: [
+    {
+      event: "attacks",
+      onlyIf: { kind: "first-combat-phase" },
+      effect: {
+        kind: "sequence",
+        effects: [
+          {
+            kind: "untap",
+            target: {
+              kind: "permanent",
+              cardTypes: ["Creature"],
+              attacking: true,
+              count: { min: 1, max: 2 },
+            },
+          },
+          { kind: "additionalCombatPhase" },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * "Attacking creatures you control have double strike."
+ *
+ * No "other", so it gives itself double strike when it attacks - which is why
+ * `includesSelf` is on. Needed no new engine work at all: the conditional
+ * keyword-granting static has existed since the anthem layer learned
+ * `restriction: "attacking"` for Blight Mound. Its only blocker was the
+ * generator refusing hybrid costs.
+ */
+export const BLADE_HISTORIAN: CardDefinition = {
+  id: "blade-historian",
+  name: "Blade Historian",
+  scryfallId: "a46d64ec-aca4-428e-bce6-66cd755c8cc3",
+  types: ["Creature"],
+  subtypes: ["Human", "Cleric"],
+  manaCost: { generic: 0, colors: {}, hybrid: [["R", "W"], ["R", "W"], ["R", "W"], ["R", "W"]] },
+  colorIdentity: ["R", "W"],
+  power: 2,
+  toughness: 3,
+  staticBuff: {
+    power: 0,
+    toughness: 0,
+    grants: ["Double Strike"],
+    restriction: "attacking",
+    includesSelf: true,
+  },
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -14357,5 +14477,8 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     SPRINGHEART_NANTUKO,
     TURN_STONES,
     ECCENTRIC_PESTFINDER,
+    COMBAT_CELEBRANT,
+    RAPH_AND_LEO_SIBLING_RIVALS,
+    BLADE_HISTORIAN,
   ].map((def) => [def.id, def]),
 );

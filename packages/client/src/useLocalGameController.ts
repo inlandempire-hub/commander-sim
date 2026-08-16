@@ -8,7 +8,7 @@ import {
   declareAttackers,
   declareBlockers,
   resolveSearch,
-  chooseTriggerTarget,
+  chooseTriggerTargets,
   resolveDiscard,
   activateLoyaltyAbility,
   castPreparedSpell,
@@ -96,7 +96,7 @@ export function useLocalGameController({
     declareBlockers: (playerId, declarations) => act((s) => declareBlockers(s, playerId, declarations)),
     resolveSearch: (playerId, instanceId) => act((s) => resolveSearch(s, playerId, instanceId)),
     resolveConfirmation: (playerId, accept) => act((s) => resolveConfirmation(s, playerId, accept)),
-    chooseTriggerTarget: (playerId, target) => act((s) => chooseTriggerTarget(s, playerId, target)),
+    chooseTriggerTargets: (playerId, targets) => act((s) => chooseTriggerTargets(s, playerId, targets)),
     resolveDiscard: (playerId, instanceId) => act((s) => resolveDiscard(s, playerId, instanceId)),
     resolveSacrificeChoice: (playerId, instanceId) =>
       act((s) => resolveSacrificeChoice(s, playerId, instanceId)),

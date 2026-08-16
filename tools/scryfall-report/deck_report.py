@@ -230,7 +230,7 @@ BLOCKERS = [
      "not a supported card type"),
     (r"\{X\}",
      "X in a cost",
-     "parse_mana_cost refuses hybrid and phyrexian symbols; {X} is supported"),
+     "supported since 2026-08-10; this heading is kept only for the report's history"),
     # Narrowed 2026-08-15. scry 1, surveil 1 and a `library-top` search
     # destination all exist; this heading claimed the library was untouchable,
     # which stopped being true three batches ago. What is left is the sizes
@@ -243,9 +243,14 @@ BLOCKERS = [
     (r"\bcan't be blocked\b|\bmenace\b.*\bcan't\b|\bunblockable\b",
      "Evasion beyond flying and menace",
      "declareBlockers only knows flying, reach and menace"),
-    (r"\buntap\b",
-     "Untap effects",
-     "only the untap step untaps anything"),
+    # Narrowed 2026-08-16. `untap` and `untapAll` shipped with Combat Celebrant,
+    # so untapping a creature is no longer a blocker. What is left is the
+    # permanent that refuses to untap on its own - Mana Vault - which is a
+    # property of the card rather than an effect anything applies.
+    (r"doesn't untap during (your|its controller's) untap step",
+     "A permanent that does not untap on its own",
+     "the untap step untaps everything the active player controls bar an "
+     "exerted creature; nothing else can opt out"),
     (r"\bexile\b.*\byou may (cast|play)\b|from among them",
      "Playing cards from exile",
      "returnFromExile moves cards but nothing can be cast from there"),
@@ -654,9 +659,9 @@ def classify(card):
         return "blocked", [(type_line, "Planeswalkers", "not a supported card type")]
 
     if gen.parse_mana_cost(card.get("mana_cost")) is None and "Land" not in type_line:
-        return "blocked", [(card.get("mana_cost") or "", "Hybrid or phyrexian mana in the cost",
-                            "parse_mana_cost takes digits, WUBRG and {X}; hybrid and phyrexian have "
-                            "no representation in ManaCost")]
+        return "blocked", [(card.get("mana_cost") or "", "Phyrexian or monocoloured hybrid mana in the cost",
+                            "ManaCost carries two-colour hybrid ({R/W}) since 2026-08-10. Phyrexian "
+                            "({W/P}) and monocoloured hybrid ({2/W}) still have no representation")]
 
     # ADDABLE has to mean "the generator will emit this", so each type goes to
     # the function that actually decides it. Routing everything through

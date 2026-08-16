@@ -39,7 +39,11 @@ export function manaSymbols(cost: ManaCost | undefined): ManaSymbol[] {
 
   // {0} is a real printed cost and has its own symbol, but only when there is
   // nothing else - "{0}{W}" is not a thing anyone has ever printed.
-  const colored = COLOR_ORDER.reduce((sum, color) => sum + (cost.colors[color] ?? 0), 0);
+  //
+  // Hybrid counts as "something else". Blade Historian costs {R/W}{R/W}{R/W}{R/W}
+  // and no generic at all, and without this it drew a {0} pip and read as free.
+  const colored =
+    COLOR_ORDER.reduce((sum, color) => sum + (cost.colors[color] ?? 0), 0) + (cost.hybrid?.length ?? 0);
   if (cost.generic > 0 || colored === 0) {
     const label = String(cost.generic);
     symbols.push({
@@ -58,6 +62,18 @@ export function manaSymbols(cost: ManaCost | undefined): ManaSymbol[] {
         src: `${ICON_BASE}/${color.toLowerCase()}.png`,
       });
     }
+  }
+
+  /*
+   * A hybrid symbol, in the order the card prints its halves.
+   *
+   * Deliberately with no `src`: there is no hybrid icon on disk, and
+   * `ManaCostView` already falls back to the braces text for the whole cost
+   * the moment any symbol lacks one. Half a cost in pips and half in letters
+   * is worse than all of it in letters, which is exactly why that rule exists.
+   */
+  for (const [index, symbol] of (cost.hybrid ?? []).entries()) {
+    symbols.push({ key: `hybrid${index}`, label: symbol.join("/") });
   }
 
   return symbols;
