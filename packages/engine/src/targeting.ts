@@ -77,7 +77,15 @@ export function isValidTarget(
     case "spell": {
       if (target.kind !== "spell") return false;
       const obj = findStackObject(state, target.stackObjectId);
-      return obj !== undefined && isSpellOnStack(state, obj);
+      if (obj === undefined || !isSpellOnStack(state, obj)) return false;
+      if (selector.spellType) {
+        // "Target instant spell" - read the spell's own card type off the
+        // object that put it on the stack.
+        const cast = findInstance(state, obj.sourceInstanceId);
+        const def = cast ? requireDefinition(state, cast.instance.definitionId) : undefined;
+        if (!def || !def.types.includes(selector.spellType)) return false;
+      }
+      return true;
     }
     case "card-in-your-graveyard": {
       if (target.kind !== "card") return false;

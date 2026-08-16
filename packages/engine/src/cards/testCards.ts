@@ -11154,6 +11154,17 @@ export const PROLOGUE_TO_PHYRESIS: CardDefinition = {
   tier: "scripted",
 };
 
+export const DISPEL: CardDefinition = {
+  id: "dispel",
+  name: "Dispel",
+  scryfallId: "bceab6b3-6b64-4964-a501-ce806a6c13ad",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "counter", target: { kind: "spell", spellType: "Instant" } },
+  tier: "scripted",
+};
+
 export const SWARMYARD: CardDefinition = {
   id: "swarmyard",
   name: "Swarmyard",
@@ -14099,5 +14110,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     BOJUKA_BOG,
     SWIFTFOOT_BOOTS,
     PROLOGUE_TO_PHYRESIS,
+    DISPEL,
   ].map((def) => [def.id, def]),
 );

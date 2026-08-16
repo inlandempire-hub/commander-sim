@@ -216,8 +216,13 @@ export type TargetSelector =
   | { kind: "creature"; subtypes?: string[] }
   | { kind: "player"; count?: TargetCount }
   | { kind: "opponent-of-controller" }
-  /** "Target spell" - a spell on the stack, as opposed to a triggered or activated ability. */
-  | { kind: "spell" }
+  /**
+   * "Target spell" - a spell on the stack, as opposed to a triggered or
+   * activated ability. `spellType` narrows it to a card type, which is how
+   * "target instant spell" (Dispel) and "target noncreature spell" are told
+   * apart from a plain "target spell".
+   */
+  | { kind: "spell"; spellType?: CardType }
   /**
    * "Target land", "Target artifact", "Target noncreature artifact or
    * noncreature enchantment" - a permanent on the battlefield of a named type.
