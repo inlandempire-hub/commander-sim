@@ -60,6 +60,9 @@ export function isValidTarget(
       // "artifact or enchantment" - any one of the named types qualifies. No
       // list at all means "target permanent", which every battlefield card is.
       if (selector.cardTypes && !selector.cardTypes.some((t) => def.types.includes(t))) return false;
+      // "target Forest" - a subtype restriction, same shape as the creature
+      // selector's. Any one of the named subtypes qualifies.
+      if (selector.subtypes?.length && !selector.subtypes.some((s) => def.subtypes?.includes(s))) return false;
       // "an opponent controls" - your own board is not a legal target, which is
       // the difference between Assassin's Trophy and a spell that can misfire.
       if (selector.controlledBy === "opponent" && found.instance.controllerId === controllerId) {

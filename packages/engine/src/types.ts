@@ -250,6 +250,8 @@ export type TargetSelector =
        * engine learns a new card type.
        */
       cardTypes?: CardType[];
+      /** "target Forest" - narrows to permanents with one of these subtypes. */
+      subtypes?: string[];
       /**
        * "target permanent **an opponent controls**".
        *
@@ -420,6 +422,15 @@ export type Effect =
    * choice reuses the card-choice picker with a to-battlefield mode.
    */
   | { kind: "putLandFromHand" }
+  /**
+   * "Each player discards their hand, then draws cards equal to the greatest
+   * number of cards a player discarded this way." - Windfall. One bespoke step
+   * because the draw count is read from the hands as they were before anyone
+   * discarded, which no general discard/draw pair records.
+   */
+  | { kind: "windfall" }
+  /** "{T}: Untap target Forest." - Arbor Elf. Untaps one targeted permanent. */
+  | { kind: "untap"; target: TargetSelector }
   /**
    * "Look at the top N cards of your library, then put them back in any order"
    * - Halimar Depths, and Ponder (which adds `mayShuffle` and a follow-up

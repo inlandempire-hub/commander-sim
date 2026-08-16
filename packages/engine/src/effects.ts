@@ -239,6 +239,32 @@ export function applyEffect(
       log(state, `${beneficiary} will take ${effect.count} extra turn${effect.count === 1 ? "" : "s"}`);
       return;
     }
+    case "windfall": {
+      /*
+       * Each player discards their hand, then everyone draws the greatest number
+       * anybody discarded. The count is read before anyone discards, so a player
+       * who was holding the most sets the draw for the whole table.
+       */
+      const greatest = Math.max(0, ...state.players.map((p) => p.hand.length));
+      for (const p of state.players) {
+        for (const card of [...p.hand]) moveCard(state, card.instanceId, "graveyard");
+      }
+      if (greatest === 0) return;
+      for (const p of state.players) drawCard(state, p.id, greatest);
+      return;
+    }
+    case "untap": {
+      // "Untap target Forest." Just clears the tapped flag on the chosen
+      // permanent; the target legality is enforced when the ability is aimed.
+      const t = targets.find((x): x is Extract<StackTarget, { kind: "card" }> => x.kind === "card");
+      if (!t) return;
+      const found = findInstance(state, t.instanceId);
+      if (found) {
+        found.instance.tapped = false;
+        log(state, `${controllerId} untaps ${cardName(state, t.instanceId)}`);
+      }
+      return;
+    }
     case "putLandFromHand": {
       // "You may put a land card from your hand onto the battlefield." Optional,
       // and not the turn's land drop - it goes straight onto the battlefield.

@@ -11218,6 +11218,36 @@ export const LABORATORY_MANIAC: CardDefinition = {
   tier: "scripted",
 };
 
+export const WINDFALL: CardDefinition = {
+  id: "windfall",
+  name: "Windfall",
+  scryfallId: "9ce7113b-08f7-4584-b65f-a7b5caa90c2f",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "windfall" },
+  tier: "scripted",
+};
+
+export const ARBOR_ELF: CardDefinition = {
+  id: "arbor-elf",
+  name: "Arbor Elf",
+  scryfallId: "4b81165e-f091-4211-8b47-5ea6868b0d4c",
+  types: ["Creature"],
+  subtypes: ["Elf", "Druid"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [
+    {
+      cost: { tap: true },
+      effect: { kind: "untap", target: { kind: "permanent", cardTypes: ["Land"], subtypes: ["Forest"] } },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const GROWTH_SPIRAL: CardDefinition = {
   id: "growth-spiral",
   name: "Growth Spiral",
@@ -14209,5 +14239,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     LABORATORY_MANIAC,
     PEER_INTO_THE_ABYSS,
     GROWTH_SPIRAL,
+    WINDFALL,
+    ARBOR_ELF,
   ].map((def) => [def.id, def]),
 );
