@@ -11182,6 +11182,42 @@ export const DEMONIC_BARGAIN: CardDefinition = {
   tier: "scripted",
 };
 
+export const RELIQUARY_TOWER: CardDefinition = {
+  id: "reliquary-tower",
+  name: "Reliquary Tower",
+  scryfallId: "e2a27742-08c1-4153-af7f-25a7a98f585e",
+  types: ["Land"],
+  colorIdentity: [],
+  staticRules: { noMaxHandSize: true },
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const TIME_STRETCH: CardDefinition = {
+  id: "time-stretch",
+  name: "Time Stretch",
+  scryfallId: "9dc791fd-d49c-4c66-b8fb-6b54ce842e90",
+  types: ["Sorcery"],
+  manaCost: { generic: 8, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "extraTurn", count: 2, target: { kind: "player" } },
+  tier: "scripted",
+};
+
+export const LABORATORY_MANIAC: CardDefinition = {
+  id: "laboratory-maniac",
+  name: "Laboratory Maniac",
+  scryfallId: "7a5be94c-08b8-4964-a79d-e22ea6e94be8",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 2,
+  toughness: 2,
+  staticRules: { winInsteadOfEmptyDraw: true },
+  tier: "scripted",
+};
+
 export const SWARMYARD: CardDefinition = {
   id: "swarmyard",
   name: "Swarmyard",
@@ -14129,5 +14165,8 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     PROLOGUE_TO_PHYRESIS,
     DISPEL,
     DEMONIC_BARGAIN,
+    RELIQUARY_TOWER,
+    TIME_STRETCH,
+    LABORATORY_MANIAC,
   ].map((def) => [def.id, def]),
 );

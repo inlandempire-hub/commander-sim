@@ -400,6 +400,13 @@ export type Effect =
    */
   | { kind: "exileTop"; amount: Amount }
   /**
+   * "Target player takes N extra turns after this one." - Time Stretch. Queues
+   * the turns onto `GameState.extraTurns`, taken before the turn order rotates
+   * on. Player-count-agnostic: the queue is drained in order regardless of how
+   * many players there are.
+   */
+  | { kind: "extraTurn"; count: number; target: TargetSelector }
+  /**
    * "Look at the top N cards of your library, then put them back in any order"
    * - Halimar Depths, and Ponder (which adds `mayShuffle` and a follow-up
    * draw). Distinct from scry: every card goes back on top, none to the bottom,
@@ -1442,6 +1449,16 @@ export interface StaticRules {
   skipDrawStep?: boolean;
   /** "Your maximum hand size is five." - Necrodominance. */
   maxHandSize?: number;
+  /** "You have no maximum hand size." - Reliquary Tower. Wins over any maxHandSize while it is in play. */
+  noMaxHandSize?: boolean;
+  /**
+   * "If you would draw a card while your library has no cards in it, you win the
+   * game instead." - Laboratory Maniac. Checked when the empty-library draw
+   * would otherwise lose the game (see sba.ts); a real replacement on the draw
+   * event, modelled at the state-based check because that is where the
+   * empty-library loss already lives.
+   */
+  winInsteadOfEmptyDraw?: boolean;
 }
 
 /**
@@ -2306,6 +2323,12 @@ export interface GameState {
    * and no step advances - the game is mid-spell. Cleared by `resolveSearch`.
    */
   pendingSearch: PendingSearch | null;
+  /**
+   * Extra turns queued to happen before the turn order rotates on - Time
+   * Stretch. Each entry is the id of the player who takes that turn, drained
+   * front-first in `startNextTurn`.
+   */
+  extraTurns: string[];
   /**
    * The top N cards of a library shown to a player, waiting on the order they
    * go back. Gated exactly like `pendingSearch`: no priority, no step advance.

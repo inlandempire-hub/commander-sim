@@ -105,7 +105,15 @@ function advanceStepOnce(state: GameState): void {
 
 function startNextTurn(state: GameState): void {
   state.turnNumber += 1;
-  state.activePlayerIndex = (state.activePlayerIndex + 1) % state.players.length;
+  // An extra turn queued by Time Stretch is taken before the order rotates on;
+  // only when the queue is empty does the next player in turn order get theirs.
+  const extra = state.extraTurns.shift();
+  if (extra !== undefined) {
+    const idx = state.players.findIndex((p) => p.id === extra);
+    if (idx >= 0) state.activePlayerIndex = idx;
+  } else {
+    state.activePlayerIndex = (state.activePlayerIndex + 1) % state.players.length;
+  }
   state.phase = "beginning";
   state.step = "untap";
 }
@@ -249,10 +257,13 @@ function runAutomaticStepActions(state: GameState): void {
        */
       for (const player of state.players) {
         let limit = 7;
+        let unlimited = false;
         for (const instance of player.battlefield) {
-          const rule = state.cardDefinitions[instance.definitionId]?.staticRules?.maxHandSize;
-          if (rule !== undefined) limit = Math.min(limit, rule);
+          const rules = state.cardDefinitions[instance.definitionId]?.staticRules;
+          if (rules?.noMaxHandSize) unlimited = true;
+          if (rules?.maxHandSize !== undefined) limit = Math.min(limit, rules.maxHandSize);
         }
+        if (unlimited) continue;
         while (player.hand.length > limit) {
           const last = player.hand[player.hand.length - 1]!;
           log(state, `${player.id} discards ${requireDefinition(state, last.definitionId).name} to hand size`);

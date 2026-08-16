@@ -218,6 +218,18 @@ export function applyEffect(
       }
       return;
     }
+    case "extraTurn": {
+      /*
+       * "Target player takes N extra turns after this one." The turns are queued
+       * front of the current one's successor: whoever is taking extra turns keeps
+       * going before the order rotates on. See `startNextTurn`.
+       */
+      const targetPlayer = targets.find((t) => t.kind === "player");
+      const beneficiary = targetPlayer?.kind === "player" ? targetPlayer.playerId : controllerId;
+      for (let i = 0; i < effect.count; i++) state.extraTurns.push(beneficiary);
+      log(state, `${beneficiary} will take ${effect.count} extra turn${effect.count === 1 ? "" : "s"}`);
+      return;
+    }
     case "scry": {
       /*
        * Look at the top card and choose whether it goes to the bottom.
