@@ -1,3 +1,5 @@
+import type { ChosenOnEntry } from "@mtg-commander-sim/engine";
+import { activateRestrictionProblem } from "@mtg-commander-sim/engine";
 import {
   abilityAvailable,
   isValidTarget,
@@ -165,6 +167,16 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
   // priority at all.
   if (state.pendingSearch?.playerId === botPlayerId) {
     return { kind: "resolveSearch", instanceId: chooseSearchResult(state, botPlayerId) };
+  }
+
+  /*
+   * A permanent of the bot's own has entered and is waiting to be told what it
+   * chose. Nothing at all can happen until it is answered - not even priority -
+   * so this comes first alongside the other mid-resolution questions. A bot
+   * with no opinion here is a hung game rather than a weak opponent.
+   */
+  if (state.pendingEnterChoice?.playerId === botPlayerId) {
+    return { kind: "chooseOnEntry", answer: chooseOnEntry(state, me) };
   }
 
   // Same for a "you may" trigger of the bot's own.
@@ -518,6 +530,10 @@ function useValueAbility(state: GameState, me: Player): BotAction | null {
 
     const cost = ability.cost.mana ?? NO_COST;
     if (!couldAfford(state, me.id, cost)) continue;
+    // Clarion Conqueror switches off every artifact and creature ability on the
+    // table, its controller's included. Asked before the cost, because a
+    // forbidden ability is not activated at any price.
+    if (activateRestrictionProblem(state, me.id, def) !== undefined) continue;
 
     if (ability.effect.kind === "addCounterToEachOther") {
       const subtype = ability.effect.subtypes?.[0];
@@ -756,4 +772,52 @@ function gainLifeIfDesperate(state: GameState, me: Player): BotAction | null {
   };
   heals.sort((a, b) => healFor(b) - healFor(a));
   return castOrTapToward(state, me, heals[0]!, [{ kind: "player", playerId: me.id }]);
+}
+
+/**
+ * What the bot names when a permanent asks as it enters.
+ *
+ * Every answer here is a defensible default rather than a considered play - the
+ * point is that the game continues. Sanctum Prelate naming a number is the only
+ * one that is a real decision, and even that is guesswork without seeing hands.
+ */
+function chooseOnEntry(state: GameState, me: Player): ChosenOnEntry {
+  const choice = state.pendingEnterChoice!.choice;
+  switch (choice.kind) {
+    case "number":
+      /*
+       * Three, arbitrarily but not thoughtlessly: it is the commonest mana
+       * value among removal and card draw in this pool, and the bot cannot see
+       * an opponent's hand to do better. Named here rather than buried so it is
+       * obvious what to improve when the bot learns to read a board.
+       */
+      return { number: Math.min(3, choice.max) };
+    case "creature-type": {
+      // Whatever it has most of, so its own Cavern of Souls points at its deck.
+      const counts = new Map<string, number>();
+      for (const instance of me.battlefield) {
+        for (const subtype of definitionOf(state, instance)?.subtypes ?? []) {
+          counts.set(subtype, (counts.get(subtype) ?? 0) + 1);
+        }
+      }
+      const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+      return { creatureType: best?.[0] ?? "Human" };
+    }
+    case "basic-land-type": {
+      const counts = new Map<string, number>();
+      for (const instance of me.battlefield) {
+        for (const subtype of definitionOf(state, instance)?.subtypes ?? []) {
+          if (["Plains", "Island", "Swamp", "Mountain", "Forest"].includes(subtype)) {
+            counts.set(subtype, (counts.get(subtype) ?? 0) + 1);
+          }
+        }
+      }
+      const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+      return { basicLandType: best?.[0] ?? "Plains" };
+    }
+    case "keywords":
+      return { keywords: choice.from.slice(0, choice.count) };
+    case "mode":
+      return { mode: choice.options[0]! };
+  }
 }

@@ -1,3 +1,4 @@
+import type { ChosenOnEntry } from "@mtg-commander-sim/engine";
 import type { AttackerDeclaration, BlockerDeclaration, GameState, StackTarget } from "@mtg-commander-sim/engine";
 
 /**
@@ -52,6 +53,13 @@ export interface GameController {
   resolveCardChoice(playerId: string, instanceIds: string[]): void;
   /** Answers "pay any amount of life". */
   resolveAmountChoice(playerId: string, amount: number): void;
+  /**
+   * Answers "as this permanent enters, choose ..." - see the engine's
+   * `EnterChoice`. The game holds until this is answered, so every controller
+   * has to be able to carry it even when only the bot is currently producing
+   * one.
+   */
+  resolveEnterChoice(playerId: string, answer: ChosenOnEntry): void;
   /** Suspends a card out of hand - not a cast. */
   suspendCard(playerId: string, instanceId: string): void;
   /** Casts a copy of a prepared permanent's other face. */

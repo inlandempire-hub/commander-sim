@@ -85,6 +85,14 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
       send({ type: "resolveSacrificeChoice", instanceId }),
     resolveCardChoice: (_playerId, instanceIds) => send({ type: "resolveCardChoice", instanceIds }),
     resolveAmountChoice: (_playerId, amount) => send({ type: "resolveAmountChoice", amount }),
+    /*
+     * The protocol has no message for this yet. Thrown rather than dropped: a
+     * silently swallowed answer hangs the game with nothing to debug, which is
+     * strictly worse than a named error at the moment it happens.
+     */
+    resolveEnterChoice: () => {
+      throw new Error("Entry choices are not carried over the network protocol yet");
+    },
     suspendCard: (_playerId, instanceId) => send({ type: "suspendCard", instanceId }),
     castPreparedSpell: (_playerId, instanceId) => send({ type: "castPreparedSpell", instanceId }),
     activateLoyaltyAbility: (_playerId, instanceId, abilityIndex) =>

@@ -3302,3 +3302,110 @@ report says so rather than crediting this one:
 
 965 fixtures. `audit_fixtures` and `audit_triggers` clean, `audit_text` clean bar
 the two long-known gaps. 1,105 tests, typecheck clean.
+
+## Batch 3 of the Winota list: a choice remembered, and a bot that could hang the game (2026-08-16)
+
+**The list is at 31 of 100. The pool is at 966 fixtures.**
+
+### The defect batch 2 introduced
+
+The hate pieces gave the engine a whole new class of refusal, and **the bot knew
+nothing about them**. `castableFromHand` filtered on mana and additional costs;
+nothing asked whether the spell could be cast at all. So a bot facing an Archon
+of Emeria would propose its second spell of the turn and the engine would throw.
+
+The existing full-game tests passed the entire time, because neither archetype
+deck happens to contain a hate piece. That is the shape of bug this project
+keeps meeting: a test that is green for a reason unrelated to what it claims to
+cover.
+
+Both bot paths now consult the same functions the engine does -
+`castRestrictionProblem` for hand and command zone, `activateRestrictionProblem`
+before an ability's cost is even weighed - and there is a test that stands
+Clarion Conqueror and High Noon in front of the bot and asserts that **whatever
+it decides, applying it does not throw**. That is what "the bot is just another
+client" has to mean.
+
+### A choice made as a permanent enters, and remembered
+
+Five cards on this list choose something as they arrive and read it back for the
+rest of the game. Nothing in the engine recorded a decision *on a permanent*:
+modal spells choose as they are cast and throw the wrapper away before anything
+downstream sees it, which is the opposite shape.
+
+`EnterChoice` is the question, `ChosenOnEntry` is the answer, and it lives on the
+`CardInstance`. `enteredBattlefield` sets `pendingEnterChoice` and the game holds
+there exactly as it does for a search, until `resolveEnterChoice` answers.
+
+**Asked after the permanent is on the battlefield**, where the rules make it a
+replacement applied on the way in. Indistinguishable in play for every card in
+this pool, because nothing here reads the choice during the arrival itself - and
+the same shortcut is already taken by `payLifeToEnterUntapped`, which enters
+tapped and then untaps.
+
+The answer is checked against what was actually asked, so a client cannot name a
+keyword Greymond never offered or a mode Windcrag Siege does not print.
+
+### Sanctum Prelate
+
+The first restriction that reads something off **its own permanent** rather than
+off the card, which is why `activeRestrictions` now carries each entry's
+`chosenOnEntry` alongside it.
+
+**A Prelate whose number was never chosen restricts nothing.** Defaulting to zero
+would switch off every zero-cost spell in the format on the strength of a
+question nobody answered - and it would look exactly like a working card. There
+is a test for it.
+
+### A game that cannot answer is a hung game
+
+A permanent that stops the game and asks is only safe if something can reply.
+The bot now has an opinion about all five shapes, and `chooseOnEntry` says out
+loud that its answers are defensible defaults rather than considered plays -
+Sanctum Prelate naming 3 is guesswork without seeing a hand, and the comment
+names it as the thing to improve when the bot learns to read a board.
+
+TypeScript found the rest of the wiring by itself: `useBotOpponent`'s switch over
+bot actions is exhaustive, so adding the action forced the answer through
+`GameController`, which forced an implementation in the local controller. The
+network controller and the bot's WebSocket runner **throw a named error**,
+because the protocol carries no message for this yet and a silently swallowed
+answer hangs the game with nothing to debug.
+
+**Still missing, and it is the one thing to know before playing a deck with
+Sanctum Prelate in it: there is no overlay for a *human* to answer the prompt.**
+Bot-controlled permanents are fine. A human casting Sanctum Prelate in the client
+would stop the game. The engine, the controller interface and the local
+controller are all ready for it; what is absent is the React overlay, alongside
+the ones that already exist for searches, confirmations and amounts.
+
+### The renderer, for the third batch running
+
+Left alone, the card panel showed Sanctum Prelate's restriction with no hint of
+where the number comes from - a card that stops a mana value nobody picked. It
+prints the choice now, and takes the noun off the type line, because the cards
+say "As this **creature** enters" and "As this **land** enters" rather than a
+flat "permanent".
+
+That is three batches in a row where `describeCard` silently dropped a whole new
+kind of text. The pattern is clear enough to name: **anything added to
+`CardDefinition` needs a line in the renderer and a rule in `audit_text` in the
+same change**, or the panel quietly misdescribes every card that uses it.
+
+### What batch 3 did not finish
+
+One of the five. The other four each want something beyond the choice itself,
+and the report says so rather than crediting this batch:
+
+- **Cavern of Souls** needs mana whose spend restriction reads the chosen type;
+  `ManaSpendRestriction` currently has one member, for Delighted Halfling.
+- **Greymond** needs `buffsReaching` to carry its source instance so the granted
+  keywords can be the chosen ones. That file has a documented recursion hazard
+  and is worth a careful pass of its own.
+- **Multiversal Passage** *becomes* the chosen basic type, so its mana ability
+  has to be derived from a choice rather than printed.
+- **Windcrag Siege**'s Mardu half doubles a triggered ability, which is a
+  replacement effect on triggering and nothing to do with this batch.
+
+966 fixtures. `audit_fixtures` and `audit_triggers` clean, `audit_text` clean bar
+the two long-known gaps. 1,114 tests, typecheck clean.

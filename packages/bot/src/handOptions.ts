@@ -1,3 +1,4 @@
+import { castRestrictionProblem } from "@mtg-commander-sim/engine";
 import {
   affordableXValues,
   applyCommanderTax,
@@ -60,6 +61,14 @@ export function castableFromHand(
      * here beside the mana rather than left for a decision path to trip over.
      */
     .filter((c) => canPayAdditionalCost(state, me.id, c.definition, 0))
+    /*
+     * The hate pieces. An Archon of Emeria on the table makes the second spell
+     * of the turn uncastable, and the engine throws rather than declining - so
+     * a bot that did not ask would propose an illegal action the moment either
+     * deck ran one. Filtered here beside the additional cost for the same
+     * reason: it is a question about whether the spell can be cast at all.
+     */
+    .filter((c) => castRestrictionProblem(state, me.id, c.definition, "hand") === undefined)
     .filter(
       (c) =>
         // A free alternative cost is affordable whatever the pool holds.
@@ -80,6 +89,10 @@ export function castableCommander(state: GameState, me: Player, reserve: ManaCos
     me.commanderCastCount[commander.instanceId] ?? 0,
   );
   if (!couldAfford(state, me.id, addCosts(cost, reserve))) return null;
+  // Drannith Magistrate turns the command zone off, which in this format is
+  // most of what the card does - and the commander is exactly the spell a bot
+  // reaches for first.
+  if (castRestrictionProblem(state, me.id, definition, "command") !== undefined) return null;
   return { instance: commander, definition, cost, fromCommandZone: true };
 }
 

@@ -42,6 +42,61 @@ export type CardType =
  * general predicate language would be quicker to write and impossible to check
  * back against a card.
  */
+/**
+ * "As this permanent enters, choose ..." - Cavern of Souls' creature type,
+ * Sanctum Prelate's number, Greymond's two abilities, Windcrag Siege's mode,
+ * Multiversal Passage's basic land type.
+ *
+ * The decision is made once, as the permanent arrives, and every other line on
+ * the card reads it back for the rest of the game. Nothing else in this engine
+ * records a decision *on a permanent* - modal spells choose as they are cast
+ * and throw the wrapper away before anything downstream sees it, which is the
+ * opposite shape.
+ *
+ * The five entries are the five phrases the pool needs, not a general
+ * "remember an arbitrary value" facility.
+ */
+export type EnterChoice =
+  /** "choose a creature type" - Cavern of Souls, Cover of Darkness. */
+  | { kind: "creature-type" }
+  /**
+   * "choose a number" - Sanctum Prelate. `max` only bounds what a client should
+   * offer; the rules put no ceiling on it.
+   */
+  | { kind: "number"; max: number }
+  /** "choose a basic land type" - Multiversal Passage. */
+  | { kind: "basic-land-type" }
+  /** "choose two abilities from among first strike, vigilance, and lifelink" - Greymond. */
+  | { kind: "keywords"; from: Keyword[]; count: number }
+  /** "choose Mardu or Jeskai" - Windcrag Siege. */
+  | { kind: "mode"; options: string[] };
+
+/**
+ * What was chosen, once it has been. Every field optional because one card only
+ * ever asks one question - a single union member would be tidier and would make
+ * every reader unwrap a discriminant to get at a string.
+ */
+export interface ChosenOnEntry {
+  creatureType?: string;
+  number?: number;
+  basicLandType?: string;
+  keywords?: Keyword[];
+  mode?: string;
+}
+
+/**
+ * The permanent that has just arrived and is waiting for its controller to
+ * choose. The game stops here exactly as it does for a search.
+ */
+export interface PendingEnterChoice {
+  instanceId: string;
+  /** Its controller - the choice is never anybody else's. */
+  playerId: string;
+  choice: EnterChoice;
+  /** The printed wording, for the client's prompt. */
+  prompt: string;
+}
+
 export type ActionRestriction =
   /**
    * "Each player can't cast more than one spell each turn" - Archon of Emeria,
@@ -73,7 +128,18 @@ export type ActionRestriction =
    */
   | { kind: "cannot-activate"; types: CardType[]; who: "each-player" | "opponents"; duringYourTurnOnly?: boolean }
   /** "Each player can't draw more than one card each turn" - Spirit of the Labyrinth. */
-  | { kind: "draw-limit"; perTurn: number };
+  | { kind: "draw-limit"; perTurn: number }
+  /**
+   * "Noncreature spells with mana value equal to the chosen number can't be
+   * cast" - Sanctum Prelate.
+   *
+   * The only restriction that reads something off its own permanent rather than
+   * off the card, which is why `activeRestrictions` carries the instance's
+   * `chosenOnEntry` alongside each entry. A Prelate whose number was never
+   * chosen restricts nothing, rather than defaulting to zero and switching off
+   * every land-cycler in the format.
+   */
+  | { kind: "cannot-cast-chosen-mana-value"; only?: "noncreature" };
 
 export type Keyword =
   | "Flying"
@@ -1678,6 +1744,8 @@ export interface CardDefinition {
    * that removed only half would be a different card.
    */
   staticRestrictions?: ActionRestriction[];
+  /** "As this permanent enters, choose ..." - see `EnterChoice`. */
+  enterChoice?: EnterChoice;
   entersTappedUnless?: EntersUntappedCondition;
   /**
    * "As this land enters, you may pay N life. If you don't, it enters tapped"
@@ -1818,6 +1886,12 @@ export interface CardInstance {
    * granting.
    */
   grantedKeywords: Keyword[];
+  /**
+   * What this permanent's controller chose as it entered - see `EnterChoice`.
+   * Absent until the choice is answered, and absent forever on the great
+   * majority of permanents, which are never asked.
+   */
+  chosenOnEntry?: ChosenOnEntry;
   /**
    * Whole triggered abilities handed to this permanent until end of turn -
    * Root Manipulation's "Whenever this creature attacks, you gain 1 life".
@@ -2362,6 +2436,11 @@ export interface GameState {
    * nothing else.
    */
   turnRestrictions: { restriction: ActionRestriction; controllerId: string }[];
+  /**
+   * A permanent that has just entered and is waiting on its controller's
+   * choice. Like `pendingSearch`, the game holds here until it is answered.
+   */
+  pendingEnterChoice: PendingEnterChoice | null;
   activePlayerIndex: number;
   priorityPlayerIndex: number;
   turnNumber: number;

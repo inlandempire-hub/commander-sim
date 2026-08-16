@@ -13,7 +13,7 @@ import type {
   TriggerCondition,
   TriggeredAbility,
 } from "@mtg-commander-sim/engine";
-import { matchesWatchFor } from "@mtg-commander-sim/engine";
+import { describeEnterChoice, matchesWatchFor } from "@mtg-commander-sim/engine";
 import { formatManaCost } from "./format.js";
 
 /**
@@ -1276,6 +1276,22 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
    * all - which is the renderer's usual failure mode, and the reason the
    * whole-pool sweep in the tests exists.
    */
+  /*
+   * "As this creature enters, choose a number." Without this the panel showed
+   * Sanctum Prelate's restriction with no hint of where the number comes from,
+   * which reads as a card that stops a mana value nobody picked.
+   */
+  if (def.enterChoice) {
+    const what = describeEnterChoice(def.enterChoice);
+    // The cards name their own type here - "As this **creature** enters" on
+    // Sanctum Prelate, "As this **land** enters" on Multiversal Passage - so
+    // the noun comes off the type line rather than being a flat "permanent".
+    const noun =
+      (["Creature", "Land", "Artifact", "Enchantment"] as const).find((t) => def.types.includes(t))?.toLowerCase() ??
+      "permanent";
+    lines.push(`As this ${noun} enters, ${what}.`);
+  }
+
   for (const restriction of def.staticRestrictions ?? []) {
     lines.push(`${describeRestriction(restriction)}.`);
   }
@@ -1445,6 +1461,8 @@ export function describeRestriction(restriction: ActionRestriction): string {
         ? `${when}${who} can't activate abilities of ${types}`
         : `Activated abilities of ${types} can't be activated`;
     }
+    case "cannot-cast-chosen-mana-value":
+      return `${restriction.only === "noncreature" ? "Noncreature spells" : "Spells"} with mana value equal to the chosen number can't be cast`;
     case "draw-limit":
       return `Each player can't draw more than ${limitWord(restriction.perTurn)} card${
         restriction.perTurn === 1 ? "" : "s"

@@ -85,6 +85,10 @@ def card_features(fx):
             feat.add("grantsKeywords")
     if fx.get("cantBeCountered"):
         feat.add("cantBeCountered")
+    # "As this permanent enters, choose ..." - the decision, kept apart from
+    # whatever reads it back, because a card can print one without the other.
+    if fx.get("enterChoice"):
+        feat.add("enterChoice")
     # The hate pieces. Each restriction contributes its own kind, so a card with
     # two of them - Grand Abolisher stops casting *and* activating - accounts
     # for both halves of its one printed sentence.
@@ -239,6 +243,9 @@ RULES = [
      {"restriction:cannot-activate"}),
     (r"each player can't draw more than \w+ card",
      {"restriction:draw-limit"}),
+    (r"^as (this|~).*enters, choose", {"enterChoice"}),
+    (r"with mana value equal to the chosen number can't be cast",
+     {"restriction:cannot-cast-chosen-mana-value"}),
     # Winota's three sentences. One effect covers all of them, which is why
     # they name the same feature: looking, choosing, and burying the rest are a
     # single printed ability and a single `deployFromTop`.

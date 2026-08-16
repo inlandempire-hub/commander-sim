@@ -1,4 +1,4 @@
-import type { ActionRestriction, CardDefinition, CardType, GameState } from "./types.js";
+import type { ActionRestriction, CardDefinition, CardType, ChosenOnEntry, GameState } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 
 /**
@@ -25,6 +25,12 @@ import { requireDefinition, requirePlayer } from "./state.js";
 interface ActiveRestriction {
   restriction: ActionRestriction;
   controllerId: string;
+  /**
+   * What was chosen as the permanent entered, for the one restriction that
+   * reads it - Sanctum Prelate's number. Absent for a turn restriction, which
+   * has no permanent, and for every card that is never asked.
+   */
+  chosen?: ChosenOnEntry;
 }
 
 /**
@@ -41,7 +47,7 @@ export function activeRestrictions(state: GameState): ActiveRestriction[] {
     for (const instance of player.battlefield) {
       const def = requireDefinition(state, instance.definitionId);
       for (const restriction of def.staticRestrictions ?? []) {
-        found.push({ restriction, controllerId: instance.controllerId });
+        found.push({ restriction, controllerId: instance.controllerId, chosen: instance.chosenOnEntry });
       }
     }
   }
@@ -113,6 +119,20 @@ export function castRestrictionProblem(
       return "You can only cast spells from your hand";
     }
 
+    if (restriction.kind === "cannot-cast-chosen-mana-value") {
+      /*
+       * Sanctum Prelate. A Prelate whose number has not been chosen yet
+       * restricts nothing: defaulting to zero would switch off every
+       * zero-cost spell in the format on the strength of a question nobody
+       * has answered.
+       */
+      const chosen = active.chosen?.number;
+      if (chosen === undefined) continue;
+      if (restriction.only === "noncreature" && def.types.includes("Creature")) continue;
+      if (manaValue(def) !== chosen) continue;
+      return `Spells with mana value ${chosen} can't be cast`;
+    }
+
     if (restriction.kind === "cast-limit") {
       if (restriction.only === "noncreature" && def.types.includes("Creature")) continue;
       if (restriction.only === "nonartifact" && def.types.includes("Artifact")) continue;
@@ -168,4 +188,18 @@ export function mayDraw(state: GameState, playerId: string): boolean {
     if (player.cardsDrawnThisTurn >= active.restriction.perTurn) return false;
   }
   return true;
+}
+
+/**
+ * A card's mana value - the total cost, colours and generic together.
+ *
+ * {X} counts as zero, which is the rule everywhere except on the stack. No card
+ * here asks about a spell's X while it is being cast, so the simple answer is
+ * the right one.
+ */
+function manaValue(def: CardDefinition): number {
+  const cost = def.manaCost;
+  if (!cost) return 0;
+  const colours = Object.values(cost.colors ?? {}).reduce((sum, n) => sum + (n ?? 0), 0);
+  return (cost.generic ?? 0) + colours;
 }

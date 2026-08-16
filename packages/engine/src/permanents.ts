@@ -1,6 +1,9 @@
 import type {
   CardDefinition,
   CardInstance,
+  ChosenOnEntry,
+  EnterChoice,
+  Keyword,
   Effect,
   GameState,
   StackObject,
@@ -115,6 +118,24 @@ export function enteredBattlefield(
    * but it is cleared anyway so the board does not draw a creature as unable
    * to act while it is in the middle of combat.
    */
+  /*
+   * "As this permanent enters, choose ..." - the game stops and asks.
+   *
+   * Asked *after* the permanent is on the battlefield rather than as it enters,
+   * which is a real simplification: the rules make this a replacement applied
+   * on the way in. It is indistinguishable in play for every card in this pool,
+   * because nothing here reads the choice during the arrival itself - and the
+   * same shortcut is already taken by `payLifeToEnterUntapped`, which enters
+   * tapped and then untaps.
+   */
+  if (def.enterChoice) {
+    state.pendingEnterChoice = {
+      instanceId: instance.instanceId,
+      playerId: instance.controllerId,
+      choice: def.enterChoice,
+      prompt: describeEnterChoice(def.enterChoice),
+    };
+  }
   if (options.attackingPlayerId) {
     state.attackers[instance.instanceId] = options.attackingPlayerId;
     instance.summoningSickness = false;
@@ -583,4 +604,78 @@ function describeOptionalEffect(effect: Effect): string {
     default:
       return "use this ability?";
   }
+}
+
+/** The printed wording of what is being chosen, for the client's prompt. */
+export function describeEnterChoice(choice: EnterChoice): string {
+  switch (choice.kind) {
+    case "creature-type":
+      return "choose a creature type";
+    case "number":
+      return "choose a number";
+    case "basic-land-type":
+      return "choose a basic land type";
+    case "keywords":
+      return `choose ${choice.count === 2 ? "two" : String(choice.count)} abilities from among ${choice.from
+        .map((k: Keyword) => k.toLowerCase())
+        .join(", ")}`;
+    case "mode":
+      return `choose ${choice.options.join(" or ")}`;
+  }
+}
+
+/**
+ * Answers the choice a permanent asked as it entered.
+ *
+ * The answer is checked against what was actually asked rather than trusted -
+ * a client cannot name a keyword Greymond does not offer, or a mode Windcrag
+ * Siege never printed.
+ */
+export function resolveEnterChoice(
+  state: GameState,
+  playerId: string,
+  answer: ChosenOnEntry,
+): void {
+  const pending = state.pendingEnterChoice;
+  if (!pending) throw new Error("No permanent is waiting on a choice");
+  if (pending.playerId !== playerId) throw new Error(`That choice belongs to ${pending.playerId}`);
+
+  const found = findInstance(state, pending.instanceId);
+  const choice = pending.choice;
+
+  if (choice.kind === "number") {
+    if (answer.number === undefined || !Number.isInteger(answer.number) || answer.number < 0) {
+      throw new Error("A whole number must be chosen");
+    }
+  } else if (choice.kind === "creature-type") {
+    if (!answer.creatureType) throw new Error("A creature type must be chosen");
+  } else if (choice.kind === "basic-land-type") {
+    if (!answer.basicLandType || !BASIC_LAND_TYPES.includes(answer.basicLandType)) {
+      throw new Error("A basic land type must be chosen");
+    }
+  } else if (choice.kind === "keywords") {
+    const picked = answer.keywords ?? [];
+    if (picked.length !== choice.count) throw new Error(`Exactly ${choice.count} abilities must be chosen`);
+    if (picked.some((k: Keyword) => !choice.from.includes(k))) throw new Error("That ability was not on offer");
+  } else if (choice.kind === "mode") {
+    if (!answer.mode || !choice.options.includes(answer.mode)) throw new Error("That mode was not on offer");
+  }
+
+  // The permanent may already have left - killed in response is not possible
+  // here (nothing has priority yet), but it costs nothing to be safe, and the
+  // pending state must be cleared either way or the game stalls.
+  if (found) found.instance.chosenOnEntry = answer;
+  state.pendingEnterChoice = null;
+  log(state, `${playerId} chose ${describeChosen(answer)}`);
+}
+
+/** The five basic land types, for validating Multiversal Passage's answer. */
+const BASIC_LAND_TYPES = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
+
+function describeChosen(answer: ChosenOnEntry): string {
+  if (answer.creatureType) return answer.creatureType;
+  if (answer.basicLandType) return answer.basicLandType;
+  if (answer.number !== undefined) return String(answer.number);
+  if (answer.keywords?.length) return answer.keywords.join(" and ").toLowerCase();
+  return answer.mode ?? "nothing";
 }

@@ -73,6 +73,16 @@ function describe(state: GameState, seat: string, action: BotAction): string | n
   switch (action.kind) {
     case "playLand":
       return `${seat} plays ${nameOf(state, action.instanceId)}.`;
+    case "chooseOnEntry": {
+      const { answer } = action;
+      const chosen =
+        answer.creatureType ??
+        answer.basicLandType ??
+        (answer.number !== undefined ? String(answer.number) : undefined) ??
+        answer.keywords?.join(" and ").toLowerCase() ??
+        answer.mode;
+      return `${seat} chooses ${chosen ?? "nothing"}.`;
+    }
     case "castSpell": {
       const name = nameOf(state, action.instanceId);
       const from = action.fromCommandZone ? " from the command zone" : "";

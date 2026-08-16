@@ -1,6 +1,7 @@
 import {
   activateAbilityWithAutoTap,
   castSpellWithAutoTap,
+  resolveEnterChoice,
   declareAttackers,
   declareBlockers,
   resolveSearch,
@@ -58,6 +59,9 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
       return;
     case "resolveSearch":
       resolveSearch(state, playerId, action.instanceId);
+      return;
+    case "chooseOnEntry":
+      resolveEnterChoice(state, playerId, action.answer);
       return;
     case "resolveConfirmation":
       resolveConfirmation(state, playerId, action.accept);

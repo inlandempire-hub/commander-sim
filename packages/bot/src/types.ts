@@ -1,3 +1,4 @@
+import type { ChosenOnEntry } from "@mtg-commander-sim/engine";
 import type { AttackerDeclaration, BlockerDeclaration, StackTarget } from "@mtg-commander-sim/engine";
 
 /**
@@ -30,6 +31,14 @@ export type BotAction =
   | { kind: "declareBlockers"; declarations: BlockerDeclaration[] }
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */
   | { kind: "resolveSearch"; instanceId: string | null }
+  /**
+   * Answering "as this permanent enters, choose ...".
+   *
+   * A game stops dead until this is answered, so the bot has to have an opinion
+   * about every shape of it - a permanent nobody can answer for is a hung game,
+   * not a missing feature.
+   */
+  | { kind: "chooseOnEntry"; answer: ChosenOnEntry }
   /** Answering a "you may" trigger that stopped mid-resolution. */
   | { kind: "resolveConfirmation"; accept: boolean }
   /** Pointing a triggered ability at something before it goes on the stack. */

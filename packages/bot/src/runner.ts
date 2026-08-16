@@ -61,6 +61,14 @@ function toClientMessage(action: BotAction): ClientMessage | null {
       return { type: "declareBlockers", declarations: action.declarations };
     case "resolveSearch":
       return { type: "resolveSearch", instanceId: action.instanceId };
+    case "chooseOnEntry":
+      /*
+       * The protocol has no message for this yet, so a networked bot cannot
+       * answer one. Thrown rather than passed over in silence: a swallowed
+       * answer here hangs the game with no indication why, which is far worse
+       * to debug than a named error.
+       */
+      throw new Error("Entry choices are not carried over the network protocol yet");
     case "resolveConfirmation":
       return { type: "resolveConfirmation", accept: action.accept };
     case "chooseTriggerTarget":

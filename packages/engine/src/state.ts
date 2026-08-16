@@ -46,6 +46,7 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     stack: [],
     stackCards: [],
     turnRestrictions: [],
+    pendingEnterChoice: null,
     passesInSuccession: 0,
     attackers: {},
     blockers: {},

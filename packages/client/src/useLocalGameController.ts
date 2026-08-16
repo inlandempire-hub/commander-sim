@@ -13,6 +13,7 @@ import {
   activateLoyaltyAbility,
   castPreparedSpell,
   resolveAmountChoice,
+  resolveEnterChoice,
   suspendCard,
   resolveCardChoice,
   resolveSacrificeChoice,
@@ -101,6 +102,7 @@ export function useLocalGameController({
       act((s) => resolveSacrificeChoice(s, playerId, instanceId)),
     resolveCardChoice: (playerId, instanceIds) => act((s) => resolveCardChoice(s, playerId, instanceIds)),
     resolveAmountChoice: (playerId, amount) => act((s) => resolveAmountChoice(s, playerId, amount)),
+    resolveEnterChoice: (playerId, answer) => act((s) => resolveEnterChoice(s, playerId, answer)),
     suspendCard: (playerId, instanceId) => act((s) => suspendCard(s, playerId, instanceId)),
     castPreparedSpell: (playerId, instanceId) => act((s) => castPreparedSpell(s, playerId, instanceId)),
     activateLoyaltyAbility: (playerId, instanceId, abilityIndex) =>

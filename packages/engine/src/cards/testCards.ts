@@ -13365,8 +13365,33 @@ export const SILENCE: CardDefinition = {
   tier: "scripted",
 };
 
+
+/**
+ * "As this creature enters, choose a number. Noncreature spells with mana value
+ * equal to the chosen number can't be cast."
+ *
+ * The first card whose restriction reads something off its own permanent rather
+ * than off the card, and the reason `activeRestrictions` carries the instance's
+ * `chosenOnEntry`.
+ */
+export const SANCTUM_PRELATE: CardDefinition = {
+  id: "sanctum-prelate",
+  name: "Sanctum Prelate",
+  scryfallId: "1d95a7dd-2803-4164-8979-d7e8e8085ca2",
+  types: ["Creature"],
+  subtypes: ["Human", "Cleric"],
+  manaCost: { generic: 1, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  enterChoice: { kind: "number", max: 16 },
+  staticRestrictions: [{ kind: "cannot-cast-chosen-mana-value", only: "noncreature" }],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    SANCTUM_PRELATE,
     DEAFENING_SILENCE,
     ETHERSWORN_CANONIST,
     GRAND_ABOLISHER,
