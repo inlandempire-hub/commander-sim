@@ -3637,3 +3637,133 @@ archetype deck contains them. The behaviour has seventeen engine tests and three
 bot tests behind it, including the bot playing on into the phase it just bought.
 That is construction plus coverage rather than having been seen, and it is the
 same caveat the entry-choice overlay carries from the batch before.
+
+## Batch 5: the free ones, and everything batches 2 and 3 left behind (2026-08-16)
+
+**The list is at 47 of 100. The pool is at 983 fixtures.**
+
+Thirteen cards. Six were blocked by the *generator* rather than the engine, six
+were the leftovers from the two previous batches, and one - Windcrag Siege - was
+the hardest card on the list that is not a planeswalker.
+
+### Seventeen cards read by hand, six of them nearly free
+
+The deck report's "unrecognised - needs reading by hand" heading means the
+generator cannot parse the card. It does **not** mean the engine cannot play it,
+and the difference is worth a lot: Blade Historian yesterday needed no engine
+work at all.
+
+Reading all seventeen against Scryfall found six within reach, and five of them
+wanted the same small thing - **a library search narrowed by what a card is, not
+just what type it is**:
+
+- `maxPower`, `maxToughness`, `maxManaValue` for the three recruiters.
+- `cardType` taking a list, for Enlightened Tutor's "an artifact **or**
+  enchantment card". One field rather than two, the same shape `watchFor.type`
+  already uses.
+
+**Cathar Commando needed nothing at all** - flash, a sacrifice cost and a
+destroy effect have all existed for weeks.
+
+**Path to Exile needed nothing either**, and the reason is worth writing down:
+"its controller **may** search" is not a flag. Declining a search is always
+legal - you search, take nothing, and shuffle - so the optional wording and the
+compulsory one land in the same place. Imperial Recruiter prints no "may" and
+behaves identically, which is the real rule rather than a shortcut.
+
+### A card with two continuous effects
+
+Greymond grants keywords unconditionally and gives +2/+2 only while you control
+four Humans. Two effects with different lifetimes, and `staticBuff` held one.
+
+It takes either a buff or a list of them now - no existing fixture changed - and
+`StaticBuff` grew three fields: a `condition` for the second half, and two ways
+to grant something that is not a plain keyword. `buffsReaching` carries the
+*source permanent* alongside each buff, because one of them cannot be read
+without it: "each of the **chosen** abilities" lives on Greymond's own
+`CardInstance`, not on the card.
+
+### Mana that knows what it may pay for
+
+Cavern of Souls names a creature type as it enters and then makes mana only for
+that type. `ManaSpendRestriction` had one member, written for Delighted
+Halfling's "a legendary spell".
+
+The chosen type is **stamped onto the mana as it is produced** rather than looked
+up later. The restriction on the card names no type - it says "the chosen type" -
+and copying it onto the lump in the pool means nothing downstream has to find its
+way back to a land that may since have left the battlefield.
+
+**The test for this found that the code was never written.** The comment
+explaining the stamping went in; the stamping did not. A Cavern that made mana
+for nothing at all typechecks perfectly.
+
+### Three rules that reach across the table
+
+Every hate piece before these narrowed what somebody could *do*. These three
+change how the game works for somebody else:
+
+- **Archon of Emeria** - "nonbasic lands your opponents control enter tapped",
+  asked at the moment a land arrives.
+- **Aven Mindcensor** - an opponent's search sees the top four cards and no
+  more, applied to the library *before* the card filter, which is the order the
+  card describes.
+- **Hexing Squelcher** - "spells you control can't be countered", asked of the
+  board when somebody tries rather than stamped on the spell, so a Squelcher
+  arriving after the spell protects it too. Its ward is handed to your other
+  creatures through a field of its own: ward carries a cost and `grants` is a
+  list of keywords with none.
+
+### Windcrag Siege, which is two cards on one permanent
+
+The Mardu half doubles every attack-caused trigger you control. Done inside
+`pushTrigger`, because that is the single door every fire site goes through, so
+anything added later is covered without knowing the card exists. Each copy runs
+the whole path including its own targeting - two instances of an ability really
+are two abilities, pointed separately.
+
+The mode is a `TriggerCondition` on the Jeskai half and a `staticRules` entry
+**keyed to its own mode** on the Mardu half, rather than a flag. Both halves are
+printed on the card and only one is live; a boolean would have made a Jeskai
+Siege double triggers as well.
+
+Its Goblin gains lifelink and haste **until end of turn**, granted to the token
+rather than printed on the token definition, so cleanup takes them off. A token
+whose definition carried haste would be a different card every turn after the
+first.
+
+### The renderer, for the fifth batch running
+
+Reading the real output found six faults, and four of them were a whole line
+rendering as nothing: Archon's second sentence, Aven Mindcensor's only sentence,
+Hexing Squelcher's third, and Windcrag Siege's entire Mardu half.
+
+**The worst was not a missing line but a wrong one.** The restricted-mana wording
+was hardcoded to "a legendary spell", so Cavern of Souls' panel described
+Delighted Halfling. A player reading it would have been told the wrong card.
+
+There are now pool-wide checks for all ten fields this batch added, so the next
+card to use one cannot render without the sentence that explains it. Two of those
+checks were themselves too blunt on their first run and reported cards that were
+perfectly correct - `grants` sits on a staticBuff as well as on a token, and
+`maxManaValue` on the graveyard selector as well as on a search. Both walk the
+fixture properly now, which is the same fix the `attacking` check needed
+yesterday.
+
+### What is left, and the one card that cannot be built
+
+**983 fixtures.** `audit_fixtures` and `audit_triggers` clean, `audit_text` clean
+bar the two long-known gaps. 1,189 tests, typecheck clean.
+
+**Boromir, Warden of the Tower is the one leftover not built, and it is not a
+matter of effort.** Its second ability ends "**The Ring tempts you**", which is a
+whole subsystem - a Ring emblem with four escalating levels and a chosen Ring-bearer
+- and nothing else in this pool touches it. Building the rest of Boromir and
+leaving that clause off would be writing a card that is not printed, which is the
+one thing `docs/ADDING-CARDS.md` forbids outright. It stays blocked until the
+Ring exists or the deck drops it.
+
+Also worth flagging, because the report will keep saying otherwise: "Granting
+keywords finishes 2: Serra Ascendant, **Zealous Conscripts**". Zealous Conscripts
+also gains control of a permanent, which nothing does. The heading is necessary
+and not sufficient, as it always is.

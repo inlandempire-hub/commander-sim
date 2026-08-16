@@ -70,6 +70,14 @@ def effect_kinds(fx):
     return found
 
 
+def static_buffs(fx):
+    """Every continuous effect on a fixture, however the field was written."""
+    buff = fx.get("staticBuff")
+    if not buff:
+        return []
+    return buff if isinstance(buff, list) else [buff]
+
+
 def card_features(fx):
     """
     Fixture fields that are not effects but do implement rules text.
@@ -79,12 +87,27 @@ def card_features(fx):
     printed card that would otherwise be reported as missing.
     """
     feat = set()
-    if fx.get("staticBuff"):
+    # A card may carry several continuous effects - Greymond prints two - so the
+    # field takes either a buff or a list of them.
+    for buff in static_buffs(fx):
         feat.add("staticBuff")
-        if fx["staticBuff"].get("grants"):
+        if buff.get("grants"):
             feat.add("grantsKeywords")
+        if buff.get("grantsChosenOnEntry"):
+            feat.add("grantsChosenOnEntry")
+        if buff.get("grantsWardLife"):
+            feat.add("grantsWard")
+        if buff.get("condition"):
+            feat.add("conditionalBuff")
     if fx.get("cantBeCountered"):
         feat.add("cantBeCountered")
+    if fx.get("becomesChosenBasicType"):
+        feat.add("becomesChosenBasicType")
+    # Each static rule contributes its own name, so a card printing two of them
+    # accounts for both sentences rather than one covering the other.
+    for rule, value in (fx.get("staticRules") or {}).items():
+        if value:
+            feat.add("rule:%s" % rule)
     # "As this permanent enters, choose ..." - the decision, kept apart from
     # whatever reads it back, because a card can print one without the other.
     if fx.get("enterChoice"):
@@ -134,9 +157,9 @@ def card_features(fx):
         feat.add("bestow")
     if fx.get("alsoCreatureOffBattlefield"):
         feat.add("alsoCreatureOffBattlefield")
-    buff = fx.get("staticBuff") or {}
-    if buff.get("grantsAbilities"):
-        feat.add("grantsAbilities")
+    for buff in static_buffs(fx):
+        if buff.get("grantsAbilities"):
+            feat.add("grantsAbilities")
     for ability in fx.get("activatedAbilities") or []:
         if ability.get("addsOtherCounterToSelf"):
             feat.add("addsOtherCounter")
@@ -243,7 +266,10 @@ RULES = [
      {"restriction:cannot-activate"}),
     (r"each player can't draw more than \w+ card",
      {"restriction:draw-limit"}),
-    (r"^as (this|~).*enters, choose", {"enterChoice"}),
+    # "As **this creature** enters" is the current templating; a legendary
+    # says its own name instead - "As **Greymond, Avacyn's Stalwart** enters,
+    # choose two abilities". Both are the same clause.
+    (r"^as .*\benters, choose", {"enterChoice"}),
     (r"with mana value equal to the chosen number can't be cast",
      {"restriction:cannot-cast-chosen-mana-value"}),
     # Winota's three sentences. One effect covers all of them, which is why
@@ -259,6 +285,10 @@ RULES = [
     (r"\benters tapped unless\b", {"entersTappedUnless"}),
     (r"\bas this land enters, you may pay \d+ life\b", {"entersTappedUnlessPayLife"}),
     (r"\bif you don't, it enters tapped\b", {"entersTappedUnlessPayLife"}),
+    # Multiversal Passage splits the shockland clause across two sentences -
+    # "choose a basic land type. **Then you may pay 2 life.** If you don't, it
+    # enters tapped." - so the offer has to stand on its own.
+    (r"^then you may pay \d+ life$", {"entersTappedUnlessPayLife"}),
     (r"^this (land|artifact|creature|permanent|enchantment) enters tapped$", {"entersTapped"}),
     # Effects.
     (r"\bprevent the next \d+ damage\b", {"preventDamage"}),
@@ -290,6 +320,20 @@ RULES = [
     # and each names the effect kind that does it rather than a family - a rule
     # too loose here hides the bug this tool exists to find.
     (r"\battacking creatures you control have\b", {"grantsKeywords"}),
+    # Batch 5. The leftovers from batches 2 and 3, and five tutors.
+    (r"\bhave each of the chosen abilities\b", {"grantsChosenOnEntry"}),
+    # Windcrag Siege's Mardu half, and the keywords its Jeskai Goblin gains.
+    (r"\bthat ability triggers an additional time\b", {"rule:doublesAttackTriggersWhenMode"}),
+    (r"^it gains .* until end of turn$", {"grantsKeywords"}),
+    (r"\bas long as you control \w+ or more \w+, .* get \+", {"conditionalBuff"}),
+    (r"\bother creatures you control have .ward", {"grantsWard"}),
+    (r"\bspells you control can't be countered\b", {"rule:yourSpellsCantBeCountered"}),
+    (r"\bnonbasic lands your opponents control enter tapped\b",
+     {"rule:opponentsNonbasicLandsEnterTapped"}),
+    (r"\bthat player searches the top \w+ cards of that library instead\b",
+     {"rule:opponentSearchesTopCards"}),
+    (r"\bthis land is the chosen type\b", {"becomesChosenBasicType"}),
+    (r"\bspend this mana only to cast a creature spell of the chosen type\b", {"spendRestriction"}),
     (r"\byou may exert (it|this creature) as it attacks\b", {"exertSelf"}),
     (r"\buntap all other creatures you control\b", {"untapAll"}),
     (r"\bthere is an additional combat phase\b", {"additionalCombatPhase"}),

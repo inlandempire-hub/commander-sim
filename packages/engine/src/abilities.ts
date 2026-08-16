@@ -206,12 +206,22 @@ export function activateAbility(
     ability.effect.kind === "addMana" || ability.effect.kind === "addManaCombination";
   if (isManaAbility) {
     if (ability.producesRestrictedMana && ability.effect.kind === "addMana") {
+      /*
+       * "...of the chosen type" - Cavern of Souls. The card names no type; the
+       * permanent does. Resolved here, once, so the mana sitting in the pool
+       * knows what it may pay for without anything having to find the land
+       * again.
+       */
+      const restriction =
+        ability.producesRestrictedMana.kind === "creature-of-chosen-type"
+          ? { ...ability.producesRestrictedMana, creatureType: instance.chosenOnEntry?.creatureType }
+          : ability.producesRestrictedMana;
       // Kept out of the ordinary pool entirely - see `Player.restrictedMana`.
       // Nothing that counts a player's mana can then spend it on the wrong thing.
       player.restrictedMana.push({
         color: ability.effect.color,
         amount: ability.effect.amount,
-        restriction: ability.producesRestrictedMana,
+        restriction,
       });
     } else {
       applyEffect(state, playerId, instanceId, ability.effect, targets);

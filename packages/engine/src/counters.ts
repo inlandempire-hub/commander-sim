@@ -5,9 +5,14 @@ import type {
   CardType,
   GameState,
   Keyword,
+  ManaColor,
+  ManaCost,
+  StaticBuff,
   TriggeredAbility,
 } from "./types.js";
+import { staticBuffsOf } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
+import { meetsBoardCondition } from "./conditions.js";
 
 /**
  * Whether a `staticBuff` printed on `source` reaches `candidate`.
@@ -19,7 +24,7 @@ import { requireDefinition, requirePlayer } from "./state.js";
 function buffApplies(
   state: GameState,
   source: CardInstance,
-  buff: NonNullable<CardDefinition["staticBuff"]>,
+  buff: StaticBuff,
   candidate: CardInstance,
   candidateDef: CardDefinition,
 ): boolean {
@@ -60,6 +65,14 @@ function buffApplies(
   // "each creature you control with a +1/+1 counter on it" - likewise reread
   // every time, so a creature that loses its last counter loses the trample.
   if (buff.restriction === "with-counter" && candidate.plusOneCounters <= 0) return false;
+  /*
+   * "As long as you control four or more Humans" - Greymond's second half.
+   *
+   * Asked of the *buff's controller*, not the candidate's: the card says "you
+   * control", and in a game where a creature can change hands those are
+   * different players.
+   */
+  if (buff.condition && !meetsBoardCondition(state, source.controllerId, buff.condition)) return false;
   return true;
 }
 
@@ -72,24 +85,37 @@ function buffApplies(
  * leaves, because there is no stored value to go stale. Fine at this board
  * size; revisit if profiling ever says otherwise.
  */
-function buffsReaching(state: GameState, instance: CardInstance): Array<NonNullable<CardDefinition["staticBuff"]>> {
+function buffsReaching(state: GameState, instance: CardInstance): ReachingBuff[] {
   if (instance.zone !== "battlefield") return [];
   const controller = requirePlayer(state, instance.controllerId);
   const def = requireDefinition(state, instance.definitionId);
-  const found: Array<NonNullable<CardDefinition["staticBuff"]>> = [];
+  const found: ReachingBuff[] = [];
   for (const other of controller.battlefield) {
-    const buff = state.cardDefinitions[other.definitionId]?.staticBuff;
-    if (!buff) continue;
-    if (!buffApplies(state, other, buff, instance, def)) continue;
-    found.push(buff);
+    // A card may print more than one continuous effect - Greymond prints two.
+    for (const buff of staticBuffsOf(state.cardDefinitions[other.definitionId])) {
+      if (!buffApplies(state, other, buff, instance, def)) continue;
+      found.push({ buff, source: other });
+    }
   }
   return found;
+}
+
+/**
+ * A buff and the permanent printing it.
+ *
+ * The source is carried because one buff cannot be read without it: Greymond
+ * grants "each of the chosen abilities", and the choice lives on his own
+ * `CardInstance` rather than on the card.
+ */
+interface ReachingBuff {
+  buff: StaticBuff;
+  source: CardInstance;
 }
 
 /** The total power/toughness bonus from the "anthem"/"lord" pattern. */
 function staticBuffFor(state: GameState, instance: CardInstance): { power: number; toughness: number } {
   const total = { power: 0, toughness: 0 };
-  for (const buff of buffsReaching(state, instance)) {
+  for (const { buff } of buffsReaching(state, instance)) {
     total.power += buff.power;
     total.toughness += buff.toughness;
   }
@@ -120,8 +146,20 @@ export function effectiveKeywords(state: GameState, instance: CardInstance): Key
 
   const all = new Set<Keyword>(printed);
   for (const keyword of instance.grantedKeywords) all.add(keyword);
-  for (const buff of buffsReaching(state, instance)) {
+  for (const { buff, source } of buffsReaching(state, instance)) {
     for (const keyword of buff.grants ?? []) all.add(keyword);
+    /*
+     * "Humans you control have each of the **chosen** abilities" - Greymond,
+     * whose keywords were named as he entered.
+     *
+     * A Greymond who was never asked grants nothing rather than guessing, the
+     * same posture Sanctum Prelate takes for a number nobody chose. It cannot
+     * arise in play - the game holds on `pendingEnterChoice` until answered -
+     * but a default here would be a card that silently works differently.
+     */
+    if (buff.grantsChosenOnEntry) {
+      for (const keyword of source.chosenOnEntry?.keywords ?? []) all.add(keyword);
+    }
   }
   return [...all];
 }
@@ -152,11 +190,56 @@ export function effectiveActivated(state: GameState, instance: CardInstance): Ac
   const printed = requireDefinition(state, instance.definitionId).activatedAbilities ?? [];
   if (instance.zone !== "battlefield") return printed;
   const granted: ActivatedAbility[] = [];
-  for (const buff of buffsReaching(state, instance)) {
+  /*
+   * "This land is the chosen type" - Multiversal Passage, whose whole output is
+   * a basic land type named as it entered. A land that was never asked makes no
+   * mana, which is the same posture every other unanswered choice takes.
+   */
+  if (requireDefinition(state, instance.definitionId).becomesChosenBasicType) {
+    const color = BASIC_TYPE_MANA[instance.chosenOnEntry?.basicLandType ?? ""];
+    if (color) granted.push({ cost: { tap: true }, effect: { kind: "addMana", color, amount: 1 } });
+  }
+  for (const { buff } of buffsReaching(state, instance)) {
     for (const ability of buff.grantsAbilities ?? []) granted.push(ability);
   }
   return granted.length > 0 ? [...printed, ...granted] : printed;
 }
+
+/**
+ * The ward cost this permanent actually has - printed, or handed to it.
+ *
+ * "Other creatures you control have 'Ward - Pay 2 life'" (Hexing Squelcher) is
+ * not a keyword grant: `grants` is a list of keywords and ward carries a cost,
+ * which no keyword does. So it is its own field on the buff and read here,
+ * alongside the printed one, for the same reason `effectiveKeywords` exists -
+ * a check that read the card would be reading a stale answer.
+ */
+export function effectiveWard(
+  state: GameState,
+  instance: CardInstance,
+): { life?: number; mana?: ManaCost } | null {
+  const def = requireDefinition(state, instance.definitionId);
+  if (def.keywords?.includes("Ward")) {
+    return def.wardLifeCost !== undefined ? { life: def.wardLifeCost } : { mana: def.wardCost ?? { generic: 0, colors: {} } };
+  }
+  if (instance.zone !== "battlefield") return null;
+  for (const { buff } of buffsReaching(state, instance)) {
+    if (buff.grantsWardLife !== undefined) return { life: buff.grantsWardLife };
+  }
+  return null;
+}
+
+/**
+ * The mana ability a permanent has because of a type it was told to be -
+ * Multiversal Passage.
+ */
+const BASIC_TYPE_MANA: Record<string, ManaColor> = {
+  Plains: "W",
+  Island: "U",
+  Swamp: "B",
+  Mountain: "R",
+  Forest: "G",
+};
 
 /**
  * What this card's types are *right now*.

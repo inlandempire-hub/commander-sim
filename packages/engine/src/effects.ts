@@ -1,4 +1,4 @@
-import type { CardDefinition, CardInstance, Effect, GameState, ManaCost, StackTarget } from "./types.js";
+import type { CardDefinition, CardInstance, Effect, GameState, ManaCost, Player, StackTarget } from "./types.js";
 import { ALL_COLORS } from "./types.js";
 import {
   cardName,
@@ -560,6 +560,7 @@ export function applyEffect(
       return;
     }
     case "createToken": {
+      // See below - the grants are applied to each token as it is made.
       // Doubling Season and its family. Asked once for the whole event, not
       // per token - "would create one or more tokens" is a single event, so
       // two Doubling Seasons make four Insects rather than compounding oddly
@@ -579,6 +580,15 @@ export function applyEffect(
          * gained nothing.
          */
         enteredBattlefield(state, token, deployOptions(state, controllerId, effect.attacking));
+        /*
+         * "It gains lifelink and haste **until end of turn**" - Windcrag
+         * Siege's Goblin. Granted to the instance rather than printed on the
+         * token definition, so cleanup takes them off it: a token that kept
+         * haste would be a different card every turn after the first.
+         */
+        for (const keyword of effect.grants ?? []) {
+          if (!token.grantedKeywords.includes(keyword)) token.grantedKeywords.push(keyword);
+        }
       }
       return;
     }
@@ -894,6 +904,24 @@ export function applyEffect(
           continue;
         }
 
+        /*
+         * "Spells you control can't be countered." - Hexing Squelcher.
+         *
+         * Asked of the board at the moment somebody tries, rather than stamped
+         * onto the spell as it was cast: the Squelcher can arrive after the
+         * spell is already on the stack, and it protects that spell too.
+         */
+        const protector = requirePlayer(state, obj.controllerId).battlefield.find(
+          (permanent) => state.cardDefinitions[permanent.definitionId]?.staticRules?.yourSpellsCantBeCountered,
+        );
+        if (protector) {
+          log(
+            state,
+            `${spellDef?.name ?? "that spell"} can't be countered - ${cardName(state, protector.instanceId)}`,
+          );
+          continue;
+        }
+
         // "unless its controller pays {N}" is a choice the real rules give that
         // player. There is no mid-resolution decision flow yet, so this takes
         // the same shortcut as Ward (see ward.ts): pay automatically if the
@@ -967,9 +995,7 @@ export function applyEffect(
           playerId: first!,
           effectControllerId: controllerId,
           sourceInstanceId,
-          candidateInstanceIds: searcher.library
-            .filter((card) => matchesSearch(state, card, effect))
-            .map((card) => card.instanceId),
+          candidateInstanceIds: searchCandidates(state, searcher, effect),
           destination: effect.destination,
           tapped: effect.tapped,
           prompt: describeSearch(effect),
@@ -996,9 +1022,7 @@ export function applyEffect(
         playerId: searcherId,
         effectControllerId: controllerId,
         sourceInstanceId,
-        candidateInstanceIds: searcher.library
-          .filter((card) => matchesSearch(state, card, effect))
-          .map((card) => card.instanceId),
+        candidateInstanceIds: searchCandidates(state, searcher, effect),
         destination: effect.destination,
         tapped: effect.tapped,
         prompt: describeSearch(effect),
@@ -1090,6 +1114,13 @@ function listOr(items: string[]): string {
   return `${items.slice(0, -1).join(", ")}, or ${items[items.length - 1]}`;
 }
 
+/** "power 2 or less and mana value 1 or less" - every cap a search prints. */
+function listAnd(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
 /** What a search is looking for, in the card's own words, for the picker heading. */
 function describeSearch(effect: Extract<Effect, { kind: "searchLibrary" }>): string {
   /*
@@ -1103,13 +1134,24 @@ function describeSearch(effect: Extract<Effect, { kind: "searchLibrary" }>): str
    * looking at.
    */
   const basic = effect.basicLandOnly ? "basic " : "";
+  const types = effect.cardType
+    ? (Array.isArray(effect.cardType) ? effect.cardType : [effect.cardType]).map((t) => t.toLowerCase())
+    : [];
+  // "with power 2 or less" - the cap belongs in the picker heading, because it
+  // is the difference between the tutor the card prints and a strictly better
+  // one, and the heading is the only place the player is told which they have.
+  const caps: string[] = [];
+  if (effect.maxPower !== undefined) caps.push(`power ${effect.maxPower} or less`);
+  if (effect.maxToughness !== undefined) caps.push(`toughness ${effect.maxToughness} or less`);
+  if (effect.maxManaValue !== undefined) caps.push(`mana value ${effect.maxManaValue} or less`);
+  const cap = caps.length > 0 ? ` with ${listAnd(caps)}` : "";
   const what = effect.subtypes?.length
-    ? `a ${basic}${listOr(effect.subtypes)} card`
+    ? `a ${basic}${listOr(effect.subtypes)} card${cap}`
     : effect.basicLandOnly
       ? "a basic land card"
-      : effect.cardType
-        ? `a ${effect.cardType.toLowerCase()} card`
-        : "a card";
+      : types.length > 0
+        ? `a ${listOr(types)} card${cap}`
+        : `a card${cap}`;
   const where =
     effect.destination === "battlefield"
       ? "onto the battlefield"
@@ -1117,6 +1159,40 @@ function describeSearch(effect: Extract<Effect, { kind: "searchLibrary" }>): str
         ? "on top of your library"
         : "into your hand";
   return `Search your library for ${what} and put it ${where}${effect.tapped ? " tapped" : ""}`;
+}
+
+/**
+ * Which of a player's library cards this search may actually take.
+ *
+ * "If an opponent would search a library, that player searches the **top four
+ * cards** of that library instead." - Aven Mindcensor. Applied to the *library*
+ * before the card filter, which is the order the card describes and the order
+ * that matters: four cards are looked at, and whether any of them is a match is
+ * the searcher's problem.
+ *
+ * Index 0 is the top of the library, which is where `drawCard` takes from.
+ */
+function searchCandidates(
+  state: GameState,
+  searcher: Player,
+  effect: Extract<Effect, { kind: "searchLibrary" }>,
+): string[] {
+  let library = searcher.library;
+  let cap: number | undefined;
+  for (const player of state.players) {
+    if (player.id === searcher.id) continue;
+    for (const permanent of player.battlefield) {
+      const limit = state.cardDefinitions[permanent.definitionId]?.staticRules?.opponentSearchesTopCards;
+      // Two of them on the table means the smaller number wins - each is a
+      // replacement and both apply.
+      if (limit !== undefined) cap = cap === undefined ? limit : Math.min(cap, limit);
+    }
+  }
+  if (cap !== undefined) {
+    library = library.slice(0, cap);
+    log(state, `${searcher.id} searches only the top ${cap} cards of their library`);
+  }
+  return library.filter((card) => matchesSearch(state, card, effect)).map((card) => card.instanceId);
 }
 
 function matchesSearch(
@@ -1127,7 +1203,27 @@ function matchesSearch(
   const definition = state.cardDefinitions[card.definitionId];
   if (!definition) return false;
   if (effect.basicLandOnly && !definition.supertypes?.includes("Basic")) return false;
-  if (effect.cardType && !definition.types.includes(effect.cardType)) return false;
+  // "An artifact or enchantment card" - any one of the listed types qualifies.
+  if (effect.cardType) {
+    const wanted = Array.isArray(effect.cardType) ? effect.cardType : [effect.cardType];
+    if (!wanted.some((type) => definition.types.includes(type))) return false;
+  }
+  /*
+   * The recruiters. Printed characteristics only: a card in a library is not
+   * on the battlefield, so nothing is buffing it and there is nothing to read
+   * but what the card says.
+   *
+   * A creature with no printed power - which is nothing in this pool, but the
+   * field is optional - fails the test rather than passing it. "Power 2 or
+   * less" is a claim about a number, and a card with no number does not make it.
+   */
+  if (effect.maxPower !== undefined && (definition.power ?? Infinity) > effect.maxPower) return false;
+  if (effect.maxToughness !== undefined && (definition.toughness ?? Infinity) > effect.maxToughness) {
+    return false;
+  }
+  if (effect.maxManaValue !== undefined && manaValue(definition.manaCost ?? { generic: 0, colors: {} }) > effect.maxManaValue) {
+    return false;
+  }
   // "A Swamp or Mountain card" - any one of them is enough, and a nonbasic with
   // the type counts. Bayou is a legal find for a fetchland asking for a Swamp.
   if (effect.subtypes?.length && !effect.subtypes.some((s) => definition.subtypes?.includes(s))) {

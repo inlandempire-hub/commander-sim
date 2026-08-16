@@ -13509,6 +13509,388 @@ export const BLADE_HISTORIAN: CardDefinition = {
   tier: "scripted",
 };
 
+
+/** Flash // {1}, Sacrifice this creature: Destroy target artifact or enchantment. */
+export const CATHAR_COMMANDO: CardDefinition = {
+  id: "cathar-commando",
+  name: "Cathar Commando",
+  scryfallId: "7cd21530-ca72-4986-a0f2-142b9f23c413",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 1,
+  keywords: ["Flash"],
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: {} }, sacrificeSelf: true },
+      effect: {
+        kind: "destroy",
+        target: { kind: "permanent", cardTypes: ["Artifact", "Enchantment"] },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "Search your library for an artifact or enchantment card, reveal it, then
+ * shuffle and put that card on top."
+ *
+ * The first search in the pool that names two card types. Note the printed
+ * order of the last clause - the shuffle happens first, which `resolveSearch`
+ * has handled since Sylvan Tutor.
+ */
+export const ENLIGHTENED_TUTOR: CardDefinition = {
+  id: "enlightened-tutor",
+  name: "Enlightened Tutor",
+  scryfallId: "1c9675fb-1a89-420f-aea8-50e0642f549c",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: {
+    kind: "searchLibrary",
+    cardType: ["Artifact", "Enchantment"],
+    destination: "library-top",
+  },
+  tier: "scripted",
+};
+
+/** When this creature enters, search your library for a creature card with power 2 or less. */
+export const IMPERIAL_RECRUITER: CardDefinition = {
+  id: "imperial-recruiter",
+  name: "Imperial Recruiter",
+  scryfallId: "05bd329b-5707-42fc-af1c-084cc604e805",
+  types: ["Creature"],
+  subtypes: ["Human", "Advisor"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "searchLibrary", cardType: "Creature", maxPower: 2, destination: "hand" },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * The toughness half of the same pair.
+ *
+ * "You **may** search" needs no flag: declining a search is always legal - you
+ * search, take nothing, and shuffle - so the optional wording and the
+ * compulsory one land in the same place. Imperial Recruiter above prints no
+ * "may" and behaves identically, which is the real rule rather than a shortcut.
+ */
+export const RECRUITER_OF_THE_GUARD: CardDefinition = {
+  id: "recruiter-of-the-guard",
+  name: "Recruiter of the Guard",
+  scryfallId: "8e4c6ba1-1abc-478f-9b7c-97e9e3c92fb0",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "searchLibrary", cardType: "Creature", maxToughness: 2, destination: "hand" },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * A tutor and a Silence stapled to a 3/3.
+ *
+ * The second ability is the same shape Silence takes - a turn-long restriction
+ * rather than anything on a permanent - which is why it survives the creature
+ * being sacrificed to pay for it.
+ */
+export const RANGER_CAPTAIN_OF_EOS: CardDefinition = {
+  id: "ranger-captain-of-eos",
+  name: "Ranger-Captain of Eos",
+  scryfallId: "af3928b4-813a-4120-8799-de34235d60ac",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier", "Ranger"],
+  manaCost: { generic: 1, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "searchLibrary", cardType: "Creature", maxManaValue: 1, destination: "hand" },
+    },
+  ],
+  activatedAbilities: [
+    {
+      cost: { sacrificeSelf: true },
+      effect: {
+        kind: "restrictThisTurn",
+        restriction: { kind: "opponents-cannot-cast", only: "noncreature" },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "Exile target creature. Its controller may search their library for a basic
+ * land card, put that card onto the battlefield tapped, then shuffle."
+ *
+ * The search is somebody else's - `who: "target-controller"` reads the player
+ * off the spell's own target, the same way Assassin's Trophy hands its victim a
+ * basic. Their "may" is the ordinary right to search and take nothing, which is
+ * how a player declines the land.
+ */
+export const PATH_TO_EXILE: CardDefinition = {
+  id: "path-to-exile",
+  name: "Path to Exile",
+  scryfallId: "95ca89ea-1200-4bb4-ae4b-af35d3ccd35b",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "exile", target: { kind: "creature" } },
+      {
+        kind: "searchLibrary",
+        basicLandOnly: true,
+        destination: "battlefield",
+        tapped: true,
+        who: "target-controller",
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+
+/**
+ * "As this land enters, choose a creature type. {T}: Add {C}. {T}: Add one mana
+ * of any color. Spend this mana only to cast a creature spell of the chosen
+ * type, and that spell can't be countered."
+ *
+ * The colourless half is unrestricted and the coloured half is not, which is
+ * why they are separate abilities rather than one with a rider - a Cavern tapped
+ * for {C} pays for anything.
+ *
+ * "Any color" is written out as five abilities, the same way Command Tower is:
+ * one ability per colour is what `activatedAbilities` already is, and it needs
+ * no new concept.
+ */
+export const CAVERN_OF_SOULS: CardDefinition = {
+  id: "cavern-of-souls",
+  name: "Cavern of Souls",
+  scryfallId: "3aad15a2-8a1b-4460-9b06-e85863081878",
+  types: ["Land"],
+  colorIdentity: [],
+  enterChoice: { kind: "creature-type" },
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } },
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "W", amount: 1 },
+      producesRestrictedMana: { kind: "creature-of-chosen-type", grantsUncounterable: true },
+    },
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "U", amount: 1 },
+      producesRestrictedMana: { kind: "creature-of-chosen-type", grantsUncounterable: true },
+    },
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "B", amount: 1 },
+      producesRestrictedMana: { kind: "creature-of-chosen-type", grantsUncounterable: true },
+    },
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "R", amount: 1 },
+      producesRestrictedMana: { kind: "creature-of-chosen-type", grantsUncounterable: true },
+    },
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "G", amount: 1 },
+      producesRestrictedMana: { kind: "creature-of-chosen-type", grantsUncounterable: true },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * "As this land enters, choose a basic land type. Then you may pay 2 life. If
+ * you don't, it enters tapped. This land is the chosen type."
+ *
+ * The two questions are asked in the opposite order to the printed one: the
+ * life is offered as the land arrives and the type is chosen immediately after,
+ * because `enterChoice` resolves once the permanent is on the battlefield. Both
+ * are the same player's and neither answer depends on the other, so the only
+ * difference is which prompt appears first.
+ */
+export const MULTIVERSAL_PASSAGE: CardDefinition = {
+  id: "multiversal-passage",
+  name: "Multiversal Passage",
+  scryfallId: "f5fb426a-5618-4dd4-9c51-0cc847be8c1d",
+  types: ["Land"],
+  colorIdentity: [],
+  enterChoice: { kind: "basic-land-type" },
+  entersTappedUnlessPayLife: 2,
+  becomesChosenBasicType: true,
+  tier: "weird",
+};
+
+/**
+ * Two continuous effects with different lifetimes, which is why `staticBuff`
+ * takes a list: the granted abilities are unconditional and the +2/+2 comes and
+ * goes with the fourth Human.
+ *
+ * Neither says "other", so both reach Greymond himself - he is a Human Soldier.
+ */
+export const GREYMOND_AVACYNS_STALWART: CardDefinition = {
+  id: "greymond-avacyns-stalwart",
+  name: "Greymond, Avacyn's Stalwart",
+  scryfallId: "b7848325-c46e-4e63-90d0-c9524380eb63",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 2, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 4,
+  canBeCommander: true,
+  enterChoice: { kind: "keywords", from: ["First Strike", "Vigilance", "Lifelink"], count: 2 },
+  staticBuff: [
+    { power: 0, toughness: 0, subtype: "Human", includesSelf: true, grantsChosenOnEntry: true },
+    {
+      power: 2,
+      toughness: 2,
+      subtype: "Human",
+      includesSelf: true,
+      condition: { kind: "controls-subtype", subtypes: ["Human"], count: 4 },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * The hate piece batch 2 could not finish. Its first line is the same
+ * `cast-limit` High Noon prints; the second is the first rule in the pool that
+ * changes how somebody else's permanents arrive.
+ */
+export const ARCHON_OF_EMERIA: CardDefinition = {
+  id: "archon-of-emeria",
+  name: "Archon of Emeria",
+  scryfallId: "228c1650-da3c-4099-91b6-18e3873c9cdb",
+  types: ["Creature"],
+  subtypes: ["Archon"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 3,
+  keywords: ["Flying"],
+  staticRestrictions: [{ kind: "cast-limit", perTurn: 1 }],
+  staticRules: { opponentsNonbasicLandsEnterTapped: true },
+  tier: "scripted",
+};
+
+/** If an opponent would search a library, they see the top four cards and no more. */
+export const AVEN_MINDCENSOR: CardDefinition = {
+  id: "aven-mindcensor",
+  name: "Aven Mindcensor",
+  scryfallId: "d4cf468f-4e9d-4551-a0ed-10bd6a2316ad",
+  types: ["Creature"],
+  subtypes: ["Bird", "Wizard"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 1,
+  keywords: ["Flash", "Flying"],
+  staticRules: { opponentSearchesTopCards: 4 },
+  tier: "scripted",
+};
+
+/**
+ * Four lines, and the two that look alike are not:
+ *
+ * - "This spell can't be countered" protects the Squelcher itself while it is
+ *   on the stack, where none of its own statics apply yet.
+ * - "Spells you control can't be countered" protects everything else, from the
+ *   battlefield, for as long as it is there.
+ *
+ * The ward it hands out is not a keyword grant. Ward carries a cost and
+ * `grants` is a list of keywords with none, so it has a field of its own.
+ */
+export const HEXING_SQUELCHER: CardDefinition = {
+  id: "hexing-squelcher",
+  name: "Hexing Squelcher",
+  scryfallId: "674960ce-ff33-4d5e-a24a-a4582b2e9809",
+  types: ["Creature"],
+  subtypes: ["Goblin", "Sorcerer"],
+  manaCost: { generic: 1, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Ward"],
+  wardLifeCost: 2,
+  cantBeCountered: true,
+  staticRules: { yourSpellsCantBeCountered: true },
+  staticBuff: { power: 0, toughness: 0, grantsWardLife: 2 },
+  tier: "weird",
+};
+
+
+/** The Goblin the Jeskai half makes. Lifelink and haste are granted for the turn, not printed. */
+export const TOKEN_R_11_GOBLIN: CardDefinition = {
+  id: "token-r-11-goblin",
+  name: "Goblin",
+  types: ["Creature"],
+  subtypes: ["Goblin"],
+  colorIdentity: ["R"],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+/**
+ * Two halves that share nothing but the choice made as it entered.
+ *
+ * The Mardu half is a `staticRules` entry keyed to its own mode rather than a
+ * flag, because both halves are printed on the card and only one is live - a
+ * plain boolean would make a Jeskai Siege double triggers as well. The Jeskai
+ * half is an ordinary upkeep trigger with an intervening-if on the same choice.
+ */
+export const WINDCRAG_SIEGE: CardDefinition = {
+  id: "windcrag-siege",
+  name: "Windcrag Siege",
+  scryfallId: "31a8329b-23a1-4c49-a579-a5da8d01435a",
+  types: ["Enchantment"],
+  manaCost: { generic: 1, colors: { R: 1, W: 1 } },
+  colorIdentity: ["R", "W"],
+  enterChoice: { kind: "mode", options: ["Mardu", "Jeskai"] },
+  staticRules: { doublesAttackTriggersWhenMode: "Mardu" },
+  triggeredAbilities: [
+    {
+      event: "upkeep",
+      watches: "controller",
+      onlyIf: { kind: "chosen-mode", mode: "Jeskai" },
+      effect: {
+        kind: "createToken",
+        count: 1,
+        tokenDefinitionId: "token-r-11-goblin",
+        grants: ["Lifelink", "Haste"],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -14480,5 +14862,19 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     COMBAT_CELEBRANT,
     RAPH_AND_LEO_SIBLING_RIVALS,
     BLADE_HISTORIAN,
+    CATHAR_COMMANDO,
+    ENLIGHTENED_TUTOR,
+    IMPERIAL_RECRUITER,
+    RECRUITER_OF_THE_GUARD,
+    RANGER_CAPTAIN_OF_EOS,
+    PATH_TO_EXILE,
+    CAVERN_OF_SOULS,
+    MULTIVERSAL_PASSAGE,
+    GREYMOND_AVACYNS_STALWART,
+    ARCHON_OF_EMERIA,
+    AVEN_MINDCENSOR,
+    HEXING_SQUELCHER,
+    TOKEN_R_11_GOBLIN,
+    WINDCRAG_SIEGE,
   ].map((def) => [def.id, def]),
 );

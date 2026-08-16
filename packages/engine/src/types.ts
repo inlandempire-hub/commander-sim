@@ -682,6 +682,15 @@ export type Effect =
        * make more, forever.
        */
       attacking?: boolean;
+      /**
+       * "It gains lifelink and haste **until end of turn**" - Windcrag Siege's
+       * Goblin.
+       *
+       * Granted rather than printed on the token definition, and the difference
+       * is the whole clause: a token whose *definition* carried haste would
+       * still have it next turn, which is a materially better card.
+       */
+      grants?: Keyword[];
     }
   /**
    * "Look at the top six cards of your library. You may put a Human creature
@@ -908,8 +917,30 @@ export type Effect =
    */
   | {
       kind: "searchLibrary";
-      /** Restricts what may be found. Omitted means any card. */
-      cardType?: CardType;
+      /**
+       * Restricts what may be found. Omitted means any card.
+       *
+       * A list means any one of them qualifies - Enlightened Tutor's "an
+       * artifact **or** enchantment card". One field rather than two, because
+       * it is one question, which is the same shape `watchFor.type` takes.
+       */
+      cardType?: CardType | CardType[];
+      /**
+       * "a creature card with **power 2 or less**" - Imperial Recruiter,
+       * "**toughness 2 or less**" - Recruiter of the Guard, "**mana value 1 or
+       * less**" - Ranger-Captain of Eos.
+       *
+       * Plain numbers rather than `Amount`s, because all three are printed on
+       * the card and none of them moves. The graveyard selector's
+       * `maxManaValue` is an `Amount` for the opposite reason: Moseo's cap is
+       * the life you gained this turn, and it changes during the turn.
+       *
+       * Read off the printed characteristics, so a creature buffed on the
+       * battlefield is irrelevant - a card in a library has no bonuses.
+       */
+      maxPower?: number;
+      maxToughness?: number;
+      maxManaValue?: number;
       /** Narrows further to basic lands only, for the ramp spells. */
       basicLandOnly?: boolean;
       /**
@@ -1312,6 +1343,15 @@ export type TriggerCondition =
    */
   | { kind: "source-not-exerted" }
   /**
+   * "**Jeskai** - At the beginning of your upkeep, ..." - Windcrag Siege, whose
+   * two halves are one card and only one of them happens.
+   *
+   * An intervening-if rather than two card definitions, because it is one
+   * permanent: the mode was chosen as it entered and lives on its
+   * `CardInstance`, which is exactly what a `TriggerCondition` is given.
+   */
+  | { kind: "chosen-mode"; mode: string }
+  /**
    * "**if it's the first combat phase of the turn**" - Raph & Leo, which is
    * the clause that stops it making combat phases forever.
    *
@@ -1474,11 +1514,34 @@ export type ManaColorSource =
  * other condition here is: one card needs one shape, and inventing a general
  * restriction language now would mean accepting wordings nothing can evaluate.
  */
-export type ManaSpendRestriction = {
-  kind: "legendary-spell";
-  /** "...and that spell can't be countered." Applies to whatever this mana helped pay for. */
-  grantsUncounterable?: boolean;
-};
+export type ManaSpendRestriction =
+  | {
+      kind: "legendary-spell";
+      /** "...and that spell can't be countered." Applies to whatever this mana helped pay for. */
+      grantsUncounterable?: boolean;
+    }
+  | {
+      /**
+       * "Spend this mana only to cast a creature spell of the chosen type" -
+       * Cavern of Souls, whose type was named as the land entered.
+       */
+      kind: "creature-of-chosen-type";
+      /**
+       * The type actually chosen, stamped onto the mana as it is produced.
+       *
+       * The restriction on the *card* names no type - it says "the chosen
+       * type" - and the choice lives on the land's own `CardInstance`. Copying
+       * it onto the mana here means nothing downstream has to find its way back
+       * to a permanent that may since have left the battlefield.
+       *
+       * Absent means the land was never asked, in which case the mana can pay
+       * for nothing. That cannot happen in play - the game holds on
+       * `pendingEnterChoice` - and a default here would be a Cavern that
+       * silently made mana for the wrong deck.
+       */
+      creatureType?: string;
+      grantsUncounterable?: boolean;
+    };
 
 /**
  * A planeswalker's loyalty ability. `cost` is signed exactly as the card prints
@@ -1630,6 +1693,42 @@ export interface ManaMark {
  * controller, read by `playLand` rather than by anything that computes stats.
  */
 export interface StaticRules {
+  /**
+   * "**Nonbasic lands your opponents control enter tapped.**" - Archon of
+   * Emeria.
+   *
+   * The first static in the pool that changes how somebody *else's* permanents
+   * arrive. Read at the moment a land enters, like every other enters-tapped
+   * question, rather than being applied to lands already in play.
+   */
+  opponentsNonbasicLandsEnterTapped?: boolean;
+  /**
+   * "If an opponent would search a library, that player searches the **top
+   * four cards** of that library instead." - Aven Mindcensor.
+   *
+   * A number rather than a flag, because the card prints one and a second card
+   * with a different number would otherwise need a second rule.
+   */
+  opponentSearchesTopCards?: number;
+  /**
+   * "**Spells you control can't be countered.**" - Hexing Squelcher.
+   *
+   * Distinct from `CardDefinition.cantBeCountered`, which is a property of one
+   * card. This protects everything its controller casts for as long as it is on
+   * the battlefield, so it is asked at the moment something tries to counter
+   * rather than stamped onto the spell.
+   */
+  /**
+   * "**Mardu** - If a creature attacking causes a triggered ability of a
+   * permanent you control to trigger, that ability triggers an additional
+   * time." - Windcrag Siege.
+   *
+   * The value is the mode this half belongs to, not a flag: the card prints
+   * both halves and only one of them is live, decided by the choice made as it
+   * entered. A plain boolean would make a Jeskai Siege double triggers too.
+   */
+  doublesAttackTriggersWhenMode?: string;
+  yourSpellsCantBeCountered?: boolean;
   /** "You may play an additional land on each of your turns" - Icetill Explorer. */
   extraLandDrops?: number;
   /** "You may play lands from your graveyard" - Icetill Explorer's second line. */
@@ -1645,6 +1744,81 @@ export interface StaticRules {
  * from Scryfall (see CLAUDE.md). Distinct from CardInstance, which is a
  * specific physical copy of this definition in a game.
  */
+/**
+ * One continuous effect of the "anthem"/"lord" pattern.
+ *
+ * A card may carry more than one - Greymond grants keywords unconditionally
+ * and gives +2/+2 only while you control four Humans, which are two effects
+ * with different lifetimes and cannot be written as one.
+ */
+export interface StaticBuff {
+  power: number;
+  toughness: number;
+  subtype?: string;
+  /**
+   * "Attacking Pests you control get +1/+0 **and have menace**" - Blight
+   * Mound. Keywords granted for as long as this permanent is on the
+   * battlefield and the restriction below holds.
+   *
+   * Granted rather than printed, which is why nothing may read
+   * `CardDefinition.keywords` directly any more: see `effectiveKeywords`.
+   */
+  grants?: Keyword[];
+  /**
+   * Which of the controller's permanents it reaches, beyond the subtype.
+   *
+   * `"attacking"` is Blight Mound's "**Attacking** Pests you control", which
+   * is not decoration - the menace is only there in combat, and a card that
+   * granted it permanently would be a different card. `"with-counter"` is
+   * Duskshell Crawler's "each creature you control **with a +1/+1 counter on
+   * it**", which turns on and off as counters come and go.
+   */
+  restriction?: "attacking" | "with-counter";
+  /**
+   * Whether the permanent printing this counts as one of the things it
+   * affects.
+   *
+   * Defaults to false, because every "lord" says "**other** creatures you
+   * control". Duskshell Crawler says "each creature you control with a +1/+1
+   * counter on it" with no "other", and is itself a creature that can carry
+   * one - so leaving this off would make it the one creature its own ability
+   * skips.
+   */
+  includesSelf?: boolean;
+  /**
+   * "Creature tokens you control have '{T}: Add one mana of any color.'" -
+   * Springleaf Parade, which hands out a whole activated ability.
+   *
+   * The same problem granted keywords and granted triggers had, a third
+   * time: nothing may read `CardDefinition.activatedAbilities` directly.
+   * See `effectiveActivated`.
+   */
+  grantsAbilities?: ActivatedAbility[];
+  /** "Creature **tokens** you control" - narrows to tokens only. */
+  tokensOnly?: boolean;
+  /**
+   * "**As long as you control four or more Humans**, Humans you control get
+   * +2/+2" - Greymond. Read on every access like everything else here, so
+   * the bonus comes and goes with the board rather than being latched.
+   */
+  condition?: BoardCondition;
+  /**
+   * "Humans you control have **each of the chosen abilities**" - Greymond,
+   * whose keywords were named as it entered rather than printed on it.
+   *
+   * Read off the *source* permanent's `chosenOnEntry`, which is why
+   * `buffsReaching` carries the source alongside the buff. A permanent that
+   * was never asked grants nothing, the same posture Sanctum Prelate takes.
+   */
+  grantsChosenOnEntry?: boolean;
+  /**
+   * "Other creatures you control have **'Ward - Pay 2 life.'**" - Hexing
+   * Squelcher. Ward is not an activated ability, so `grantsAbilities` cannot
+   * carry it and `grants` is a keyword list with no cost attached to it.
+   */
+  grantsWardLife?: number;
+}
+
 export interface CardDefinition {
   id: string;
   name: string;
@@ -1690,52 +1864,7 @@ export interface CardDefinition {
    * Anything that grants keywords, changes types, or depends on timestamps
    * still needs the real thing. See ROADMAP.md.
    */
-  staticBuff?: {
-    power: number;
-    toughness: number;
-    subtype?: string;
-    /**
-     * "Attacking Pests you control get +1/+0 **and have menace**" - Blight
-     * Mound. Keywords granted for as long as this permanent is on the
-     * battlefield and the restriction below holds.
-     *
-     * Granted rather than printed, which is why nothing may read
-     * `CardDefinition.keywords` directly any more: see `effectiveKeywords`.
-     */
-    grants?: Keyword[];
-    /**
-     * Which of the controller's permanents it reaches, beyond the subtype.
-     *
-     * `"attacking"` is Blight Mound's "**Attacking** Pests you control", which
-     * is not decoration - the menace is only there in combat, and a card that
-     * granted it permanently would be a different card. `"with-counter"` is
-     * Duskshell Crawler's "each creature you control **with a +1/+1 counter on
-     * it**", which turns on and off as counters come and go.
-     */
-    restriction?: "attacking" | "with-counter";
-    /**
-     * Whether the permanent printing this counts as one of the things it
-     * affects.
-     *
-     * Defaults to false, because every "lord" says "**other** creatures you
-     * control". Duskshell Crawler says "each creature you control with a +1/+1
-     * counter on it" with no "other", and is itself a creature that can carry
-     * one - so leaving this off would make it the one creature its own ability
-     * skips.
-     */
-    includesSelf?: boolean;
-    /**
-     * "Creature tokens you control have '{T}: Add one mana of any color.'" -
-     * Springleaf Parade, which hands out a whole activated ability.
-     *
-     * The same problem granted keywords and granted triggers had, a third
-     * time: nothing may read `CardDefinition.activatedAbilities` directly.
-     * See `effectiveActivated`.
-     */
-    grantsAbilities?: ActivatedAbility[];
-    /** "Creature **tokens** you control" - narrows to tokens only. */
-    tokensOnly?: boolean;
-  };
+  staticBuff?: StaticBuff | StaticBuff[];
   /**
    * "If an effect would ... instead" - the replacement-effect family. See
    * replacements.ts for how they combine and why the order is what it is.
@@ -1789,6 +1918,21 @@ export interface CardDefinition {
    * nothing here can express, and a card like that must not be written as
    * flatly tapped - it would be strictly worse than the card really is.
    */
+  /**
+   * "**This land is the chosen type.**" - Multiversal Passage, which names a
+   * basic land type as it enters and then is that land.
+   *
+   * The mana ability is derived from the choice by `effectiveActivated` rather
+   * than printed, because there is nothing to print: the card has no mana
+   * ability of its own at all.
+   *
+   * A real simplification, and worth naming: the land gains the *ability*, not
+   * the subtype. Nothing in this pool asks whether a permanent on the
+   * battlefield is a Plains - the fetchlands read the library - so the two are
+   * indistinguishable here, and would stop being so the day a card says
+   * "Plains you control".
+   */
+  becomesChosenBasicType?: boolean;
   entersTapped?: boolean;
   /**
    * "This land enters tapped **unless** ..." - the drawback most nonbasic duals
@@ -2636,4 +2780,17 @@ export interface GameState {
   nextInstanceId: number;
   nextStackObjectId: number;
   log: LogEntry[];
+}
+
+/**
+ * Every continuous effect a card carries, however it was written.
+ *
+ * One field that takes either a buff or a list of them, rather than two fields
+ * or a rename of eleven fixtures - the same shape `watchFor.type` and
+ * `searchLibrary.cardType` already use, for the same reason: it is one
+ * question, and every reader has to go through here anyway.
+ */
+export function staticBuffsOf(def: CardDefinition | undefined): StaticBuff[] {
+  if (!def?.staticBuff) return [];
+  return Array.isArray(def.staticBuff) ? def.staticBuff : [def.staticBuff];
 }

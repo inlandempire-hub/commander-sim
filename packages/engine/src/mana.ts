@@ -140,6 +140,14 @@ export function restrictionAllows(
       // A land is not a spell, and nothing else about "legendary spell" needs
       // saying: it is any card with the supertype, cast.
       return (def.supertypes?.includes("Legendary") ?? false) && !def.types.includes("Land");
+    case "creature-of-chosen-type": {
+      // No type was ever chosen, so nothing is of it. See the field's comment.
+      if (!restriction.creatureType) return false;
+      if (!def.types.includes("Creature")) return false;
+      // A changeling is every creature type, so it qualifies whatever was named.
+      if (def.keywords?.includes("Changeling")) return true;
+      return def.subtypes?.includes(restriction.creatureType) ?? false;
+    }
   }
 }
 

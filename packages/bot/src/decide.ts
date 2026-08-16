@@ -1,5 +1,5 @@
 import type { ChosenOnEntry } from "@mtg-commander-sim/engine";
-import { activateRestrictionProblem } from "@mtg-commander-sim/engine";
+import { activateRestrictionProblem, staticBuffsOf } from "@mtg-commander-sim/engine";
 import {
   abilityAvailable,
   isValidTarget,
@@ -384,14 +384,21 @@ function searchLibrary(state: GameState, me: Player, reserve: ManaCost = NO_COST
   for (const tutor of tutors) {
     const effect = tutor.definition.castEffect;
     if (effect?.kind !== "searchLibrary") continue;
-    const isRamp = effect.cardType === "Land";
+    // "An artifact or enchantment card" - a list now, so the ramp test asks
+    // whether Land is among the types rather than whether it is the type.
+    const wantedTypes = effect.cardType
+      ? Array.isArray(effect.cardType)
+        ? effect.cardType
+        : [effect.cardType]
+      : [];
+    const isRamp = wantedTypes.includes("Land");
     if (isRamp && landCount >= 6) continue;
     // Nothing in the library matches - the spell would resolve for nothing.
     const hasMatch = me.library.some((c) => {
       const def = definitionOf(state, c);
       if (!def) return false;
       if (effect.basicLandOnly && !def.supertypes?.includes("Basic")) return false;
-      return !effect.cardType || def.types.includes(effect.cardType);
+      return wantedTypes.length === 0 || wantedTypes.some((type) => def.types.includes(type));
     });
     if (!hasMatch) continue;
     return castOrTapToward(state, me, tutor);
@@ -472,7 +479,7 @@ function playALand(state: GameState, me: Player): BotAction | null {
 function developsTheBoard(def: CardDefinition): boolean {
   if (def.types.includes("Creature")) return true;
   if (def.castEffect?.kind === "createToken") return true;
-  if (def.staticBuff) return true;
+  if (staticBuffsOf(def).length > 0) return true;
   return false;
 }
 
@@ -509,10 +516,10 @@ function developTheBoard(state: GameState, me: Player, reserve: ManaCost = NO_CO
   };
 
   const priority = (c: Castable): number => {
-    if (c.definition.staticBuff) {
+    if (staticBuffsOf(c.definition).length > 0) {
       // Worth roughly one point of power per creature it would pump. Below two
       // creatures it isn't worth a card, so push it behind everything else.
-      const buff = c.definition.staticBuff;
+      const buff = staticBuffsOf(c.definition)[0]!;
       return creatureCount >= 2 ? creatureCount * (buff.power + buff.toughness) : -1;
     }
     return manaValue(c.cost) + offense(c.definition);
@@ -767,11 +774,15 @@ function destroyAPermanent(state: GameState, me: Player, reserve: ManaCost = NO_
         const def = definitionOf(state, instance);
         if (!def) return 0;
         if (def.types.includes("Creature")) return creatureValue(state, instance);
-        if (def.staticBuff) {
+        if (staticBuffsOf(def).length > 0) {
           const pumped = opponent.battlefield.filter(
             (c) => c.instanceId !== instance.instanceId && definitionOf(state, c)?.types.includes("Creature"),
           ).length;
-          return pumped * (def.staticBuff.power + def.staticBuff.toughness) * 2;
+          const totals = staticBuffsOf(def).reduce(
+            (sum: number, buff) => sum + buff.power + buff.toughness,
+            0,
+          );
+          return pumped * totals * 2;
         }
         return manaValue(def.manaCost ?? NO_COST) * 2;
       };

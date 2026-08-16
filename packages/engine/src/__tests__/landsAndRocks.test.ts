@@ -270,7 +270,14 @@ describe("what the generator refused", () => {
       if (!def.types.includes("Land")) continue;
       const hasAbility = (def.activatedAbilities?.length ?? 0) > 0;
       const hasTrigger = (def.triggeredAbilities?.length ?? 0) > 0;
-      expect(hasAbility || hasTrigger, def.name).toBe(true);
+      /*
+       * Multiversal Passage prints no mana ability at all - it says "this land
+       * is the chosen type" and gets one from the basic type named as it
+       * entered. `effectiveActivated` supplies it, so the land does have
+       * something to do; it simply is not on the card.
+       */
+      const derived = def.becomesChosenBasicType === true;
+      expect(hasAbility || hasTrigger || derived, def.name).toBe(true);
     }
   });
 

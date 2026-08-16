@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TEST_CARD_DEFINITIONS, type CardDefinition } from "@mtg-commander-sim/engine";
+import { staticBuffsOf, TEST_CARD_DEFINITIONS, type CardDefinition } from "@mtg-commander-sim/engine";
 import { describeActivated, describeCard, tokenName } from "../cardText.js";
 import { formatManaCost } from "../format.js";
 import { manaSymbols } from "../manaSymbols.js";
@@ -10,6 +10,15 @@ import { manaSymbols } from "../manaSymbols.js";
  * renderer does not know about is a card that silently reads better, or worse,
  * than it is.
  */
+
+/** Whether any node anywhere in a fixture satisfies this test. */
+function hasNode(node: unknown, test: (n: Record<string, unknown>) => boolean): boolean {
+  if (Array.isArray(node)) return node.some((child) => hasNode(child, test));
+  if (node === null || typeof node !== "object") return false;
+  const record = node as Record<string, unknown>;
+  if (test(record)) return true;
+  return Object.values(record).some((child) => hasNode(child, test));
+}
 
 /** Whether anything in this fixture points at "target attacking" something. */
 function hasAttackingSelector(node: unknown): boolean {
@@ -553,6 +562,66 @@ describe("no fixture carries a clause the panel never mentions", () => {
     applies: (def: CardDefinition) => boolean;
     expect: RegExp;
   }> = [
+    {
+      field: "staticRules.opponentsNonbasicLandsEnterTapped",
+      applies: (d) => d.staticRules?.opponentsNonbasicLandsEnterTapped === true,
+      expect: /Nonbasic lands your opponents control enter tapped/,
+    },
+    {
+      field: "staticRules.opponentSearchesTopCards",
+      applies: (d) => d.staticRules?.opponentSearchesTopCards !== undefined,
+      expect: /searches the top \w+ cards/,
+    },
+    {
+      field: "staticRules.yourSpellsCantBeCountered",
+      applies: (d) => d.staticRules?.yourSpellsCantBeCountered === true,
+      expect: /Spells you control can't be countered/,
+    },
+    {
+      field: "staticRules.doublesAttackTriggersWhenMode",
+      applies: (d) => d.staticRules?.doublesAttackTriggersWhenMode !== undefined,
+      expect: /triggers an additional time/,
+    },
+    {
+      field: "becomesChosenBasicType",
+      applies: (d) => d.becomesChosenBasicType === true,
+      expect: /is the chosen type/,
+    },
+    {
+      field: "staticBuff.grantsChosenOnEntry",
+      applies: (d) => staticBuffsOf(d).some((b) => b.grantsChosenOnEntry === true),
+      expect: /each of the chosen abilities/,
+    },
+    {
+      field: "staticBuff.grantsWardLife",
+      applies: (d) => staticBuffsOf(d).some((b) => b.grantsWardLife !== undefined),
+      expect: /Ward-Pay \d+ life/,
+    },
+    {
+      field: "staticBuff.condition",
+      applies: (d) => staticBuffsOf(d).some((b) => b.condition !== undefined),
+      expect: /^As long as /m,
+    },
+    {
+      field: "createToken.grants",
+      // The token's grants, not a staticBuff's - Blight Mound has both, and a
+      // blunt search for the field name reported it for a clause it does print.
+      applies: (d) => hasNode(d, (n) => n.kind === "createToken" && Array.isArray(n.grants)),
+      expect: /gains? .* until end of turn/,
+    },
+    {
+      field: "searchLibrary caps",
+      // On the search, not on the graveyard selector - Moseo's `maxManaValue`
+      // is a cap on what may be returned from a graveyard, a different clause.
+      applies: (d) =>
+        hasNode(
+          d,
+          (n) =>
+            n.kind === "searchLibrary" &&
+            (n.maxPower !== undefined || n.maxToughness !== undefined || n.maxManaValue !== undefined),
+        ),
+      expect: /with (power|toughness|mana value) \d+ or less/,
+    },
     { field: "suspend", applies: (d) => d.suspend !== undefined, expect: /Suspend \d/ },
     {
       field: "effect.exertSelf",
@@ -601,12 +670,12 @@ describe("no fixture carries a clause the panel never mentions", () => {
     },
     {
       field: "equipCost",
-      applies: (d) => d.equipCost !== undefined && d.staticBuff !== undefined,
+      applies: (d) => d.equipCost !== undefined && staticBuffsOf(d).length > 0,
       expect: /Equipped creature/,
     },
     {
       field: "staticBuff.grantsAbilities",
-      applies: (d) => (d.staticBuff?.grantsAbilities?.length ?? 0) > 0,
+      applies: (d) => staticBuffsOf(d).some((b) => (b.grantsAbilities?.length ?? 0) > 0),
       expect: /"/,
     },
     {
@@ -698,5 +767,60 @@ describe("the extra-combat cards", () => {
 
   it("says an attacking-only anthem is attacking-only", () => {
     expect(textOf("blade-historian")).toContain("Attacking creatures you control have double strike.");
+  });
+});
+
+/**
+ * Batch 5's twelve, read back as they are printed.
+ *
+ * Four separate fields rendered as nothing at all on their first run - two
+ * static rules, the chosen basic type and the token's granted keywords - and
+ * one, Cavern of Souls, printed somebody else's card entirely because the
+ * restricted-mana wording was hardcoded to Delighted Halfling's.
+ */
+describe("the leftovers and the free ones", () => {
+  it("says which spells Cavern of Souls' mana may pay for", () => {
+    expect(textOf("cavern-of-souls")).toContain(
+      "Spend this mana only to cast a creature spell of the chosen type, and that spell can't be countered.",
+    );
+    // And not the wording it was hardcoded to.
+    expect(textOf("cavern-of-souls")).not.toContain("legendary spell");
+  });
+
+  it("says what Multiversal Passage becomes", () => {
+    const text = textOf("multiversal-passage");
+    expect(text).toContain("As this land enters, choose a basic land type.");
+    expect(text).toContain("This land is the chosen type.");
+    // The order the card prints: the choice, then the price, then what it is.
+    expect(text.indexOf("choose a basic land type")).toBeLessThan(text.indexOf("you may pay 2 life"));
+  });
+
+  it("prints both of Greymond's continuous effects, and the condition on one", () => {
+    const text = textOf("greymond-avacyns-stalwart");
+    expect(text).toContain("Humans you control have each of the chosen abilities.");
+    expect(text).toContain("As long as you control four or more Humans, Humans you control get +2/+2.");
+    expect(text).toContain("first strike, vigilance, and lifelink");
+  });
+
+  it("prints both halves of Windcrag Siege, not just the live one", () => {
+    const text = textOf("windcrag-siege");
+    expect(text).toContain("triggers an additional time");
+    expect(text).toContain("It gains lifelink and haste until end of turn.");
+  });
+
+  it("prints the second line of each hate piece", () => {
+    expect(textOf("archon-of-emeria")).toContain("Nonbasic lands your opponents control enter tapped.");
+    expect(textOf("aven-mindcensor")).toContain("searches the top four cards of that library instead.");
+    const squelcher = textOf("hexing-squelcher");
+    expect(squelcher).toContain("Spells you control can't be countered.");
+    expect(squelcher).toContain('Other creatures you control have "Ward-Pay 2 life."');
+  });
+
+  it("prints the cap on every recruiter", () => {
+    expect(textOf("imperial-recruiter")).toContain("with power 2 or less");
+    expect(textOf("recruiter-of-the-guard")).toContain("with toughness 2 or less");
+    expect(textOf("ranger-captain-of-eos")).toContain("with mana value 1 or less");
+    // "an artifact", not "a artifact".
+    expect(textOf("enlightened-tutor")).toContain("an artifact or enchantment card");
   });
 });

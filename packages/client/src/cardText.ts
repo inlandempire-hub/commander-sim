@@ -8,11 +8,13 @@ import type {
   Countable,
   Effect,
   ReplacementEffect,
+  StaticBuff,
   TargetCount,
   TargetSelector,
   TriggerCondition,
   TriggeredAbility,
 } from "@mtg-commander-sim/engine";
+import { staticBuffsOf } from "@mtg-commander-sim/engine";
 import { describeEnterChoice, matchesWatchFor } from "@mtg-commander-sim/engine";
 import { formatManaCost } from "./format.js";
 
@@ -447,12 +449,20 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Regenerate ${describeTarget(effect.target)}.`;
     case "createToken": {
       const base = describeCreateToken(effect, definitions);
-      if (!effect.attacking) return base;
       // "...that's tapped and attacking" - appended rather than woven through
       // the five returns above, which each phrase the count differently and
       // would each need the clause spelling out again.
       const one = effect.count === 1;
-      return `${base.slice(0, -1)} ${one ? "that's" : "that are"} tapped and attacking.`;
+      /*
+       * "It gains lifelink and haste until end of turn" - Windcrag Siege's
+       * Goblin. A separate sentence, as the card prints it, because the
+       * keywords are granted to the token and not printed on it.
+       */
+      const gains = effect.grants?.length
+        ? ` ${one ? "It gains" : "They gain"} ${listAnd(effect.grants.map((k) => k.toLowerCase()))} until end of turn.`
+        : "";
+      if (!effect.attacking) return `${base}${gains}`;
+      return `${base.slice(0, -1)} ${one ? "that's" : "that are"} tapped and attacking.${gains}`;
     }
     case "restrictThisTurn":
       // Silence. Phrased for the turn rather than as a permanent's static,
@@ -594,13 +604,26 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
        * Forest card" and cannot.
        */
       const basic = effect.basicLandOnly ? "basic " : "";
+      const searchTypes = effect.cardType
+        ? (Array.isArray(effect.cardType) ? effect.cardType : [effect.cardType]).map((t) => t.toLowerCase())
+        : [];
+      /*
+       * "with power 2 or less" - the recruiters' caps, which are the entire
+       * difference between the card and a strictly better one. Left out, three
+       * tutors read as unrestricted.
+       */
+      const searchCaps: string[] = [];
+      if (effect.maxPower !== undefined) searchCaps.push(`power ${effect.maxPower} or less`);
+      if (effect.maxToughness !== undefined) searchCaps.push(`toughness ${effect.maxToughness} or less`);
+      if (effect.maxManaValue !== undefined) searchCaps.push(`mana value ${effect.maxManaValue} or less`);
+      const searchCap = searchCaps.length > 0 ? ` with ${listAnd(searchCaps)}` : "";
       const what = effect.subtypes?.length
-        ? `a ${basic}${listOr(effect.subtypes)} card`
+        ? `a ${basic}${listOr(effect.subtypes)} card${searchCap}`
         : effect.basicLandOnly
           ? "a basic land card"
-          : effect.cardType
-            ? `a ${effect.cardType.toLowerCase()} card`
-            : "a card";
+          : searchTypes.length > 0
+            ? `${article(listOr(searchTypes))} ${listOr(searchTypes)} card${searchCap}`
+            : `a card${searchCap}`;
       /*
        * "then shuffle and put that card on top" is printed in that order for a
        * reason and reads back in that order too - the card goes on top *after*
@@ -762,7 +785,7 @@ function watchedSpell(watchFor: TriggeredAbility["watchFor"]): string {
  * menace" is worse than one that says nothing: it reads as a complete card.
  */
 function describeStaticBuff(
-  buff: NonNullable<CardDefinition["staticBuff"]>,
+  buff: StaticBuff,
   self: CardDefinition,
   definitions: Definitions,
 ): string {
@@ -791,6 +814,8 @@ function describeStaticBuff(
     return sentence(finish(`${attaches} ${parts.join(" and ")}`));
   }
 
+  // A creature type is a proper noun on a card - "Humans you control", not
+  // "humans" - and the subject of this sentence is often mid-line.
   const noun = buff.subtype ? `${buff.subtype}s` : "creatures";
   // "Attacking Pests you control", "Each creature you control with a +1/+1
   // counter on it" - the restriction is part of the subject, not a trailing
@@ -829,7 +854,36 @@ function describeStaticBuff(
   if (buff.grantsAbilities?.length) {
     parts.push(`${singular ? "has" : "have"} ${grantedAbilityList(buff.grantsAbilities, definitions, self)}`);
   }
-  return sentence(finish(`${subject} ${parts.join(" and ")}`));
+  /*
+   * "Humans you control have **each of the chosen abilities**" - Greymond. The
+   * keywords are not on the card, so the panel says what the card says rather
+   * than naming the two that happen to have been picked in this game: the panel
+   * describes the card, and the card is the same card whatever was chosen.
+   */
+  if (buff.grantsChosenOnEntry) {
+    parts.push(`${singular ? "has" : "have"} each of the chosen abilities`);
+  }
+  /*
+   * "Other creatures you control have **'Ward - Pay 2 life.'**" - Hexing
+   * Squelcher, printed in quotes as the card prints it.
+   */
+  if (buff.grantsWardLife !== undefined) {
+    parts.push(`${singular ? "has" : "have"} "Ward-Pay ${buff.grantsWardLife} life."`);
+  }
+  /*
+   * "**As long as you control four or more Humans**, Humans you control get
+   * +2/+2" - the condition opens the sentence, which is where Greymond prints
+   * it, and it is the whole difference between a conditional anthem and a
+   * permanent one.
+   */
+  const when = buff.condition ? `As long as ${describeCondition(buff.condition)}, ` : "";
+  const line = sentence(finish(`${subject} ${parts.join(" and ")}`));
+  /*
+   * The subject keeps its capital when the condition goes in front of it,
+   * because it is a creature type and not an ordinary noun: "As long as you
+   * control four or more Humans, **Humans** you control get +2/+2".
+   */
+  return when ? `${when}${buff.subtype ? line : `${line.charAt(0).toLowerCase()}${line.slice(1)}`}` : line;
 }
 
 /**
@@ -843,7 +897,7 @@ function describeStaticBuff(
  * to look like the card.
  */
 function grantedAbilityList(
-  abilities: NonNullable<NonNullable<CardDefinition["staticBuff"]>["grantsAbilities"]>,
+  abilities: NonNullable<StaticBuff["grantsAbilities"]>,
   definitions: Definitions,
   self: CardDefinition,
 ): string {
@@ -960,6 +1014,11 @@ function describeTriggerCondition(condition: TriggerCondition): string {
       return "if it hasn't been exerted this turn";
     case "first-combat-phase":
       return "if it's the first combat phase of the turn";
+    case "chosen-mode":
+      // Windcrag Siege prints both halves and a bullet each; the panel says
+      // which half this line belongs to rather than pretending it is the only
+      // one, because the card the player is looking at has both on it.
+      return `if ${condition.mode} was chosen`;
     case "not":
       return `if ${negateCondition(condition.condition)}`;
   }
@@ -1113,8 +1172,10 @@ function describeCondition(condition: BoardCondition): string {
       return `you have ${condition.count} or more opponents`;
     case "controls-subtype": {
       const what = listOr(condition.subtypes.map((s) => `a ${s}`));
+      // Spelled out, as the cards print it: "as long as you control **four** or
+      // more Humans", never "4 or more".
       return condition.count && condition.count > 1
-        ? `you control ${condition.count} or more ${listOr(condition.subtypes)}s`
+        ? `you control ${countWord(condition.count)} or more ${listOr(condition.subtypes)}s`
         : `you control ${what}`;
     }
     case "controls-color":
@@ -1184,8 +1245,20 @@ export function describeActivated(
       ? " (any colour in your commander's colour identity)"
       : " (any colour a land an opponent controls could produce)"
     : "";
+  /*
+   * Which spells this mana may pay for, in the card's own words.
+   *
+   * This was hardcoded to "a legendary spell" - Delighted Halfling's wording -
+   * so Cavern of Souls read as a completely different card the moment it
+   * arrived. A restriction is a closed list, and every member of it needs its
+   * own sentence here.
+   */
+  const spendWhat =
+    ability.producesRestrictedMana?.kind === "creature-of-chosen-type"
+      ? "a creature spell of the chosen type"
+      : "a legendary spell";
   const spend = ability.producesRestrictedMana
-    ? ` Spend this mana only to cast a legendary spell${
+    ? ` Spend this mana only to cast ${spendWhat}${
         ability.producesRestrictedMana.grantsUncounterable ? ", and that spell can't be countered" : ""
       }.`
     : "";
@@ -1294,9 +1367,53 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
    * and neither of these, which reads as strictly better than the real card -
    * the same failure the tapland line below exists to prevent.
    */
+  /*
+   * Three rules added with the batch 2 and 3 leftovers, and every one of them
+   * was the whole reason to play the card. Left off, Aven Mindcensor read as a
+   * 2/1 flier with flash and nothing else at all.
+   */
+  if (def.staticRules?.opponentsNonbasicLandsEnterTapped) {
+    lines.push("Nonbasic lands your opponents control enter tapped.");
+  }
+  if (def.staticRules?.opponentSearchesTopCards !== undefined) {
+    lines.push(
+      `If an opponent would search a library, that player searches the top ${countWord(
+        def.staticRules.opponentSearchesTopCards,
+      )} cards of that library instead.`,
+    );
+  }
+  if (def.staticRules?.yourSpellsCantBeCountered) {
+    lines.push("Spells you control can't be countered.");
+  }
+  /*
+   * Windcrag Siege's Mardu half, which rendered as nothing at all - the panel
+   * showed a card with one mode and a blank where the other should be.
+   */
+  if (def.staticRules?.doublesAttackTriggersWhenMode) {
+    lines.push(
+      `If ${def.staticRules.doublesAttackTriggersWhenMode} was chosen, if a creature attacking causes ` +
+        "a triggered ability of a permanent you control to trigger, that ability triggers an additional time.",
+    );
+  }
   if (def.staticRules?.skipDrawStep) lines.push("Skip your draw step.");
   if (def.staticRules?.maxHandSize !== undefined) {
     lines.push(`Your maximum hand size is ${countWord(def.staticRules.maxHandSize)}.`);
+  }
+
+  /*
+   * "As this creature enters, choose a number." Without this the panel showed
+   * Sanctum Prelate's restriction with no hint of where the number comes from,
+   * which reads as a card that stops a mana value nobody picked.
+   */
+  if (def.enterChoice) {
+    const what = describeEnterChoice(def.enterChoice);
+    // The cards name their own type here - "As this **creature** enters" on
+    // Sanctum Prelate, "As this **land** enters" on Multiversal Passage - so
+    // the noun comes off the type line rather than being a flat "permanent".
+    const noun =
+      (["Creature", "Land", "Artifact", "Enchantment"] as const).find((t) => def.types.includes(t))?.toLowerCase() ??
+      "permanent";
+    lines.push(`As this ${noun} enters, ${what}.`);
   }
 
   // First, and before the abilities, exactly as the card prints it. This is the
@@ -1328,8 +1445,12 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
     );
   }
 
-  if (def.staticBuff) {
-    lines.push(describeStaticBuff(def.staticBuff, def, definitions));
+  // "This land is the chosen type." Without it Multiversal Passage read as a
+  // land that asks you to name a basic type and then does nothing with it.
+  if (def.becomesChosenBasicType) lines.push(`This ${selfNoun(def)} is the chosen type.`);
+
+  for (const buff of staticBuffsOf(def)) {
+    lines.push(describeStaticBuff(buff, def, definitions));
   }
 
   /*
@@ -1338,21 +1459,6 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
    * all - which is the renderer's usual failure mode, and the reason the
    * whole-pool sweep in the tests exists.
    */
-  /*
-   * "As this creature enters, choose a number." Without this the panel showed
-   * Sanctum Prelate's restriction with no hint of where the number comes from,
-   * which reads as a card that stops a mana value nobody picked.
-   */
-  if (def.enterChoice) {
-    const what = describeEnterChoice(def.enterChoice);
-    // The cards name their own type here - "As this **creature** enters" on
-    // Sanctum Prelate, "As this **land** enters" on Multiversal Passage - so
-    // the noun comes off the type line rather than being a flat "permanent".
-    const noun =
-      (["Creature", "Land", "Artifact", "Enchantment"] as const).find((t) => def.types.includes(t))?.toLowerCase() ??
-      "permanent";
-    lines.push(`As this ${noun} enters, ${what}.`);
-  }
 
   for (const restriction of def.staticRestrictions ?? []) {
     lines.push(`${describeRestriction(restriction)}.`);

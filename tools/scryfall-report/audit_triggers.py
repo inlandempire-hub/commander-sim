@@ -89,6 +89,11 @@ def clauses(card):
         # word, so the whole clause was invisible here and Tifa Lockhart's
         # perfectly correct landfall was reported as invented.
         line = re.sub(r"^[A-Z][A-Za-z' ]+ [-—] ", "", line.strip())
+        # "• Jeskai - At the beginning of your upkeep, ..." - a modal permanent
+        # prints each half as a bullet with the mode's name in front of it. Same
+        # problem the ability-word strip above solves: without this the line does
+        # not start with a trigger word and the whole clause is invisible.
+        line = re.sub(r"^[•\u2022]\s*[A-Z][A-Za-z' ]* [-—] ", "", line.strip())
         for sentence in re.split(r"(?<=[.!])\s+", line):
             s = sentence.strip()
             # "When you do, ..." is a *reflexive* trigger - it hangs off the

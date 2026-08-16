@@ -97,6 +97,31 @@ export function putOntoBattlefield(
  * creature entering the battlefield as far as the rules are concerned, and
  * three Soldier tokens should gain three life beside a Soul Warden.
  */
+/**
+ * "Nonbasic lands your opponents control enter tapped." - Archon of Emeria.
+ *
+ * Asked of everybody else's battlefield rather than of the land's own card,
+ * which is what makes it the first rule here that reaches across the table. The
+ * Archon's own controller is unaffected - the card says "your opponents", and a
+ * symmetrical version would be a materially worse card than the one printed.
+ */
+function entersTappedByOpponentsRule(
+  state: GameState,
+  instance: CardInstance,
+  def: CardDefinition,
+): boolean {
+  if (!def.types.includes("Land")) return false;
+  if (def.supertypes?.includes("Basic")) return false;
+  return state.players.some(
+    (player) =>
+      player.id !== instance.controllerId &&
+      player.battlefield.some(
+        (permanent) =>
+          state.cardDefinitions[permanent.definitionId]?.staticRules?.opponentsNonbasicLandsEnterTapped,
+      ),
+  );
+}
+
 export function enteredBattlefield(
   state: GameState,
   instance: CardInstance,
@@ -148,7 +173,11 @@ export function enteredBattlefield(
   // The condition is checked with the permanent already on the battlefield,
   // which is why "two or more *other* lands" says other - counting itself would
   // make Deathcap Glade untapped off a single land, one turn too early.
-  if (options.tapped || (def.entersTapped && !entersUntapped(state, instance, def))) {
+  if (
+    options.tapped ||
+    (def.entersTapped && !entersUntapped(state, instance, def)) ||
+    entersTappedByOpponentsRule(state, instance, def)
+  ) {
     instance.tapped = true;
   }
 
@@ -446,6 +475,42 @@ export function pushTrigger(
    */
   eventAmount?: number,
 ): StackObject | null {
+  /*
+   * "If a creature attacking causes a triggered ability of a permanent you
+   * control to trigger, that ability triggers an additional time." - Windcrag
+   * Siege's Mardu half.
+   *
+   * Applied here because this is the single door every fire site goes through,
+   * so anything added later that fires an attack trigger is covered without
+   * knowing the card exists. Each copy goes through the whole of `pushTriggerOnce`
+   * - including its own targeting - because two instances of an ability really
+   * are two abilities, each pointed separately.
+   */
+  const first = pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount);
+  for (let i = 0; i < extraAttackTriggers(state, controllerId, trigger); i++) {
+    pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount);
+  }
+  return first;
+}
+
+/** How many *additional* times an attack-caused trigger goes on the stack. */
+function extraAttackTriggers(state: GameState, controllerId: string, trigger: TriggeredAbility): number {
+  if (trigger.event !== "attacks" && trigger.event !== "permanent-attacks") return 0;
+  // "a triggered ability of a permanent **you control**" - the doubler and the
+  // ability have to share a controller.
+  return requirePlayer(state, controllerId).battlefield.filter((permanent) => {
+    const mode = state.cardDefinitions[permanent.definitionId]?.staticRules?.doublesAttackTriggersWhenMode;
+    return mode !== undefined && permanent.chosenOnEntry?.mode === mode;
+  }).length;
+}
+
+function pushTriggerOnce(
+  state: GameState,
+  sourceInstanceId: string,
+  controllerId: string,
+  trigger: TriggeredAbility,
+  eventAmount?: number,
+): StackObject | null {
   // Rule 603.4, first check: an intervening-if that is false right now means
   // the ability never goes on the stack at all.
   if (trigger.onlyIf && !triggerConditionMet(state, controllerId, trigger.onlyIf, sourceInstanceId)) return null;
@@ -625,6 +690,12 @@ export function triggerConditionMet(
       if (!found) return false;
       return !found.instance.exerted;
     }
+    case "chosen-mode": {
+      if (!sourceInstanceId) return false;
+      const found = findInstance(state, sourceInstanceId);
+      // A permanent that was never asked has no mode, so neither half is live.
+      return found?.instance.chosenOnEntry?.mode === condition.mode;
+    }
     case "first-combat-phase":
       return state.combatPhasesThisTurn <= 1;
     case "not":
@@ -663,6 +734,13 @@ function describeOptionalEffect(effect: Effect): string {
   }
 }
 
+/** "first strike, vigilance, and lifelink" - a printed list, with its conjunction. */
+function listAndWords(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
 /** The printed wording of what is being chosen, for the client's prompt. */
 export function describeEnterChoice(choice: EnterChoice): string {
   switch (choice.kind) {
@@ -673,9 +751,14 @@ export function describeEnterChoice(choice: EnterChoice): string {
     case "basic-land-type":
       return "choose a basic land type";
     case "keywords":
-      return `choose ${choice.count === 2 ? "two" : String(choice.count)} abilities from among ${choice.from
-        .map((k: Keyword) => k.toLowerCase())
-        .join(", ")}`;
+      /*
+       * "first strike, vigilance, **and** lifelink" - the card prints a list
+       * with a conjunction, and a bare comma-join read as an incomplete
+       * sentence that had lost its last word.
+       */
+      return `choose ${choice.count === 2 ? "two" : String(choice.count)} abilities from among ${listAndWords(
+        choice.from.map((k: Keyword) => k.toLowerCase()),
+      )}`;
     case "mode":
       return `choose ${choice.options.join(" or ")}`;
   }

@@ -1,7 +1,7 @@
 import type { GameState, StackTarget } from "./types.js";
 import { findInstance, log, requirePlayer, requireDefinition } from "./state.js";
 import { canPayManaCost, payManaCost } from "./mana.js";
-import { hasKeyword } from "./counters.js";
+import { effectiveWard } from "./counters.js";
 
 /**
  * Ward: "Whenever this creature becomes the target of a spell or ability an
@@ -24,8 +24,14 @@ export function attemptWardPayments(state: GameState, casterId: string, targets:
     const found = findInstance(state, target.instanceId);
     if (!found) continue;
     if (found.instance.controllerId === casterId) continue; // Ward only triggers against opponents' spells/abilities
-    const def = requireDefinition(state, found.instance.definitionId);
-    if (!hasKeyword(state, found.instance, "Ward")) continue;
+    /*
+     * The ward this permanent has *right now*, which is not always the one
+     * printed on it: Hexing Squelcher hands "Ward - Pay 2 life" to every other
+     * creature its controller has. Reading the card here would have protected
+     * the Squelcher and nothing else.
+     */
+    const ward = effectiveWard(state, found.instance);
+    if (!ward) continue;
     /*
      * "Ward-Pay 3 life" - Sedgemoor Witch. Ward's cost is not always mana, and
      * the same auto-pay shortcut applies: paid without asking if it can be
@@ -36,13 +42,13 @@ export function attemptWardPayments(state: GameState, casterId: string, targets:
      * their behalf by a spell they chose to cast - which is the one place this
      * simplification would do real damage rather than merely remove a choice.
      */
-    if (def.wardLifeCost !== undefined) {
-      if (caster.life <= def.wardLifeCost) return false;
-      caster.life -= def.wardLifeCost;
-      log(state, `${casterId} pays ${def.wardLifeCost} life for ward`);
+    if (ward.life !== undefined) {
+      if (caster.life <= ward.life) return false;
+      caster.life -= ward.life;
+      log(state, `${casterId} pays ${ward.life} life for ward`);
       continue;
     }
-    const cost = def.wardCost ?? { generic: 0, colors: {} };
+    const cost = ward.mana ?? { generic: 0, colors: {} };
     if (!canPayManaCost(caster, cost)) return false;
     payManaCost(caster, cost);
   }
