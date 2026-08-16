@@ -11218,6 +11218,31 @@ export const LABORATORY_MANIAC: CardDefinition = {
   tier: "scripted",
 };
 
+export const PEER_INTO_THE_ABYSS: CardDefinition = {
+  id: "peer-into-the-abyss",
+  name: "Peer into the Abyss",
+  scryfallId: "aac00055-640e-4749-8d23-d242e6d0b23a",
+  types: ["Sorcery"],
+  manaCost: { generic: 4, colors: { B: 3 } },
+  colorIdentity: ["B"],
+  // One targeted step (the life loss carries the player selector); the draw
+  // reads that same shared target. Both amounts are read against the target at
+  // resolution, rounded up, per "Round up each time."
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "draw", amount: { kind: "count", of: { what: "half-library-round-up" } }, who: "target" },
+      {
+        kind: "loseLife",
+        amount: { kind: "count", of: { what: "half-life-round-up" } },
+        who: "target",
+        target: { kind: "player" },
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
 export const SWARMYARD: CardDefinition = {
   id: "swarmyard",
   name: "Swarmyard",
@@ -14168,5 +14193,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     RELIQUARY_TOWER,
     TIME_STRETCH,
     LABORATORY_MANIAC,
+    PEER_INTO_THE_ABYSS,
   ].map((def) => [def.id, def]),
 );

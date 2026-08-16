@@ -84,7 +84,16 @@ export function applyEffect(
       // drawCard logs this itself now, so that the draw step logs too.
       // The amount is counted at resolution for the cards that read the board
       // - Inspiring Call draws one card fewer if you kill a creature first.
-      drawCard(state, controllerId, evaluateAmount(state, controllerId, effect.amount, "draw amount"));
+      //
+      // "Target player draws" (Peer into the Abyss) reads the target, and the
+      // amount is evaluated against that same player so "half their library"
+      // means the drawer's library, not the caster's.
+      let drawer = controllerId;
+      if (effect.who === "target") {
+        const tp = targets.find((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player");
+        if (tp) drawer = tp.playerId;
+      }
+      drawCard(state, drawer, evaluateAmount(state, drawer, effect.amount, "draw amount"));
       return;
     }
     case "addMana": {
@@ -751,10 +760,15 @@ export function applyEffect(
               .filter((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player")
               .map((t) => requirePlayer(state, t.playerId))
           : state.players.filter((p) => p.id !== controllerId);
-      const lost = evaluateAmount(state, controllerId, effect.amount, "loseLife amount", sourceInstanceId);
-      if (lost <= 0) return;
       for (const player of losers) {
         if (player.hasLost) continue;
+        // Evaluated per loser when the loser is the reference: "loses half their
+        // life" (Peer into the Abyss) is read against each target, not the
+        // caster. A static amount reads the same against anyone, so existing
+        // cards are unaffected.
+        const ref = effect.who === "target" ? player.id : controllerId;
+        const lost = evaluateAmount(state, ref, effect.amount, "loseLife amount", sourceInstanceId);
+        if (lost <= 0) continue;
         player.life -= lost;
         log(state, `${player.id} loses ${lost} life`);
       }

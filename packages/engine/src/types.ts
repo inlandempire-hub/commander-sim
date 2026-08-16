@@ -181,6 +181,14 @@ export type Countable =
   /** "equal to the number of creature cards in your graveyard" - Grist. */
   | { what: "creature-cards-in-your-graveyard" }
   /**
+   * "half the number of cards in their library ... round up" - Peer into the
+   * Abyss. Counts the reference player's library, which for a `who: "target"`
+   * effect is the target, so the amount is read against whoever is drawing.
+   */
+  | { what: "half-library-round-up" }
+  /** "loses half their life ... round up" - Peer into the Abyss. */
+  | { what: "half-life-round-up" }
+  /**
    * "for each counter on this creature" - Twitching Doll, which counts *nest*
    * counters. Reads the +1/+1 pile and `otherCounters` together, because
    * "counters on it" on a real card means all of them.
@@ -308,7 +316,7 @@ export type Effect =
    * resolve - "draw cards equal to the greatest power among non-Human
    * creatures you control".
    */
-  | { kind: "draw"; amount: Amount }
+  | { kind: "draw"; amount: Amount; who?: "target" }
   | { kind: "addMana"; color: ManaColor; amount: number }
   /**
    * One activation producing mana of more than one colour - "Add {B}{G}", the

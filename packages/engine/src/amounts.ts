@@ -85,6 +85,11 @@ function countOf(
       return player.graveyard.filter((card) =>
         requireDefinition(state, card.definitionId).types.includes("Creature"),
       ).length;
+    case "half-library-round-up":
+      return Math.ceil(player.library.length / 2);
+    case "half-life-round-up":
+      // Life can be negative mid-resolution; never ask for negative life loss.
+      return Math.max(0, Math.ceil(player.life / 2));
     case "counters-on-source": {
       // "For each counter on this creature" means every kind at once, which is
       // why this adds the piles rather than reading one of them.
