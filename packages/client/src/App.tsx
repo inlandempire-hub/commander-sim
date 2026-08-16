@@ -14,6 +14,8 @@ import {
   planManaPayment,
   requiresX,
   shouldAutoPass,
+  soleLegalTarget,
+  type ChosenOnEntry,
   targetSelectorOf,
   type CardDefinition,
   type Effect,
@@ -51,6 +53,7 @@ import { ConfirmTrigger } from "./components/ConfirmTrigger.js";
 import { describeActivated, describeCard } from "./cardText.js";
 import { burstsForFlight, spellColor } from "./particles.js";
 import { findInstance } from "./cardLookup.js";
+import { EnterChoicePrompt } from "./components/EnterChoicePrompt.js";
 import {
   emitParticles,
   particlesEnabled,
@@ -426,6 +429,16 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     : [];
 
   // Same rule for a "you may" trigger: only the seat it belongs to is asked.
+  /*
+   * "As this permanent enters, choose ..." - shown only to the player being
+   * asked, exactly like the search picker beside it. Everyone else sees the
+   * game held, which is what is actually happening.
+   */
+  const pendingEnterChoice =
+    state.pendingEnterChoice && controller.canControlPlayer(state.pendingEnterChoice.playerId)
+      ? state.pendingEnterChoice
+      : null;
+
   const pendingConfirmation =
     state.pendingConfirmation && controller.canControlPlayer(state.pendingConfirmation.playerId)
       ? state.pendingConfirmation
@@ -625,8 +638,24 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     // Any targeted effect opens the same "choose a target" flow - asking
     // targetSelectorOf rather than checking for "damage" specifically means a
     // new targeted effect kind can't quietly end up castable with no target.
-    if (def.castEffect && targetSelectorOf(def.castEffect)) {
-      setPendingTarget({ ownerId, sourceInstanceId: instanceId, cardName: def.name, effect: def.castEffect, kind: "cast" });
+    const castSelector = def.castEffect ? targetSelectorOf(def.castEffect) : undefined;
+    if (castSelector) {
+      /*
+       * "Target opponent" in a two-player game is not a decision, so it is not
+       * asked for - see `soleLegalTarget`. Everything else still opens the
+       * picker.
+       */
+      const forced = soleLegalTarget(state!, castSelector, ownerId);
+      if (!forced) {
+        setPendingTarget({ ownerId, sourceInstanceId: instanceId, cardName: def.name, effect: def.castEffect!, kind: "cast" });
+        return;
+      }
+      finishCast(ownerId, instanceId, [forced], {
+        justDecided: {
+          useAlternativeCost: freeCast || undefined,
+          sacrificeInstanceId: already.sacrificeInstanceId,
+        },
+      });
       return;
     }
     finishCast(ownerId, instanceId, [], {
@@ -806,15 +835,21 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     const ability = def?.activatedAbilities?.[abilityIndex];
     if (!ability || !def) return;
 
-    if (targetSelectorOf(ability.effect)) {
-      setPendingTarget({
-        ownerId,
-        sourceInstanceId: instanceId,
-        cardName: def.name,
-        effect: ability.effect,
-        kind: "ability",
-        abilityIndex,
-      });
+    const abilitySelector = targetSelectorOf(ability.effect);
+    if (abilitySelector) {
+      const forced = soleLegalTarget(state!, abilitySelector, ownerId);
+      if (!forced) {
+        setPendingTarget({
+          ownerId,
+          sourceInstanceId: instanceId,
+          cardName: def.name,
+          effect: ability.effect,
+          kind: "ability",
+          abilityIndex,
+        });
+        return;
+      }
+      controller.activateAbility(ownerId, instanceId, abilityIndex, [forced]);
       return;
     }
 
@@ -920,15 +955,21 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     setPendingX(null);
     if (!def) return;
 
-    if (def.castEffect && targetSelectorOf(def.castEffect)) {
-      setPendingTarget({
-        ownerId,
-        sourceInstanceId: instanceId,
-        cardName: def.name,
-        effect: def.castEffect,
-        kind: "cast",
-        chosenX: x,
-      });
+    const xSelector = def.castEffect ? targetSelectorOf(def.castEffect) : undefined;
+    if (xSelector) {
+      const forced = soleLegalTarget(state!, xSelector, ownerId);
+      if (!forced) {
+        setPendingTarget({
+          ownerId,
+          sourceInstanceId: instanceId,
+          cardName: def.name,
+          effect: def.castEffect!,
+          kind: "cast",
+          chosenX: x,
+        });
+        return;
+      }
+      finishCast(ownerId, instanceId, [forced], { chosenX: x });
       return;
     }
     finishCast(ownerId, instanceId, [], { chosenX: x });
@@ -1366,6 +1407,19 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
             />
           );
         })()}
+
+        {pendingEnterChoice && (
+          <EnterChoicePrompt
+            prompt={pendingEnterChoice.prompt}
+            choice={pendingEnterChoice.choice}
+            cardName={
+              state.cardDefinitions[
+                findInstance(state, pendingEnterChoice.instanceId)?.definitionId ?? ""
+              ]?.name ?? "It"
+            }
+            onAnswer={(answer: ChosenOnEntry) => controller.resolveEnterChoice(pendingEnterChoice.playerId, answer)}
+          />
+        )}
 
         {pendingConfirmation && (
           <ConfirmTrigger

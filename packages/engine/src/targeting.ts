@@ -223,3 +223,33 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
       return undefined;
   }
 }
+
+/**
+ * The one target a selector could possibly have, when naming a player leaves no
+ * decision to make.
+ *
+ * "Target opponent discards a card" in a two-player game has exactly one legal
+ * answer, and asking for it is a click that teaches the player nothing. This is
+ * a *format* rule rather than a card one: the same card in a four-player pod is
+ * a real choice and is still asked for, because there is then more than one
+ * legal target and this returns undefined.
+ *
+ * Deliberately limited to selectors that name a player. A creature selector
+ * with one legal creature on the table looks like the same situation and is
+ * not: the board changes constantly, players routinely mean to target their
+ * own thing, and silently aiming a removal spell for somebody is how a game
+ * gets lost to an interface. Naming an opponent has no such ambiguity.
+ */
+export function soleLegalTarget(
+  state: GameState,
+  selector: TargetSelector,
+  controllerId: string,
+): StackTarget | undefined {
+  if (selector.kind !== "player" && selector.kind !== "opponent-of-controller") return undefined;
+  // "Up to one", or a spell that takes two players, is a genuine decision even
+  // when the candidates are forced.
+  const { min, max } = targetCountOf(selector);
+  if (min !== 1 || max !== 1) return undefined;
+  const legal = legalTargetsFor(state, selector, controllerId);
+  return legal.length === 1 ? legal[0] : undefined;
+}

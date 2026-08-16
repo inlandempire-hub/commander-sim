@@ -80,16 +80,23 @@ export function couldAfford(state: GameState, playerId: string, cost: ManaCost):
  *
  * Deliberately greedy rather than a real cost solver: colour requirements
  * first, since a source producing a colour the cost actually needs is strictly
- * more useful than one that only helps with the generic portion. With the
- * current mono-coloured pools every source produces the deck's one colour, so
- * greedy is optimal; a cost with several hybrid symbols in it would still need
- * proper solving (see the limitations note in ROADMAP.md).
+ * more useful than one that only helps with the generic portion. A cost with
+ * several hybrid symbols in it would still need proper solving (see the
+ * limitations note in ROADMAP.md).
  *
- * Within equally useful sources it takes the painless one. A painland is a real
- * source and has to stay one - excluding it would leave Llanowar Wastes tapping
- * for nothing but colourless - but shooting yourself for mana a Forest could
- * have made is a decision no player would take, and this is making the decision
- * on their behalf.
+ * **Within equally useful sources it spends the one that costs the least
+ * future flexibility**, which is the whole of `flexibilityRank` below. Taking
+ * the first source in board order - which is what this did until 2026-08-16 -
+ * is the behaviour that makes a two-spell turn impossible without tapping by
+ * hand: paying the generic part of the first spell with a coloured land eats a
+ * pip the second spell needed, and the player is left doing the engine's job
+ * for it. The Blight Mound into Tend the Pests line is exactly that, and it is
+ * the case that prompted this.
+ *
+ * The order within a tier is: a painless source before a painful one - a
+ * painland is a real source and has to stay one, but shooting yourself for
+ * mana a basic could have made is a decision no player would take, and this is
+ * making it on their behalf.
  */
 function chooseSource(sources: ManaSource[], pool: ManaPool, cost: ManaCost): ManaSource | null {
   if (canPayManaCostFromPool(pool, cost)) return null;
@@ -118,8 +125,66 @@ function chooseSource(sources: ManaSource[], pool: ManaPool, cost: ManaCost): Ma
   const useful =
     shortfallColors.length > 0 ? sources.filter((s) => shortfallColors.includes(s.color)) : sources;
 
-  const painless = useful.find((s) => s.damageToController === 0);
-  return painless ?? useful[0] ?? sources[0] ?? null;
+  const pool2 = useful.length > 0 ? useful : sources;
+  if (pool2.length === 0) return null;
+
+  /*
+   * Cheapest first, where "cheap" means least flexibility given up. Sorted on a
+   * copy: `sources` is the caller's list and `planManaPayment` walks it again.
+   */
+  return [...pool2].sort((a, b) => {
+    /*
+     * Ranked against *every* source, not just the useful ones. Measuring a
+     * land's flexibility inside the filtered list made a Bayou look
+     * mono-coloured while paying {B} - its green half had been filtered out -
+     * so the dual was spent ahead of the basic, which is the exact mistake
+     * this is here to stop.
+     */
+    const rank = flexibilityRank(a, sources) - flexibilityRank(b, sources);
+    if (rank !== 0) return rank;
+    // A painless source before a painful one, always.
+    return a.damageToController - b.damageToController;
+  })[0]!;
+}
+
+/**
+ * What spending this source costs you in options, lower being cheaper.
+ *
+ * Three things, in order of how much they matter:
+ *
+ * 1. **Colourless mana can only ever pay generic**, so spending it costs
+ *    nothing at all. A Sol Ring tapped for the generic part of a cost is free;
+ *    a Swamp tapped for the same is a black pip you no longer have.
+ * 2. **A permanent that makes fewer colours is spent first.** A basic Swamp and
+ *    a Watery Grave both pay {B}, but the Watery Grave is also the only blue
+ *    source you might have - so the basic goes first and the dual stays on the
+ *    table. This is the half that fixes casting two coloured spells in a turn.
+ * 3. **Spend from the colour you have most of.** With four Forests and one
+ *    Swamp, the generic part of a cost comes off a Forest, because the Swamp is
+ *    the scarce thing.
+ *
+ * A heuristic, not a solver: it knows nothing about what is still in hand, so
+ * it optimises for keeping options rather than for a particular next spell.
+ * That is the right bias when the alternative is the player tapping by hand.
+ */
+function flexibilityRank(source: ManaSource, among: ManaSource[]): number {
+  if (source.color === "C") return 0;
+
+  // How many colours the *permanent* can make - a dual land appears in the list
+  // once per ability, and tapping it uses up all of them.
+  const coloursThisPermanentMakes = new Set(
+    among.filter((s) => s.instance.instanceId === source.instance.instanceId).map((s) => s.color),
+  ).size;
+
+  // How many other permanents could still make this colour afterwards. More
+  // means this one is less precious.
+  const othersWithThisColour = new Set(
+    among.filter((s) => s.color === source.color).map((s) => s.instance.instanceId),
+  ).size;
+
+  // Scaled so the two never trade against each other by accident: flexibility
+  // dominates, depth breaks its ties.
+  return 1 + coloursThisPermanentMakes * 100 - Math.min(othersWithThisColour, 99);
 }
 
 /**

@@ -1,3 +1,4 @@
+import { blockProblem } from "./combat.js";
 import { castRestrictionProblem } from "./restrictions.js";
 import type { Effect, GameState, ManaCost } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
@@ -212,9 +213,25 @@ export function hasEligibleAttacker(state: GameState, playerId: string): boolean
 /** Does this player have any creature that could legally block something right now? */
 export function hasEligibleBlocker(state: GameState, playerId: string): boolean {
   const player = requirePlayer(state, playerId);
+  const attackerIds = Object.keys(state.attackers);
+  if (attackerIds.length === 0) return false;
+  /*
+   * "Untapped creature" is not the question - "could this creature block
+   * something that is actually attacking" is.
+   *
+   * Until 2026-08-16 this only asked the first, so a lone flyer coming at a
+   * board of ground creatures still stopped the game at declare-blockers and
+   * made the defender confirm a decision the rules never offered them. Asking
+   * `blockProblem` means the evasion rules are consulted once, in the place
+   * that owns them, rather than approximated here - and any evasion added
+   * later is picked up for free.
+   */
   return player.battlefield.some((instance) => {
     if (instance.tapped) return false;
-    return requireDefinition(state, instance.definitionId).types.includes("Creature");
+    if (!requireDefinition(state, instance.definitionId).types.includes("Creature")) return false;
+    return attackerIds.some(
+      (attackerId) => blockProblem(state, playerId, instance.instanceId, attackerId) === null,
+    );
   });
 }
 
@@ -235,6 +252,8 @@ export function mustNotAutoPass(state: GameState, playerId: string): boolean {
   // Nobody has priority at all until every opening hand is settled.
   if (state.mulligan) return true;
   if (state.pendingSearch) return true;
+  // And for a permanent that entered and is waiting to be told what it chose.
+  if (state.pendingEnterChoice) return true;
   // Same for a "you may" trigger waiting on a yes or no.
   if (state.pendingConfirmation) return true;
   // And for a trigger that has not been pointed at anything yet.

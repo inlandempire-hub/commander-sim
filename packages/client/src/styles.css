@@ -3912,3 +3912,79 @@ body {
 .confirm-trigger__no:hover {
   --btn-face: #47536d;
 }
+
+/* "As this permanent enters, choose ..." - see EnterChoicePrompt.tsx. Sits on
+   the shared .overlay backdrop, narrower than the card pickers because every
+   answer here is a word or a number rather than a row of cards. */
+.enter-choice {
+  max-width: 34rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  text-align: center;
+}
+
+.enter-choice__title {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.enter-choice__prompt {
+  margin: 0 0 1rem;
+  opacity: 0.85;
+}
+
+.enter-choice__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.enter-choice__option {
+  min-width: 2.6rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  cursor: pointer;
+}
+
+.enter-choice__option:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* A keyword already picked, for Greymond's two-of-three. */
+.enter-choice__option.is-picked {
+  border-color: rgba(255, 196, 92, 0.9);
+  background: rgba(255, 196, 92, 0.22);
+}
+
+.enter-choice__other {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  margin-top: 0.9rem;
+}
+
+.enter-choice__other input {
+  flex: 0 1 14rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.35rem;
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+}
+
+.enter-choice__other button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  cursor: pointer;
+}
+
+.enter-choice__other button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

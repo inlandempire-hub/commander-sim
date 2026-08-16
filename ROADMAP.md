@@ -3409,3 +3409,93 @@ and the report says so rather than crediting this batch:
 
 966 fixtures. `audit_fixtures` and `audit_triggers` clean, `audit_text` clean bar
 the two long-known gaps. 1,114 tests, typecheck clean.
+
+## Four things that made the client do the player's job for it (2026-08-16)
+
+Three reported, one found on the way. Every one is the same failure in a
+different place: the engine knew the answer and asked anyway.
+
+### Auto-tap now spends the mana that costs the least flexibility
+
+The reported case, and the worst of the four. `chooseSource` took the first
+useful source in board order, so the *generic* part of a cost would happily eat
+the only land producing a colour the next spell needed. Blight Mound into Tend
+the Pests is exactly that: five mana off five lands, and a left-to-right chooser
+spends both Forests on Blight Mound's generic and leaves three Swamps that can
+never make the `{G}`.
+
+`flexibilityRank` decides it now, and the order is the whole of it:
+
+1. **Colourless costs nothing** - a Sol Ring tapped for generic is free, where a
+   Swamp tapped for the same is a black pip gone.
+2. **A permanent that makes fewer colours goes first** - a basic Swamp before a
+   Watery Grave, because the dual is also the only blue source you might have.
+3. **Spend from the colour you have most of** - with four Forests and one Swamp,
+   generic comes off a Forest.
+
+**One bug in the first attempt, worth recording**: flexibility was measured
+against the *filtered* list of useful sources, so while paying `{B}` a Bayou had
+its green half filtered out and looked mono-coloured - and got spent ahead of
+the basic, which is the exact mistake the change exists to prevent. It ranks
+against every source now.
+
+Verified in the client, on the lab's Blight Mound board: casting it taps Forest,
+Swamp, Swamp and leaves a Forest and a Swamp untapped, and Tend the Pests is
+then lit as playable with no manual tapping.
+
+### The blocker step no longer stops you when there is nothing to decide
+
+`hasEligibleBlocker` asked "does this player have an untapped creature". That is
+not the question - "could any of their creatures block something that is
+actually attacking" is. A lone flyer against a board of ground creatures still
+stopped the game and asked the defender to confirm a decision the rules never
+offered them.
+
+It asks `blockProblem` now, once, against the real attackers. The evasion rules
+stay in the one place that owns them rather than being approximated in a second,
+and anything added later is picked up for free. The instants half of this needs
+no work: `hasAnyLegalAction` already decides whether the priority window is worth
+stopping at, and with nobody eligible to block it simply carries.
+
+### "Target opponent" is not a choice in a two-player game
+
+`soleLegalTarget` names the one legal answer when a selector names a player and
+there is exactly one, and the client skips straight past the picker in all three
+places it opens one - casting, activating, and casting after announcing X.
+
+**Format-coded, not card-coded**, as asked: the same card in a three-player pod
+has two legal answers and is still asked for. "Target player" is still asked for
+even in a duel, because you are a legal answer too.
+
+Deliberately limited to selectors that name a *player*. A creature selector with
+one legal creature looks like the same situation and is not: the board changes
+constantly, players routinely mean to aim at their own thing, and silently
+pointing a removal spell at the only legal target is how a game gets lost to an
+interface.
+
+### The entry-choice overlay
+
+Batch 3 left the engine able to stop the game and ask "as this permanent enters,
+choose ..." with nothing in the client able to answer - a human casting Sanctum
+Prelate would have stopped the game dead. `EnterChoicePrompt` handles all five
+shapes, though only `number` has a card in the pool today: a prompt that rendered
+nothing for the other four would be a hung game rather than a missing feature.
+
+It cannot be dismissed, which is the same posture as the search picker and for
+the same reason. `mustNotAutoPass` also holds on `pendingEnterChoice` now - the
+omission that would have let auto-pass run straight past the question.
+
+**Not visually exercised**: no card in the lab's ninety-three has an entry
+choice, so the overlay has been compiled, wired and type-checked but not clicked
+through. It is the one thing in this batch resting on construction rather than on
+having been seen to work.
+
+### One test contract genuinely changed
+
+Three `autoPass` tests asserted that any untapped creature makes an eligible
+blocker, with nothing attacking. That was the old, too-loose contract; they set
+up an attacker now, and there is a new test for the flyer case - Serra Angel
+against Grizzly Bears leaves nobody eligible, and adding a Giant Spider brings
+the decision back.
+
+1,124 tests, typecheck clean.

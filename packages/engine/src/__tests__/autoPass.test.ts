@@ -95,16 +95,41 @@ describe("hasEligibleAttacker / hasEligibleBlocker", () => {
     expect(hasEligibleAttacker(state, alice.id)).toBe(true);
   });
 
-  it("hasEligibleBlocker is true for any untapped creature", () => {
+  it("hasEligibleBlocker asks whether a creature could block what is attacking", () => {
     const state = makeTestGame();
+    const alice = state.players[0]!;
     const bob = state.players[1]!;
-    expect(hasEligibleBlocker(state, bob.id)).toBe(false);
 
     const bear = createCardInstance(state, "grizzly-bears", bob.id, "battlefield");
+    // Nothing is attacking yet, so there is nothing to block.
+    expect(hasEligibleBlocker(state, bob.id)).toBe(false);
+
+    const attacker = createCardInstance(state, "grizzly-bears", alice.id, "battlefield");
+    state.attackers[attacker.instanceId] = bob.id;
     expect(hasEligibleBlocker(state, bob.id)).toBe(true); // summoning sickness doesn't stop blocking
 
     bear.tapped = true;
     expect(hasEligibleBlocker(state, bob.id)).toBe(false);
+  });
+
+  it("a lone flyer against a ground board leaves nobody eligible", () => {
+    /*
+     * The reported case. A defender with only ground creatures has no decision
+     * to make against a flyer, so the game must not stop and ask them for one.
+     */
+    const state = makeTestGame();
+    const alice = state.players[0]!;
+    const bob = state.players[1]!;
+    createCardInstance(state, "grizzly-bears", bob.id, "battlefield"); // no flying, no reach
+
+    // Serra Angel flies.
+    const flyer = createCardInstance(state, "serra-angel", alice.id, "battlefield");
+    state.attackers[flyer.instanceId] = bob.id;
+    expect(hasEligibleBlocker(state, bob.id)).toBe(false);
+
+    // Give the defender something with reach and the decision comes back.
+    createCardInstance(state, "giant-spider", bob.id, "battlefield");
+    expect(hasEligibleBlocker(state, bob.id)).toBe(true);
   });
 });
 
@@ -130,8 +155,11 @@ describe("shouldAutoPass", () => {
 
   it("does not auto-pass when the defending player has an eligible blocker in declare-blockers", () => {
     const state = makeTestGame();
+    const alice = state.players[0]!;
     const bob = state.players[1]!;
     createCardInstance(state, "grizzly-bears", bob.id, "battlefield");
+    const attacker = createCardInstance(state, "grizzly-bears", alice.id, "battlefield");
+    state.attackers[attacker.instanceId] = bob.id;
     state.phase = "combat";
     state.step = "declare-blockers";
 
@@ -243,6 +271,9 @@ describe("mustNotAutoPass", () => {
     const bob = state.players[1]!;
     const vanguard = createCardInstance(state, "elite-vanguard", bob.id, "battlefield");
     vanguard.summoningSickness = false;
+    // Something has to be attacking for a blocker to be eligible to block it.
+    const attacker = createCardInstance(state, "grizzly-bears", state.players[0]!.id, "battlefield");
+    state.attackers[attacker.instanceId] = bob.id;
     state.phase = "combat";
     state.step = "declare-blockers";
     state.activePlayerIndex = 0;
