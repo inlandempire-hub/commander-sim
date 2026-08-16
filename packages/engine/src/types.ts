@@ -415,6 +415,12 @@ export type Effect =
    */
   | { kind: "extraTurn"; count: number; target: TargetSelector }
   /**
+   * "You may put a land card from your hand onto the battlefield." - Growth
+   * Spiral. An optional extra land that does not use the turn's land drop; the
+   * choice reuses the card-choice picker with a to-battlefield mode.
+   */
+  | { kind: "putLandFromHand" }
+  /**
    * "Look at the top N cards of your library, then put them back in any order"
    * - Halimar Depths, and Ponder (which adds `mayShuffle` and a follow-up
    * draw). Distinct from scry: every card goes back on top, none to the bottom,
@@ -2007,7 +2013,7 @@ export interface PendingCardChoice {
   min: number;
   max: number;
   /** What happens to the chosen cards. */
-  mode: "sacrifice" | "cast-free" | "to-hand" | "to-library-top";
+  mode: "sacrifice" | "cast-free" | "to-hand" | "to-library-top" | "to-battlefield";
   /** A price paid only if something is chosen - Ripples of Undeath. */
   cost?: { mana?: ManaCost; life?: number };
   /**

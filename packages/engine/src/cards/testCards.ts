@@ -11218,6 +11218,20 @@ export const LABORATORY_MANIAC: CardDefinition = {
   tier: "scripted",
 };
 
+export const GROWTH_SPIRAL: CardDefinition = {
+  id: "growth-spiral",
+  name: "Growth Spiral",
+  scryfallId: "1e10e2b4-9639-41ae-8b8e-253224d3d513",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { G: 1, U: 1 } },
+  colorIdentity: ["G", "U"],
+  castEffect: {
+    kind: "sequence",
+    effects: [{ kind: "draw", amount: 1 }, { kind: "putLandFromHand" }],
+  },
+  tier: "scripted",
+};
+
 export const PEER_INTO_THE_ABYSS: CardDefinition = {
   id: "peer-into-the-abyss",
   name: "Peer into the Abyss",
@@ -14194,5 +14208,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     TIME_STRETCH,
     LABORATORY_MANIAC,
     PEER_INTO_THE_ABYSS,
+    GROWTH_SPIRAL,
   ].map((def) => [def.id, def]),
 );

@@ -239,6 +239,26 @@ export function applyEffect(
       log(state, `${beneficiary} will take ${effect.count} extra turn${effect.count === 1 ? "" : "s"}`);
       return;
     }
+    case "putLandFromHand": {
+      // "You may put a land card from your hand onto the battlefield." Optional,
+      // and not the turn's land drop - it goes straight onto the battlefield.
+      const lands = controller.hand.filter((card) =>
+        requireDefinition(state, card.definitionId).types.includes("Land"),
+      );
+      if (lands.length === 0) return;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: lands.map((c) => c.instanceId),
+        min: 0,
+        max: 1,
+        mode: "to-battlefield",
+        prompt: `${cardName(state, sourceInstanceId)}: you may put a land from your hand onto the battlefield`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
     case "scry": {
       /*
        * Look at the top card and choose whether it goes to the bottom.
@@ -1471,6 +1491,9 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
     else if (pending.mode === "to-hand") {
       moveCard(state, id, "hand");
       log(state, `${playerId} takes ${cardName(state, id)}`);
+    } else if (pending.mode === "to-battlefield") {
+      putOntoBattlefield(state, id);
+      log(state, `${playerId} puts ${cardName(state, id)} onto the battlefield`);
     }
     // "cast-free" is handled below: it needs the caster, not the chooser, and
     // casting is not a zone move this function should be doing by hand.
