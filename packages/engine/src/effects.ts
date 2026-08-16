@@ -205,6 +205,19 @@ export function applyEffect(
       }
       return;
     }
+    case "exileTop": {
+      /*
+       * The top N cards of the library into exile - mill, one zone over. Takes
+       * whatever is there and stops; a library shorter than N is not a loss.
+       */
+      const count = evaluateAmount(state, controllerId, effect.amount, "exile amount");
+      const exiled = controller.library.slice(0, count).map((card) => card.instanceId);
+      for (const instanceId of exiled) moveCard(state, instanceId, "exile");
+      if (exiled.length > 0) {
+        log(state, `${controllerId} exiles ${exiled.length} card${exiled.length === 1 ? "" : "s"} from the top of their library`);
+      }
+      return;
+    }
     case "scry": {
       /*
        * Look at the top card and choose whether it goes to the bottom.

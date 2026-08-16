@@ -11165,6 +11165,23 @@ export const DISPEL: CardDefinition = {
   tier: "scripted",
 };
 
+export const DEMONIC_BARGAIN: CardDefinition = {
+  id: "demonic-bargain",
+  name: "Demonic Bargain",
+  scryfallId: "80c3741e-cf04-4aa2-a6a9-ce19f043b22c",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "exileTop", amount: 13 },
+      { kind: "searchLibrary", destination: "hand" },
+    ],
+  },
+  tier: "scripted",
+};
+
 export const SWARMYARD: CardDefinition = {
   id: "swarmyard",
   name: "Swarmyard",
@@ -14111,5 +14128,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     SWIFTFOOT_BOOTS,
     PROLOGUE_TO_PHYRESIS,
     DISPEL,
+    DEMONIC_BARGAIN,
   ].map((def) => [def.id, def]),
 );

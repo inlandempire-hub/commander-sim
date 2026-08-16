@@ -393,6 +393,13 @@ export type Effect =
    */
   | { kind: "mill"; amount: Amount }
   /**
+   * "Exile the top N cards of your library" - Demonic Bargain. The same move as
+   * mill, one zone over: the cards leave the library for exile rather than the
+   * graveyard, and like mill it takes whatever is there and stops if the library
+   * is shorter than N.
+   */
+  | { kind: "exileTop"; amount: Amount }
+  /**
    * "Look at the top N cards of your library, then put them back in any order"
    * - Halimar Depths, and Ponder (which adds `mayShuffle` and a follow-up
    * draw). Distinct from scry: every card goes back on top, none to the bottom,
