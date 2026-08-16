@@ -632,6 +632,19 @@ export type Effect =
       target?: TargetSelector;
     }
   /**
+   * "Each opponent gets a poison counter" - Prologue to Phyresis. Poison is
+   * already tracked per player (Infect deals it, ten of them is a loss via a
+   * state-based action); this is the other way a player gets it, an effect
+   * rather than damage. Shaped like `loseLife` because the choice of who is the
+   * same one - each opponent, or a chosen target.
+   */
+  | {
+      kind: "poison";
+      amount: Amount;
+      who: "each-opponent" | "target";
+      target?: TargetSelector;
+    }
+  /**
    * "Each opponent discards a card" - Send in the Pest.
    *
    * Which card is the *discarding* player's choice, not the caster's, so this

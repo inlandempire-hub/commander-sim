@@ -735,6 +735,26 @@ export function applyEffect(
       }
       return;
     }
+    case "poison": {
+      /*
+       * Poison counters as an effect, not as Infect damage. Straight to the
+       * counter total, which a state-based action turns into a loss at ten.
+       */
+      const poisoned =
+        effect.who === "target"
+          ? targets
+              .filter((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player")
+              .map((t) => requirePlayer(state, t.playerId))
+          : state.players.filter((p) => p.id !== controllerId);
+      const n = evaluateAmount(state, controllerId, effect.amount, "poison amount", sourceInstanceId);
+      if (n <= 0) return;
+      for (const player of poisoned) {
+        if (player.hasLost) continue;
+        player.poisonCounters += n;
+        log(state, `${player.id} gets ${n} poison counter${n === 1 ? "" : "s"}`);
+      }
+      return;
+    }
     case "discard": {
       /*
        * Each opponent picks their own card, so this queues a question per

@@ -11137,6 +11137,23 @@ export const SWIFTFOOT_BOOTS: CardDefinition = {
   tier: "scripted",
 };
 
+export const PROLOGUE_TO_PHYRESIS: CardDefinition = {
+  id: "prologue-to-phyresis",
+  name: "Prologue to Phyresis",
+  scryfallId: "ac625f30-ed91-4b21-ada8-aaa5b2ad79b8",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "poison", who: "each-opponent", amount: 1 },
+      { kind: "draw", amount: 1 },
+    ],
+  },
+  tier: "scripted",
+};
+
 export const SWARMYARD: CardDefinition = {
   id: "swarmyard",
   name: "Swarmyard",
@@ -14081,5 +14098,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     BALEFUL_STRIX,
     BOJUKA_BOG,
     SWIFTFOOT_BOOTS,
+    PROLOGUE_TO_PHYRESIS,
   ].map((def) => [def.id, def]),
 );
