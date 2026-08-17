@@ -310,7 +310,16 @@ export type Amount =
    * battlefield, so the board is the honest place to read it - counters,
    * anthems and all.
    */
-  | { kind: "target-power" };
+  | { kind: "target-power" }
+  /**
+   * "**Eomer deals damage equal to its power** to any target."
+   *
+   * The power of the permanent the ability is printed on, read when the effect
+   * runs - so a pumped Eomer really does deal more. Distinct from `target-power`
+   * above, which reads the thing being pointed at rather than the thing doing the
+   * pointing.
+   */
+  | { kind: "source-power" };
 
 /**
  * What a `count` amount counts. Each entry is a phrase a real card prints, not
@@ -322,7 +331,15 @@ export type Countable =
    * "For each creature you control [with a +1/+1 counter on it]" - Inspiring
    * Call. `excludeSubtype` is Return of the Wildspeaker's "non-Human".
    */
-  | { what: "creatures"; withCounter?: boolean; excludeSubtype?: string }
+  | {
+      what: "creatures";
+      withCounter?: boolean;
+      excludeSubtype?: string;
+      /** "for each **Human** you control" - Eomer. */
+      subtype?: string;
+      /** "for each **other** Human you control" - the source is not one of them. */
+      excludeSource?: boolean;
+    }
   /**
    * "The greatest power among [non-Human] creatures you control" - Return of
    * the Wildspeaker. Zero when you control none, which is what the card does.
@@ -554,7 +571,23 @@ export type TargetSelector =
  * vanilla/scripted/weird tiers).
  */
 export type Effect =
-  | { kind: "damage"; amount: number; target: TargetSelector }
+  | {
+      kind: "damage";
+      amount: number;
+      /**
+       * "Eomer deals damage **equal to its power**" - the amount is read off the
+       * board instead of the number beside it.
+       *
+       * A rider rather than widening `amount` to an `Amount`, because every other
+       * reader of this effect - the bot's removal evaluation most of all - wants a
+       * number it can compare, and a bot that could not tell how much damage a
+       * burn spell deals would stop pointing them at anything. With the rider set
+       * the printed `amount` is a floor of 0 and the real figure is read at
+       * resolution.
+       */
+      amountFrom?: "source-power";
+      target: TargetSelector;
+    }
   /**
    * "Draw a card", and the ones that draw a number nobody knows until they
    * resolve - "draw cards equal to the greatest power among non-Human
@@ -1471,6 +1504,16 @@ export type Effect =
       /** "play" includes a land drop; "cast" does not. */
       lands: boolean;
     }
+  /**
+   * "Target player becomes **the monarch**." - Eomer, King of Rohan.
+   *
+   * The crown is a property of the game rather than of any permanent: exactly one
+   * player has it, it survives the card that granted it leaving, and the two
+   * rules that come with it - a card at your end step, and losing it to combat
+   * damage - are enforced by the turn machine and the combat step rather than by
+   * anything on the battlefield.
+   */
+  | { kind: "becomeMonarch"; who: "target" }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -2426,6 +2469,16 @@ export interface CardDefinition {
    * lives on the instance.
    */
   blockRestriction?: BlockRestriction;
+  /**
+   * "Eomer enters with a +1/+1 counter on it **for each other Human you
+   * control**."
+   *
+   * A replacement on the way in rather than an enters-the-battlefield trigger,
+   * which is the rule and is visible in play: the creature is never on the
+   * battlefield at its printed size, so nothing can respond to it as a 2/2 and a
+   * board wipe in response to the trigger cannot catch it small.
+   */
+  entersWithCounters?: Amount;
   entersTapped?: boolean;
   /**
    * "This land enters tapped **unless** ..." - the drawback most nonbasic duals
@@ -3472,6 +3525,14 @@ export interface GameState {
    * gone.
    */
   delayedTriggers: DelayedTrigger[];
+  /**
+   * Who is the monarch, or null while nobody is.
+   *
+   * On the game rather than on a player because exactly one player has it: two
+   * booleans could disagree, and this cannot. Nothing takes it away - it only
+   * ever moves - which is what "becomes the monarch" means.
+   */
+  monarchPlayerId: string | null;
   cardDefinitions: Record<string, CardDefinition>;
   nextInstanceId: number;
   nextStackObjectId: number;

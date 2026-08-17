@@ -69,17 +69,25 @@ export function applyEffect(
 
   switch (effect.kind) {
     case "damage": {
+      /*
+       * "Damage equal to its power" - Eomer. Read at resolution off the permanent
+       * whose ability this is, so a pumped Eomer hits for more; every other card
+       * prints a number and takes this branch not at all.
+       */
+      const amount = effect.amountFrom === "source-power"
+        ? evaluateAmount(state, controllerId, { kind: "source-power" }, "damage amount", sourceInstanceId)
+        : effect.amount;
       let totalDealt = 0;
       for (const target of targets) {
         if (target.kind === "player") {
           const player = requirePlayer(state, target.playerId);
-          totalDealt += damagePlayer(state, player, effect.amount, { infect: hasInfect, sourceInstanceId }).dealt;
+          totalDealt += damagePlayer(state, player, amount, { infect: hasInfect, sourceInstanceId }).dealt;
         } else if (target.kind === "card") {
           const found = findInstance(state, target.instanceId);
           if (found) {
             // Counted after prevention, so a shielded target denies lifelink
             // the life it would otherwise have gained.
-            totalDealt += damageCreature(state, found.instance, effect.amount, {
+            totalDealt += damageCreature(state, found.instance, amount, {
               sourceInstanceId,
               deathtouch: hasDeathtouch,
               infect: hasInfect,
@@ -756,6 +764,16 @@ export function applyEffect(
         state,
         `${controllerId} exiles ${cardName(state, top.instanceId)} and may ${effect.lands ? "play" : "cast"} it this turn`,
       );
+      return;
+    }
+    case "becomeMonarch": {
+      // "Target player becomes the monarch." The crown moves rather than being
+      // shared: setting it is the whole implementation.
+      const target = targets.find((t) => t.kind === "player");
+      if (!target || target.kind !== "player") return;
+      if (state.monarchPlayerId === target.playerId) return;
+      state.monarchPlayerId = target.playerId;
+      log(state, `${target.playerId} becomes the monarch`);
       return;
     }
     case "becomePrepared": {

@@ -405,6 +405,27 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       if (dealt > 0) gainLife(state, attackerFound.instance.controllerId, dealt);
     }
   }
+  /*
+   * "Whenever a creature deals combat damage to the monarch, that creature's
+   * controller becomes the monarch."
+   *
+   * A rule of the game rather than an ability, so it is applied here from the
+   * same list of hits the triggers read - one record of what connected, so the
+   * crown and the Treasures can never disagree about it.
+   *
+   * Before the triggers, because the crown is a turn-based consequence of the
+   * damage rather than something waiting on the stack: an ability that made the
+   * monarch draw would see the new monarch, which is the real behaviour.
+   */
+  for (const { attackerInstanceId, defendingPlayerId } of hits) {
+    if (state.monarchPlayerId !== defendingPlayerId) continue;
+    const found = findOnAnyBattlefield(state, attackerInstanceId);
+    if (!found) continue;
+    if (found.instance.controllerId === state.monarchPlayerId) continue;
+    state.monarchPlayerId = found.instance.controllerId;
+    log(state, `${found.instance.controllerId} takes the crown`);
+  }
+
   // Everything that connected, in one event - see `fireCombatDamageToPlayer`.
   if (hits.length > 0) fireCombatDamageToPlayer(state, hits);
 }

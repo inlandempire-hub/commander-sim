@@ -356,6 +356,21 @@ function runAutomaticStepActions(state: GameState): void {
       break;
   }
 
+  /*
+   * "At the beginning of the monarch's end step, that player draws a card."
+   *
+   * A rule of the game rather than an ability of any permanent, so it lives here
+   * with the other turn-based actions rather than being a trigger somebody has to
+   * remember to put on a card. It is the whole reason the crown is worth taking.
+   */
+  if (state.phase === "ending" && state.step === "end" && state.monarchPlayerId) {
+    const monarch = state.players[state.activePlayerIndex];
+    if (monarch && monarch.id === state.monarchPlayerId && !monarch.hasLost) {
+      log(state, `${monarch.id} draws a card for being the monarch`);
+      drawCard(state, monarch.id, 1);
+    }
+  }
+
   // After the step's automatic actions, so an upkeep trigger goes on the stack
   // above nothing and a draw-step trigger sees the card already drawn.
   fireTurnTriggers(state);

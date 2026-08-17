@@ -14895,6 +14895,58 @@ export const RAGAVAN_NIMBLE_PILFERER: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * Eomer, King of Rohan - {3}{R}{W} 2/2 Legendary Creature, Human Noble.
+ *
+ * "Double strike"
+ * "Eomer enters with a +1/+1 counter on it for each other Human you control."
+ * "When Eomer enters, target player becomes the monarch. Eomer deals damage
+ * equal to its power to any target."
+ *
+ * Three things at once, and the order matters: the counters are a replacement on
+ * the way in, so the damage the trigger deals is read off the *big* Eomer. In a
+ * deck of Humans he arrives as a 5/5 double striker who shoots something for five
+ * and hands somebody the crown.
+ *
+ * The monarch is a rule of the game rather than an ability of this card - see
+ * `becomeMonarch` - which is why the crown outlives Eomer dying.
+ */
+export const EOMER_KING_OF_ROHAN: CardDefinition = {
+  id: "eomer-king-of-rohan",
+  // The accent is part of the printed name, and audit_fixtures is what caught
+  // it: written without it, the card is not a real card as far as Scryfall is
+  // concerned.
+  name: "Éomer, King of Rohan",
+  scryfallId: "5f48930a-d7bd-410b-995a-4e2837aabb25",
+  types: ["Creature"],
+  subtypes: ["Human", "Noble"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 3, colors: { R: 1, W: 1 } },
+  colorIdentity: ["R", "W"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Double Strike"],
+  entersWithCounters: {
+    kind: "count",
+    // "each **other** Human you control" - the count excludes Eomer himself,
+    // which is what `creatures` with a subtype already means here.
+    of: { what: "creatures", subtype: "Human", excludeSource: true },
+  },
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "becomeMonarch", who: "target" },
+          { kind: "damage", amount: 0, amountFrom: "source-power", target: { kind: "any-target" } },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -15907,6 +15959,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     TOKEN_TREASURE,
     PROFESSIONAL_FACE_BREAKER,
     RAGAVAN_NIMBLE_PILFERER,
+    EOMER_KING_OF_ROHAN,
     ANGRATHS_MARAUDERS,
     EIGANJO_SEAT_OF_THE_EMPIRE,
     SOKENZAN_CRUCIBLE_OF_DEFIANCE,

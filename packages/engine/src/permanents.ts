@@ -14,6 +14,7 @@ import type {
 import { cardName, findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import { meetsBoardCondition } from "./conditions.js";
 import { effectiveTriggers, hasKeyword } from "./counters.js";
+import { evaluateAmount } from "./amounts.js";
 import { resolveAmounts } from "./x.js";
 import { legalTargetsFor, targetCountOf, targetSelectorOf } from "./targeting.js";
 
@@ -295,6 +296,23 @@ export function enteredBattlefield(
    * A planeswalker arrives with its printed loyalty. Before the triggers,
    * because an ability that reads its own loyalty must not see zero.
    */
+  /*
+   * "Enters with a +1/+1 counter on it for each other Human you control."
+   *
+   * Applied here, before any trigger fires, because that is what "enters with"
+   * means: the creature is never on the battlefield at its printed size, so a
+   * removal spell in response to its arrival is answering the big one.
+   */
+  if (def.entersWithCounters !== undefined) {
+    const extra = evaluateAmount(
+      state,
+      instance.controllerId,
+      def.entersWithCounters,
+      "entersWithCounters",
+      instance.instanceId,
+    );
+    if (extra > 0) instance.plusOneCounters += extra;
+  }
   if (def.loyalty !== undefined && instance.loyalty === 0) {
     instance.loyalty = def.loyalty;
   }

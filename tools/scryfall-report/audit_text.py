@@ -150,6 +150,10 @@ def card_features(fx):
     # of the card like bestow and suspend beside it.
     if fx.get("dashCost"):
         feat.add("dashCost")
+    # "Enters with a +1/+1 counter for each ..." - a replacement on the way in
+    # rather than an effect, so it is a property of the card like dash above it.
+    if fx.get("entersWithCounters") is not None:
+        feat.add("entersWithCounters")
     # Abilities activated from hand, and the discount two of them carry. Read off
     # the abilities rather than the card, because both live on one ability of a
     # card whose other abilities are ordinary.
@@ -502,6 +506,11 @@ RULES = [
     (r"^you may play that card this turn\.?$", {"exileTopAndMayPlay"}),
     (r"^until end of turn, you may cast that card\.?$", {"exileTopAndMayPlay"}),
     (r"^dash \{.*\}$", {"dashCost"}),
+    # Eomer, King of Rohan. The name is spelled with its accent because the
+    # oracle text is, and these patterns read the oracle text.
+    (r"enters with a \+1/\+1 counter on it for each other human you control", {"entersWithCounters"}),
+    (r"target player becomes the monarch", {"becomeMonarch"}),
+    (r"deals damage equal to its power to any target", {"damage"}),
     (r"\bif a card or token would be put into your graveyard\b", {"replacementEffects"}),
     # "They have '...'" - a token's own rules text, which lives on the token
     # definition rather than on the card that makes them.

@@ -1,6 +1,6 @@
 import type { Amount, Countable, GameState, StackTarget } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
-import { effectivePower } from "./counters.js";
+import { effectivePower, hasCreatureType } from "./counters.js";
 
 /**
  * Numbers an effect reads off the game when it resolves.
@@ -42,6 +42,12 @@ export function evaluateAmount(
 ): number {
   if (typeof amount === "number") return amount;
   if (amount.kind === "count") return countOf(state, controllerId, amount.of, sourceInstanceId);
+  if (amount.kind === "source-power") {
+    // "Eomer deals damage equal to **its** power" - the permanent the ability is
+    // printed on, read at resolution so a pumped Eomer hits harder.
+    const source = sourceInstanceId ? findInstance(state, sourceInstanceId) : undefined;
+    return source ? effectivePower(state, source.instance) : 0;
+  }
   if (amount.kind === "target-power") {
     // The first card target, which is the creature every card of this shape
     // points at. Effective power, so a pumped creature really is worth more life.
@@ -75,6 +81,9 @@ function countOf(
     case "creatures": {
       return creatures.filter((instance) => {
         if (of.withCounter && instance.plusOneCounters <= 0) return false;
+        // "for each **other** Human you control" - Eomer does not count himself.
+        if (of.excludeSource && instance.instanceId === sourceInstanceId) return false;
+        if (of.subtype && !hasCreatureType(state, instance, of.subtype)) return false;
         if (of.excludeSubtype) {
           const def = requireDefinition(state, instance.definitionId);
           if (def.subtypes?.includes(of.excludeSubtype)) return false;

@@ -81,6 +81,7 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     mulligan: null,
     pendingColorChoice: null,
     delayedTriggers: [],
+    monarchPlayerId: null,
     cardDefinitions,
     nextInstanceId: 1,
     nextStackObjectId: 1,

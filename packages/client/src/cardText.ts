@@ -200,6 +200,7 @@ function signedAmount(amount: Amount): string {
   // counts tokens on Tend the Pests and cards on Disciple of Freyalise.
   if (amount.kind === "sacrificed-power") return "that creature's power";
   if (amount.kind === "target-power") return "its power";
+  if (amount.kind === "source-power") return "its power";
   return amount.negate ? "-X" : "+X";
 }
 
@@ -216,6 +217,8 @@ function countAmount(amount: Amount): string {
   if (amount.kind === "sacrificed-power") return "X";
   // "life equal to **its power**" - Swords to Plowshares.
   if (amount.kind === "target-power") return "its power";
+  // "damage equal to **its power**" - Eomer, reading its own.
+  if (amount.kind === "source-power") return "its power";
   // "Create **twice X**" - Pest Infestation, whose {X}{X} cost charges X twice
   // and whose token count is doubled again on top. Printing a plain "X" here
   // halves the card in the panel you decide what to cast it for.
@@ -617,6 +620,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         `exile the top card of ${effect.from === "you" ? "your" : "that player's"} library. ` +
           `${effect.lands ? "You may play that card this turn." : "Until end of turn, you may cast that card."}`,
       );
+    case "becomeMonarch":
+      return sentence("target player becomes the monarch.");
     case "restrictBlockersThisTurn":
       return sentence(
         `This creature can't be blocked this turn except by ${describeBlockRestriction(effect.restriction)}.`,
@@ -1681,6 +1686,22 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
   if (def.blockRestriction) {
     lines.push(
       `This ${selfNoun(def)} can't be blocked except by ${describeBlockRestriction(def.blockRestriction)}.`,
+    );
+  }
+
+  /*
+   * "Eomer enters with a +1/+1 counter on it for each other Human you control."
+   *
+   * A replacement on the way in rather than a trigger, and the panel says so -
+   * without this line the card reads as a plain 2/2 for five.
+   */
+  if (def.entersWithCounters !== undefined) {
+    lines.push(
+      `This ${selfNoun(def)} enters with a +1/+1 counter on it for each ${
+        typeof def.entersWithCounters !== "number" && def.entersWithCounters.kind === "count"
+          ? describeCount(def.entersWithCounters.of)
+          : countAmount(def.entersWithCounters)
+      }.`,
     );
   }
 
