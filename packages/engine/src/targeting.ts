@@ -1,6 +1,6 @@
 import type { GameState, StackObject, StackTarget, TargetSelector, Effect } from "./types.js";
 import { findInstance, requireDefinition } from "./state.js";
-import { hasKeyword } from "./counters.js";
+import { hasCreatureType, hasKeyword, typesOf } from "./counters.js";
 import { protectionStopsTargeting } from "./protection.js";
 import { evaluateAmount } from "./amounts.js";
 import { manaValue } from "./mana.js";
@@ -72,9 +72,16 @@ export function isValidTarget(
       const found = findInstance(state, target.instanceId);
       if (!found || found.instance.zone !== "battlefield") return false;
       const def = requireDefinition(state, found.instance.definitionId);
-      if (!def.types.includes("Creature")) return false;
-      // "target Insect, Rat, Spider, or Squirrel" - any one of them qualifies.
-      if (selector.subtypes?.length && !selector.subtypes.some((s) => def.subtypes?.includes(s))) {
+      if (!typesOf(state, found.instance).includes("Creature")) return false;
+      /*
+       * "target Insect, Rat, Spider, or Squirrel" - any one of them qualifies.
+       *
+       * Through `hasCreatureType`, which is the rule Changeling already forced and
+       * that an animated land needs for the same reason: "target **Blinkmoth**
+       * creature" has to see the type the land gained this turn, and the printed
+       * subtype list on a land is empty.
+       */
+      if (selector.subtypes?.length && !selector.subtypes.some((s) => hasCreatureType(state, found.instance, s))) {
         return false;
       }
       if (selector.controlledBy) {

@@ -150,6 +150,31 @@ export function moveControl(state: GameState, instance: CardInstance, toPlayerId
   requirePlayer(state, toPlayerId).battlefield.push(instance);
 }
 
+/**
+ * Taps a permanent, and lets it notice.
+ *
+ * The one door for "this becomes tapped", which is why it exists at all: three
+ * places set `instance.tapped` - paying a tap cost, attacking without vigilance,
+ * and regenerating - and City of Brass has to hurt its controller for all three.
+ * A trigger taught to one of them would be a land that pays for mana honestly and
+ * lets an attack through for free.
+ *
+ * Already-tapped permanents are left alone rather than triggering again: "becomes
+ * tapped" is a change of state, not a state.
+ *
+ * Note what does *not* come through here: a permanent entering the battlefield
+ * tapped. It was never untapped, so it never became tapped (and City of Brass
+ * would otherwise deal a point of damage on arrival, which the card does not do).
+ */
+export function tapPermanent(state: GameState, instance: CardInstance): void {
+  if (instance.tapped) return;
+  instance.tapped = true;
+  for (const trigger of effectiveTriggers(state, instance)) {
+    if (trigger.event !== "becomes-tapped") continue;
+    pushTrigger(state, instance.instanceId, instance.controllerId, trigger);
+  }
+}
+
 export function enteredBattlefield(
   state: GameState,
   instance: CardInstance,
@@ -392,6 +417,7 @@ export function fireWatchers(
     | "spell-cast"
     | "permanent-sacrificed"
     | "permanent-attacks"
+    | "land-played"
     | "leaves-battlefield",
   subject: TriggerSubject,
   alsoSelf?: CardInstance,
@@ -430,6 +456,18 @@ export function fireWatchers(
  * enters" and silently wrong for Lifegift, which says "a land enters" and
  * should see an opponent's fetchland too.
  */
+/**
+ * "When you play another land" - City of Traitors.
+ *
+ * Fired only by `playLand`, which is the whole point of it being its own event
+ * rather than a landfall trigger: a land that merely arrives - fetched, ramped,
+ * returned - is not a land that was played. `fireWatchers` handles the "another"
+ * for it, the same way it does for every other watcher.
+ */
+export function fireLandPlayed(state: GameState, played: CardInstance): void {
+  fireWatchers(state, "land-played", describeSubject(state, played));
+}
+
 export function fireLandfall(state: GameState, landControllerId: string): void {
   for (const player of state.players) {
     for (const watcher of player.battlefield) {

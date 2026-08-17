@@ -11,7 +11,7 @@ import {
 import { controllerMeets } from "./conditions.js";
 import { effectivePower } from "./counters.js";
 import { sacrificePermanent } from "./sba.js";
-import { describeSubject, fireWatchers, pushOntoStack, putOntoBattlefield } from "./permanents.js";
+import { describeSubject, fireLandPlayed, fireWatchers, pushOntoStack, putOntoBattlefield } from "./permanents.js";
 import { isValidTarget, legalTargetsFor, targetCountOf, targetSelectorOf } from "./targeting.js";
 import { attemptWardPayments } from "./ward.js";
 import { costWithX, requiresX, resolveAmounts } from "./x.js";
@@ -538,6 +538,10 @@ export function castPreparedSpell(state: GameState, playerId: string, instanceId
 }
 
 /** Playing a land is not "casting a spell" - it doesn't use the stack and is capped at one per turn. */
+/**
+ * Plays a land for the turn. See `fireLandPlayed` for why the event it fires is
+ * not the same as landfall.
+ */
 export function playLand(state: GameState, playerId: string, instanceId: string): void {
   if (state.players[state.priorityPlayerIndex]?.id !== playerId) {
     throw new Error(`${playerId} does not have priority`);
@@ -608,6 +612,14 @@ export function playLand(state: GameState, playerId: string, instanceId: string)
    */
   putOntoBattlefield(state, instanceId);
   player.landsPlayedThisTurn += 1;
+  /*
+   * "When you play another land" - City of Traitors, and only here.
+   *
+   * After the land has arrived, so a City of Traitors sacrificing itself does so
+   * with the new land already on the battlefield - which is the order the card
+   * describes and the order that leaves the player with the land they paid for.
+   */
+  fireLandPlayed(state, instance);
 
   state.passesInSuccession = 0;
 }

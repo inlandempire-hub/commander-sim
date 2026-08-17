@@ -1350,6 +1350,32 @@ export type Effect =
    * would make a one-mana ability permanent.
    */
   | { kind: "restrictBlockersThisTurn"; restriction: BlockRestriction }
+  /**
+   * "It deals 1 damage to **you**." - City of Brass's rider on becoming tapped.
+   *
+   * Not a target and not life loss. The source deals it, so it goes through the
+   * ordinary damage path and a prevention shield covers it exactly as it would
+   * cover a burn spell - which is why this is not written as `loseLife`.
+   *
+   * The twin of `ActivatedAbility.damageToController`, which is the same rider
+   * attached to a mana ability rather than to a trigger.
+   */
+  | { kind: "damageController"; amount: number }
+  /**
+   * "{1}: This land becomes a 1/1 Blinkmoth artifact creature with flying until
+   * end of turn. It's still a land."
+   *
+   * Applies to the effect's own source and takes no target - both printings of
+   * this in the pool animate the land whose ability it is. See
+   * `CardInstance.animation`.
+   */
+  | {
+      kind: "animateSelf";
+      power: number;
+      toughness: number;
+      subtypes: string[];
+      keywords: Keyword[];
+    }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -1546,6 +1572,29 @@ export type TriggerEvent =
    * a burn spell and a fight all set it off alike. The amount is carried into
    * the effect as `{ kind: "event-amount" }`.
    */
+  /**
+   * "When you **play** another land, sacrifice this land." - City of Traitors.
+   *
+   * Deliberately not `landfall`, and the difference is the card: landfall fires
+   * for a land that *arrives* by any route, including one a fetchland put there,
+   * while this only fires for a land actually played for the turn. A City of
+   * Traitors written as landfall would sacrifice itself to its owner's own
+   * fetchland, which is not what it says.
+   */
+  | "land-played"
+  /**
+   * "Whenever this land **becomes tapped**, it deals 1 damage to you." - City of
+   * Brass.
+   *
+   * A self event: the permanent watches only its own tapping, so it needs no
+   * `watchFor`. Fired from `tapPermanent`, which exists because of this card -
+   * three separate places set `tapped` and a trigger taught to one of them would
+   * be a card that hurts you for mana and not for attacking.
+   *
+   * A permanent that *enters* tapped never becomes tapped: it was never untapped
+   * to begin with, so those two sites deliberately do not fire this.
+   */
+  | "becomes-tapped"
   | "damaged"
   | "upkeep"
   /**
@@ -2511,6 +2560,32 @@ export interface CardInstance {
    * blocker with both. Cleared in the cleanup step and on any zone change.
    */
   blockRestrictionsThisTurn: BlockRestriction[];
+  /**
+   * "This land **becomes a 1/1 Phyrexian Blinkmoth artifact creature** with
+   * flying and infect until end of turn. **It's still a land.**" - Inkmoth Nexus,
+   * and Blinkmoth Nexus beside it.
+   *
+   * The one thing in this engine that changes what a permanent *is* while it sits
+   * on the battlefield, which is why it forced five `def.types.includes("Creature")`
+   * checks to become `typesOf` calls: a land that is a creature this turn has to
+   * be able to attack, to be blocked, to die to damage, and to be targeted by
+   * "target Blinkmoth creature".
+   *
+   * "Still a land" is the easy half - the types are added rather than replaced.
+   *
+   * Cleared in the cleanup step and on any zone change, like every other
+   * until-end-of-turn field. A second animation replaces the first rather than
+   * stacking, which is what two activations of the same ability actually do: both
+   * set it to a 1/1, and the later one is the one that applies.
+   */
+  animation?: {
+    power: number;
+    toughness: number;
+    /** "a 1/1 Phyrexian Blinkmoth artifact creature" - the creature types it gains. */
+    subtypes: string[];
+    /** "with flying and infect". */
+    keywords: Keyword[];
+  };
   enteredOnTurn: number;
   /**
    * Who controlled this before somebody took it until end of turn, if anybody

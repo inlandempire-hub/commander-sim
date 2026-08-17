@@ -37,6 +37,7 @@ MODELLED = {
     "enters-battlefield", "attacks", "dies", "landfall", "permanent-enters", "gain-life",
     "permanent-dies", "permanent-sacrificed", "permanent-attacks", "leaves-battlefield",
     "spell-cast", "damaged", "upkeep", "first-main", "begin-combat", "end-step",
+    "land-played", "becomes-tapped",
 }
 
 
@@ -80,8 +81,17 @@ def clauses(card):
     """The trigger clauses of a card: every sentence that opens with a trigger
     word. Scryfall separates abilities with newlines, and a single line can
     hold a trigger plus follow-on sentences, so split on both."""
-    text = strip_reminders(card.get("oracle_text") or "")
+    raw = card.get("oracle_text") or ""
+    text = strip_reminders(raw)
     found = []
+    # Battle cry (Signal Pest). A keyword whose entire trigger is printed as
+    # reminder text, which strip_reminders has just removed - so the keyword
+    # itself stands in for the clause it means. Written out rather than added to
+    # a general keyword table because it is the only one in the pool whose
+    # reminder text is a trigger.
+    for line in raw.splitlines():
+        if line.strip().lower().startswith("battle cry"):
+            found.append("Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.")
     for line in text.split("\n"):
         # An ability word sits in front of the trigger and is pure flavour:
         # "Landfall - Whenever a land you control enters...". Stripping it is
@@ -180,6 +190,18 @@ def classify(clause, card_name):
         if "combat on" in c:
             return "begin-combat", None
         return None, "timing trigger the engine has no event for (draw step, upkeep of a chosen player)"
+
+    # "When you play another land, sacrifice this land" - City of Traitors, and a
+    # real event since 2026-08-17. Checked before the "enters" branch below,
+    # because a land being *played* is not a land entering: the distinction is the
+    # whole reason the event exists, and the wrong branch would call it landfall.
+    if re.search(r"when you play (a|an|another) land", c):
+        return "land-played", None
+
+    # "Whenever this land becomes tapped" - City of Brass. A self event, so the
+    # self-reference test is the same one `damaged` uses above.
+    if re.search(r"^when(ever)?\s+(this land|this permanent|%s)\s+becomes tapped" % self_ref, c):
+        return "becomes-tapped", None
 
     if "enters" in c:
         # Both templatings: "a land enters the battlefield under your control"

@@ -14299,6 +14299,155 @@ export const MOX_AMBER: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * City of Brass - a Land.
+ *
+ * "Whenever this land becomes tapped, it deals 1 damage to you."
+ * "{T}: Add one mana of any color."
+ *
+ * Perfect fixing that bleeds you for every point of it, and the trigger is the
+ * whole card: written without it this is a strictly better Command Tower.
+ *
+ * "Becomes tapped" is not "when you tap it for mana" - it fires however the land
+ * becomes tapped, which is why the engine has one door for tapping rather than a
+ * check inside the mana ability. The damage goes on the stack as a triggered
+ * ability, so it lands after the mana is already in the pool.
+ */
+export const CITY_OF_BRASS: CardDefinition = {
+  id: "city-of-brass",
+  name: "City of Brass",
+  scryfallId: "c21565d0-fc40-4d89-9b27-87c03385e0af",
+  types: ["Land"],
+  colorIdentity: [],
+  triggeredAbilities: [
+    {
+      event: "becomes-tapped",
+      effect: { kind: "damageController", amount: 1 },
+    },
+  ],
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * City of Traitors - a Land.
+ *
+ * "When you play another land, sacrifice this land."
+ * "{T}: Add {C}{C}."
+ *
+ * Two colourless mana on turn one, at the price of your next land drop killing
+ * it. The trigger is `land-played` rather than `landfall`, and the distinction is
+ * the card: a land put onto the battlefield by a fetchland or a ramp spell was
+ * never *played*, and a City of Traitors written as landfall would sacrifice
+ * itself to its own controller's Arid Mesa.
+ *
+ * "Another" is the watcher default, so playing the City itself does not set it
+ * off - see `fireWatchers`.
+ */
+export const CITY_OF_TRAITORS: CardDefinition = {
+  id: "city-of-traitors",
+  name: "City of Traitors",
+  scryfallId: "71624139-a255-48be-93ca-594a4beba487",
+  types: ["Land"],
+  colorIdentity: [],
+  triggeredAbilities: [
+    {
+      event: "land-played",
+      watches: "controller",
+      effect: { kind: "sacrifice", what: "self" },
+    },
+  ],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 2 } }],
+  tier: "scripted",
+};
+
+/**
+ * Blinkmoth Nexus - a Land.
+ *
+ * "{T}: Add {C}."
+ * "{1}: This land becomes a 1/1 Blinkmoth artifact creature with flying until end of turn. It's still a land."
+ * "{1}, {T}: Target Blinkmoth creature gets +1/+1 until end of turn."
+ *
+ * A land that dodges sorcery-speed removal by not being a creature until it needs
+ * to be. The third ability targets "Blinkmoth creature", which includes the
+ * animated land itself - so the two abilities together are a 2/2 flier for three
+ * mana, and `hasCreatureType` has to see the subtype the animation granted for
+ * that to work at all.
+ *
+ * Note the {T} on the third ability: a Nexus that pumped itself did not tap for
+ * mana this turn, and one that attacked cannot pump at all.
+ */
+export const BLINKMOTH_NEXUS: CardDefinition = {
+  id: "blinkmoth-nexus",
+  name: "Blinkmoth Nexus",
+  scryfallId: "3ac535c1-9ef3-45b5-8959-7e79589d47ad",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } },
+    {
+      cost: { mana: { generic: 1, colors: {} } },
+      effect: {
+        kind: "animateSelf",
+        power: 1,
+        toughness: 1,
+        subtypes: ["Blinkmoth"],
+        keywords: ["Flying"],
+      },
+    },
+    {
+      cost: { mana: { generic: 1, colors: {} }, tap: true },
+      effect: {
+        kind: "pump",
+        power: 1,
+        toughness: 1,
+        target: { kind: "creature", subtypes: ["Blinkmoth"] },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * Inkmoth Nexus - a Land.
+ *
+ * "{T}: Add {C}."
+ * "{1}: This land becomes a 1/1 Phyrexian Blinkmoth artifact creature with flying and infect until end of turn. It's still a land."
+ *
+ * The same land with a much worse clock attached: infect means its damage arrives
+ * as poison counters, and ten of those end a game whatever the life total says.
+ * Infect is already a keyword the engine knows - `damageCreature` and
+ * `damagePlayer` both read it - so the animation simply hands it over.
+ */
+export const INKMOTH_NEXUS: CardDefinition = {
+  id: "inkmoth-nexus",
+  name: "Inkmoth Nexus",
+  scryfallId: "ec50c1c3-885e-47d3-ada7-cc0edbf09df1",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } },
+    {
+      cost: { mana: { generic: 1, colors: {} } },
+      effect: {
+        kind: "animateSelf",
+        power: 1,
+        toughness: 1,
+        // "a 1/1 **Phyrexian Blinkmoth** artifact creature" - two creature types.
+        subtypes: ["Phyrexian", "Blinkmoth"],
+        keywords: ["Flying", "Infect"],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -15297,5 +15446,9 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     GINGERBRUTE,
     STARTING_TOWN,
     MOX_AMBER,
+    CITY_OF_BRASS,
+    CITY_OF_TRAITORS,
+    BLINKMOTH_NEXUS,
+    INKMOTH_NEXUS,
   ].map((def) => [def.id, def]),
 );

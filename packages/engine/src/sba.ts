@@ -1,7 +1,7 @@
 import type { GameState } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition } from "./state.js";
 import { describeSubject, fireWatchers, pushTrigger } from "./permanents.js";
-import { effectiveToughness, effectiveTriggers, hasKeyword } from "./counters.js";
+import { effectiveToughness, effectiveTriggers, hasKeyword, typesOf } from "./counters.js";
 import { useRegenerationShield } from "./regeneration.js";
 
 const COMMANDER_DAMAGE_THRESHOLD = 21;
@@ -145,7 +145,9 @@ export function checkStateBasedActions(state: GameState): void {
     for (const player of state.players) {
       for (const instance of [...player.battlefield]) {
         const def = requireDefinition(state, instance.definitionId);
-        if (!def.types.includes("Creature")) continue;
+        // An animated land is a creature with a toughness, and dies to damage
+        // like any other - `def.types` would let it soak lethal damage forever.
+        if (!typesOf(state, instance).includes("Creature")) continue;
         const toughness = effectiveToughness(state, instance);
         const indestructible = hasKeyword(state, instance, "Indestructible");
         const lethalNormalDamage = instance.damageMarked >= toughness && toughness > 0;

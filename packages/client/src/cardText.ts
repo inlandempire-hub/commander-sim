@@ -573,6 +573,21 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         " Put the rest on the bottom of your library in a random order."
       );
     }
+    case "damageController":
+      // "It deals 1 damage to you" - the permanent is the source, so the sentence
+      // is written from the card's point of view rather than the player's.
+      return sentence(`it deals ${effect.amount} damage to you.`);
+    case "animateSelf": {
+      const withWhat = effect.keywords.length
+        ? ` with ${listAnd(effect.keywords.map((k) => k.toLowerCase()))}`
+        : "";
+      const types = [...effect.subtypes, "artifact creature"].join(" ");
+      // "It's still a land" is printed on both cards and is not decoration - a
+      // player reading this needs to know the land keeps making mana.
+      return sentence(
+        `this land becomes a ${effect.power}/${effect.toughness} ${types}${withWhat} until end of turn. It's still a land.`,
+      );
+    }
     case "restrictBlockersThisTurn":
       return sentence(
         `This creature can't be blocked this turn except by ${describeBlockRestriction(effect.restriction)}.`,
@@ -1235,6 +1250,14 @@ function describeTrigger(
       return `Whenever ${castSubject(ability)} casts ${watchedSpell(ability.watchFor)}, ${tail}`;
     case "damaged":
       return `Whenever this creature is dealt damage, ${tail}`;
+    case "land-played":
+      // "When you play **another** land" - the word is the default, so it is
+      // printed unless the card says otherwise.
+      return `When ${(ability.watches ?? "controller") === "any" ? "a player plays" : "you play"} ${
+        ability.includesSelf ? "a land" : "another land"
+      }, ${tail}`;
+    case "becomes-tapped":
+      return `Whenever this ${selfNoun(self)} becomes tapped, ${tail}`;
     case "upkeep":
       return `At the beginning of ${whoseStep} upkeep, ${tail}`;
     case "first-main":

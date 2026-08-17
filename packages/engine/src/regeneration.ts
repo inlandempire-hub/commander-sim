@@ -1,5 +1,6 @@
 import type { CardInstance, GameState } from "./types.js";
 import { cardName, log } from "./state.js";
+import { tapPermanent } from "./permanents.js";
 
 /**
  * Spending a regeneration shield.
@@ -26,7 +27,8 @@ import { cardName, log } from "./state.js";
 export function useRegenerationShield(state: GameState, instance: CardInstance): boolean {
   if (instance.regenerationShields <= 0) return false;
   instance.regenerationShields -= 1;
-  instance.tapped = true;
+  // "Tap it" is part of what regenerating does, and it is a real tapping.
+  tapPermanent(state, instance);
   instance.damageMarked = 0;
   // Cleared with the damage it belongs to: leaving it set would make the very
   // next point of ordinary damage lethal to a creature that just regenerated.

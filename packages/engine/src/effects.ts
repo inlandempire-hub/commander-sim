@@ -623,6 +623,39 @@ export function applyEffect(
       );
       return;
     }
+    case "damageController": {
+      /*
+       * "It deals 1 damage to you." Through `damagePlayer` like every other point
+       * of damage in the engine, so a prevention shield covers it and anything
+       * watching for damage sees it.
+       */
+      const dealt = damagePlayer(state, controller, effect.amount).dealt;
+      if (dealt > 0) log(state, `${cardName(state, sourceInstanceId)} deals ${dealt} damage to ${controllerId}`);
+      return;
+    }
+    case "animateSelf": {
+      /*
+       * "This land becomes a 1/1 Blinkmoth artifact creature with flying until end
+       * of turn. It's still a land."
+       *
+       * Set rather than accumulated: activating the ability twice in a turn does
+       * not make a 2/2. Both activations say "becomes a 1/1", and the second one
+       * is simply the one that applies.
+       */
+      const source = findInstance(state, sourceInstanceId);
+      if (!source || source.instance.zone !== "battlefield") return;
+      source.instance.animation = {
+        power: effect.power,
+        toughness: effect.toughness,
+        subtypes: [...effect.subtypes],
+        keywords: [...effect.keywords],
+      };
+      log(
+        state,
+        `${cardName(state, sourceInstanceId)} becomes a ${effect.power}/${effect.toughness} creature until end of turn`,
+      );
+      return;
+    }
     case "becomePrepared": {
       const source = findInstance(state, sourceInstanceId);
       if (!source || source.instance.zone !== "battlefield") return;

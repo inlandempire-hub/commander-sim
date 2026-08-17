@@ -321,6 +321,7 @@ function runAutomaticStepActions(state: GameState): void {
           instance.grantedKeywords = []; // Heroic Intervention's hexproof wears off with everything else
           instance.protectionFrom = []; // "until end of turn" - Mother of Runes and the rest
           instance.blockRestrictionsThisTurn = []; // "can't be blocked **this turn**" - Gingerbrute
+          instance.animation = undefined; // "until end of turn" - the Nexus lands stop being creatures
           instance.grantedTriggers = []; // as does Root Manipulation's granted ability
           instance.temporaryPowerBonus = 0; // "until end of turn" effects wear off here
           instance.temporaryToughnessBonus = 0;

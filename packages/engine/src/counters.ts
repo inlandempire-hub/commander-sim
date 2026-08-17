@@ -138,7 +138,10 @@ function staticBuffFor(state: GameState, instance: CardInstance): { power: numbe
  * every read, so nothing has to be invalidated.
  */
 export function effectiveKeywords(state: GameState, instance: CardInstance): Keyword[] {
-  const printed = requireDefinition(state, instance.definitionId).keywords ?? [];
+  const def = requireDefinition(state, instance.definitionId);
+  // "with flying and infect" - an animated land's keywords come from the
+  // animation, and a land has none of its own to print.
+  const printed = [...(def.keywords ?? []), ...(instance.animation?.keywords ?? [])];
   // Off the battlefield a permanent has only what is printed on it: an
   // until-end-of-turn grant is cleared by the zone change, and an anthem
   // reaches nothing outside play.
@@ -174,6 +177,9 @@ export function effectiveKeywords(state: GameState, instance: CardInstance): Key
  */
 export function hasCreatureType(state: GameState, instance: CardInstance, subtype: string): boolean {
   if (hasKeyword(state, instance, "Changeling")) return true;
+  // "a 1/1 **Blinkmoth** artifact creature" - the types an animated land gains,
+  // which is what makes Blinkmoth Nexus able to pump itself.
+  if (instance.animation?.subtypes.includes(subtype)) return true;
   return requireDefinition(state, instance.definitionId).subtypes?.includes(subtype) ?? false;
 }
 
@@ -259,6 +265,17 @@ export function typesOf(state: GameState, instance: CardInstance): CardType[] {
   if (instance.bestowed) {
     return [...def.types.filter((t) => t !== "Creature"), "Enchantment"];
   }
+  /*
+   * "This land becomes a 1/1 Blinkmoth **artifact creature** ... It's still a
+   * land." Added to the printed types rather than replacing them, which is what
+   * that last sentence means.
+   */
+  if (instance.animation) {
+    const gained: CardType[] = ["Artifact", "Creature"].filter(
+      (type): type is CardType => !def.types.includes(type as CardType),
+    );
+    return [...def.types, ...gained];
+  }
   if (def.alsoCreatureOffBattlefield && instance.zone !== "battlefield") {
     return def.types.includes("Creature") ? [...def.types] : [...def.types, "Creature"];
   }
@@ -294,7 +311,9 @@ export function effectiveTriggers(state: GameState, instance: CardInstance): Tri
 export function effectivePower(state: GameState, instance: CardInstance): number {
   const def = requireDefinition(state, instance.definitionId);
   return (
-    (def.power ?? 0) +
+    // An animated land's printed power is nothing at all; the animation is where
+    // its 1/1 comes from.
+    (instance.animation?.power ?? def.power ?? 0) +
     instance.plusOneCounters -
     instance.minusOneCounters +
     instance.temporaryPowerBonus +
@@ -313,7 +332,7 @@ export function effectivePower(state: GameState, instance: CardInstance): number
 export function effectiveToughness(state: GameState, instance: CardInstance): number {
   const def = requireDefinition(state, instance.definitionId);
   return (
-    (def.toughness ?? 0) +
+    (instance.animation?.toughness ?? def.toughness ?? 0) +
     instance.plusOneCounters -
     instance.minusOneCounters +
     instance.temporaryToughnessBonus +

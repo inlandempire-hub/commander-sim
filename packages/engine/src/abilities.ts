@@ -10,9 +10,10 @@ import {
   couldAfford,
 } from "./mana.js";
 import { controllerMeets } from "./conditions.js";
+import { typesOf } from "./counters.js";
 import { damagePlayer } from "./damage.js";
 import { applyEffect } from "./effects.js";
-import { pushOntoStack } from "./permanents.js";
+import { pushOntoStack, tapPermanent } from "./permanents.js";
 import { sacrificePermanent } from "./sba.js";
 import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
 import { canCastAtSorcerySpeed } from "./casting.js";
@@ -50,7 +51,10 @@ export function activatableAbilities(
   (def.activatedAbilities ?? []).forEach((ability, index) => {
     if (ability.cost.tap) {
       if (instance.tapped) return;
-      if (def.types.includes("Creature") && instance.summoningSickness) return;
+      // Rule 302.6 follows what the permanent *is* now: a land animated the turn
+      // it arrived is a summoning-sick creature, and its {T} abilities - the mana
+      // one included - are switched off until its controller's next untap step.
+      if (typesOf(state, instance).includes("Creature") && instance.summoningSickness) return;
     }
     // "Equip only as a sorcery." Everything else here is instant speed.
     if (ability.sorcerySpeedOnly && !canCastAtSorcerySpeed(state, playerId)) return;
@@ -169,7 +173,7 @@ export function activateAbility(
     if (instance.tapped) throw new Error(`${def.name} is already tapped`);
     // Summoning sickness (302.6) only restricts creatures' tap abilities - lands and
     // other permanent types can always be tapped, even the turn they entered.
-    if (def.types.includes("Creature") && instance.summoningSickness) {
+    if (typesOf(state, instance).includes("Creature") && instance.summoningSickness) {
       throw new Error(`${def.name} has summoning sickness`);
     }
   }
@@ -192,7 +196,8 @@ export function activateAbility(
     throw new Error(`${playerId} cannot pay ${ability.cost.payLife} life`);
   }
 
-  if (ability.cost.tap) instance.tapped = true;
+  // Through `tapPermanent`, so City of Brass hurts its controller for the mana.
+  if (ability.cost.tap) tapPermanent(state, instance);
   if (ability.cost.mana) payManaCost(player, ability.cost.mana);
   if (ability.cost.payLife !== undefined) {
     player.life -= ability.cost.payLife;

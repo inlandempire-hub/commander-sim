@@ -254,6 +254,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.exerted = false; // a new object has not been exerted, whatever the old one did
   instance.protectionFrom = []; // and protection was granted to the object that left, not to this one
   instance.blockRestrictionsThisTurn = []; // likewise: Gingerbrute's evasion belonged to the object that left
+  instance.animation = undefined; // an animated land that leaves play is a land card again
   instance.attachedTo = undefined; // an Equipment that changes zones falls off
   instance.controllerId = owner.id; // zone changes return control to the owner
   instance.summoningSickness = destination === "battlefield";

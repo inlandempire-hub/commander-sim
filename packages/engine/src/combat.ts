@@ -1,9 +1,9 @@
 import type { CardInstance, GameState } from "./types.js";
 import { log, requireDefinition, requirePlayer } from "./state.js";
 import { gainLife } from "./life.js";
-import { effectivePower, effectiveToughness, effectiveTriggers, hasKeyword } from "./counters.js";
+import { effectivePower, effectiveToughness, effectiveTriggers, hasKeyword, typesOf } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
-import { describeSubject, fireWatchers, pushTrigger } from "./permanents.js";
+import { describeSubject, fireWatchers, pushTrigger, tapPermanent } from "./permanents.js";
 import { protectionStopsBlock, qualityWord } from "./protection.js";
 import { blockRestrictionProblem } from "./blocking.js";
 
@@ -62,7 +62,9 @@ export function attackProblem(state: GameState, playerId: string, attackerInstan
   const instance = player.battlefield.find((c) => c.instanceId === attackerInstanceId);
   if (!instance) return "That creature is not on your battlefield";
   const def = requireDefinition(state, instance.definitionId);
-  if (!def.types.includes("Creature")) return `${def.name} is not a creature`;
+  // `typesOf`, not `def.types`: an animated Blinkmoth Nexus is a creature this
+  // turn and may attack, and the printed type line says only "Land".
+  if (!typesOf(state, instance).includes("Creature")) return `${def.name} is not a creature`;
   if (hasKeyword(state, instance, "Defender")) return `${def.name} has defender and cannot attack`;
   if (instance.tapped) return `${def.name} is tapped and cannot attack`;
   const hasHaste = hasKeyword(state, instance, "Haste");
@@ -91,7 +93,7 @@ export function blockProblem(
   const blocker = player.battlefield.find((c) => c.instanceId === blockerInstanceId);
   if (!blocker) return "That creature is not on your battlefield";
   const blockerDef = requireDefinition(state, blocker.definitionId);
-  if (!blockerDef.types.includes("Creature")) return `${blockerDef.name} is not a creature`;
+  if (!typesOf(state, blocker).includes("Creature")) return `${blockerDef.name} is not a creature`;
   if (blocker.tapped) return `${blockerDef.name} is tapped and cannot block`;
   if (!(attackerInstanceId in state.attackers)) return "That creature is not attacking";
 
@@ -142,7 +144,9 @@ export function declareAttackers(state: GameState, playerId: string, declaration
     const instance = player.battlefield.find((c) => c.instanceId === attackerInstanceId)!;
     const def = requireDefinition(state, instance.definitionId);
     const hasVigilance = hasKeyword(state, instance, "Vigilance");
-    if (!hasVigilance) instance.tapped = true;
+    // Attacking taps it, and that counts as becoming tapped - City of Brass is a
+    // land, but the day a creature carries the trigger this is the same rule.
+    if (!hasVigilance) tapPermanent(state, instance);
     state.attackers[attackerInstanceId] = defendingPlayerId;
   }
 

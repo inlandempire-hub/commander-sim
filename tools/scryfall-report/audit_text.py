@@ -142,6 +142,10 @@ def card_features(fx):
     # which leaves the bare keyword to be accounted for.
     if fx.get("ascend"):
         feat.add("ascend")
+    # The printed half of the evasion family - Signal Pest. The granted half is an
+    # effect kind and is picked up by `effect_kinds` on its own.
+    if fx.get("blockRestriction"):
+        feat.add("blockRestriction")
     # Each static rule contributes its own name, so a card printing two of them
     # accounts for both sentences rather than one covering the other.
     for rule, value in (fx.get("staticRules") or {}).items():
@@ -456,6 +460,13 @@ RULES = [
     (r"can't be blocked except by creatures with flying or reach", {"blockRestriction"}),
     (r"can't be blocked this turn except by creatures with haste", {"restrictBlockersThisTurn"}),
     (r"^battle cry$", {"pumpAll"}),
+    # Batch 7's mana base. Each tied to the field or effect kind that implements
+    # it, never to a word that merely appears nearby.
+    (r"whenever this land becomes tapped, it deals \d+ damage to you", {"damageController"}),
+    (r"when you play another land, sacrifice this land", {"sacrifice"}),
+    (r"this land becomes a \d+/\d+ .*creature.*until end of turn", {"animateSelf"}),
+    (r"^it's still a land$", {"animateSelf"}),
+    (r"enters tapped unless it's your (first|second|third)", {"within-your-first-turns"}),
     (r"\bif a card or token would be put into your graveyard\b", {"replacementEffects"}),
     # "They have '...'" - a token's own rules text, which lives on the token
     # definition rather than on the card that makes them.
