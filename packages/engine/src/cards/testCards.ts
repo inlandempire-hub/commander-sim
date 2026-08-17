@@ -14947,6 +14947,44 @@ export const EOMER_KING_OF_ROHAN: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * Esper Sentinel - {W} 1/1 Artifact Creature, Human Soldier.
+ *
+ * "Whenever an opponent casts their first noncreature spell each turn, draw a
+ * card unless that player pays {X}, where X is this creature's power."
+ *
+ * A one-mana tax that reads its own power, so it gets worse to ignore as the
+ * board grows - and "first each turn" is what stops it being a hard lock: the
+ * second spell each turn is free.
+ *
+ * The engine pays the tax for the opponent whenever they can afford it, which is
+ * the same shortcut the counterspell family's "unless its controller pays" takes.
+ * It is a real simplification - a player who would rather let the card through
+ * and keep the mana has no way to say so - and the note on `drawUnlessTheyPay`
+ * says what it would take to ask properly.
+ */
+export const ESPER_SENTINEL: CardDefinition = {
+  id: "esper-sentinel",
+  name: "Esper Sentinel",
+  scryfallId: "f3537373-ef54-4578-9d05-6216420ee349",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [
+    {
+      event: "spell-cast",
+      watches: "any",
+      onlyFirstNoncreatureEachTurn: true,
+      watchFor: { controlledBy: "opponent" },
+      effect: { kind: "drawUnlessTheyPay", amount: { kind: "source-power" } },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -15960,6 +15998,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     PROFESSIONAL_FACE_BREAKER,
     RAGAVAN_NIMBLE_PILFERER,
     EOMER_KING_OF_ROHAN,
+    ESPER_SENTINEL,
     ANGRATHS_MARAUDERS,
     EIGANJO_SEAT_OF_THE_EMPIRE,
     SOKENZAN_CRUCIBLE_OF_DEFIANCE,

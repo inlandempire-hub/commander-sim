@@ -1514,6 +1514,18 @@ export type Effect =
    * anything on the battlefield.
    */
   | { kind: "becomeMonarch"; who: "target" }
+  /**
+   * "Draw a card **unless that player pays {X}**, where X is this creature's
+   * power." - Esper Sentinel.
+   *
+   * The player who is taxed is the one the event named - the caster - and the
+   * engine pays for them if they can, which is the same shortcut `counter`'s
+   * `unlessPays` already takes: nothing in this engine asks whether you would
+   * rather let a card through, and a prompt with one sensible answer is noise.
+   * The day that becomes a real decision it is a pending question, not a new
+   * effect.
+   */
+  | { kind: "drawUnlessTheyPay"; amount: Amount }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -1871,6 +1883,17 @@ export interface TriggeredAbility {
    * card does not do, and never drew one for an Aura. Omitting this watches
    * every permanent, which no card in the pool currently wants; write it out.
    */
+  /**
+   * "Whenever an opponent casts their **first** noncreature spell **each
+   * turn**." - Esper Sentinel.
+   *
+   * A narrowing on the *caster's* turn history rather than on the spell, which
+   * is why it sits here and not in `watchFor`: the same spell fires this or does
+   * not depending on what that player has already cast. Counted off
+   * `spellTypesCastThisTurn`, the list the hate pieces already keep, so there is
+   * no second tally to go stale.
+   */
+  onlyFirstNoncreatureEachTurn?: boolean;
   watchFor?: {
     /**
      * The card type the subject has to have.

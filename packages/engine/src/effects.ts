@@ -776,6 +776,35 @@ export function applyEffect(
       log(state, `${target.playerId} becomes the monarch`);
       return;
     }
+    case "drawUnlessTheyPay": {
+      /*
+       * "Draw a card unless that player pays {X}, where X is this creature's
+       * power."
+       *
+       * The taxed player is the one the trigger carried in - the caster - and the
+       * amount is read off the source now rather than when the trigger fired, so
+       * an Esper Sentinel pumped in response really does cost more.
+       */
+      const taxed = targets.find((t) => t.kind === "player");
+      const amount = evaluateAmount(
+        state,
+        controllerId,
+        effect.amount,
+        "drawUnlessTheyPay amount",
+        sourceInstanceId,
+      );
+      if (taxed && taxed.kind === "player" && amount > 0) {
+        const payer = requirePlayer(state, taxed.playerId);
+        const tax: ManaCost = { generic: amount, colors: {} };
+        if (canPayManaCost(payer, tax)) {
+          payManaCost(payer, tax);
+          log(state, `${payer.id} pays ${amount} rather than let ${controllerId} draw`);
+          return;
+        }
+      }
+      drawCard(state, controllerId, 1);
+      return;
+    }
     case "becomePrepared": {
       const source = findInstance(state, sourceInstanceId);
       if (!source || source.instance.zone !== "battlefield") return;

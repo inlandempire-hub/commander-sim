@@ -620,6 +620,12 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         `exile the top card of ${effect.from === "you" ? "your" : "that player's"} library. ` +
           `${effect.lands ? "You may play that card this turn." : "Until end of turn, you may cast that card."}`,
       );
+    case "drawUnlessTheyPay":
+      return sentence(
+        `draw a card unless that player pays {${
+          typeof effect.amount === "number" ? effect.amount : "X"
+        }}${typeof effect.amount !== "number" ? ", where X is this creature's power" : ""}.`,
+      );
     case "becomeMonarch":
       return sentence("target player becomes the monarch.");
     case "restrictBlockersThisTurn":
@@ -1285,7 +1291,9 @@ function describeTrigger(
     case "spell-cast":
       // The subject is a spell, so `watchedSubject`'s permanent vocabulary is
       // wrong here - "an instant or sorcery spell", not "an instant permanent".
-      return `Whenever ${castSubject(ability)} casts ${watchedSpell(ability.watchFor)}, ${tail}`;
+      return ability.onlyFirstNoncreatureEachTurn
+        ? `Whenever ${castSubject(ability)} casts their first noncreature spell each turn, ${tail}`
+        : `Whenever ${castSubject(ability)} casts ${watchedSpell(ability.watchFor)}, ${tail}`;
     case "damaged":
       return `Whenever this creature is dealt damage, ${tail}`;
     case "combat-damage-to-player":

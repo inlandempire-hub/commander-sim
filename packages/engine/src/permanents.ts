@@ -469,6 +469,19 @@ export function fireWatchers(
       if (!matchesWatchFor(trigger.watchFor, subject, watcher.controllerId)) continue;
       // "Whenever equipped creature dies" - only the one this Equipment is on.
       if (trigger.watchFor?.attachedToThis && watcher.attachedTo !== subject.instanceId) continue;
+      /*
+       * "their **first** noncreature spell each turn" - Esper Sentinel. Counted
+       * off the caster's own list of what they have cast this turn, which
+       * `castSpell` appends to before firing this, so the spell in hand is the
+       * one being counted: first means the count is exactly one.
+       */
+      if (trigger.onlyFirstNoncreatureEachTurn) {
+        const caster = state.players.find((p) => p.id === subject.controllerId);
+        const noncreature = (caster?.spellTypesCastThisTurn ?? []).filter(
+          (types) => !types.includes("Creature"),
+        ).length;
+        if (noncreature !== 1) continue;
+      }
       if (watcher.instanceId === subject.instanceId && !trigger.includesSelf) continue;
       if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== subject.controllerId) {
         continue;
@@ -479,7 +492,20 @@ export function fireWatchers(
        * other event and every other card, which is exactly what
        * `event-amount` means when the event carries nothing.
        */
-      pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger, subject.counters);
+      /*
+       * The subject's controller rides along for `spell-cast`, because Esper
+       * Sentinel taxes *the player who cast the spell* and nothing else on the
+       * stack object could name them. Harmless for every other watcher event:
+       * an ability that reads no player target ignores it.
+       */
+      pushTrigger(
+        state,
+        watcher.instanceId,
+        watcher.controllerId,
+        trigger,
+        subject.counters,
+        event === "spell-cast" ? subject.controllerId : undefined,
+      );
     }
   }
 }

@@ -511,6 +511,10 @@ RULES = [
     (r"enters with a \+1/\+1 counter on it for each other human you control", {"entersWithCounters"}),
     (r"target player becomes the monarch", {"becomeMonarch"}),
     (r"deals damage equal to its power to any target", {"damage"}),
+    # Esper Sentinel. The whole sentence is one rule, so it is one pattern tied to
+    # the effect that implements it.
+    (r"whenever an opponent casts their first noncreature spell each turn, draw a card unless that player pays",
+     {"drawUnlessTheyPay"}),
     (r"\bif a card or token would be put into your graveyard\b", {"replacementEffects"}),
     # "They have '...'" - a token's own rules text, which lives on the token
     # definition rather than on the card that makes them.
