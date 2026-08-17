@@ -1146,6 +1146,15 @@ export type TriggerEvent =
    * the effect as `{ kind: "event-amount" }`.
    */
   | "damaged"
+  /**
+   * "Whenever a creature you control deals combat damage to a player" -
+   * Necropolis Regent, Starwinder. A watcher event whose subject is the
+   * creature that dealt the damage; the trigger is pushed with that creature as
+   * its source, so "put that many +1/+1 counters on it" lands on the attacker,
+   * and the amount dealt is carried as `{ kind: "event-amount" }`. `watches`
+   * decides whose creatures count. Fired from `dealCombatDamage`.
+   */
+  | "combat-damage-to-player"
   | "upkeep"
   /**
    * "At the beginning of your first main phase" - the precombat main only.

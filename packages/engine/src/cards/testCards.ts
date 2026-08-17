@@ -11218,6 +11218,27 @@ export const LABORATORY_MANIAC: CardDefinition = {
   tier: "scripted",
 };
 
+export const NECROPOLIS_REGENT: CardDefinition = {
+  id: "necropolis-regent",
+  name: "Necropolis Regent",
+  scryfallId: "9cd548d5-6162-4eff-adfc-69b7e3b45712",
+  types: ["Creature"],
+  subtypes: ["Vampire"],
+  manaCost: { generic: 3, colors: { B: 3 } },
+  colorIdentity: ["B"],
+  power: 6,
+  toughness: 5,
+  keywords: ["Flying"],
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      watches: "controller",
+      effect: { kind: "addCounter", amount: { kind: "event-amount" } },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const DEATH_BEGETS_LIFE: CardDefinition = {
   id: "death-begets-life",
   name: "Death Begets Life",
@@ -14253,5 +14274,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WINDFALL,
     ARBOR_ELF,
     DEATH_BEGETS_LIFE,
+    NECROPOLIS_REGENT,
   ].map((def) => [def.id, def]),
 );

@@ -3,7 +3,7 @@ import { log, requireDefinition, requirePlayer } from "./state.js";
 import { gainLife } from "./life.js";
 import { effectivePower, effectiveToughness, effectiveTriggers, hasKeyword } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
-import { describeSubject, fireWatchers, pushTrigger } from "./permanents.js";
+import { describeSubject, fireCombatDamageToPlayer, fireWatchers, pushTrigger } from "./permanents.js";
 
 /**
  * Combat damage happens in two sub-steps once anything has First or Double
@@ -291,6 +291,9 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
         defender.commanderDamageTaken[attackerInstanceId] =
           (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + dealt;
       }
+      if (dealt > 0) {
+        fireCombatDamageToPlayer(state, attackerInstanceId, attackerFound.instance.controllerId, dealt);
+      }
       continue;
     }
 
@@ -352,6 +355,9 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       if (attackerFound.instance.isCommander && trampledThrough > 0) {
         defender.commanderDamageTaken[attackerInstanceId] =
           (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + trampledThrough;
+      }
+      if (trampledThrough > 0) {
+        fireCombatDamageToPlayer(state, attackerInstanceId, attackerFound.instance.controllerId, trampledThrough);
       }
     }
 

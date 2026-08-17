@@ -317,6 +317,35 @@ export function fireWatchers(
 }
 
 /**
+ * "Whenever a creature you control deals combat damage to a player."
+ *
+ * The trigger is pushed with the *damaging creature* as its source, not the
+ * watcher, so "put that many +1/+1 counters on it" and any other self-referring
+ * effect lands on the attacker that dealt the damage. `amount` is the damage
+ * dealt, handed on as the event's number. `watches: "controller"` (the default)
+ * means "a creature you control"; "any" watches every player's creatures.
+ */
+export function fireCombatDamageToPlayer(
+  state: GameState,
+  damagerInstanceId: string,
+  damagerControllerId: string,
+  amount: number,
+): void {
+  if (amount <= 0) return;
+  for (const player of state.players) {
+    for (const watcher of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "combat-damage-to-player") continue;
+        if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== damagerControllerId) {
+          continue;
+        }
+        pushTrigger(state, damagerInstanceId, watcher.controllerId, trigger, amount);
+      }
+    }
+  }
+}
+
+/**
  * "Whenever a land enters" - fired both by a land played for the turn and by
  * one put onto the battlefield some other way (a fetchland, a ramp spell).
  *
