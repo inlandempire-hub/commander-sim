@@ -4288,3 +4288,62 @@ invented until the keyword itself stood in for the clause it means.
 animated-land badge. Both are wired at sites the tests cover and neither was driven
 through the UI. Worth a human's two minutes, the same caveat the colour picker
 carries from the batch before.
+
+## Batch 8, part one: the singles that were only cards (2026-08-17)
+
+**The list is at 72 of 100. The pool is at 1,010 fixtures.**
+
+Batch 8 is defined by having no theme: every card needs its own thing and none of
+it is reusable. Six of the eleven turned out to need something small enough to
+build; the other five each want a subsystem, and are listed below with what.
+
+### Built
+
+**Swords to Plowshares** - life aimed at somebody else's controller, in an amount
+read off the creature. The sequence is written in reverse of the printed order on
+purpose: the card exiles and *then* gains life "equal to its power", which the
+rules answer from last-known information. Reading the power first gives the
+identical number off a creature still on the battlefield - counters and anthems
+included - and needs no last-known-information machinery for the one card that
+wants it.
+
+**Gamble** - a discard nobody chooses. Its own effect rather than the pool's
+`discard`, because that one stops and asks, and a Gamble whose discard you picked
+would be an unconditional one-mana tutor. The test runs it twenty times and
+asserts both cards in a two-card hand actually get taken; a "random" discard that
+always took the first would pass everything else.
+
+**Rite of Flame** - counts copies of itself by name across every graveyard, and is
+still on the stack while it counts, so it never counts itself. Its variable half
+is a separate effect from `addMana`, because that one is read by the mana-source
+scanners to plan a payment and an unpredictable output would break the auto-tapper.
+
+**Pyroblast** and **Red Elemental Blast** - two cards that read almost identically
+and are not the same card. Red Elemental Blast may only be *pointed* at something
+blue; Pyroblast may be pointed at anything and does nothing unless it turns out to
+be blue. One got a colour filter on the selector, the other a colour test on the
+effect. Written the other way round, Pyroblast is uncastable in exactly the spots
+where the real card is a bluff.
+
+**Angrath's Marauders** - the first replacement effect here on something that is
+not a counter or a token. Both damage doors ask it, because damage arrives from
+everywhere, and "a source **you control**" is why every `damagePlayer` call now
+names its source: an opponent's Marauders must not double the burn spell you point
+at them. Two of them make it four times.
+
+### Left in batch 8, and what each one actually needs
+
+- **Esper Sentinel** - "an opponent's **first** noncreature spell each turn" is a
+  per-player, per-turn count nothing tracks, and "unless that player pays {X},
+  where X is this creature's power" is an unless-pays aimed at somebody else with
+  a dynamic cost. The engine has an unless-pays for counterspells that pays
+  automatically; pointing it at an opponent is the new part.
+- **Éomer, King of Rohan** - the monarch. A whole subsystem: who has it, the card
+  it draws at their end step, and combat damage stealing it.
+- **Professional Face-Breaker** and **Ragavan** - both play cards from exile,
+  which is a casting path that does not exist; Ragavan also wants Dash.
+- **Ajani, Nacatl Pariah** - a creature that transforms into a planeswalker, so it
+  needs both halves of a card type the engine has and a transform it does not.
+
+**1,010 fixtures. 1,329 tests, typecheck clean**, all three audits clean bar the
+two long-known gaps.
