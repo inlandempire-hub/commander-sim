@@ -68,6 +68,23 @@ function abilityZoneAllows(ability: ActivatedAbility, zone: string): boolean {
   return ability.cost.fromHand ? zone === "hand" : zone === "battlefield";
 }
 
+/**
+ * A permanent of the named subtype this player could give up - "Sacrifice a
+ * Treasure".
+ *
+ * The first one found, because every printing of this shape names a token type
+ * whose copies are identical: a chooser for "which of your three Treasures"
+ * would be a question with one answer. The day a card says "sacrifice a
+ * creature" this needs to become a real choice, which is what PendingSacrifice
+ * already is.
+ */
+function sacrificeCandidate(state: GameState, playerId: string, subtype: string): string | undefined {
+  const found = requirePlayer(state, playerId).battlefield.find((instance) =>
+    state.cardDefinitions[instance.definitionId]?.subtypes?.includes(subtype),
+  );
+  return found?.instanceId;
+}
+
 export function activatableAbilities(
   state: GameState,
   playerId: string,
@@ -113,6 +130,10 @@ export function activatableAbilities(
       return;
     }
     if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) return;
+    // "Sacrifice a Treasure" - an ability with nothing to give up is not usable.
+    if (ability.cost.sacrificeSubtype && !sacrificeCandidate(state, playerId, ability.cost.sacrificeSubtype)) {
+      return;
+    }
     if (!colorAllowed(state, playerId, ability)) return;
     if (!controllerMeets(state, playerId, ability.activateOnlyIf)) return;
     // An ability that needs a target and has none is not a usable ability - it
@@ -266,6 +287,16 @@ export function activateAbility(
    */
   const sourceCounters = instance.plusOneCounters + instance.otherCounters;
   if (ability.cost.sacrificeSelf) sacrificePermanent(state, instanceId);
+  /*
+   * "Sacrifice a Treasure" - paid here with the rest of the cost, so the
+   * Treasure is gone before the ability resolves and the mana it could have made
+   * is no longer available to pay for it.
+   */
+  if (ability.cost.sacrificeSubtype) {
+    const victim = sacrificeCandidate(state, playerId, ability.cost.sacrificeSubtype);
+    if (!victim) throw new Error(`${playerId} has no ${ability.cost.sacrificeSubtype} to sacrifice`);
+    sacrificePermanent(state, victim);
+  }
   /*
    * "Exile this card from your hand", "Discard this card" - paid here, with the
    * sacrifice, and for the same reason: the card is gone before the ability

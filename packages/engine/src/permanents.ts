@@ -226,6 +226,25 @@ export function enteredBattlefield(
     state.attackers[instance.instanceId] = options.attackingPlayerId;
     instance.summoningSickness = false;
   }
+  /*
+   * Dash: "it gains haste, and it's returned from the battlefield to its owner's
+   * hand at the beginning of the next end step."
+   *
+   * Both halves are set up here, as it arrives, because that is when the
+   * permanent exists to have them - and the return is scheduled the same way
+   * every other "at the beginning of the next end step" is, so a creature dashed
+   * during an end step goes home on the *next* one rather than instantly.
+   */
+  if (instance.dashed) {
+    if (!instance.grantedKeywords.includes("Haste")) instance.grantedKeywords.push("Haste");
+    state.delayedTriggers.push({
+      instanceIds: [instance.instanceId],
+      controllerId: instance.controllerId,
+      sourceInstanceId: instance.instanceId,
+      action: "return-to-hand",
+      readyOnTurn: state.turnNumber + (state.phase === "ending" ? 1 : 0),
+    });
+  }
   if (hasKeyword(state, instance, "Haste")) instance.summoningSickness = false;
   // Either the card says so on its face, or whatever put it here said so (a
   // ramp spell fetching a land onto the battlefield tapped). Not exclusive:
@@ -464,6 +483,57 @@ export function fireWatchers(
  * returned - is not a land that was played. `fireWatchers` handles the "another"
  * for it, the same way it does for every other watcher.
  */
+/**
+ * "Whenever this creature deals combat damage to a player", and its once-per-step
+ * twin "whenever one or more creatures you control deal combat damage to a
+ * player".
+ *
+ * Called from the combat damage step with everything that connected this
+ * sub-step, so the "one or more" half can fire exactly once however many
+ * creatures got through - which is what the words say and is the difference
+ * between one Treasure and three.
+ */
+export function fireCombatDamageToPlayer(
+  state: GameState,
+  hits: Array<{ attackerInstanceId: string; defendingPlayerId: string }>,
+): void {
+  for (const { attackerInstanceId, defendingPlayerId } of hits) {
+    const found = findInstance(state, attackerInstanceId);
+    if (!found) continue;
+    for (const trigger of effectiveTriggers(state, found.instance)) {
+      if (trigger.event !== "combat-damage-to-player") continue;
+      pushTrigger(
+        state,
+        attackerInstanceId,
+        found.instance.controllerId,
+        trigger,
+        undefined,
+        defendingPlayerId,
+      );
+    }
+  }
+
+  /*
+   * "One or more creatures **you control**" - once per controller who connected,
+   * not once per creature. A set of controllers rather than a loop over the hits
+   * is the whole implementation of "one or more".
+   */
+  const controllers = new Set<string>();
+  for (const { attackerInstanceId } of hits) {
+    const found = findInstance(state, attackerInstanceId);
+    if (found) controllers.add(found.instance.controllerId);
+  }
+  for (const player of state.players) {
+    for (const watcher of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "creatures-dealt-combat-damage") continue;
+        if (!controllers.has(watcher.controllerId)) continue;
+        pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger);
+      }
+    }
+  }
+}
+
 export function fireLandPlayed(state: GameState, played: CardInstance): void {
   fireWatchers(state, "land-played", describeSubject(state, played));
 }
@@ -548,6 +618,15 @@ export function pushTrigger(
    * alongside X, so nothing downstream ever sees an unresolved marker.
    */
   eventAmount?: number,
+  /**
+   * The player this event happened to - "Ragavan deals combat damage to **a
+   * player**", whose library the ability then exiles from.
+   *
+   * Handed on as a target rather than as a second kind of payload, because a
+   * player the ability acts on is exactly what a target is, and every effect
+   * downstream already knows how to read one.
+   */
+  eventPlayerId?: string,
 ): StackObject | null {
   /*
    * "If a creature attacking causes a triggered ability of a permanent you
@@ -560,9 +639,9 @@ export function pushTrigger(
    * - including its own targeting - because two instances of an ability really
    * are two abilities, each pointed separately.
    */
-  const first = pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount);
+  const first = pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount, eventPlayerId);
   for (let i = 0; i < extraAttackTriggers(state, controllerId, trigger); i++) {
-    pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount);
+    pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount, eventPlayerId);
   }
   return first;
 }
@@ -584,6 +663,7 @@ function pushTriggerOnce(
   controllerId: string,
   trigger: TriggeredAbility,
   eventAmount?: number,
+  eventPlayerId?: string,
 ): StackObject | null {
   // Rule 603.4, first check: an intervening-if that is false right now means
   // the ability never goes on the stack at all.
@@ -661,7 +741,15 @@ function pushTriggerOnce(
     return null;
   }
 
-  const obj = pushOntoStack(state, sourceInstanceId, controllerId, effect, [], false);
+  /*
+   * The player this happened to, carried as a target - "exile the top card of
+   * **that player's** library". An untargeted trigger with a player attached is
+   * not a targeted ability: nothing was chosen, and hexproof or shroud never
+   * enter into it. It is the event's own payload wearing the shape every effect
+   * downstream already reads.
+   */
+  const eventTargets: StackTarget[] = eventPlayerId ? [{ kind: "player", playerId: eventPlayerId }] : [];
+  const obj = pushOntoStack(state, sourceInstanceId, controllerId, effect, eventTargets, false);
   if (trigger.optional) {
     obj.optional = true;
     obj.prompt = `${cardName(state, sourceInstanceId)}: ${describeOptionalEffect(trigger.effect)}`;

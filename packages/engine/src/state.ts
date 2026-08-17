@@ -254,6 +254,16 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.exerted = false; // a new object has not been exerted, whatever the old one did
   instance.protectionFrom = []; // and protection was granted to the object that left, not to this one
   instance.blockRestrictionsThisTurn = []; // likewise: Gingerbrute's evasion belonged to the object that left
+  /*
+   * Cleared only on the way *out*. The move that puts a dashed creature onto the
+   * battlefield is the move that makes it a permanent, and `enteredBattlefield`
+   * reads this immediately afterwards. The stack is spared for the same reason
+   * one step earlier: the flag is set as the spell is cast and the card moves to
+   * the stack in the same breath, so clearing it there wiped it before the
+   * permanent existed at all. A dashed spell that gets countered moves on to a
+   * graveyard, where it is cleared like anything else.
+   */
+  if (destination !== "battlefield" && destination !== "stack") instance.dashed = false;
   instance.animation = undefined; // an animated land that leaves play is a land card again
   instance.attachedTo = undefined; // an Equipment that changes zones falls off
   instance.controllerId = owner.id; // zone changes return control to the owner

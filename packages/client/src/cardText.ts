@@ -612,6 +612,11 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
           : countAmount(effect.amount);
       return sentence(`add {${effect.color}} for each ${per}.`);
     }
+    case "exileTopAndMayPlay":
+      return sentence(
+        `exile the top card of ${effect.from === "you" ? "your" : "that player's"} library. ` +
+          `${effect.lands ? "You may play that card this turn." : "Until end of turn, you may cast that card."}`,
+      );
     case "restrictBlockersThisTurn":
       return sentence(
         `This creature can't be blocked this turn except by ${describeBlockRestriction(effect.restriction)}.`,
@@ -1278,6 +1283,12 @@ function describeTrigger(
       return `Whenever ${castSubject(ability)} casts ${watchedSpell(ability.watchFor)}, ${tail}`;
     case "damaged":
       return `Whenever this creature is dealt damage, ${tail}`;
+    case "combat-damage-to-player":
+      return `Whenever this creature deals combat damage to a player, ${tail}`;
+    case "creatures-dealt-combat-damage":
+      // "One or more" is the printed phrase and the rule at once: it fires once
+      // however many creatures connected.
+      return `Whenever one or more creatures you control deal combat damage to a player, ${tail}`;
     case "land-played":
       // "When you play **another** land" - the word is the default, so it is
       // printed unless the card says otherwise.
@@ -1400,6 +1411,9 @@ export function describeActivated(
   if (ability.cost.tap) costs.push("{T}");
   if (ability.cost.payLife !== undefined) costs.push(`Pay ${ability.cost.payLife} life`);
   if (ability.cost.sacrificeSelf) costs.push(`Sacrifice this ${selfNoun(self)}`);
+  // "Sacrifice a Treasure" - a cost that gives up something other than the
+  // source, which nothing printed before Professional Face-Breaker.
+  if (ability.cost.sacrificeSubtype) costs.push(`Sacrifice a ${ability.cost.sacrificeSubtype}`);
   /*
    * "Discard this card", "Exile this card from your hand" - the cost that also
    * says where the ability is activated from. Left out, a Channel land reads as a
@@ -1542,6 +1556,18 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
   }
   if (def.devour !== undefined) lines.push(`Devour ${def.devour}`);
   if (def.bestowCost) lines.push(`Bestow ${formatManaCost(def.bestowCost)}`);
+  /*
+   * Dash, with its reminder text, because the keyword alone hides both riders -
+   * a player reading "Dash {1}{R}" has no way to know the creature is hasty and
+   * leaves at end of turn, and those are the two things that decide whether to
+   * use it.
+   */
+  if (def.dashCost) {
+    lines.push(
+      `Dash ${formatManaCost(def.dashCost)} (You may cast this spell for its dash cost. If you do, it gains ` +
+        "haste, and it's returned from the battlefield to its owner's hand at the beginning of the next end step.)",
+    );
+  }
   if (def.alsoCreatureOffBattlefield) {
     const also = def.alsoCreatureOffBattlefield;
     lines.push(

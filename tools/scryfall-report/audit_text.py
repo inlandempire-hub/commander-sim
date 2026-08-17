@@ -146,6 +146,10 @@ def card_features(fx):
     # effect kind and is picked up by `effect_kinds` on its own.
     if fx.get("blockRestriction"):
         feat.add("blockRestriction")
+    # Dash is a cost with two riders rather than an effect, so it is a property
+    # of the card like bestow and suspend beside it.
+    if fx.get("dashCost"):
+        feat.add("dashCost")
     # Abilities activated from hand, and the discount two of them carry. Read off
     # the abilities rather than the card, because both live on one ability of a
     # card whose other abilities are ordinary.
@@ -492,6 +496,12 @@ RULES = [
      {"addManaVariable"}),
     (r"if a source you control would deal damage to a permanent or player, it deals double that damage",
      {"double-damage-you-deal"}),
+    # The two Pirates. Each sentence is tied to the effect or field that carries
+    # it, so a card that exiles without granting permission is still reported.
+    (r"^sacrifice a treasure: exile the top card of your library\.?$", {"exileTopAndMayPlay"}),
+    (r"^you may play that card this turn\.?$", {"exileTopAndMayPlay"}),
+    (r"^until end of turn, you may cast that card\.?$", {"exileTopAndMayPlay"}),
+    (r"^dash \{.*\}$", {"dashCost"}),
     (r"\bif a card or token would be put into your graveyard\b", {"replacementEffects"}),
     # "They have '...'" - a token's own rules text, which lives on the token
     # definition rather than on the card that makes them.

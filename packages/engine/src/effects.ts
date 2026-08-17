@@ -462,6 +462,11 @@ export function applyEffect(
           // Sacrificing is a death, so anything watching for one sees it. That
           // is the whole difference from Rionya's exile.
           sacrificePermanent(state, target.instanceId);
+        } else if (effect.action === "return-to-hand") {
+          // Dash: the creature goes home rather than dying, which is what makes
+          // it a rental rather than a sacrifice.
+          log(state, `${cardName(state, target.instanceId)} returns to its owner's hand`);
+          moveCard(state, target.instanceId, "hand");
         } else {
           log(state, `${cardName(state, target.instanceId)} is exiled`);
           moveCard(state, target.instanceId, "exile");
@@ -711,6 +716,46 @@ export function applyEffect(
       if (extra <= 0) return;
       addMana(controller.manaPool, effect.color, extra);
       log(state, `${controllerId} adds ${extra} mana`);
+      return;
+    }
+    case "exileTopAndMayPlay": {
+      /*
+       * "Exile the top card of your library. You may play that card this turn."
+       *
+       * Whose library depends on the card: Face-Breaker takes from its own
+       * controller, Ragavan from the player its damage just went to - read off
+       * the player target the trigger carried in. With no such player (the
+       * defender has left the game) there is nothing to exile and the ability
+       * simply does nothing.
+       */
+      const ownerId =
+        effect.from === "you"
+          ? controllerId
+          : targets.find((t) => t.kind === "player")?.kind === "player"
+            ? (targets.find((t) => t.kind === "player") as Extract<StackTarget, { kind: "player" }>).playerId
+            : undefined;
+      if (!ownerId) return;
+      const library = requirePlayer(state, ownerId).library;
+      const top = library[0];
+      if (!top) return;
+      moveCard(state, top.instanceId, "exile");
+      /*
+       * The permission is stamped with the turn rather than cleared in cleanup,
+       * so it cannot outlive its window by a step: a card exiled on turn 7 is
+       * playable while `state.turnNumber` is 7 and never again.
+       */
+      const exiled = findInstance(state, top.instanceId);
+      if (exiled) {
+        exiled.instance.playableFromExile = {
+          playerId: controllerId,
+          untilTurn: state.turnNumber,
+          lands: effect.lands,
+        };
+      }
+      log(
+        state,
+        `${controllerId} exiles ${cardName(state, top.instanceId)} and may ${effect.lands ? "play" : "cast"} it this turn`,
+      );
       return;
     }
     case "becomePrepared": {

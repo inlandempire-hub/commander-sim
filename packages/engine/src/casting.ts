@@ -1,5 +1,5 @@
 import { castRestrictionProblem } from "./restrictions.js";
-import type { CardDefinition, Effect, GameState, ManaCost, StackTarget } from "./types.js";
+import type { CardDefinition, CardInstance, Effect, GameState, ManaCost, StackTarget } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import {
   applyCommanderTax,
@@ -48,6 +48,14 @@ export interface CastOptions {
    * player who wants to keep mana up for something else must be able to.
    */
   chosenX?: number;
+  /**
+   * "You may cast this spell for its **dash** cost." - Ragavan.
+   *
+   * A decision made as the spell is cast and never afterwards, which is why it
+   * rides here with the other announcements rather than being asked about on
+   * resolution.
+   */
+  useDashCost?: boolean;
   /**
    * Which creature is being given up for an "as an additional cost, sacrifice a
    * creature" - Tend the Pests.
@@ -175,11 +183,22 @@ export function castSpell(
   if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
   const { instance } = found;
 
+  /*
+   * "Until end of turn, you may cast that card" - Ragavan and Professional
+   * Face-Breaker, the only way a card is cast from anywhere but a hand or the
+   * command zone.
+   *
+   * The permission names the player as well as the card, which is what makes
+   * Ragavan work at all: the card is exiled from the *defender's* library and
+   * cast by Ragavan's controller, so ownership is deliberately not checked on
+   * this path.
+   */
+  const fromExile = mayPlayFromExile(state, playerId, instance);
   const expectedZone = options.fromCommandZone ? "command" : "hand";
-  if (instance.zone !== expectedZone) {
+  if (!fromExile && instance.zone !== expectedZone) {
     throw new Error(`${instanceId} is not in ${playerId}'s ${expectedZone} zone`);
   }
-  if (instance.ownerId !== playerId) {
+  if (!fromExile && instance.ownerId !== playerId) {
     throw new Error(`${playerId} does not own ${instanceId}`);
   }
 
@@ -237,12 +256,17 @@ export function castSpell(
   }
 
   if (options.bestowOnto && !def.bestowCost) throw new Error(`${def.name} has no bestow cost`);
+  // "You may cast this spell for its dash cost" - a price, not a discount, and
+  // the two riders that come with it are applied as the permanent arrives.
+  if (options.useDashCost && !def.dashCost) throw new Error(`${def.name} has no dash cost`);
   const free = alternative !== undefined || options.free === true;
   let cost: ManaCost = free
     ? { generic: 0, colors: {} }
-    : options.bestowOnto
-      ? def.bestowCost!
-      : costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
+    : options.useDashCost
+      ? def.dashCost!
+      : options.bestowOnto
+        ? def.bestowCost!
+        : costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
   if (options.fromCommandZone && !free) {
     const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
     cost = applyCommanderTax(cost, timesCast);
@@ -353,6 +377,12 @@ export function castSpell(
    * as the permanent arrives - long after the stack object has gone.
    */
   instance.bestowTarget = options.bestowOnto;
+  // Dash, for the same reason: the haste and the return home are applied as the
+  // creature arrives, not while it is a spell.
+  instance.dashed = options.useDashCost === true;
+  // Dash, for the same reason: the haste and the return home are applied as the
+  // creature arrives, not while it is a spell.
+  instance.dashed = options.useDashCost === true;
 
   moveCard(state, instanceId, "stack");
   log(state, `${playerId} casts ${def.name}`);
@@ -542,6 +572,25 @@ export function castPreparedSpell(state: GameState, playerId: string, instanceId
  * Plays a land for the turn. See `fireLandPlayed` for why the event it fires is
  * not the same as landfall.
  */
+/**
+ * Whether this player has been given permission to play this specific card out of
+ * exile, and it has not expired.
+ *
+ * Read rather than cleared: the permission is stamped with the turn it was
+ * granted, so a card exiled on turn 7 stops being playable the moment turn 8
+ * begins without anything having to remember to sweep it.
+ */
+export function mayPlayFromExile(state: GameState, playerId: string, instance: CardInstance): boolean {
+  const permission = instance.playableFromExile;
+  if (!permission || instance.zone !== "exile") return false;
+  if (permission.playerId !== playerId) return false;
+  if (state.turnNumber !== permission.untilTurn) return false;
+  const def = state.cardDefinitions[instance.definitionId];
+  // "You may **cast** that card" does not include a land drop.
+  if (!permission.lands && def?.types.includes("Land")) return false;
+  return true;
+}
+
 export function playLand(state: GameState, playerId: string, instanceId: string): void {
   if (state.players[state.priorityPlayerIndex]?.id !== playerId) {
     throw new Error(`${playerId} does not have priority`);
@@ -560,7 +609,10 @@ export function playLand(state: GameState, playerId: string, instanceId: string)
    * land in a graveyard is otherwise as unplayable as any other card there.
    */
   const fromGraveyard = instance.zone === "graveyard" && canPlayLandsFromGraveyard(state, playerId);
-  if ((instance.zone !== "hand" && !fromGraveyard) || instance.ownerId !== playerId) {
+  // "You may **play** that card this turn" - Face-Breaker's permission covers a
+  // land drop, which is the whole reason its wording differs from Ragavan's.
+  const fromExile = mayPlayFromExile(state, playerId, instance);
+  if ((instance.zone !== "hand" && !fromGraveyard && !fromExile) || (!fromExile && instance.ownerId !== playerId)) {
     throw new Error(`${instanceId} is not in ${playerId}'s hand`);
   }
   /*

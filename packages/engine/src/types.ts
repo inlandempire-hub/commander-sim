@@ -1456,6 +1456,21 @@ export type Effect =
    * spell effect and nothing plans around it.
    */
   | { kind: "addManaVariable"; color: ManaColor; amount: Amount }
+  /**
+   * "Exile the top card of your library. You may play that card this turn." -
+   * Professional Face-Breaker, and Ragavan's version aimed at the player who was
+   * just hit.
+   *
+   * One effect rather than an exile plus a permission, because the permission is
+   * about the specific card that was just exiled and nothing else could name it.
+   */
+  | {
+      kind: "exileTopAndMayPlay";
+      /** Whose library. `"damaged-player"` reads the trigger's player target. */
+      from: "you" | "damaged-player";
+      /** "play" includes a land drop; "cast" does not. */
+      lands: boolean;
+    }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -1688,6 +1703,27 @@ export type TriggerEvent =
    * to begin with, so those two sites deliberately do not fire this.
    */
   | "becomes-tapped"
+  /**
+   * "Whenever **Ragavan** deals combat damage to a player."
+   *
+   * A self event, fired from the combat damage step for the creature that dealt
+   * it - not from `damagePlayer`, because it is combat damage specifically: a
+   * Ragavan that pings somebody with a burn spell makes no Treasure.
+   *
+   * The damaged player is handed to the ability as a target, which is how "that
+   * player's library" is answered without inventing a second kind of event
+   * payload. See `pushTrigger`.
+   */
+  | "combat-damage-to-player"
+  /**
+   * "Whenever **one or more creatures you control** deal combat damage to a
+   * player." - Professional Face-Breaker.
+   *
+   * Fires **once** however many creatures connected, which is what "one or more"
+   * means and is the whole difference from the event above: a Face-Breaker that
+   * paid out per creature would make three Treasures off a three-creature attack.
+   */
+  | "creatures-dealt-combat-damage"
   | "damaged"
   | "upkeep"
   /**
@@ -1879,6 +1915,15 @@ export interface ActivatedAbilityCost {
    * work at all.
    */
   sacrificeSelf?: boolean;
+  /**
+   * "**Sacrifice a Treasure**: ..." - Professional Face-Breaker, the first cost
+   * in the pool that gives up a permanent other than the source.
+   *
+   * Named by subtype because that is how every printing of this shape reads. The
+   * engine picks the first one it finds: they are identical tokens, and a chooser
+   * for "which of your three Treasures" would be a question with one answer.
+   */
+  sacrificeSubtype?: string;
   /**
    * "**Exile this card from your hand**: Add {R}." - Simian Spirit Guide, and
    * "**Discard this card**" - the Channel lands, Eiganjo and Sokenzan.
@@ -2459,6 +2504,19 @@ export interface CardDefinition {
    * it is attached to one.
    */
   bestowCost?: ManaCost;
+  /**
+   * "**Dash {1}{R}**" - Ragavan.
+   *
+   * An alternative cost with two riders attached: the creature gains haste, and
+   * it goes back to its owner's hand at the beginning of the next end step. Both
+   * are the card, and a Dash that only changed the price would be a strictly
+   * better creature.
+   *
+   * Separate from `alternativeCost`, which is the free-cast family: that one is
+   * offered when a board condition holds and changes nothing else about the
+   * spell. This one is always available and rewrites what you get.
+   */
+  dashCost?: ManaCost;
   /** "As an additional cost to cast this spell, ..." - paid at cast time. */
   additionalCost?: AdditionalCost;
   /** "You may cast this spell without paying its mana cost" - offered at cast time. */
@@ -2682,6 +2740,29 @@ export interface CardInstance {
    */
   blockRestrictionsThisTurn: BlockRestriction[];
   /**
+   * "**You may play that card this turn**" - Professional Face-Breaker, and
+   * Ragavan's "until end of turn, you may cast that card".
+   *
+   * Permission to play one specific card from exile, granted to one player until
+   * a turn ends. On the instance because that is what the permission is about -
+   * this card, not this zone - and stamped with the turn rather than cleared in
+   * cleanup so it cannot outlive its window by one step.
+   *
+   * `lands` is the difference between the two cards: Face-Breaker says "play",
+   * which includes a land drop, and Ragavan says "cast", which does not.
+   */
+  playableFromExile?: { playerId: string; untilTurn: number; lands: boolean };
+  /**
+   * Cast for its dash cost - Ragavan.
+   *
+   * Recorded on the card rather than on the spell, because both riders land as
+   * the permanent *arrives*: the haste and the delayed return are set up in
+   * `enteredBattlefield`, long after the stack object has gone. Cleared by the
+   * zone change that sends it home, so a Ragavan cast normally next turn is an
+   * ordinary Ragavan.
+   */
+  dashed?: boolean;
+  /**
    * "This land **becomes a 1/1 Phyrexian Blinkmoth artifact creature** with
    * flying and infect until end of turn. **It's still a land.**" - Inkmoth Nexus,
    * and Blinkmoth Nexus beside it.
@@ -2730,7 +2811,7 @@ export interface CardInstance {
  * What a delayed trigger does when its end step arrives. A closed list of the
  * phrases the pool prints, like every other list in this DSL.
  */
-export type DelayedAction = "sacrifice" | "exile";
+export type DelayedAction = "sacrifice" | "exile" | "return-to-hand";
 
 /**
  * "Sacrifice it at the beginning of the next end step." - a one-shot ability

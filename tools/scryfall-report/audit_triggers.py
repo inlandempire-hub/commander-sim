@@ -38,6 +38,7 @@ MODELLED = {
     "permanent-dies", "permanent-sacrificed", "permanent-attacks", "leaves-battlefield",
     "spell-cast", "damaged", "upkeep", "first-main", "begin-combat", "end-step",
     "land-played", "becomes-tapped",
+    "combat-damage-to-player", "creatures-dealt-combat-damage",
 }
 
 
@@ -239,8 +240,17 @@ def classify(clause, card_name):
         return "damaged", None
     if re.search(r"is dealt damage", c):
         return None, "watches something else being dealt damage - not modelled"
+    # Combat damage to a player became two real events on 2026-08-17, and they
+    # are two: "whenever THIS creature deals" fires per creature, and "whenever
+    # one or more creatures you control deal" fires once however many connected.
+    # The plural verb is the tell, and it is the whole difference between one
+    # Treasure and three.
+    if re.search(r"one or more creatures you control deal combat damage to a player", c):
+        return "creatures-dealt-combat-damage", None
+    if re.search(r"^when(ever)?\s+%s\s+deals combat damage to a player" % self_ref, c):
+        return "combat-damage-to-player", None
     if re.search(r"deals combat damage to a player", c):
-        return None, "combat damage to a player - not modelled"
+        return None, "combat damage to a player by something else - not modelled"
     if re.search(r"deals damage", c):
         return None, "damage-dealt trigger - not modelled"
 

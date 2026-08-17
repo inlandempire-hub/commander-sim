@@ -14783,6 +14783,118 @@ export const ANGRATHS_MARAUDERS: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * The Treasure token both of batch 8's Pirates make.
+ *
+ * "{T}, Sacrifice this artifact: Add one mana of any color."
+ *
+ * Five abilities, one per colour, which is how a free choice of colour is held
+ * here - and each of them taps *and* sacrifices, which is what makes a Treasure
+ * one mana rather than a Sol Ring.
+ */
+export const TOKEN_TREASURE: CardDefinition = {
+  id: "token-treasure",
+  name: "Treasure",
+  types: ["Artifact"],
+  subtypes: ["Treasure"],
+  colorIdentity: [],
+  isToken: true,
+  activatedAbilities: [
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * Professional Face-Breaker - {2}{R} 2/3 Creature, Human Warrior.
+ *
+ * "Menace"
+ * "Whenever one or more creatures you control deal combat damage to a player, create a Treasure token."
+ * "Sacrifice a Treasure: Exile the top card of your library. You may play that card this turn."
+ *
+ * "One or more" is the whole trigger: it pays out once per combat however many
+ * creatures got through, and a version that counted creatures would make three
+ * Treasures off a three-creature attack.
+ *
+ * The second ability is the payoff and the reason the first one matters - the
+ * Treasures are card advantage rather than mana, and "play" rather than "cast"
+ * means a land off the top is a land drop.
+ */
+export const PROFESSIONAL_FACE_BREAKER: CardDefinition = {
+  id: "professional-face-breaker",
+  name: "Professional Face-Breaker",
+  scryfallId: "42acbf52-b137-44f0-a815-2817fe8d2da2",
+  types: ["Creature"],
+  subtypes: ["Human", "Warrior"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 3,
+  keywords: ["Menace"],
+  triggeredAbilities: [
+    {
+      event: "creatures-dealt-combat-damage",
+      effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-treasure" },
+    },
+  ],
+  activatedAbilities: [
+    {
+      cost: { sacrificeSubtype: "Treasure" },
+      effect: { kind: "exileTopAndMayPlay", from: "you", lands: true },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * Ragavan, Nimble Pilferer - {R} 2/1 Legendary Creature, Monkey Pirate.
+ *
+ * "Whenever Ragavan deals combat damage to a player, create a Treasure token and
+ * exile the top card of that player's library. Until end of turn, you may cast
+ * that card."
+ * "Dash {1}{R}"
+ *
+ * A one-mana 2/1 that steals a card and a mana every time it connects. "That
+ * player's library" is why the trigger carries the player it happened to: the
+ * card is exiled from the *defender's* deck and cast by Ragavan's controller,
+ * which is the only place in the engine where those two come apart.
+ *
+ * "Cast", not "play" - a land off the top of their library is not a land drop
+ * for you.
+ */
+export const RAGAVAN_NIMBLE_PILFERER: CardDefinition = {
+  id: "ragavan-nimble-pilferer",
+  name: "Ragavan, Nimble Pilferer",
+  scryfallId: "a9738cda-adb1-47fb-9f4c-ecd930228c4d",
+  types: ["Creature"],
+  subtypes: ["Monkey", "Pirate"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 0, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 1,
+  // "Dash {1}{R}" - a price with two riders, not a discount: haste now, and back
+  // to the hand at the beginning of the next end step.
+  dashCost: { generic: 1, colors: { R: 1 } },
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "createToken", count: 1, tokenDefinitionId: "token-treasure" },
+          { kind: "exileTopAndMayPlay", from: "damaged-player", lands: false },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -15792,6 +15904,9 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     RITE_OF_FLAME,
     PYROBLAST,
     RED_ELEMENTAL_BLAST,
+    TOKEN_TREASURE,
+    PROFESSIONAL_FACE_BREAKER,
+    RAGAVAN_NIMBLE_PILFERER,
     ANGRATHS_MARAUDERS,
     EIGANJO_SEAT_OF_THE_EMPIRE,
     SOKENZAN_CRUCIBLE_OF_DEFIANCE,

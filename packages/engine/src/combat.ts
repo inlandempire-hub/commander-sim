@@ -3,7 +3,7 @@ import { log, requireDefinition, requirePlayer } from "./state.js";
 import { gainLife } from "./life.js";
 import { effectivePower, effectiveToughness, effectiveTriggers, hasKeyword, typesOf } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
-import { describeSubject, fireWatchers, pushTrigger, tapPermanent } from "./permanents.js";
+import { describeSubject, fireCombatDamageToPlayer, fireWatchers, pushTrigger, tapPermanent } from "./permanents.js";
 import { protectionStopsBlock, qualityWord } from "./protection.js";
 import { blockRestrictionProblem } from "./blocking.js";
 
@@ -264,6 +264,15 @@ function combatDamageIsPrevented(state: GameState, instance: CardInstance): bool
 }
 
 export function dealCombatDamage(state: GameState, step: DamageStep = "regular"): void {
+  /*
+   * Every creature that got through to a player this sub-step, collected as the
+   * damage is dealt and handed to the triggers afterwards.
+   *
+   * Afterwards rather than inline, because "one or more creatures you control
+   * deal combat damage" is a single event however many connected - firing as we
+   * went would make Professional Face-Breaker pay out per creature.
+   */
+  const hits: Array<{ attackerInstanceId: string; defendingPlayerId: string }> = [];
   const blockersByAttacker = new Map<string, string[]>();
   for (const [blockerInstanceId, attackerInstanceId] of Object.entries(state.blockers)) {
     const list = blockersByAttacker.get(attackerInstanceId) ?? [];
@@ -317,6 +326,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
         defender.commanderDamageTaken[attackerInstanceId] =
           (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + dealt;
       }
+      if (dealt > 0) hits.push({ attackerInstanceId, defendingPlayerId });
       continue;
     }
 
@@ -382,6 +392,9 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
         defender.commanderDamageTaken[attackerInstanceId] =
           (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + trampledThrough;
       }
+      // Damage that trampled through is combat damage to a player like any
+      // other, which is why this is here and not only on the unblocked path.
+      if (trampledThrough > 0) hits.push({ attackerInstanceId, defendingPlayerId });
     }
 
     if (attackerStrikesNow && attackerHasLifelink && power > 0) {
@@ -392,6 +405,8 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       if (dealt > 0) gainLife(state, attackerFound.instance.controllerId, dealt);
     }
   }
+  // Everything that connected, in one event - see `fireCombatDamageToPlayer`.
+  if (hits.length > 0) fireCombatDamageToPlayer(state, hits);
 }
 
 function findOnAnyBattlefield(state: GameState, instanceId: string) {
