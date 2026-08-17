@@ -42,6 +42,16 @@ export function cardColors(def: CardDefinition): Color[] {
  * case uses it: the condition is checked with the land already on the
  * battlefield, so "two or more *other* lands" has to be able to say other.
  */
+/**
+ * "your first, second, or third turn of the game" - Starting Town.
+ *
+ * Its own function only so the comparison is written once: `turnsTaken` counts
+ * the turn in progress, so "within your first three" is `<= 3` rather than `< 3`.
+ */
+export function withinFirstTurns(turnsTaken: number, turns: number): boolean {
+  return turnsTaken > 0 && turnsTaken <= turns;
+}
+
 export function meetsBoardCondition(
   state: GameState,
   playerId: string,
@@ -103,6 +113,10 @@ export function meetsBoardCondition(
       const host = player.battlefield.find((c) => c.instanceId === self.attachedTo);
       return host !== undefined && (state.cardDefinitions[host.definitionId]?.types.includes("Creature") ?? false);
     }
+    case "within-your-first-turns":
+      // "unless it's your first, second, or third turn of the game" - Starting
+      // Town, asked of the player rather than of the board.
+      return withinFirstTurns(player.turnsTaken, condition.turns);
     case "controls-commander":
       /*
        * On the battlefield, which is what "control" means. A commander waiting

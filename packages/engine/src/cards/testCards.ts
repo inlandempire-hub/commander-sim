@@ -14139,6 +14139,166 @@ export const ALSEID_OF_LIFES_BOUNTY: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * Signal Pest - {1} 0/1 Artifact Creature, Pest.
+ *
+ * "Battle cry (Whenever this creature attacks, each other attacking creature
+ * gets +1/+0 until end of turn.)"
+ * "This creature can't be blocked except by creatures with flying or reach."
+ *
+ * A 0/1 that never wants to be blocked and never deals the damage itself: it
+ * attacks to make the rest of the team bigger, which is why the printed power is
+ * 0 and why `excludeSelf` on the pump is the whole ability rather than a detail.
+ *
+ * Battle cry is written out as the trigger its reminder text describes rather
+ * than added to `Keyword`. A keyword would have to be understood by
+ * `declareAttackers`; this is exactly an attacks trigger, and the pool already
+ * has several.
+ */
+export const SIGNAL_PEST: CardDefinition = {
+  id: "signal-pest",
+  name: "Signal Pest",
+  scryfallId: "be065962-f2ed-4ab9-be6b-bfc66d63ff4e",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Pest"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  power: 0,
+  toughness: 1,
+  triggeredAbilities: [
+    {
+      event: "attacks",
+      effect: {
+        kind: "pumpAll",
+        power: 1,
+        toughness: 0,
+        /*
+         * The card says "each other attacking creature", which in a two-player
+         * game is every other attacker there can be: only the active player
+         * declares attackers, so "creatures you control" and "creatures" name
+         * the same set here. Written as the controller's for that reason, and it
+         * would need widening the day the engine has a card that attacks on
+         * somebody else's turn.
+         */
+        scope: "controller",
+        restriction: "attacking",
+        excludeSelf: true,
+      },
+    },
+  ],
+  blockRestriction: { kind: "only-with-keyword", keywords: ["Flying", "Reach"] },
+  tier: "scripted",
+};
+
+/**
+ * Gingerbrute - {1} 1/1 Artifact Creature, Food Golem.
+ *
+ * "Haste"
+ * "{1}: This creature can't be blocked this turn except by creatures with haste."
+ * "{2}, {T}, Sacrifice this creature: You gain 3 life."
+ *
+ * The evasion is the card: one mana makes a 1/1 unblockable against almost every
+ * board, because a creature with haste on defence is rare. The gain-3-life
+ * ability is the Food half, written with `sacrificeSelf` on the cost so it
+ * resolves from the graveyard the way a fetchland does.
+ */
+export const GINGERBRUTE: CardDefinition = {
+  id: "gingerbrute",
+  name: "Gingerbrute",
+  scryfallId: "09a4578a-7dc6-4da3-93ee-913b10be5740",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Food", "Golem"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  power: 1,
+  toughness: 1,
+  keywords: ["Haste"],
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: {} } },
+      effect: {
+        kind: "restrictBlockersThisTurn",
+        restriction: { kind: "only-with-keyword", keywords: ["Haste"] },
+      },
+    },
+    {
+      cost: { mana: { generic: 2, colors: {} }, tap: true, sacrificeSelf: true },
+      effect: { kind: "gainLife", amount: 3, who: "controller" },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * Starting Town - a Land, subtype Town.
+ *
+ * "This land enters tapped unless it's your first, second, or third turn of the game."
+ * "{T}: Add {C}."
+ * "{T}, Pay 1 life: Add one mana of any color."
+ *
+ * A land that is a dual on turn one and a Wastes on turn six, which is the whole
+ * design: it is played early or not at all. `entersTappedUnless` carries the
+ * condition rather than the card being written as flatly tapped, for the same
+ * reason every other tapland here does - a flat `entersTapped` would be strictly
+ * worse than the printed card on exactly the turns it is meant for.
+ *
+ * The any-colour half is five abilities, one per colour, which is how this engine
+ * holds a free choice of colour: the renderer folds them back into one line.
+ */
+export const STARTING_TOWN: CardDefinition = {
+  id: "starting-town",
+  name: "Starting Town",
+  scryfallId: "fc7d1912-7e27-49ef-bd98-375d975a42b0",
+  types: ["Land"],
+  subtypes: ["Town"],
+  // No coloured pip anywhere on the card: "one mana of any color" is not a
+  // colour indicator, so this is a colourless-identity land and legal in any
+  // deck. Scryfall agrees.
+  colorIdentity: [],
+  entersTapped: true,
+  entersTappedUnless: { kind: "within-your-first-turns", turns: 3 },
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } },
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true, payLife: 1 }, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * Mox Amber - {0} Legendary Artifact.
+ *
+ * "{T}: Add one mana of any color among legendary creatures and planeswalkers you control."
+ *
+ * A free rock that makes nothing at all on an empty board, and the engine has to
+ * enforce exactly that: `colorFrom` narrows which of the five halves are legal,
+ * so a Mox Amber with no legend out is offered no colour and taps for nothing.
+ * Written as five abilities for the same reason Starting Town is.
+ *
+ * There is no colourless half. The card only makes coloured mana, which is why
+ * it is a blank rather than a Sol Ring in the wrong deck.
+ */
+export const MOX_AMBER: CardDefinition = {
+  id: "mox-amber",
+  name: "Mox Amber",
+  scryfallId: "66024e69-ad60-4c9a-a0ca-da138d33ad80",
+  types: ["Artifact"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 0, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [
+    { cost: { tap: true }, colorFrom: "your-legendary-permanents", effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { tap: true }, colorFrom: "your-legendary-permanents", effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true }, colorFrom: "your-legendary-permanents", effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, colorFrom: "your-legendary-permanents", effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true }, colorFrom: "your-legendary-permanents", effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -15133,5 +15293,9 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     MOTHER_OF_RUNES,
     GIVER_OF_RUNES,
     ALSEID_OF_LIFES_BOUNTY,
+    SIGNAL_PEST,
+    GINGERBRUTE,
+    STARTING_TOWN,
+    MOX_AMBER,
   ].map((def) => [def.id, def]),
 );

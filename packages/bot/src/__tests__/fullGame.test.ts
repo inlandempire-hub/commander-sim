@@ -81,7 +81,19 @@ describe("bot vs bot", () => {
       const landsPlayed = [...player.battlefield, ...player.graveyard, ...player.exile].filter(
         (c) => state.cardDefinitions[c.definitionId]?.types.includes("Land") && c.enteredOnTurn >= 0,
       );
-      expect(landsPlayed.length).toBeGreaterThan(2);
+      /*
+       * Scaled to the turns this player actually had, which is the second thing
+       * wrong with this assertion.
+       *
+       * A flat "more than two lands" assumes every game lasts long enough for
+       * three land drops. Real decks kill faster than that: a game decided on
+       * turn three leaves the loser with two lands and nothing wrong, and the
+       * test failed about one run in twenty on exactly that. A player cannot have
+       * played more lands than they have had turns, so that is the ceiling the
+       * assertion has to respect.
+       */
+      const expected = Math.min(3, player.turnsTaken);
+      expect(landsPlayed.length).toBeGreaterThanOrEqual(expected);
     }
     // Somebody's life total moved, so combat happened.
     expect(state.players.some((p) => p.life < 40)).toBe(true);

@@ -29,6 +29,7 @@ import { isSpellOnStack } from "./targeting.js";
 import { enteredBattlefield, moveControl, pushTrigger, putOntoBattlefield } from "./permanents.js";
 import { gainLife } from "./life.js";
 import { qualityWord } from "./protection.js";
+import { describeBlockRestriction } from "./blocking.js";
 import { useRegenerationShield } from "./regeneration.js";
 import { destroyPermanent, leaveBattlefield, sacrificePermanent } from "./sba.js";
 import { countersPlaced, tokensCreated } from "./replacements.js";
@@ -602,6 +603,26 @@ export function applyEffect(
       };
       return;
     }
+    case "restrictBlockersThisTurn": {
+      /*
+       * Gingerbrute. Applies to the source and nothing else, which is why it
+       * reads no targets at all.
+       *
+       * Pushed rather than replaced: activating it twice really does leave two
+       * restrictions, and a blocker has to satisfy both. That costs nothing for
+       * the one card in the pool that grants it - the same restriction twice is
+       * the same restriction - and it is the honest shape for the day a second
+       * card grants a different one.
+       */
+      const source = findInstance(state, sourceInstanceId);
+      if (!source || source.instance.zone !== "battlefield") return;
+      source.instance.blockRestrictionsThisTurn.push(effect.restriction);
+      log(
+        state,
+        `${cardName(state, sourceInstanceId)} can't be blocked this turn except by ${describeBlockRestriction(effect.restriction)}`,
+      );
+      return;
+    }
     case "becomePrepared": {
       const source = findInstance(state, sourceInstanceId);
       if (!source || source.instance.zone !== "battlefield") return;
@@ -850,6 +871,15 @@ export function applyEffect(
           if (creaturesOnly && !affectedDef?.types.includes("Creature")) continue;
           // "Those creatures" - Inspiring Call means the ones it just counted.
           if (effect.restriction === "with-counter" && instance.plusOneCounters <= 0) continue;
+          /*
+           * "each other **attacking** creature" - battle cry. Read off
+           * `state.attackers` rather than off a flag on the creature, the same
+           * way the attacking target selector does, so a creature that has left
+           * combat stops counting.
+           */
+          if (effect.restriction === "attacking" && !(instance.instanceId in state.attackers)) continue;
+          // "each **other** attacking creature" - the source is not one of them.
+          if (effect.excludeSelf && instance.instanceId === sourceInstanceId) continue;
           // "Non-Human creatures you control" - Return of the Wildspeaker.
           if (effect.excludeSubtype && affectedDef?.subtypes?.includes(effect.excludeSubtype)) continue;
           instance.temporaryPowerBonus += power;

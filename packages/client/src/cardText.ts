@@ -6,6 +6,7 @@ import type {
   Color,
   Amount,
   Countable,
+  ManaColorSource,
   Effect,
   ReplacementEffect,
   StaticBuff,
@@ -14,7 +15,7 @@ import type {
   TriggerCondition,
   TriggeredAbility,
 } from "@mtg-commander-sim/engine";
-import { staticBuffsOf } from "@mtg-commander-sim/engine";
+import { describeBlockRestriction, staticBuffsOf } from "@mtg-commander-sim/engine";
 import { describeEnterChoice, matchesWatchFor } from "@mtg-commander-sim/engine";
 import { formatManaCost } from "./format.js";
 
@@ -572,6 +573,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         " Put the rest on the bottom of your library in a random order."
       );
     }
+    case "restrictBlockersThisTurn":
+      return sentence(
+        `This creature can't be blocked this turn except by ${describeBlockRestriction(effect.restriction)}.`,
+      );
     case "pump": {
       const who = effect.target ? describeTarget(effect.target) : "this creature";
       // Revitalizing Repast pumps nothing and grants everything, so a +0/+0
@@ -1144,6 +1149,10 @@ function negateCondition(condition: BoardCondition): string {
   switch (condition.kind) {
     case "citys-blessing":
       return "you don't have the city's blessing";
+    case "within-your-first-turns":
+      // Starting Town prints the negative form, so this is the one the panel
+      // actually shows: "unless it's your first, second, or third turn".
+      return `it's not one of your first ${condition.turns} turns of the game`;
     case "controls-subtype":
       return `you control no ${listOr(condition.subtypes.map((s) => `${s}s`))}`;
     case "controls-color":
@@ -1278,6 +1287,8 @@ function describeCondition(condition: BoardCondition): string {
   switch (condition.kind) {
     case "citys-blessing":
       return "you have the city's blessing";
+    case "within-your-first-turns":
+      return `it's one of your first ${condition.turns} turns of the game`;
     case "controls-other-lands":
       return `you control ${condition.count} or more other lands`;
     case "opponents":
@@ -1349,14 +1360,22 @@ export function describeActivated(
   const restriction = ability.activateOnlyIf
     ? ` Activate only if ${describeCondition(ability.activateOnlyIf)}.`
     : "";
-  // "Add one mana of any color in your commander's color identity" is printed
-  // as one line; the engine holds it as five. Saying which five it is drawn
-  // from is what stops the panel reading as a plain "Add {W}".
-  const from = ability.colorFrom
-    ? ability.colorFrom === "commander-identity"
-      ? " (any colour in your commander's colour identity)"
-      : " (any colour a land an opponent controls could produce)"
-    : "";
+  /*
+   * "Add one mana of any color in your commander's color identity" is printed as
+   * one line; the engine holds it as five. Saying which five it is drawn from is
+   * what stops the panel reading as a plain "Add {W}".
+   *
+   * A keyed record rather than a chain of ternaries, which is how this went wrong
+   * once already: with two sources and one `else`, adding Mox Amber's third made
+   * it print Exotic Orchard's sentence. The compiler now refuses a source with no
+   * wording of its own.
+   */
+  const COLOR_SOURCE_WORDING: Record<ManaColorSource, string> = {
+    "commander-identity": " (any colour in your commander's colour identity)",
+    "opponent-lands": " (any colour a land an opponent controls could produce)",
+    "your-legendary-permanents": " (any colour among legendary creatures and planeswalkers you control)",
+  };
+  const from = ability.colorFrom ? COLOR_SOURCE_WORDING[ability.colorFrom] : "";
   /*
    * Which spells this mana may pay for, in the card's own words.
    *
@@ -1554,6 +1573,18 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
   if (def.entersTappedUnlessPayLife !== undefined) {
     lines.push(
       `As this ${selfNoun(def)} enters, you may pay ${def.entersTappedUnlessPayLife} life. If you don't, it enters tapped.`,
+    );
+  }
+
+  /*
+   * "Can't be blocked except by creatures with flying or reach" - Signal Pest.
+   *
+   * The evasion *is* the card, so a panel without this line describes a 0/1 that
+   * makes other attackers bigger and forgets to say why it survives to do it.
+   */
+  if (def.blockRestriction) {
+    lines.push(
+      `This ${selfNoun(def)} can't be blocked except by ${describeBlockRestriction(def.blockRestriction)}.`,
     );
   }
 

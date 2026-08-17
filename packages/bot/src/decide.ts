@@ -619,6 +619,15 @@ function useValueAbility(state: GameState, me: Player): BotAction | null {
        * is left out until the bot can tell that a creature is about to be lost.
        */
       if (ability.effect.kind === "regenerate") return false;
+      /*
+       * Gingerbrute's evasion. Worth a mana only while the creature is actually
+       * attacking and the blocks are still to come - bought a turn early it does
+       * nothing, and bought every turn it is a mana tax on doing nothing.
+       */
+      if (ability.effect.kind === "restrictBlockersThisTurn") {
+        if (!(instance.instanceId in state.attackers)) return false;
+        if (state.blockersDeclared) return false;
+      }
       if (!abilityAvailable(state, me.id, ability)) return false;
       return true;
     });

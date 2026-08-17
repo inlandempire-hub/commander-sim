@@ -17,6 +17,7 @@ export * from "./targeting.js";
 export * from "./autoPass.js";
 export * from "./autoTap.js";
 export * from "./protection.js";
+export * from "./blocking.js";
 export * from "./counters.js";
 export * from "./replacements.js";
 export * from "./restrictions.js";

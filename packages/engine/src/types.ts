@@ -189,6 +189,33 @@ export type Keyword =
    */
   | "Changeling";
 
+/**
+ * "This creature **can't be blocked except by** creatures with flying or reach."
+ *
+ * A restriction on who may block one attacker, which is a different thing from
+ * evasion written as a keyword: Menace restricts *how many* blockers and
+ * protection restricts *which* by colour, while this names the ability a blocker
+ * has to have. Signal Pest prints it and Gingerbrute grants it to itself for a
+ * turn.
+ *
+ * Flying is the same rule - "can't be blocked except by creatures with flying or
+ * reach" is its reminder text almost word for word - so `blockRestrictionsOn`
+ * derives one of these from the keyword rather than checking flying separately.
+ * That is the whole reason this is a shape rather than two booleans.
+ *
+ * A closed list of one member, like every other list in this DSL. Skrelv's
+ * "can't be blocked by creatures of that color" is the second shape and is not
+ * built: see the roadmap.
+ */
+export type BlockRestriction = {
+  kind: "only-with-keyword";
+  /**
+   * Any one of these will do. Two of them for flying ("flying **or** reach"),
+   * one for Gingerbrute's haste.
+   */
+  keywords: Keyword[];
+};
+
 /** Generic mana + colored pips. A card with no mana cost (most lands) omits this entirely. */
 export interface ManaCost {
   generic: number;
@@ -849,7 +876,17 @@ export type Effect =
        * counter. Without it the shield would cover the whole board, which is a
        * much better card.
        */
-      restriction?: "with-counter";
+      restriction?: "with-counter" | "attacking";
+      /**
+       * "each **other** attacking creature gets +1/+0" - battle cry, on Signal
+       * Pest.
+       *
+       * The word is the whole ability: a battle cry that pumped its own source
+       * would make a 0/1 into a 1/1 attacker, which is not the card, and on a
+       * board of three attackers it would read as one point of power appearing
+       * out of nowhere.
+       */
+      excludeSelf?: boolean;
       /**
        * "**Non-Human** creatures you control get +3/+3" - Return of the
        * Wildspeaker. An exclusion rather than a filter, because that is how the
@@ -1302,6 +1339,17 @@ export type Effect =
    * while it holds, its controller may cast a copy of the spell on its other
    * face, and doing so clears it.
    */
+  /**
+   * "{1}: This creature **can't be blocked this turn** except by creatures with
+   * haste." - Gingerbrute.
+   *
+   * Applies to the effect's own source and takes no target, because that is
+   * what the card says: the ability is on the creature it makes unblockable.
+   * Lands on the instance rather than the definition, so it wears off in the
+   * cleanup step with the rest of the turn's state - a restriction that stuck
+   * would make a one-mana ability permanent.
+   */
+  | { kind: "restrictBlockersThisTurn"; restriction: BlockRestriction }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -1352,7 +1400,17 @@ export type BoardCondition =
    * Ascend: once you have had ten permanents you keep the blessing for the rest
    * of the game, so this stays true after the board is wiped.
    */
-  | { kind: "citys-blessing" };
+  | { kind: "citys-blessing" }
+  /**
+   * "unless it's your **first, second, or third turn** of the game" - Starting
+   * Town.
+   *
+   * *Your* turns, not the game's: player two's third turn is the game's sixth,
+   * and a condition written against `state.turnNumber` would leave the card
+   * untapped for one player and tapped for the other. Counted on the player -
+   * see `Player.turnsTaken`.
+   */
+  | { kind: "within-your-first-turns"; turns: number };
 
 /**
  * "If an effect would X instead" - a replacement effect.
@@ -1696,7 +1754,17 @@ export type ManaColorSource =
   /** "...of any color in your commander's color identity." - Command Tower. */
   | "commander-identity"
   /** "...of any color that a land an opponent controls could produce." - Exotic Orchard. */
-  | "opponent-lands";
+  | "opponent-lands"
+  /**
+   * "...of any color among **legendary creatures and planeswalkers you
+   * control**." - Mox Amber.
+   *
+   * A Mox that taps for nothing on an empty board, which is the whole card: it
+   * is a fast rock in a deck full of legends and a blank in anything else. The
+   * colours come from the permanents themselves rather than from a deck-wide
+   * identity, so it changes every time a legend arrives or dies.
+   */
+  | "your-legendary-permanents";
 
 /**
  * "Spend this mana only to cast a legendary spell, and that spell can't be
@@ -2137,6 +2205,12 @@ export interface CardDefinition {
    * the flag lives on the player rather than being derived from the board.
    */
   ascend?: boolean;
+  /**
+   * "This creature can't be blocked except by creatures with flying or reach."
+   * - Signal Pest. The printed half of `BlockRestriction`; the granted half
+   * lives on the instance.
+   */
+  blockRestriction?: BlockRestriction;
   entersTapped?: boolean;
   /**
    * "This land enters tapped **unless** ..." - the drawback most nonbasic duals
@@ -2426,6 +2500,17 @@ export interface CardInstance {
    * first.
    */
   protectionFrom: ProtectionQuality[];
+  /**
+   * "This creature can't be blocked **this turn** except by creatures with
+   * haste." - Gingerbrute's ability, and anything else that hands out a
+   * blocking restriction for the turn.
+   *
+   * A list for the same reason `protectionFrom` is one: the ability can be
+   * activated twice, and the restrictions accumulate rather than replacing each
+   * other - a Gingerbrute that also gained "only fliers may block" would need a
+   * blocker with both. Cleared in the cleanup step and on any zone change.
+   */
+  blockRestrictionsThisTurn: BlockRestriction[];
   enteredOnTurn: number;
   /**
    * Who controlled this before somebody took it until end of turn, if anybody
@@ -2903,6 +2988,15 @@ export interface Player {
   /** Set when this player tried to draw from an empty library; checked as a state-based action. */
   attemptedDrawFromEmptyLibrary: boolean;
   landsPlayedThisTurn: number;
+  /**
+   * How many turns this player has begun, counting the one in progress.
+   *
+   * Not derivable from `state.turnNumber` for anything but a two-player game
+   * with no extra turns, and the card that reads it - Starting Town - says "your
+   * first, second, or third turn of the game". 1 for the starting player from
+   * the moment the game begins, because their first turn is already under way.
+   */
+  turnsTaken: number;
   /**
    * Every spell this player has cast this turn, as that spell's card types.
    *

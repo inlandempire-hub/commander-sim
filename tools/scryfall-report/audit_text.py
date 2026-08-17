@@ -450,6 +450,12 @@ RULES = [
     # rather than to the word "protection", so a card that merely mentions
     # protection is still reported rather than waved through.
     (r"\bgains protection from (colorless or from )?the color of your choice\b", {"grantProtection"}),
+    # The evasion family, the rest of the plan's batch 6. Tied to the field and
+    # the effect kind that implement each half rather than to the words "can't be
+    # blocked", so Skrelv's colour version is still reported as missing.
+    (r"can't be blocked except by creatures with flying or reach", {"blockRestriction"}),
+    (r"can't be blocked this turn except by creatures with haste", {"restrictBlockersThisTurn"}),
+    (r"^battle cry$", {"pumpAll"}),
     (r"\bif a card or token would be put into your graveyard\b", {"replacementEffects"}),
     # "They have '...'" - a token's own rules text, which lives on the token
     # definition rather than on the card that makes them.

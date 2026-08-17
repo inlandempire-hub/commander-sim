@@ -15,7 +15,7 @@ import type {
 } from "./types.js";
 import { ALL_COLORS } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
-import { controllerMeets } from "./conditions.js";
+import { cardColors, controllerMeets } from "./conditions.js";
 
 export function manaValue(cost: ManaCost): number {
   const pips = ALL_COLORS.reduce((sum, c) => sum + (cost.colors[c] ?? 0), 0);
@@ -404,6 +404,31 @@ export function opponentLandColors(state: GameState, playerId: string): Color[] 
 }
 
 /**
+ * "any color among legendary creatures and planeswalkers you control" - Mox
+ * Amber.
+ *
+ * Read off the board on every activation, like `opponentLandColors` beside it and
+ * for the same reason: the answer changes as legends arrive and die, and a Mox
+ * that remembered yesterday's board would make mana out of a creature in the
+ * graveyard.
+ *
+ * The colours are the permanents' own, so a colourless legend (an artifact
+ * creature with no coloured pips) contributes nothing - which is right, and is
+ * why this cannot be written as a colour identity.
+ */
+export function yourLegendaryPermanentColors(state: GameState, playerId: string): Color[] {
+  const colors = new Set<Color>();
+  for (const instance of requirePlayer(state, playerId).battlefield) {
+    const def = state.cardDefinitions[instance.definitionId];
+    if (!def) continue;
+    if (!def.supertypes?.includes("Legendary")) continue;
+    if (!def.types.includes("Creature") && !def.types.includes("Planeswalker")) continue;
+    for (const color of cardColors(def)) colors.add(color);
+  }
+  return ALL_COLORS.filter((color) => colors.has(color));
+}
+
+/**
  * Whether this ability may be activated at all right now, as far as the colour
  * it makes is concerned. Only the "any colour, but..." family is ever narrowed.
  */
@@ -419,7 +444,9 @@ export function colorAllowed(
   const available =
     ability.colorFrom === "commander-identity"
       ? commanderColorIdentity(state, playerId)
-      : opponentLandColors(state, playerId);
+      : ability.colorFrom === "your-legendary-permanents"
+        ? yourLegendaryPermanentColors(state, playerId)
+        : opponentLandColors(state, playerId);
   return available.includes(color);
 }
 

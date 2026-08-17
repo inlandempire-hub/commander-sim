@@ -302,6 +302,21 @@ export function CardView({
               pro-{instance.protectionFrom.map((q) => qualityWord(q)).join(", ")}
             </span>
           )}
+          {/*
+            * Evasion bought this turn - Gingerbrute's ability.
+            *
+            * The same reasoning as the protection badge above it: it changes
+            * which blocks are legal, and a player who cannot see it has to
+            * remember which creature they spent a mana on.
+            */}
+          {instance.blockRestrictionsThisTurn.length > 0 && (
+            <span className="card__protection">
+              only {instance.blockRestrictionsThisTurn
+                .flatMap((r) => r.keywords)
+                .map((k) => k.toLowerCase())
+                .join("/")} can block
+            </span>
+          )}
           {!showArt && definition.keywords?.length ? (
             <span className="card__keywords">{definition.keywords.join(", ")}</span>
           ) : null}

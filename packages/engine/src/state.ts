@@ -27,6 +27,12 @@ export function createPlayer(id: string): Player {
     damagePrevention: 0,
     attemptedDrawFromEmptyLibrary: false,
     landsPlayedThisTurn: 0,
+    /*
+     * Set to 1 for whoever begins the game, below - a player whose first turn is
+     * in progress has taken one turn, and Starting Town is a land you very much
+     * want on that turn.
+     */
+    turnsTaken: 0,
     spellTypesCastThisTurn: [],
     cardsDrawnThisTurn: 0,
     poisonCounters: 0,
@@ -38,8 +44,16 @@ export function createPlayer(id: string): Player {
 }
 
 export function createGameState(playerIds: string[], cardDefinitions: Record<string, CardDefinition>): GameState {
+  const players = playerIds.map(createPlayer);
+  /*
+   * Whoever begins the game is already on their first turn: `startNextTurn`
+   * counts every turn after this one, and a player who has not been counted
+   * would read as never having had a turn at all - which is a Starting Town
+   * entering tapped on the exact turn the card exists to be untapped on.
+   */
+  if (players[0]) players[0].turnsTaken = 1;
   return {
-    players: playerIds.map(createPlayer),
+    players,
     activePlayerIndex: 0,
     priorityPlayerIndex: 0,
     turnNumber: 1,
@@ -127,6 +141,7 @@ export function createCardInstance(
     exerted: false,
     isCommander: options.isCommander ?? false,
     protectionFrom: [],
+    blockRestrictionsThisTurn: [],
     // Never been to the battlefield. `enteredBattlefield` stamps the real turn.
     enteredOnTurn: -1,
     summoningSickness: true,
@@ -238,6 +253,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.removedFromCombat = false;
   instance.exerted = false; // a new object has not been exerted, whatever the old one did
   instance.protectionFrom = []; // and protection was granted to the object that left, not to this one
+  instance.blockRestrictionsThisTurn = []; // likewise: Gingerbrute's evasion belonged to the object that left
   instance.attachedTo = undefined; // an Equipment that changes zones falls off
   instance.controllerId = owner.id; // zone changes return control to the owner
   instance.summoningSickness = destination === "battlefield";

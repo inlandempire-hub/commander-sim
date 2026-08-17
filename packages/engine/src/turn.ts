@@ -132,6 +132,9 @@ function startNextTurn(state: GameState): void {
   state.extraCombatPhases = 0;
   state.combatPhasesThisTurn = 0;
   state.activePlayerIndex = (state.activePlayerIndex + 1) % state.players.length;
+  // "your first, second, or third turn of the game" - counted here, where a turn
+  // begins, so it stays right through extra turns and any number of players.
+  state.players[state.activePlayerIndex]!.turnsTaken += 1;
   state.phase = "beginning";
   state.step = "untap";
 }
@@ -317,6 +320,7 @@ function runAutomaticStepActions(state: GameState): void {
           instance.deathtouchDamage = false;
           instance.grantedKeywords = []; // Heroic Intervention's hexproof wears off with everything else
           instance.protectionFrom = []; // "until end of turn" - Mother of Runes and the rest
+          instance.blockRestrictionsThisTurn = []; // "can't be blocked **this turn**" - Gingerbrute
           instance.grantedTriggers = []; // as does Root Manipulation's granted ability
           instance.temporaryPowerBonus = 0; // "until end of turn" effects wear off here
           instance.temporaryToughnessBonus = 0;

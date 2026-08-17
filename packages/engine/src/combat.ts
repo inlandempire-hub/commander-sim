@@ -5,6 +5,7 @@ import { effectivePower, effectiveToughness, effectiveTriggers, hasKeyword } fro
 import { damageCreature, damagePlayer } from "./damage.js";
 import { describeSubject, fireWatchers, pushTrigger } from "./permanents.js";
 import { protectionStopsBlock, qualityWord } from "./protection.js";
+import { blockRestrictionProblem } from "./blocking.js";
 
 /**
  * Combat damage happens in two sub-steps once anything has First or Double
@@ -112,15 +113,16 @@ export function blockProblem(
     return `${blockerDef.name} cannot block ${attackerName} - it has protection from ${qualityWord(blockedByProtection)}`;
   }
 
+  /*
+   * "Can't be blocked except by ..." - flying, Signal Pest's printed
+   * restriction, and anything granted for the turn, all through one door. See
+   * blocking.ts for why flying is not checked separately here any more.
+   */
   const attackerFound = findOnAnyBattlefield(state, attackerInstanceId);
   if (attackerFound) {
     const attackerDef = requireDefinition(state, attackerFound.instance.definitionId);
-    if (hasKeyword(state, attackerFound.instance, "Flying")) {
-      const canReachIt = hasKeyword(state, blocker, "Flying") || hasKeyword(state, blocker, "Reach");
-      if (!canReachIt) {
-        return `${blockerDef.name} cannot block ${attackerDef.name} - it has flying, and this has neither flying nor reach`;
-      }
-    }
+    const evasion = blockRestrictionProblem(state, attackerFound.instance, blocker);
+    if (evasion) return `${blockerDef.name} cannot block ${attackerDef.name} - ${evasion}`;
   }
   return null;
 }
