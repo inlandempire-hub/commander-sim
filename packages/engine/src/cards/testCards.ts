@@ -11218,6 +11218,17 @@ export const LABORATORY_MANIAC: CardDefinition = {
   tier: "scripted",
 };
 
+export const DEATH_BEGETS_LIFE: CardDefinition = {
+  id: "death-begets-life",
+  name: "Death Begets Life",
+  scryfallId: "1faab43d-587d-44f6-9516-c8e3965bbc20",
+  types: ["Sorcery"],
+  manaCost: { generic: 5, colors: { B: 1, G: 1, U: 1 } },
+  colorIdentity: ["B", "G", "U"],
+  castEffect: { kind: "destroyAll", cardTypes: ["Creature", "Enchantment"], thenDraw: true },
+  tier: "scripted",
+};
+
 export const WINDFALL: CardDefinition = {
   id: "windfall",
   name: "Windfall",
@@ -14241,5 +14252,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     GROWTH_SPIRAL,
     WINDFALL,
     ARBOR_ELF,
+    DEATH_BEGETS_LIFE,
   ].map((def) => [def.id, def]),
 );

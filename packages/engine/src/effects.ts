@@ -253,6 +253,38 @@ export function applyEffect(
       for (const p of state.players) drawCard(state, p.id, greatest);
       return;
     }
+    case "destroyAll": {
+      // Snapshot first - destroying mutates the battlefields being scanned. Then
+      // each victim goes through the same destroy path as single-target removal,
+      // so indestructible, regeneration and dies triggers all apply.
+      const victims: string[] = [];
+      for (const p of state.players) {
+        for (const inst of p.battlefield) {
+          const def = requireDefinition(state, inst.definitionId);
+          if (!effect.cardTypes.some((t) => def.types.includes(t))) continue;
+          if (effect.nonland && def.types.includes("Land")) continue;
+          if (
+            effect.maxManaValue !== undefined &&
+            manaValue(def.manaCost ?? { generic: 0, colors: {} }) > effect.maxManaValue
+          ) {
+            continue;
+          }
+          victims.push(inst.instanceId);
+        }
+      }
+      let destroyed = 0;
+      for (const id of victims) {
+        const found = findInstance(state, id);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        if (hasKeyword(state, found.instance, "Indestructible")) continue;
+        if (useRegenerationShield(state, found.instance)) continue;
+        log(state, `${cardName(state, id)} is destroyed`);
+        destroyPermanent(state, id);
+        destroyed += 1;
+      }
+      if (effect.thenDraw && destroyed > 0) drawCard(state, controllerId, destroyed);
+      return;
+    }
     case "untap": {
       // "Untap target Forest." Just clears the tapped flag on the chosen
       // permanent; the target legality is enforced when the ability is aimed.

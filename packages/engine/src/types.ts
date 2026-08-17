@@ -432,6 +432,20 @@ export type Effect =
   /** "{T}: Untap target Forest." - Arbor Elf. Untaps one targeted permanent. */
   | { kind: "untap"; target: TargetSelector }
   /**
+   * "Destroy all creatures and enchantments" - a wrath. Every permanent of one
+   * of `cardTypes`, optionally only nonlands (`nonland`) or up to a mana value
+   * (`maxManaValue`), goes through the ordinary destroy path so indestructible,
+   * regeneration and dies triggers all apply. `thenDraw` draws one card per
+   * permanent actually destroyed (Death Begets Life).
+   */
+  | {
+      kind: "destroyAll";
+      cardTypes: CardType[];
+      nonland?: boolean;
+      maxManaValue?: number;
+      thenDraw?: boolean;
+    }
+  /**
    * "Look at the top N cards of your library, then put them back in any order"
    * - Halimar Depths, and Ponder (which adds `mayShuffle` and a follow-up
    * draw). Distinct from scry: every card goes back on top, none to the bottom,
