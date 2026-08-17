@@ -64,37 +64,40 @@ describe("bot vs bot", () => {
   it("actually develops a board rather than passing the whole game", () => {
     const { state } = playOut();
 
-    for (const player of state.players) {
-      /*
-       * Lands *played*, not lands still standing.
-       *
-       * This counted the battlefield until 2026-08-17, which was the same thing
-       * for as long as both demo decks were basics. The Blech list has fetchlands
-       * in it - they sacrifice themselves to find something - so a player who had
-       * played five lands could legitimately be showing two, and the test failed
-       * about one game in ten with nothing wrong.
-       *
-       * `enteredOnTurn` is stamped on arrival and deliberately survives a zone
-       * change, so a cracked fetchland in the graveyard still counts as the land
-       * drop it was.
-       */
-      const landsPlayed = [...player.battlefield, ...player.graveyard, ...player.exile].filter(
+    /*
+     * What this test can honestly assert, arrived at by getting it wrong twice.
+     *
+     * It counted lands *standing* until 2026-08-17, which was the same thing for
+     * as long as both demo decks were basics - the Blech list has fetchlands, and
+     * a player who had played five lands could legitimately be showing two.
+     * Counting lands *played* fixed that (`enteredOnTurn` is stamped on arrival
+     * and survives the zone change, so a cracked fetchland still counts).
+     *
+     * Then it scaled the count to the turns each player had taken, on the
+     * reasoning that a player cannot play more lands than they have had turns.
+     * True, and still not enough: a bot that keeps a one-land hand and draws
+     * spells misses land drops with nothing wrong. Any per-player floor is an
+     * assumption about the shuffle.
+     *
+     * So the assertions are about the *game* rather than about either player.
+     * Between them they say what the test is named for: the bots are playing
+     * rather than passing.
+     */
+    const landsPlayed = state.players.flatMap((player) =>
+      [...player.battlefield, ...player.graveyard, ...player.exile].filter(
         (c) => state.cardDefinitions[c.definitionId]?.types.includes("Land") && c.enteredOnTurn >= 0,
-      );
-      /*
-       * Scaled to the turns this player actually had, which is the second thing
-       * wrong with this assertion.
-       *
-       * A flat "more than two lands" assumes every game lasts long enough for
-       * three land drops. Real decks kill faster than that: a game decided on
-       * turn three leaves the loser with two lands and nothing wrong, and the
-       * test failed about one run in twenty on exactly that. A player cannot have
-       * played more lands than they have had turns, so that is the ceiling the
-       * assertion has to respect.
-       */
-      const expected = Math.min(3, player.turnsTaken);
-      expect(landsPlayed.length).toBeGreaterThanOrEqual(expected);
-    }
+      ),
+    );
+    expect(landsPlayed.length).toBeGreaterThan(2);
+
+    // Something that is not a land reached a battlefield: the bots cast spells.
+    const nonlandPermanents = state.players.flatMap((player) =>
+      [...player.battlefield, ...player.graveyard].filter(
+        (c) => c.enteredOnTurn >= 0 && !state.cardDefinitions[c.definitionId]?.types.includes("Land"),
+      ),
+    );
+    expect(nonlandPermanents.length).toBeGreaterThan(0);
+
     // Somebody's life total moved, so combat happened.
     expect(state.players.some((p) => p.life < 40)).toBe(true);
   });

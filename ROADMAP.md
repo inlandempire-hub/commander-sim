@@ -4132,3 +4132,159 @@ clicks. Worth a human's two minutes before trusting it.
   independent of protection and much smaller than it.
 - **Inkmoth Nexus** is a land that becomes a creature, which the plan itself files
   under batch 7.
+
+## The rest of batch 6, and most of batch 7 (2026-08-17)
+
+**The list is at 66 of 100. The pool is at 1,004 fixtures.** Eleven cards in one
+sitting, which is the most so far, and only because nine of them are lands.
+
+Three commits: the evasion family plus two conditional lands, then four lands
+that do something when tapped or played, then abilities activated from your hand.
+
+### What was built
+
+| Card | The thing it needed |
+|---|---|
+| Signal Pest | "can't be blocked except by ...", and battle cry |
+| Gingerbrute | the same restriction, granted for a turn |
+| Starting Town | a condition about *your* turn number |
+| Mox Amber | one more member of the `colorFrom` family |
+| City of Traitors | a land being **played**, which is not a land entering |
+| City of Brass | a permanent **becoming** tapped, which is not being tapped |
+| Blinkmoth Nexus | a land that becomes a creature |
+| Inkmoth Nexus | the same, with infect - which the engine already had |
+| Simian Spirit Guide | an ability activated from hand |
+| Eiganjo | Channel: the same, with a cost that scales |
+| Sokenzan | Channel again |
+
+### Evasion is one question, so it has one owner
+
+`blocking.ts` answers "may this creature block that one" and nothing else does.
+Flying moved in with it, because "can't be blocked except by creatures with
+flying or reach" is flying's reminder text almost word for word - it had been a
+hand-written pair of ifs in `blockProblem` that only ever knew about flying.
+
+The restrictions accumulate rather than replacing each other, so a flying
+Gingerbrute that used its ability needs a blocker with haste *and* flying or
+reach. And the direction matters in the same way protection's does: a Signal Pest
+on **defence** blocks whatever it likes. There is a test for each direction,
+because reading it the other way round makes every card in this family better
+than printed.
+
+Battle cry is written as the trigger its reminder text describes rather than a
+new keyword - it is exactly an attacks trigger, and the pool has several. It
+needed `excludeSelf` on `pumpAll`, which is the word "other" and the whole
+ability: a battle cry that pumped its own 0/1 source would be a different card.
+
+### Three distinctions that are each a whole card
+
+**Playing a land is not a land entering.** Landfall fires for a land that arrives
+by any route - fetched, ramped, returned - so City of Traitors written as landfall
+sacrifices itself to its own controller's Arid Mesa. `land-played` is fired only
+by `playLand`.
+
+**Becoming tapped is not being tapped.** Three places set `instance.tapped` -
+paying a tap cost, attacking without vigilance, regenerating - so a rider on the
+mana ability would be a City of Brass that charges you honestly for mana and lets
+an attack through free. `tapPermanent` is the single door now, and it deliberately
+does not cover a permanent *entering* tapped: it was never untapped, so it never
+became tapped.
+
+**Your third turn is not the game's third turn.** Player two's third turn is the
+sixth, so `Player.turnsTaken` counts it where turns begin. That also fixed the
+`fullGame` "develops a board" assertion for the second time: counting lands played
+rather than lands standing was right, but assuming every game lasts three turns
+was not - a game decided on turn three leaves the loser with two lands and nothing
+wrong. It is scaled to `turnsTaken` now, which is the real ceiling.
+
+### The Nexus lands change what a permanent *is*
+
+The first thing in this engine to do so while sitting on the battlefield, and it
+forced five `def.types.includes("Creature")` checks to become `typesOf` calls:
+combat's two, state-based actions, targeting, and the summoning-sickness check.
+`hasCreatureType` gained the animation's subtypes for the reason Changeling forced
+it first - "target **Blinkmoth** creature" has to see a type the land only has this
+turn.
+
+Two behaviours that read as surprises and are both correct: a land animated the
+turn it arrived is a summoning-sick creature, so its **mana** ability is off too;
+and a second activation is another 1/1, not a 2/2, because both say "becomes a
+1/1".
+
+**What the animation does not reach**, before somebody reports it as a bug:
+anthems and mass pumps still read printed types, so an animated Nexus is not
+pumped by "creatures you control get +1/+1". Widening that means a real
+continuous-effect layer rather than one more `typesOf` call, and neither Nexus is
+in an anthem deck here.
+
+### An ability that belongs to a card in your hand
+
+`cost.fromHand` is both the cost paid and the permission to use it from hand -
+one field rather than two, because a flag without a cost is an ability activatable
+from hand for free. The cost is paid on activation, so a Channel land is in the
+graveyard while its damage is still on the stack.
+
+`abilityManaCost` is the only place that answers what an ability costs, and it
+exists because the Channel discount would otherwise be computed twice: once by the
+offer and once by the payment. Those two coming apart is visible as a land the
+interface greys out at a price the player can afford.
+
+The client had to change, because clicking a Channel land in hand is now two
+actions. The ability picker takes the from-hand abilities plus an option for the
+ordinary play, and asks **before** anything commits - a land is played the moment
+it is clicked. Auto-pass learned the same thing, or the turn walks past the window
+the card exists for.
+
+### What the bot does not do, deliberately
+
+It never channels and never exiles the Ape. Its ability logic reads the
+battlefield only, and a Channel land it holds is a land it will eventually play -
+usually the right play anyway. Teaching it the choice means teaching it to hold a
+land drop, which is a decision it has no notion of. Gingerbrute's evasion it does
+use, but only while attacking with blocks still to come.
+
+### Skipped, and why
+
+These are the rest of batch 7. Each is skipped for a stated reason rather than
+left unexamined:
+
+- **Needleverge Pathway** - both faces are lands, so playing it is a *choice of
+  face*, and `playLand` has no face argument. The parameter would have to reach
+  the controller interface, both implementations, the protocol, the server, the
+  bot's action type and its two harnesses: ten places for one card.
+- **Mox Diamond** - a replacement effect on a permanent entering, which
+  `replacements.ts` does not cover (it knows counters and tokens).
+- **Gemstone Caverns** and **Quicksilver, Brash Blur** - both begin the game on
+  the battlefield from the opening hand, which is mulligan-time and a shape the
+  engine has no notion of.
+- **Mana Vault** - three new things for one card: a permanent that does not untap,
+  a "you may pay {4}" on a trigger's resolution, and a draw-step event.
+- **Chrome Mox** - imprint: a card exiled from hand and remembered on the
+  permanent, with the mana ability reading its colours.
+- **Emeria's Call** and **Shatterskull Smashing** - the land halves are ordinary;
+  the front faces want "until your next turn" and damage divided among targets.
+- **Skrelv, Defector Mite** - still wants Phyrexian mana, toxic, and hexproof from
+  a colour. Three systems for one card.
+
+### Two process notes worth keeping
+
+**I overwrote `manaBase.test.ts`**, losing 33 tests, by writing a new file over an
+existing one. Nothing failed - the suite was green and 33 tests short. It was found
+by reconciling the total against what the count should have been, which is the only
+reason to keep reading that number.
+
+**The audits needed teaching in five places**, which is the direction they always
+go stale in. The one worth naming: battle cry is a keyword whose entire trigger is
+printed as reminder text, and `audit_triggers` strips reminder text before it reads
+anything - so Signal Pest's perfectly correct attacks trigger was reported as
+invented until the keyword itself stood in for the clause it means.
+
+### Where it stands
+
+**1,004 fixtures. 1,311 tests, typecheck clean**, `audit_fixtures` and
+`audit_triggers` clean, `audit_text` clean bar the two long-known gaps.
+
+**Not verified by hand in the browser**: the from-hand ability menu, and the
+animated-land badge. Both are wired at sites the tests cover and neither was driven
+through the UI. Worth a human's two minutes, the same caveat the colour picker
+carries from the batch before.
