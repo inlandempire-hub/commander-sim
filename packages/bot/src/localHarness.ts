@@ -18,7 +18,7 @@ import {
   playLand,
   type GameState,
 } from "@mtg-commander-sim/engine";
-import type { BotAction } from "./types.js";
+import { castOptionsFor, type BotAction } from "./types.js";
 
 /**
  * Applies a BotAction straight to an in-memory GameState.
@@ -40,9 +40,9 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
     // bot had to tap its own lands - so the tests could have gone on passing
     // after a change that left the bot unable to cast anything in a browser.
     case "castSpell":
-      castSpellWithAutoTap(state, playerId, action.instanceId, action.targets, {
-        fromCommandZone: action.fromCommandZone,
-      });
+      // Every field the action carries - see `castOptionsFor`, which exists
+      // because this line used to carry one of the four.
+      castSpellWithAutoTap(state, playerId, action.instanceId, action.targets, castOptionsFor(action));
       return;
     case "activateAbility":
       activateAbilityWithAutoTap(state, playerId, action.instanceId, action.abilityIndex, action.targets);

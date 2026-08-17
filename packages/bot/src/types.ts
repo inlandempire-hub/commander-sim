@@ -55,3 +55,33 @@ export type BotAction =
   | { kind: "passPriority" };
 
 export const PASS: BotAction = { kind: "passPriority" };
+
+/**
+ * Everything a `castSpell` action tells the engine about *how* the spell is
+ * being cast.
+ *
+ * One function because there are two appliers - the client's GameController and
+ * the local test harness - and they must not translate the same action
+ * differently. They did: the harness passed `fromCommandZone` and nothing else,
+ * so for as long as these fields have existed the bot-vs-bot test cast Deadly
+ * Rollick for its printed cost rather than for free, and Tend the Pests with no
+ * creature named to sacrifice. Both were refused by the engine, which in a bot
+ * game is a dead game.
+ *
+ * Neither demo deck had a card of either shape until the Blech list went in, so
+ * nothing failed and nothing was wrong-looking either. A field added below is
+ * now one edit rather than two, and the one place to look.
+ */
+export function castOptionsFor(action: Extract<BotAction, { kind: "castSpell" }>): {
+  fromCommandZone?: boolean;
+  chosenX?: number;
+  sacrificeInstanceId?: string;
+  useAlternativeCost?: boolean;
+} {
+  return {
+    fromCommandZone: action.fromCommandZone,
+    chosenX: action.chosenX,
+    sacrificeInstanceId: action.sacrificeInstanceId,
+    useAlternativeCost: action.useAlternativeCost,
+  };
+}

@@ -10,10 +10,13 @@ describe("Demo decks", () => {
     expect(result.legal).toBe(true);
   });
 
-  it("Salty Mike's mono-green deck is a legal 100-card Commander deck", () => {
+  it("Salty Mike's Blech deck is a legal 100-card Commander deck", () => {
     const result = validateCommanderDeck(MIKE_DECK, TEST_CARD_DEFINITIONS);
     expect(result.errors).toEqual([]);
     expect(result.legal).toBe(true);
+    // The real decklist, not a generated colour pile - and the same object the
+    // deck picker offers, so the two cannot drift apart.
+    expect(MIKE_DECK.commanderId).toBe("blech-loafing-pest");
   });
 
   it("createDemoGame deals both players a full library and a 7-card opening hand", () => {

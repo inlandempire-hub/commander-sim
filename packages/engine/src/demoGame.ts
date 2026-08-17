@@ -1,6 +1,7 @@
 import { createGameState, drawCard } from "./state.js";
 import { OPENING_HAND_SIZE, createMulliganState } from "./mulligan.js";
 import { setUpCommanderDeck, type DeckList } from "./commander.js";
+import { BLECH_DECK } from "./cardLab.js";
 import { TEST_CARD_DEFINITIONS } from "./cards/testCards.js";
 import type { GameState } from "./types.js";
 
@@ -39,72 +40,17 @@ export const SALTY_MIKE = "Salty Mike";
  * demand - name, cost, power/toughness, type line, keywords, colour identity
  * and Commander legality. Nothing in the simulator is invented.
  *
- * Deadly Donny plays mono-white behind Agent Phil Coulson, Salty Mike plays
- * mono-green behind Tifa Lockhart (changed 2026-07-30 from the earlier
- * Gruul/mono-red split, alongside growing each colour's nonland pool to hit
- * the "~50 lands per deck" ROADMAP.md target - previously 84/99 and 93/99
- * lands, now 44/99 and 45/99). Singleton rules mean only basics repeat.
+ * Deadly Donny plays mono-white behind Agent Phil Coulson. Salty Mike plays the
+ * Blech list, a real Golgari deck (changed 2026-08-17 from mono-green behind
+ * Tifa Lockhart, which had itself replaced a Gruul/mono-red split on
+ * 2026-07-30). Singleton rules mean only basics repeat.
+ *
+ * The two sides are deliberately no longer matched in kind: Donny's is a
+ * generated colour pile, Mike's is a deck with a mana base and a plan.
  *
  * Donny's list deliberately carries five Heroes, because Coulson's ability
  * only does anything if there are other Heroes on his battlefield.
  */
-const MONO_GREEN_NONLAND_CARDS = [
-  "grizzly-bears",
-  "llanowar-elves",
-  "elvish-visionary",
-  "elvish-mystic",
-  "runeclaw-bear",
-  "elvish-warrior",
-  "giant-spider",
-  "craw-wurm",
-  "wall-of-wood",
-  "gladecover-scout",
-  "willow-elf",
-  "norwood-ranger",
-  "trained-jackal",
-  "ankle-biter",
-  "charging-badger",
-  "balduvian-bears",
-  "bear-cub",
-  "cylian-elf",
-  "forest-bear",
-  "kalonian-tusker",
-  "swordwise-centaur",
-  "terrain-elemental",
-  "jibbirik-omnivore",
-  "moon-sprite",
-  "pygmy-razorback",
-  "willow-faerie",
-  "underdark-basilisk",
-  "alpine-grizzly",
-  "centaur-courser",
-  "colossodon-yearling",
-  "gorilla-warrior",
-  "harrier-naga",
-  "murasa-brute",
-  "nessian-courser",
-  "spined-karok",
-  "sporecap-spider",
-  "hitchclaw-recluse",
-  "mosscoat-goriak",
-  "wary-okapi",
-  "woodland-patrol",
-  "leatherback-baloth",
-  "axebane-beast",
-  "broodhunter-wurm",
-  "golden-bear",
-  "nettle-swine",
-  "wild-elephant",
-  "order-of-the-sacred-bell",
-  "rowan-treefolk",
-  "rumbling-baloth",
-  "wild-ceratok",
-  "tomakul-honor-guard",
-  "ambush-viper",
-  "hornet-sting",
-  "nourish",
-];
-
 const MONO_WHITE_NONLAND_CARDS = [
   "healing-salve",
   "devoted-hero",
@@ -168,10 +114,20 @@ export const DONNY_DECK: DeckList = {
   libraryIds: [...MONO_WHITE_NONLAND_CARDS, ...repeat("plains", 99 - MONO_WHITE_NONLAND_CARDS.length)],
 };
 
-export const MIKE_DECK: DeckList = {
-  commanderId: "tifa-lockhart",
-  libraryIds: [...MONO_GREEN_NONLAND_CARDS, ...repeat("forest", 99 - MONO_GREEN_NONLAND_CARDS.length)],
-};
+/**
+ * Salty Mike plays the Blech list - a real deck somebody built, not a colour.
+ *
+ * Changed 2026-08-17 from mono-green behind Tifa Lockhart. The same object the
+ * deck picker offers and the card lab walks, rather than a second transcription
+ * of the same 99 cards: two copies would disagree the first time one card
+ * changed, and the disagreement would show up as the bot playing something that
+ * is not in the deck.
+ *
+ * This is what a plain load of the client deals, and it is also the pair
+ * packages/bot/src/__tests__/fullGame.test.ts plays out - so a real decklist is
+ * now exercised on every run of the suite rather than only when asked for.
+ */
+export const MIKE_DECK: DeckList = BLECH_DECK;
 
 /**
  * Whether players get to look at their opening hand and send it back.

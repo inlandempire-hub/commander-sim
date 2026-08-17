@@ -65,6 +65,21 @@ export function botShouldAct(state: GameState, botPlayerId: string): boolean {
   if (state.pendingConfirmation?.playerId === botPlayerId) return true;
   if (state.pendingTargetChoices[0]?.playerId === botPlayerId) return true;
   if (state.pendingDiscards[0]?.playerId === botPlayerId) return true;
+  /*
+   * Somebody *else* owes a mid-resolution answer.
+   *
+   * Holding priority is not enough in that window - the engine refuses a pass
+   * while a search is outstanding, so a bot woken here proposes one and the game
+   * stops dead. The checks above have already returned true for every question
+   * that is this bot's to answer, so anything still set belongs to another
+   * player and the only correct move is to wait.
+   *
+   * Reachable before the Blech deck, but only from a card that makes an opponent
+   * search or discard, and neither demo deck had one. Scheming Symmetry makes
+   * both players search and found it on the first game.
+   */
+  if (someoneElseOwesAnAnswer(state)) return false;
+
   const holdsPriority = state.players[state.priorityPlayerIndex]?.id === botPlayerId;
   if (holdsPriority) return true;
 
@@ -102,4 +117,28 @@ export function runBotUntilIdle(harness: BotHarness, botPlayerId: string, maxAct
     if (action.kind === "passPriority") return performed;
   }
   return performed;
+}
+
+/**
+ * Whether the game is part-way through resolving something that is waiting on a
+ * player's answer.
+ *
+ * The same list `mustNotAutoPass` checks in the engine, and for the same reason:
+ * while any of these is set, nobody may pass priority. Kept as a list rather
+ * than as one "pending anything" flag because that is how the state is shaped -
+ * and a new pending kind added to the engine without a line here would show up
+ * as a bot that stops the game, which is why the engine's own list carries the
+ * same warning.
+ */
+function someoneElseOwesAnAnswer(state: GameState): boolean {
+  return (
+    state.pendingSearch !== null ||
+    state.pendingEnterChoice !== null ||
+    state.pendingConfirmation !== null ||
+    state.pendingSacrifice !== null ||
+    state.pendingAmount !== null ||
+    state.pendingTargetChoices.length > 0 ||
+    state.pendingDiscards.length > 0 ||
+    state.pendingCardChoices.length > 0
+  );
 }

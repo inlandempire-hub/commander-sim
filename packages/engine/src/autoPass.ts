@@ -2,7 +2,7 @@ import { blockProblem } from "./combat.js";
 import { castRestrictionProblem } from "./restrictions.js";
 import type { Effect, GameState, ManaCost } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
-import { applyCommanderTax, canPayManaCostFromPool, potentialAvailableMana } from "./mana.js";
+import { applyCommanderTax, canPayManaCostFromPool, couldAfford } from "./mana.js";
 import { canCastAtSorcerySpeed, canPayAdditionalCost, landDropsAllowed } from "./casting.js";
 import { controllerMeets } from "./conditions.js";
 import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
@@ -46,7 +46,6 @@ export function canPlayCardNow(state: GameState, playerId: string, instanceId: s
   const instance = inHand ?? inCommand;
   if (!instance) return false;
 
-  const potentialMana = potentialAvailableMana(state, playerId);
   const isMainPhaseWindow = canCastAtSorcerySpeed(state, playerId);
   const def = requireDefinition(state, instance.definitionId);
 
@@ -60,7 +59,7 @@ export function canPlayCardNow(state: GameState, playerId: string, instanceId: s
   if (inCommand) {
     if (!isMainPhaseWindow) return false;
     const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
-    return canPayManaCostFromPool(potentialMana, applyCommanderTax(def.manaCost ?? EMPTY_COST, timesCast));
+    return couldAfford(state, playerId, applyCommanderTax(def.manaCost ?? EMPTY_COST, timesCast));
   }
 
   /*
@@ -99,7 +98,9 @@ export function canPlayCardNow(state: GameState, playerId: string, instanceId: s
     return hasSomethingToTarget(state, playerId, def.castEffect);
   }
 
-  if (!canPayManaCostFromPool(potentialMana, def.manaCost ?? EMPTY_COST)) return false;
+  // Planned rather than summed: a pool counts a dual land once per colour it
+  // makes, so this used to light up cards the engine would then refuse.
+  if (!couldAfford(state, playerId, def.manaCost ?? EMPTY_COST)) return false;
   return hasSomethingToTarget(state, playerId, def.castEffect);
 }
 
@@ -151,10 +152,12 @@ export function affordableXValues(
     def.additionalCost.amount.kind === "x";
   if (!requiresX(def.manaCost) && !lifeX) return [];
 
-  const potentialMana = potentialAvailableMana(state, playerId);
   const affordable: number[] = [];
   for (let x = 0; x <= cap; x++) {
-    if (!canPayManaCostFromPool(potentialMana, costWithX(def.manaCost ?? EMPTY_COST, x))) break;
+    // Planned per value of X rather than compared against one summed pool: the
+    // pool counts a dual land twice, so it offered X values that could not be
+    // paid for - and this list is what the X picker shows.
+    if (!couldAfford(state, playerId, costWithX(def.manaCost ?? EMPTY_COST, x))) break;
     // And the life, which is the whole limit on Toxic Deluge: you may pay down
     // to nothing and no further.
     if (!canPayAdditionalCost(state, playerId, def, x)) break;
@@ -175,7 +178,6 @@ export function affordableXValues(
  */
 export function hasAnyLegalAction(state: GameState, playerId: string): boolean {
   const player = requirePlayer(state, playerId);
-  const potentialMana = potentialAvailableMana(state, playerId);
   const isMainPhaseWindow = canCastAtSorcerySpeed(state, playerId);
 
   for (const instance of [...player.hand, ...player.command]) {
@@ -189,7 +191,16 @@ export function hasAnyLegalAction(state: GameState, playerId: string): boolean {
     for (const ability of def.activatedAbilities ?? []) {
       // A mana ability alone isn't a meaningful action, whichever shape it is.
       if (ability.effect.kind === "addMana" || ability.effect.kind === "addManaCombination") continue;
-      if (!canPayManaCostFromPool(potentialMana, ability.cost.mana ?? EMPTY_COST)) continue;
+      if (
+        !couldAfford(
+          state,
+          playerId,
+          ability.cost.mana ?? EMPTY_COST,
+          ability.cost.tap ? instance.instanceId : undefined,
+        )
+      ) {
+        continue;
+      }
       // "Activate only if you control a Swamp" - an ability you may not
       // activate is not an action, and offering it stops the turn for nothing.
       if (!controllerMeets(state, playerId, ability.activateOnlyIf)) continue;

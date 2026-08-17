@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { botShouldAct, nextAction, type BotAction } from "@mtg-commander-sim/bot";
+import {
+  castOptionsFor, botShouldAct, nextAction, type BotAction } from "@mtg-commander-sim/bot";
 import type { GameController } from "./gameController.js";
 
 /**
@@ -89,12 +90,9 @@ function perform(controller: GameController, playerId: string, action: BotAction
       controller.playLand(playerId, action.instanceId);
       return;
     case "castSpell":
-      controller.castSpell(playerId, action.instanceId, action.targets, {
-        chosenX: action.chosenX,
-        sacrificeInstanceId: action.sacrificeInstanceId,
-        useAlternativeCost: action.useAlternativeCost,
-        fromCommandZone: action.fromCommandZone,
-      });
+      // Shared with the local test harness, so the two appliers cannot drift -
+      // see `castOptionsFor`. They had, and only the harness was wrong.
+      controller.castSpell(playerId, action.instanceId, action.targets, castOptionsFor(action));
       return;
     case "activateAbility":
       controller.activateAbility(playerId, action.instanceId, action.abilityIndex, action.targets);

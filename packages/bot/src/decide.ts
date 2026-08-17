@@ -3,6 +3,9 @@ import { activateRestrictionProblem, staticBuffsOf } from "@mtg-commander-sim/en
 import {
   abilityAvailable,
   isValidTarget,
+  legalTargetsFor,
+  targetCountOf,
+  targetSelectorOf,
   manaValue,
   type CardDefinition,
   type Effect,
@@ -412,7 +415,25 @@ function searchLibrary(state: GameState, me: Player, reserve: ManaCost = NO_COST
       return wantedTypes.length === 0 || wantedTypes.some((type) => def.types.includes(type));
     });
     if (!hasMatch) continue;
-    return castOrTapToward(state, me, tutor);
+    /*
+     * "Choose **two** target players. Each of them searches their library" -
+     * Scheming Symmetry, the one tutor in the pool that targets at all.
+     *
+     * Every other printing names its searcher and carries no selector, so this
+     * branch used to cast with no targets whatever the card said - which the
+     * engine refused, ending the game. Read off the selector rather than
+     * special-cased by name: a tutor that needs targets and has too few legal
+     * ones is simply not castable.
+     */
+    const selector = targetSelectorOf(effect);
+    let targets: StackTarget[] = [];
+    if (selector) {
+      const { min, max } = targetCountOf(selector);
+      const legal = legalTargetsFor(state, selector, me.id, tutor.instance.instanceId);
+      if (legal.length < min) continue;
+      targets = legal.slice(0, max);
+    }
+    return castOrTapToward(state, me, tutor, targets);
   }
   return null;
 }
@@ -576,7 +597,8 @@ function useValueAbility(state: GameState, me: Player): BotAction | null {
     const ability = def.activatedAbilities![abilityIndex]!;
 
     const cost = ability.cost.mana ?? NO_COST;
-    if (!couldAfford(state, me.id, cost)) continue;
+    // The permanent cannot pay for its own tap - see `couldAfford`.
+    if (!couldAfford(state, me.id, cost, ability.cost.tap ? instance.instanceId : undefined)) continue;
     // Clarion Conqueror switches off every artifact and creature ability on the
     // table, its controller's included. Asked before the cost, because a
     // forbidden ability is not activated at any price.

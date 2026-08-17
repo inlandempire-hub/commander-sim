@@ -1,4 +1,5 @@
 import type { DeckList } from "./commander.js";
+import { BLECH_DECK } from "./cardLab.js";
 
 /**
  * Pre-built archetype decks, one per colour, for the bot to pilot and for
@@ -105,79 +106,6 @@ const WHITE_NONLANDS = [
   // White's reanimation: get the best thing back after a sweeper.
   "resurrection",
   "breath-of-life",];
-
-/** Mono-green stompy: bigger creatures than yours, and an anthem to make them bigger still. */
-const GREEN_NONLANDS = [
-  "grizzly-bears",
-  "llanowar-elves",
-  "elvish-visionary",
-  "elvish-mystic",
-  "runeclaw-bear",
-  "elvish-warrior",
-  "giant-spider",
-  "craw-wurm",
-  "gladecover-scout",
-  // Ramp and recursion: green's actual identity, and the fix for a deck that
-  // previously did nothing but play a creature a turn.
-  "lay-of-the-land",
-  "natural-connection",
-  "sylvan-scrying",
-  "regrowth",
-  "recollect",
-  "elven-cache",
-  "wildwood-rebirth",
-  // Green's two first strikers.
-  "elvish-archers",
-  "hornet-cobra",
-  "cylian-elf",
-  "forest-bear",
-  "kalonian-tusker",
-  "swordwise-centaur",
-  "terrain-elemental",
-  "jibbirik-omnivore",
-  "moon-sprite",
-  "pygmy-razorback",
-  "willow-faerie",
-  "underdark-basilisk",
-  "alpine-grizzly",
-  "centaur-courser",
-  "colossodon-yearling",
-  "gorilla-warrior",
-  "harrier-naga",
-  "murasa-brute",
-  "nessian-courser",
-  "sporecap-spider",
-  "hitchclaw-recluse",
-  "mosscoat-goriak",
-  // Two uncounterable fatties - green's answer to a deck that wins by
-  // saying no, and the reason it no longer folds to Tidewall.
-  "carnage-tyrant",
-  "terra-stomper",
-  // Land destruction: green gets it, and it buys the turns the big ones need.
-  "ice-storm",
-  "winters-grasp",
-  "verdigris",
-  "leatherback-baloth",
-  "axebane-beast",
-  "broodhunter-wurm",
-  "golden-bear",
-  "wild-elephant",
-  "order-of-the-sacred-bell",
-  "rumbling-baloth",
-  "wild-ceratok",
-  "tomakul-honor-guard",
-  "ambush-viper",
-  "hornet-sting",
-  "nourish",
-  "gaeas-anthem",
-  "spore-swarm",
-  // Green's answer to removal is to win the fight instead - and Harmonize is
-  // the only real card draw the colour gets in this pool.
-  "giant-growth",
-  "titanic-growth",
-  "monstrous-growth",
-  "might-of-oaks",
-  "harmonize",];
 
 /** Mono-black removal: kill the good ones, grind through with deathtouch and lifelink. */
 const BLACK_NONLANDS = [
@@ -420,9 +348,22 @@ export const ARCHETYPES: Archetype[] = [
     deck: build("agent-phil-coulson", WHITE_NONLANDS, "plains"),
   },
   {
-    name: "Overgrowth (mono-green)",
-    plan: "Play the biggest creatures available and swing. Tifa Lockhart doubles her own power off every land drop.",
-    deck: build("tifa-lockhart", GREEN_NONLANDS, "forest"),
+    /*
+     * The first archetype here that is a real deck rather than a colour.
+     *
+     * The other five are generated - a commander, a pile of cards the DSL can
+     * express, and basics to fill - so they have no mana base and no plan beyond
+     * their colour. This one is somebody's actual list, transcribed card for
+     * card, and it lives in cardLab.ts because the lab has walked it since it
+     * was built. Named after its commander because that is what people call it.
+     *
+     * It replaced Overgrowth (mono-green) on 2026-08-17. The green cards are all
+     * still in the pool and still buildable in the deck builder; what they are no
+     * longer is a pre-built deck.
+     */
+    name: "Blech, Loafing Pest",
+    plan: "Trade small creatures for cards and life: Pest tokens, sacrifice payoffs, and unconditional removal for anything that gets past them.",
+    deck: BLECH_DECK,
   },
   {
     name: "Gravebound (mono-black)",

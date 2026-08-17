@@ -3925,3 +3925,88 @@ almost no engine work.
 Still not walked by a human: a real second combat phase in the client, the
 entry-choice overlay, and now a stolen permanent moving across the table. All
 three are blocked on the same thing - the card lab has no Boros board.
+
+## The Blech deck becomes a deck you can play, and what that found (2026-08-17)
+
+The Blech list has existed as a card pool and as the thing the card lab walks
+since 2026-08-14. It is now one of the pre-built decks: it replaces
+**Overgrowth (mono-green)** in the deck picker, and it is what Salty Mike plays
+in `createDemoGame`, so it is on the table the moment the client loads.
+
+Named after its commander, because that is what people call it.
+
+One copy of the 99 ids, in `archetypes.ts`, read by the picker, by the demo game
+and by the lab. (There were briefly two: I transcribed the list from the decklist
+file without checking that `cardLab.ts` had held exactly the same ids since the
+lab was built. They were byte-identical, which is luck rather than process.)
+
+The mono-green cards are all still in the pool and still buildable in the deck
+builder. What is gone is the two curated lists that made them a deck.
+
+### What a real decklist found in an hour
+
+Both demo decks were, until today, a commander and forty-odd basic lands. That
+is the whole reason the following had never been seen: **every basic has exactly
+one mana ability, and every one of these bugs needs a card with two.**
+
+**A dual land counted as two mana.** `potentialAvailableMana` walks every mana
+ability on every permanent and adds them up, so a land reading "{T}: Add {B}" and
+"{T}: Add {G}" was one of each. Three lands read as four mana.
+
+That number was answering "can I pay for this" in five places - the bot's cast
+decision, the client's list of usable abilities, the client's highlight of
+playable cards, the X picker, and the auto-pass check. The fix is not a better
+sum, because there is no honest sum: whether a dual land helps depends on the cost
+being paid. So every one of those questions now goes through `planManaPayment`,
+which is the same walk the auto-tapper makes when it really pays. **The answer to
+"can I" and the attempt to do it now come from one function**, and cannot
+disagree.
+
+`potentialAvailableMana` still exists and still over-counts on purpose. Its
+docstring now says so, and says not to ask it this question.
+
+**A permanent was paying for its own tap ability.** Sapseep Forest's second
+ability costs "{G}, {T}" and the Forest is a green source, so with no other green
+out the auto-tapper spent the Forest on the {G} and then found it already tapped.
+A human clicking that ability hit exactly the same wall. Every affordability
+question now excludes the permanent about to be tapped, at all three sites that
+ask.
+
+**The test harness had been casting the bot's spells wrong for months.**
+`localHarness.ts` built the engine's cast options by hand and passed one of the
+four fields, dropping `useAlternativeCost`, `sacrificeInstanceId` and `chosenX`.
+The client's own applier passed all four - so games in the browser were right and
+only the bot-vs-bot test was wrong, which is the worse direction: Deadly Rollick
+was charged its printed cost rather than being free, and Tend the Pests cast with
+no creature named to sacrifice. Both are refused by the engine, which in a bot
+game is a dead game.
+
+This is the twin of the bug batch 4 found in the same file, with the same root
+cause: two places translating one action. The `never` guard added then catches a
+missing *case*; nothing caught a missing *field*. There is one shared
+`castOptionsFor` now, and a test that names each field rather than comparing a
+spread, so a field added without being mapped fails.
+
+**The bot cast a two-target tutor with no targets.** Scheming Symmetry is the one
+tutor in the pool that targets, and the tutor branch had always cast with none.
+It reads the selector now.
+
+**The bot passed priority while somebody else owed an answer.** Scheming Symmetry
+makes *both* players search; the engine refuses a pass with a search outstanding,
+so the bot holding priority proposed one and the game stopped. Reachable before
+now, but only from a card that makes an opponent search, and neither demo deck
+had one.
+
+### Where this leaves the bot
+
+**1,235 tests**, typecheck clean, all three audits clean bar the two long-known
+gaps. About thirty randomised bot-vs-bot games with the Blech deck ran clean, and
+the full-game test - which plays this exact pair - passed on four consecutive
+runs of the whole suite.
+
+Worth saying plainly, because it is the honest shape of it: **"the bot proposes an
+action the engine refuses" is a class of bug, not a bug**, and a real decklist
+exercises it far harder than forty basics ever did. Five instances were fixed
+today. There may be more in the tail; the full-game test is the net that catches
+them, and it is a much better net now that it plays a deck with a mana base, an
+alternative cost, a sacrifice cost and a symmetrical tutor in it.

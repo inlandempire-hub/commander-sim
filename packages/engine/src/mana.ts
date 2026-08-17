@@ -1,6 +1,7 @@
 import type {
   ActivatedAbility,
   CardDefinition,
+  CardInstance,
   Color,
   Effect,
   GameState,
@@ -446,11 +447,27 @@ export function abilityAvailable(
 /**
  * What a player's mana pool WOULD look like if they tapped every untapped
  * mana-producing permanent they control (in addition to whatever's already
- * floating). Used to decide "is there any point asking this player to act" -
- * not a real mutation, and deliberately ignores mana abilities that also
- * require an additional mana cost of their own (none exist in the card pool
- * yet, but a card like that would need real cost-solving, not this
- * approximation).
+ * floating).
+ *
+ * **This over-counts, and cannot not.** A permanent with two mana abilities is
+ * added twice, because a pool has no way to say "one or the other" - a land
+ * reading "{T}: Add {B}" and "{T}: Add {G}" appears here as both. So this is an
+ * upper bound on what could be produced and never an amount that could be
+ * produced at once.
+ *
+ * Do not ask it whether a cost can be paid. `couldAfford` in autoTap.ts is that
+ * question, and it plans the payment instead - which is the only way to answer
+ * it, since whether a dual land helps depends on what is being paid for. This
+ * function once backed `couldAfford`, and the difference showed up as the bot
+ * proposing a spell the engine refused, on a deck whose mana base had duals in
+ * it.
+ *
+ * What it is still good for is a quick "could this player conceivably do
+ * anything" gate, where erring high is the safe direction: the worst case is
+ * being offered a choice you turn out not to be able to make.
+ *
+ * Deliberately ignores mana abilities that require an additional mana cost of
+ * their own (none exist in the card pool yet).
  */
 export function potentialAvailableMana(state: GameState, playerId: string): ManaPool {
   const player = requirePlayer(state, playerId);
@@ -466,4 +483,289 @@ export function potentialAvailableMana(state: GameState, playerId: string): Mana
     }
   }
   return pool;
+}
+
+/*
+ * Working out what a payment *would* tap, without tapping anything.
+ *
+ * Moved here from autoTap.ts on 2026-08-17. It is the pure half - it reads the
+ * board and returns a list - and it had to come down here because the two
+ * callers that most need `couldAfford` (the activated-ability list and the
+ * auto-pass check) already import this file, while autoTap.ts imports
+ * abilities.ts and casting.ts and so cannot be imported back from either.
+ *
+ * autoTap.ts keeps the half that mutates, and re-exports all of this.
+ */
+
+/** A permanent that taps for mana with no additional cost, plus which colour it makes. */
+export interface ManaSource {
+  instance: CardInstance;
+  abilityIndex: number;
+  color: ManaColor;
+  amount: number;
+  /** A painland's coloured halves: usable, but not for free. See `chooseSource`. */
+  damageToController: number;
+}
+
+export function manaSources(
+  state: GameState,
+  player: Player,
+  /**
+   * A permanent that must not be spent, because it is about to be tapped for
+   * something else - an ability whose own cost includes "{T}".
+   *
+   * Sapseep Forest is the card: its second ability costs "{G}, {T}", and the
+   * Forest is a green source. With no other green on the board the tapper spent
+   * the Forest paying the {G} and then found it already tapped, which reads as
+   * the ability being broken rather than as the mana being spent on it.
+   */
+  excludeInstanceId?: string,
+): ManaSource[] {
+  const sources: ManaSource[] = [];
+  for (const instance of player.battlefield) {
+    if (instance.tapped) continue;
+    if (instance.instanceId === excludeInstanceId) continue;
+    const def = state.cardDefinitions[instance.definitionId];
+    if (!def) continue;
+    // Summoning-sick creatures can't use tap abilities, but lands always can.
+    if (def.types.includes("Creature") && instance.summoningSickness) continue;
+    def.activatedAbilities?.forEach((ability, abilityIndex) => {
+      // Anything with a further cost - mana, life, sacrificing itself - is
+      // not a source auto-tap may spend on your behalf. Tapping a fetchland to
+      // "make mana" would cost a land and a life and produce nothing.
+      if (!isFreeManaAbility(ability)) return;
+      // Command Tower's five halves: only the ones the commander's colours
+      // allow are real sources. Tapping it for white in a Golgari deck is not
+      // the card. Same gate covers "activate only if you control a Swamp" -
+      // Tainted Wood makes no coloured mana at all until a Swamp is out.
+      if (!abilityAvailable(state, player.id, ability)) return;
+      sources.push({
+        instance,
+        abilityIndex,
+        color: ability.effect.color,
+        amount: ability.effect.amount,
+        damageToController: ability.damageToController ?? 0,
+      });
+    });
+  }
+  return sources;
+}
+
+/**
+ * Whether the player could pay `cost` if they tapped everything available,
+ * floating mana included.
+ *
+ * Answered by planning the payment rather than by summing a pool, because a
+ * pool cannot represent a dual land: "{T}: Add {B}" and "{T}: Add {G}" on one
+ * permanent are alternatives, and adding both counted one land as two mana.
+ * That is how the bot came to propose a spell the engine then refused - a dead
+ * game rather than a misplay - and it went unseen for as long as both demo decks
+ * were a commander plus forty basics, each with exactly one mana ability.
+ *
+ * `planManaPayment` drops every entry for a permanent it taps, and is the same
+ * walk `autoTapForCost` makes, so this answer and the attempt to pay cannot
+ * disagree. It costs more than a sum did; it is called per candidate spell or
+ * ability rather than per turn, which is nowhere near hot enough to matter.
+ */
+export function couldAfford(
+  state: GameState,
+  playerId: string,
+  cost: ManaCost,
+  /** See `manaSources` - the permanent about to be tapped for something else. */
+  excludeInstanceId?: string,
+): boolean {
+  return planManaPayment(state, playerId, cost, excludeInstanceId).paid;
+}
+
+/**
+ * The choice itself, made against an explicit pool and list of sources.
+ *
+ * Kept separate from the state so that both the real tapping and the preview
+ * of it can call the same function. A preview that reimplemented this - even
+ * carefully - would eventually disagree with what actually happens, and a
+ * preview you cannot trust is worse than no preview.
+ *
+ * Deliberately greedy rather than a real cost solver: colour requirements
+ * first, since a source producing a colour the cost actually needs is strictly
+ * more useful than one that only helps with the generic portion. A cost with
+ * several hybrid symbols in it would still need proper solving (see the
+ * limitations note in ROADMAP.md).
+ *
+ * **Within equally useful sources it spends the one that costs the least
+ * future flexibility**, which is the whole of `flexibilityRank` below. Taking
+ * the first source in board order - which is what this did until 2026-08-16 -
+ * is the behaviour that makes a two-spell turn impossible without tapping by
+ * hand: paying the generic part of the first spell with a coloured land eats a
+ * pip the second spell needed, and the player is left doing the engine's job
+ * for it. The Blight Mound into Tend the Pests line is exactly that, and it is
+ * the case that prompted this.
+ *
+ * The order within a tier is: a painless source before a painful one - a
+ * painland is a real source and has to stay one, but shooting yourself for
+ * mana a basic could have made is a decision no player would take, and this is
+ * making it on their behalf.
+ */
+export function chooseSource(sources: ManaSource[], pool: ManaPool, cost: ManaCost): ManaSource | null {
+  if (canPayManaCostFromPool(pool, cost)) return null;
+  if (sources.length === 0) return null;
+
+  const shortfallColors: ManaColor[] = ALL_COLORS.filter(
+    (color) => (pool[color] ?? 0) < (cost.colors[color] ?? 0),
+  );
+  /*
+   * A hybrid symbol never shows up as a pip shortfall, because it is not a pip.
+   * Without this, a cost of "{B/G}, {T}" that the pool cannot cover would fall
+   * through to "anything untapped helps with the generic part" and start
+   * tapping colourless rocks that can never pay it. Any colour named by a
+   * hybrid symbol is worth having when the cost is still unpayable.
+   */
+  if (shortfallColors.length === 0 && cost.hybrid?.length) {
+    for (const symbol of cost.hybrid) {
+      for (const color of symbol) {
+        if (!shortfallColors.includes(color)) shortfallColors.push(color);
+      }
+    }
+  }
+
+  // A colourless source is never in shortfallColors, which is exactly right:
+  // it can only ever help with the generic part of a cost.
+  const useful =
+    shortfallColors.length > 0 ? sources.filter((s) => shortfallColors.includes(s.color)) : sources;
+
+  const pool2 = useful.length > 0 ? useful : sources;
+  if (pool2.length === 0) return null;
+
+  /*
+   * Cheapest first, where "cheap" means least flexibility given up. Sorted on a
+   * copy: `sources` is the caller's list and `planManaPayment` walks it again.
+   */
+  return [...pool2].sort((a, b) => {
+    /*
+     * Ranked against *every* source, not just the useful ones. Measuring a
+     * land's flexibility inside the filtered list made a Bayou look
+     * mono-coloured while paying {B} - its green half had been filtered out -
+     * so the dual was spent ahead of the basic, which is the exact mistake
+     * this is here to stop.
+     */
+    const rank = flexibilityRank(a, sources) - flexibilityRank(b, sources);
+    if (rank !== 0) return rank;
+    // A painless source before a painful one, always.
+    return a.damageToController - b.damageToController;
+  })[0]!;
+}
+
+/**
+ * What spending this source costs you in options, lower being cheaper.
+ *
+ * Three things, in order of how much they matter:
+ *
+ * 1. **Colourless mana can only ever pay generic**, so spending it costs
+ *    nothing at all. A Sol Ring tapped for the generic part of a cost is free;
+ *    a Swamp tapped for the same is a black pip you no longer have.
+ * 2. **A permanent that makes fewer colours is spent first.** A basic Swamp and
+ *    a Watery Grave both pay {B}, but the Watery Grave is also the only blue
+ *    source you might have - so the basic goes first and the dual stays on the
+ *    table. This is the half that fixes casting two coloured spells in a turn.
+ * 3. **Spend from the colour you have most of.** With four Forests and one
+ *    Swamp, the generic part of a cost comes off a Forest, because the Swamp is
+ *    the scarce thing.
+ *
+ * A heuristic, not a solver: it knows nothing about what is still in hand, so
+ * it optimises for keeping options rather than for a particular next spell.
+ * That is the right bias when the alternative is the player tapping by hand.
+ */
+function flexibilityRank(source: ManaSource, among: ManaSource[]): number {
+  if (source.color === "C") return 0;
+
+  // How many colours the *permanent* can make - a dual land appears in the list
+  // once per ability, and tapping it uses up all of them.
+  const coloursThisPermanentMakes = new Set(
+    among.filter((s) => s.instance.instanceId === source.instance.instanceId).map((s) => s.color),
+  ).size;
+
+  // How many other permanents could still make this colour afterwards. More
+  // means this one is less precious.
+  const othersWithThisColour = new Set(
+    among.filter((s) => s.color === source.color).map((s) => s.instance.instanceId),
+  ).size;
+
+  // Scaled so the two never trade against each other by accident: flexibility
+  // dominates, depth breaks its ties.
+  return 1 + coloursThisPermanentMakes * 100 - Math.min(othersWithThisColour, 99);
+}
+
+/**
+ * Picks the next land (or mana creature) to tap toward paying `cost`. Returns
+ * null when the pool already covers the cost or nothing left can help.
+ */
+export function nextSourceToTap(
+  state: GameState,
+  player: Player,
+  cost: ManaCost,
+  /** See `manaSources`. */
+  excludeInstanceId?: string,
+): { instanceId: string; abilityIndex: number } | null {
+  const chosen = chooseSource(manaSources(state, player, excludeInstanceId), player.manaPool, cost);
+  if (!chosen) return null;
+  return { instanceId: chosen.instance.instanceId, abilityIndex: chosen.abilityIndex };
+}
+
+/** One permanent the payment would tap, and what it would produce. */
+export interface PlannedTap {
+  instanceId: string;
+  abilityIndex: number;
+  color: ManaColor;
+  amount: number;
+}
+
+export interface ManaPlan {
+  /** False when the cost cannot be met at all - in which case nothing would be tapped. */
+  paid: boolean;
+  /** In the order they would be tapped. Empty when the floating pool already covers it. */
+  taps: PlannedTap[];
+}
+
+/**
+ * What `autoTapForCost` *would* do, worked out without touching anything.
+ *
+ * This exists so the interface can show you which of your lands a spell is
+ * about to turn before you commit to it. Tapping is irreversible and the
+ * engine does it on your behalf, which is a fine trade only as long as you can
+ * see what you are agreeing to.
+ *
+ * It walks the same greedy choice in the same order as the real thing, against
+ * a copy of the pool. The one subtlety is that a permanent with two mana
+ * abilities appears twice in `manaSources`, and tapping it once uses up both -
+ * so every entry for a chosen permanent is dropped, matching the real loop,
+ * which recomputes its sources each pass and skips anything already tapped.
+ */
+export function planManaPayment(
+  state: GameState,
+  playerId: string,
+  cost: ManaCost,
+  /** See `manaSources`. */
+  excludeInstanceId?: string,
+): ManaPlan {
+  const player = requirePlayer(state, playerId);
+  const pool: ManaPool = { ...player.manaPool };
+  let available = manaSources(state, player, excludeInstanceId);
+  const taps: PlannedTap[] = [];
+
+  for (let guard = available.length; guard > 0; guard--) {
+    const chosen = chooseSource(available, pool, cost);
+    if (!chosen) break;
+    available = available.filter((s) => s.instance.instanceId !== chosen.instance.instanceId);
+    addMana(pool, chosen.color, chosen.amount);
+    taps.push({
+      instanceId: chosen.instance.instanceId,
+      abilityIndex: chosen.abilityIndex,
+      color: chosen.color,
+      amount: chosen.amount,
+    });
+  }
+
+  const paid = canPayManaCostFromPool(pool, cost);
+  // Nothing is tapped for a cost that cannot be met, so an unaffordable spell
+  // must not light up half your board as if it were about to be paid.
+  return paid ? { paid, taps } : { paid: false, taps: [] };
 }

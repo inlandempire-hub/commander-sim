@@ -7,6 +7,7 @@ import {
   colorAllowed,
   payManaCost,
   potentialAvailableMana,
+  couldAfford,
 } from "./mana.js";
 import { controllerMeets } from "./conditions.js";
 import { damagePlayer } from "./damage.js";
@@ -44,7 +45,6 @@ export function activatableAbilities(
   if (!def) return [];
 
   const player = requirePlayer(state, playerId);
-  const potential = potentialAvailableMana(state, playerId);
   const usable: number[] = [];
 
   (def.activatedAbilities ?? []).forEach((ability, index) => {
@@ -54,7 +54,20 @@ export function activatableAbilities(
     }
     // "Equip only as a sorcery." Everything else here is instant speed.
     if (ability.sorcerySpeedOnly && !canCastAtSorcerySpeed(state, playerId)) return;
-    if (ability.cost.mana && !canPayManaCostFromPool(potential, ability.cost.mana)) return;
+    /*
+     * Planned rather than summed - see `couldAfford`. A pool counts a dual land
+     * twice, which lit up abilities that could not actually be paid for.
+     *
+     * And the permanent itself is excluded when the ability taps it: Sapseep
+     * Forest's "{G}, {T}: You gain 1 life" cannot be paid by tapping the Forest
+     * for the {G}, so an ability offered on that basis is one the engine refuses.
+     */
+    if (
+      ability.cost.mana &&
+      !couldAfford(state, playerId, ability.cost.mana, ability.cost.tap ? instance.instanceId : undefined)
+    ) {
+      return;
+    }
     if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) return;
     if (!colorAllowed(state, playerId, ability)) return;
     if (!controllerMeets(state, playerId, ability.activateOnlyIf)) return;
