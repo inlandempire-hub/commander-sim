@@ -1,4 +1,5 @@
 import { blockProblem } from "./combat.js";
+import { activatableAbilities } from "./abilities.js";
 import { castRestrictionProblem } from "./restrictions.js";
 import type { Effect, GameState, ManaCost } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
@@ -182,6 +183,17 @@ export function hasAnyLegalAction(state: GameState, playerId: string): boolean {
 
   for (const instance of [...player.hand, ...player.command]) {
     if (canPlayCardNow(state, playerId, instance.instanceId)) return true;
+    /*
+     * Channel, and Simian Spirit Guide's exile-for-mana - a card in hand can be
+     * an action without being castable.
+     *
+     * Left out, auto-pass would walk straight past the window a Channel land
+     * exists for: it is a removal spell you hold in hand, and the turn stopping
+     * for it is the whole point. `activatableAbilities` already knows which zone
+     * each ability may be used from, so this asks it rather than repeating the
+     * rule.
+     */
+    if (activatableAbilities(state, playerId, instance.instanceId).length > 0) return true;
   }
 
   for (const instance of player.battlefield) {

@@ -617,11 +617,44 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
      * re-entering the flow would ask the same question again forever.
      */
     already: { sacrificeInstanceId?: string } = {},
+    /**
+     * Set once the player has already answered the from-hand ability menu, so
+     * re-entering the flow plays the card rather than asking again forever - the
+     * same reason  above is passed in rather than read back from state.
+     */
+    skip: { skipAbilityMenu?: boolean } = {},
   ) {
     const owner = state!.players.find((p) => p.id === ownerId)!;
     const instance = owner.hand.find((c) => c.instanceId === instanceId);
     if (!instance) return;
     const def = state!.cardDefinitions[instance.definitionId]!;
+
+    /*
+     * Channel, and Simian Spirit Guide's exile-for-mana - abilities activated
+     * from the hand, which means clicking the card is now two actions rather
+     * than one: play the land, or channel it away.
+     *
+     * Asked before anything else, because the ordinary path below commits: a
+     * land is played the moment it is clicked, and a Channel land played for its
+     * mana is a removal spell nobody got to use. Index -1 in the picker stands
+     * for the ordinary play, so the two live in one menu.
+     */
+    const fromHand = skip.skipAbilityMenu ? [] : activatableAbilities(state!, ownerId, instanceId);
+    if (fromHand.length > 0) {
+      const canPlayNormally = canPlayCardNow(state!, ownerId, instanceId);
+      const options: AbilityOption[] = fromHand.map((index) => ({
+        index,
+        text: describeActivated(def.activatedAbilities![index]!, state!.cardDefinitions, def),
+      }));
+      if (canPlayNormally) {
+        options.unshift({
+          index: -1,
+          text: def.types.includes("Land") ? `Play ${def.name}` : `Cast ${def.name}`,
+        });
+      }
+      setAbilityChoice({ ownerId, instanceId, cardName: def.name, options });
+      return;
+    }
 
     if (def.types.includes("Land")) {
       controller.playLand(ownerId, instanceId);
@@ -893,7 +926,11 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
    */
   function activateChosenAbility(ownerId: string, instanceId: string, abilityIndex: number) {
     const owner = state!.players.find((p) => p.id === ownerId)!;
-    const instance = owner.battlefield.find((c) => c.instanceId === instanceId);
+    // Hand as well as battlefield: a Channel ability is activated from the hand,
+    // and looking only at the battlefield silently did nothing at all.
+    const instance =
+      owner.battlefield.find((c) => c.instanceId === instanceId) ??
+      owner.hand.find((c) => c.instanceId === instanceId);
     const def = instance ? state!.cardDefinitions[instance.definitionId] : undefined;
     const ability = def?.activatedAbilities?.[abilityIndex];
     if (!ability || !def) return;
@@ -1572,6 +1609,13 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
             onChoose={(index) => {
               const { ownerId, instanceId } = abilityChoice;
               setAbilityChoice(null);
+              // -1 is "play or cast it normally", the option a Channel land adds
+              // beside its ability. Straight back into the hand path, which no
+              // longer offers the menu because the choice has been made.
+              if (index === -1) {
+                handleHandCardClick(ownerId, instanceId, {}, { skipAbilityMenu: true });
+                return;
+              }
               activateChosenAbility(ownerId, instanceId, index);
             }}
             onCancel={() => setAbilityChoice(null)}

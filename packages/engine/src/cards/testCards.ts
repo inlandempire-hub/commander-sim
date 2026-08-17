@@ -14448,6 +14448,132 @@ export const INKMOTH_NEXUS: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * The 1/1 colourless Spirit two Sokenzan channels into being.
+ *
+ * Colourless rather than red: the land is red, the tokens are not, and a token
+ * definition with a colour identity would quietly fail a deck's colour check the
+ * day something counts them.
+ */
+export const TOKEN_C_11_SPIRIT: CardDefinition = {
+  id: "token-c-11-spirit",
+  name: "Spirit",
+  types: ["Creature"],
+  subtypes: ["Spirit"],
+  colorIdentity: [],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+/**
+ * Simian Spirit Guide - {2}{R} 2/2 Creature, Ape Spirit.
+ *
+ * "Exile this card from your hand: Add {R}."
+ *
+ * Nobody casts this card. It is a red mana that costs a card, and it is here for
+ * the turn-one play the deck is built around - which is why the ability had to be
+ * activatable from hand at all.
+ *
+ * The exile is a *cost*, so it happens on activation whether or not anything else
+ * does, and the mana ability resolves immediately without using the stack.
+ */
+export const SIMIAN_SPIRIT_GUIDE: CardDefinition = {
+  id: "simian-spirit-guide",
+  name: "Simian Spirit Guide",
+  scryfallId: "0e57335d-4066-4d73-83cd-67a215e01a4e",
+  types: ["Creature"],
+  subtypes: ["Ape", "Spirit"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  activatedAbilities: [
+    {
+      cost: { fromHand: "exile" },
+      effect: { kind: "addMana", color: "R", amount: 1 },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * Eiganjo, Seat of the Empire - a Legendary Land.
+ *
+ * "{T}: Add {W}."
+ * "Channel - {2}{W}, Discard this card: It deals 4 damage to target attacking or
+ * blocking creature. This ability costs {1} less to activate for each legendary
+ * creature you control."
+ *
+ * A land that is never a dead draw: it is a Plains when you need land and a
+ * removal spell when you do not. In a deck of legends the channel cost falls
+ * towards {W}, which is why the reduction is on the card at all.
+ *
+ * "Attacking or blocking" is the whole flexibility - it answers the creature that
+ * blocked yours as readily as the one attacking you.
+ */
+export const EIGANJO_SEAT_OF_THE_EMPIRE: CardDefinition = {
+  id: "eiganjo-seat-of-the-empire",
+  name: "Eiganjo, Seat of the Empire",
+  scryfallId: "c375a022-5b57-496d-a802-e4ea8376e9e4",
+  types: ["Land"],
+  supertypes: ["Legendary"],
+  // The {W} in the channel cost is a white mana symbol in the rules text, so the
+  // card's identity is white even though the land itself is colourless.
+  colorIdentity: ["W"],
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } },
+    {
+      cost: { mana: { generic: 2, colors: { W: 1 } }, fromHand: "discard" },
+      costReducedPer: "legendary-creature-you-control",
+      effect: {
+        kind: "damage",
+        amount: 4,
+        target: { kind: "permanent", cardTypes: ["Creature"], attackingOrBlocking: true },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * Sokenzan, Crucible of Defiance - a Legendary Land.
+ *
+ * "{T}: Add {R}."
+ * "Channel - {3}{R}, Discard this card: Create two 1/1 colorless Spirit creature
+ * tokens. They gain haste until end of turn. This ability costs {1} less to
+ * activate for each legendary creature you control."
+ *
+ * Eiganjo's twin, and the same reasoning: a land that turns into two hasty
+ * attackers on the turn the game is decided.
+ *
+ * The haste is granted rather than printed on the token, which matters - a token
+ * definition carrying haste would still have it next turn.
+ */
+export const SOKENZAN_CRUCIBLE_OF_DEFIANCE: CardDefinition = {
+  id: "sokenzan-crucible-of-defiance",
+  name: "Sokenzan, Crucible of Defiance",
+  scryfallId: "aa548dcd-c1dd-492d-a69f-c65dfeef0633",
+  types: ["Land"],
+  supertypes: ["Legendary"],
+  colorIdentity: ["R"],
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    {
+      cost: { mana: { generic: 3, colors: { R: 1 } }, fromHand: "discard" },
+      costReducedPer: "legendary-creature-you-control",
+      effect: {
+        kind: "createToken",
+        count: 2,
+        tokenDefinitionId: "token-c-11-spirit",
+        grants: ["Haste"],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -15450,5 +15576,9 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     CITY_OF_TRAITORS,
     BLINKMOTH_NEXUS,
     INKMOTH_NEXUS,
+    TOKEN_C_11_SPIRIT,
+    SIMIAN_SPIRIT_GUIDE,
+    EIGANJO_SEAT_OF_THE_EMPIRE,
+    SOKENZAN_CRUCIBLE_OF_DEFIANCE,
   ].map((def) => [def.id, def]),
 );

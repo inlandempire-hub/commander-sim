@@ -146,6 +146,15 @@ def card_features(fx):
     # effect kind and is picked up by `effect_kinds` on its own.
     if fx.get("blockRestriction"):
         feat.add("blockRestriction")
+    # Abilities activated from hand, and the discount two of them carry. Read off
+    # the abilities rather than the card, because both live on one ability of a
+    # card whose other abilities are ordinary.
+    for ability in fx.get("activatedAbilities") or []:
+        from_hand = (ability.get("cost") or {}).get("fromHand")
+        if from_hand:
+            feat.add("fromHand:%s" % from_hand)
+        if ability.get("costReducedPer"):
+            feat.add("costReducedPer:%s" % ability["costReducedPer"])
     # Each static rule contributes its own name, so a card printing two of them
     # accounts for both sentences rather than one covering the other.
     for rule, value in (fx.get("staticRules") or {}).items():
@@ -467,6 +476,13 @@ RULES = [
     (r"this land becomes a \d+/\d+ .*creature.*until end of turn", {"animateSelf"}),
     (r"^it's still a land$", {"animateSelf"}),
     (r"enters tapped unless it's your (first|second|third)", {"within-your-first-turns"}),
+    # Abilities activated from hand - Simian Spirit Guide and the Channel lands.
+    (r"^exile this card from your hand: add \{.\}$", {"fromHand:exile"}),
+    (r"this ability costs \{1\} less to activate for each legendary creature you control",
+     {"costReducedPer:legendary-creature-you-control"}),
+    # "They gain haste until end of turn" - a grant on the tokens the same ability
+    # just made, which is `grants` on createToken rather than an effect of its own.
+    (r"^they gain haste until end of turn$", {"createToken"}),
     (r"\bif a card or token would be put into your graveyard\b", {"replacementEffects"}),
     # "They have '...'" - a token's own rules text, which lives on the token
     # definition rather than on the card that makes them.

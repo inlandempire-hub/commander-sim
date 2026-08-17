@@ -127,6 +127,14 @@ export function isValidTarget(
       // "target **attacking** creature" - asked of the live combat rather than
       // of a remembered list, so a creature taken out of combat stops being one.
       if (selector.attacking && state.attackers[found.instance.instanceId] === undefined) return false;
+      // "attacking **or blocking**" - Eiganjo. Either map will do.
+      if (
+        selector.attackingOrBlocking &&
+        state.attackers[found.instance.instanceId] === undefined &&
+        state.blockers[found.instance.instanceId] === undefined
+      ) {
+        return false;
+      }
       return !isProtectedFromThisSource(state, target.instanceId, controllerId, sourceInstanceId);
     }
     case "player":

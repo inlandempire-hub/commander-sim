@@ -84,7 +84,11 @@ export function describeTarget(selector: TargetSelector): string {
       const many = selector.count && selector.count.max !== "x" && selector.count.max > 1 ? "s" : "";
       // "target **attacking** creature" - the adjective sits in front of the
       // noun, which is where the card prints it.
-      const attacking = selector.attacking ? "attacking " : "";
+      const attacking = selector.attacking
+        ? "attacking "
+        : selector.attackingOrBlocking
+          ? "attacking or blocking "
+          : "";
       return `${countPrefix(selector.count)}target ${attacking}${noun}${many}${whose}`;
     }
     case "card-in-your-graveyard": {
@@ -1372,6 +1376,13 @@ export function describeActivated(
   if (ability.cost.tap) costs.push("{T}");
   if (ability.cost.payLife !== undefined) costs.push(`Pay ${ability.cost.payLife} life`);
   if (ability.cost.sacrificeSelf) costs.push(`Sacrifice this ${selfNoun(self)}`);
+  /*
+   * "Discard this card", "Exile this card from your hand" - the cost that also
+   * says where the ability is activated from. Left out, a Channel land reads as a
+   * free removal spell you may use from your hand every turn.
+   */
+  if (ability.cost.fromHand === "discard") costs.push("Discard this card");
+  if (ability.cost.fromHand === "exile") costs.push("Exile this card from your hand");
   const cost = costs.length > 0 ? costs.join(", ") : "{0}";
   // Both riders print after the effect, in the order the real cards use: what
   // the ability does, what it costs you, and last when you may use it at all.
@@ -1382,6 +1393,18 @@ export function describeActivated(
     : "";
   const restriction = ability.activateOnlyIf
     ? ` Activate only if ${describeCondition(ability.activateOnlyIf)}.`
+    : "";
+  /*
+   * "This ability costs {1} less to activate for each legendary creature you
+   * control" - the Channel lands.
+   *
+   * Printed rather than folded into the cost above, because the cost above is
+   * what the card says and this is a discount that changes with the board: a
+   * panel showing {W} on a table with two legends would be right for that moment
+   * and wrong the moment one dies.
+   */
+  const discount = ability.costReducedPer
+    ? " This ability costs {1} less to activate for each legendary creature you control."
     : "";
   /*
    * "Add one mana of any color in your commander's color identity" is printed as
@@ -1439,7 +1462,7 @@ export function describeActivated(
   // Last, as the cards print it: "Equip {1}" ends with "Equip only as a
   // sorcery", not the other way round.
   const timing = ability.sorcerySpeedOnly ? " Activate only as a sorcery." : "";
-  return `${cost}: ${describeEffect(ability.effect, definitions)}${from}${pain}${counter}${spend}${mark}${restriction}${timing}`;
+  return `${cost}: ${describeEffect(ability.effect, definitions)}${from}${pain}${counter}${spend}${mark}${discount}${restriction}${timing}`;
 }
 
 /**

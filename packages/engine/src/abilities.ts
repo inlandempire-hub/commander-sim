@@ -1,6 +1,6 @@
 import { activateRestrictionProblem } from "./restrictions.js";
-import type { GameState, StackTarget } from "./types.js";
-import { findInstance, log, requireDefinition, requirePlayer } from "./state.js";
+import type { ActivatedAbility, GameState, ManaCost, StackTarget } from "./types.js";
+import { findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import {
   canPayManaCost,
   canPayManaCostFromPool,
@@ -33,14 +33,52 @@ import { resolveAmounts } from "./x.js";
  * Mana is judged against what the player could still produce rather than what
  * is floating, because activating through the client taps lands on your behalf.
  */
+/**
+ * What this ability actually costs to activate right now.
+ *
+ * The one place that answers it, because two answers is how the offer and the
+ * payment come apart: `activatableAbilities` asks whether it can be afforded and
+ * `activateAbility` takes the mana, and a reduction known to one of them is a
+ * Channel land the interface greys out at a price the player could pay.
+ *
+ * Reduces the generic part only, never below zero - "costs {1} less" leaves the
+ * {W} in {2}{W} alone however many legends are on the table.
+ */
+export function abilityManaCost(
+  state: GameState,
+  playerId: string,
+  ability: ActivatedAbility,
+): ManaCost | undefined {
+  const cost = ability.cost.mana;
+  if (!cost || !ability.costReducedPer) return cost;
+  const legends = requirePlayer(state, playerId).battlefield.filter((instance) => {
+    const def = state.cardDefinitions[instance.definitionId];
+    return def?.supertypes?.includes("Legendary") && typesOf(state, instance).includes("Creature");
+  }).length;
+  return { ...cost, generic: Math.max(0, cost.generic - legends) };
+}
+
+/**
+ * Where an ability may be activated from.
+ *
+ * The battlefield for almost everything, and the hand for the two shapes that say
+ * so in their cost - see `ActivatedAbilityCost.fromHand`.
+ */
+function abilityZoneAllows(ability: ActivatedAbility, zone: string): boolean {
+  return ability.cost.fromHand ? zone === "hand" : zone === "battlefield";
+}
+
 export function activatableAbilities(
   state: GameState,
   playerId: string,
   instanceId: string,
 ): number[] {
   const found = findInstance(state, instanceId);
-  if (!found || found.instance.zone !== "battlefield") return [];
+  if (!found) return [];
   const { instance } = found;
+  // Hand or battlefield, depending on what each ability says - a card in hand
+  // offers only its Channel half, and a permanent offers only the rest.
+  if (instance.zone !== "battlefield" && instance.zone !== "hand") return [];
   if (instance.controllerId !== playerId) return [];
   const def = state.cardDefinitions[instance.definitionId];
   if (!def) return [];
@@ -49,6 +87,7 @@ export function activatableAbilities(
   const usable: number[] = [];
 
   (def.activatedAbilities ?? []).forEach((ability, index) => {
+    if (!abilityZoneAllows(ability, instance.zone)) return;
     if (ability.cost.tap) {
       if (instance.tapped) return;
       // Rule 302.6 follows what the permanent *is* now: a land animated the turn
@@ -66,9 +105,10 @@ export function activatableAbilities(
      * Forest's "{G}, {T}: You gain 1 life" cannot be paid by tapping the Forest
      * for the {G}, so an ability offered on that basis is one the engine refuses.
      */
+    const manaCost = abilityManaCost(state, playerId, ability);
     if (
-      ability.cost.mana &&
-      !couldAfford(state, playerId, ability.cost.mana, ability.cost.tap ? instance.instanceId : undefined)
+      manaCost &&
+      !couldAfford(state, playerId, manaCost, ability.cost.tap ? instance.instanceId : undefined)
     ) {
       return;
     }
@@ -155,11 +195,17 @@ export function activateAbility(
   const { instance } = found;
   const player = requirePlayer(state, playerId);
   if (instance.controllerId !== playerId) throw new Error(`${playerId} does not control ${instanceId}`);
-  if (instance.zone !== "battlefield") throw new Error(`${instanceId} is not on the battlefield`);
 
   const def = requireDefinition(state, instance.definitionId);
   const ability = def.activatedAbilities?.[abilityIndex];
   if (!ability) throw new Error(`${def.name} has no activated ability at index ${abilityIndex}`);
+  if (!abilityZoneAllows(ability, instance.zone)) {
+    throw new Error(
+      ability.cost.fromHand
+        ? `${def.name} can only be activated from your hand`
+        : `${instanceId} is not on the battlefield`,
+    );
+  }
 
   // Clarion Conqueror and Grand Abolisher. Before any cost is validated, for
   // the same reason the cast check is: the ability is never activated at all.
@@ -177,7 +223,8 @@ export function activateAbility(
       throw new Error(`${def.name} has summoning sickness`);
     }
   }
-  if (ability.cost.mana && !canPayManaCost(player, ability.cost.mana)) {
+  const manaCost = abilityManaCost(state, playerId, ability);
+  if (manaCost && !canPayManaCost(player, manaCost)) {
     throw new Error(`${playerId} cannot pay the activation cost of ${def.name}`);
   }
   if (!colorAllowed(state, playerId, ability)) {
@@ -198,7 +245,7 @@ export function activateAbility(
 
   // Through `tapPermanent`, so City of Brass hurts its controller for the mana.
   if (ability.cost.tap) tapPermanent(state, instance);
-  if (ability.cost.mana) payManaCost(player, ability.cost.mana);
+  if (manaCost) payManaCost(player, manaCost);
   if (ability.cost.payLife !== undefined) {
     player.life -= ability.cost.payLife;
     log(state, `${playerId} pays ${ability.cost.payLife} life`);
@@ -219,6 +266,16 @@ export function activateAbility(
    */
   const sourceCounters = instance.plusOneCounters + instance.otherCounters;
   if (ability.cost.sacrificeSelf) sacrificePermanent(state, instanceId);
+  /*
+   * "Exile this card from your hand", "Discard this card" - paid here, with the
+   * sacrifice, and for the same reason: the card is gone before the ability
+   * resolves, and an ability is independent of its source once activated. A
+   * Channel land is in the graveyard while its damage is still on the stack.
+   */
+  if (ability.cost.fromHand) {
+    log(state, `${playerId} ${ability.cost.fromHand === "exile" ? "exiles" : "discards"} ${def.name}`);
+    moveCard(state, instanceId, ability.cost.fromHand === "exile" ? "exile" : "graveyard");
+  }
 
   const isManaAbility =
     ability.effect.kind === "addMana" || ability.effect.kind === "addManaCombination";

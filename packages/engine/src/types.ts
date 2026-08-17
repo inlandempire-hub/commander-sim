@@ -469,6 +469,18 @@ export type TargetSelector =
        * combat stops being a legal target.
        */
       attacking?: boolean;
+      /**
+       * "target **attacking or blocking** creature" - Eiganjo, Seat of the
+       * Empire.
+       *
+       * Wider than `attacking` by exactly one word, and it is the word that makes
+       * the card a defensive answer as well as an offensive one: Eiganjo kills the
+       * creature that blocked your attacker, on your own turn.
+       *
+       * Read off `state.attackers` and `state.blockers` every time, so a creature
+       * removed from combat stops being a legal target.
+       */
+      attackingOrBlocking?: boolean;
     }
   /**
    * "Target creature card in your graveyard", and the other card types the
@@ -1786,6 +1798,20 @@ export interface ActivatedAbilityCost {
    * work at all.
    */
   sacrificeSelf?: boolean;
+  /**
+   * "**Exile this card from your hand**: Add {R}." - Simian Spirit Guide, and
+   * "**Discard this card**" - the Channel lands, Eiganjo and Sokenzan.
+   *
+   * Two things at once, deliberately: it is the cost paid, and it is what makes
+   * the ability activatable from hand at all. A separate `fromHand` flag would be
+   * a second place for the same fact, and an ability with the flag and no cost
+   * would be a card that can be activated from hand for free.
+   *
+   * Paid on activation like every other cost, so the ability resolves from a
+   * graveyard or an exile zone - the same shape `sacrificeSelf` already has, and
+   * the reason a fetchland's search still happens.
+   */
+  fromHand?: "exile" | "discard";
 }
 
 /**
@@ -1921,6 +1947,20 @@ export interface ActivatedAbility {
    * remember to run.
    */
   damageToController?: number;
+  /**
+   * "This ability costs {1} less to activate **for each legendary creature you
+   * control**." - the Channel lands.
+   *
+   * A closed list of one, like every other condition in this DSL. It reduces the
+   * generic part only and never below zero, which is what "costs {1} less" means:
+   * the coloured pip in {2}{W} survives however many legends are out.
+   *
+   * Everything that asks what an ability costs has to go through
+   * `abilityManaCost` rather than reading `cost.mana`, or the offer and the
+   * payment disagree - which shows up as a card the interface refuses to let you
+   * activate at a price you can afford.
+   */
+  costReducedPer?: "legendary-creature-you-control";
 }
 
 /**
