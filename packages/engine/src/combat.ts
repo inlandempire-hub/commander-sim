@@ -4,6 +4,7 @@ import { gainLife } from "./life.js";
 import { effectivePower, effectiveToughness, effectiveTriggers, hasKeyword } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
 import { describeSubject, fireWatchers, pushTrigger } from "./permanents.js";
+import { protectionStopsBlock, qualityWord } from "./protection.js";
 
 /**
  * Combat damage happens in two sub-steps once anything has First or Double
@@ -92,6 +93,24 @@ export function blockProblem(
   if (!blockerDef.types.includes("Creature")) return `${blockerDef.name} is not a creature`;
   if (blocker.tapped) return `${blockerDef.name} is tapped and cannot block`;
   if (!(attackerInstanceId in state.attackers)) return "That creature is not attacking";
+
+  /*
+   * "...can't be blocked by creatures with that quality." Protection on the
+   * *attacker*, checked against the blocker's colours - a Mother of Runes naming
+   * white walls off every white creature on the other side for the turn.
+   *
+   * Note the direction: protection on a blocker does not stop it blocking, and
+   * reading it the other way round would make every one of these cards better
+   * than printed.
+   */
+  const blockedByProtection = protectionStopsBlock(state, attackerInstanceId, blockerInstanceId);
+  if (blockedByProtection) {
+    const attackerName = requireDefinition(
+      state,
+      findOnAnyBattlefield(state, attackerInstanceId)!.instance.definitionId,
+    ).name;
+    return `${blockerDef.name} cannot block ${attackerName} - it has protection from ${qualityWord(blockedByProtection)}`;
+  }
 
   const attackerFound = findOnAnyBattlefield(state, attackerInstanceId);
   if (attackerFound) {
@@ -320,6 +339,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
         // player (rule 702.19b assigns against toughness, not against what
         // survives prevention).
         preventedByBlockers += damageCreature(state, blockerFound.instance, assign, {
+          sourceInstanceId: attackerInstanceId,
           infect: hasKeyword(state, attackerFound.instance, "Infect"),
           deathtouch: attackerHasDeathtouch,
         }).prevented;
@@ -334,6 +354,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       const blockerHasLifelink = hasKeyword(state, blockerFound.instance, "Lifelink");
 
       const { dealt: dealtToAttacker } = damageCreature(state, attackerFound.instance, blockerPower, {
+        sourceInstanceId: blockerFound.instance.instanceId,
         infect: hasKeyword(state, blockerFound.instance, "Infect"),
       });
       if (blockerHasDeathtouch && dealtToAttacker > 0) anyBlockerDeathtouchDamage = true;

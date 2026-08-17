@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
+  qualityWord,
   effectivePower,
   effectiveToughness,
   type CardDefinition,
@@ -285,6 +286,20 @@ export function CardView({
               {instance.damagePrevention > 0 && (
                 <span className="card__shield"> (shield {instance.damagePrevention})</span>
               )}
+            </span>
+          )}
+          {/*
+            * Protection, on the card and not only in the log.
+            *
+            * A creature with protection from black is a different creature to
+            * attack into or point removal at, and a player who cannot see it has
+            * to remember which of their creatures Mother of Runes touched this
+            * turn. Shown whether or not the art is up, because it changes what is
+            * legal rather than merely what is big.
+            */}
+          {instance.protectionFrom.length > 0 && (
+            <span className="card__protection">
+              pro-{instance.protectionFrom.map((q) => qualityWord(q)).join(", ")}
             </span>
           )}
           {!showArt && definition.keywords?.length ? (

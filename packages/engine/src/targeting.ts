@@ -1,6 +1,7 @@
 import type { GameState, StackObject, StackTarget, TargetSelector, Effect } from "./types.js";
 import { findInstance, requireDefinition } from "./state.js";
 import { hasKeyword } from "./counters.js";
+import { protectionStopsTargeting } from "./protection.js";
 import { evaluateAmount } from "./amounts.js";
 import { manaValue } from "./mana.js";
 
@@ -16,6 +17,24 @@ export function isSpellOnStack(state: GameState, obj: StackObject): boolean {
 
 export function findStackObject(state: GameState, stackObjectId: string): StackObject | undefined {
   return state.stack.find((o) => o.id === stackObjectId);
+}
+
+/**
+ * Every reason a permanent on the battlefield cannot be targeted by *this*
+ * source: hexproof, and protection from one of the source's qualities.
+ *
+ * One function so that every selector asks both. A selector that checked hexproof
+ * and forgot protection would be a hole shaped exactly like one card type -
+ * which is how this sort of thing is usually found.
+ */
+function isProtectedFromThisSource(
+  state: GameState,
+  instanceId: string,
+  controllerId: string,
+  sourceInstanceId: string | undefined,
+): boolean {
+  if (isProtectedByHexproof(state, instanceId, controllerId)) return true;
+  return protectionStopsTargeting(state, instanceId, sourceInstanceId);
 }
 
 /** Hexproof: can't be the target of a spell/ability controlled by anyone other than its own controller. */
@@ -46,7 +65,7 @@ export function isValidTarget(
       if (target.kind !== "card") return false; // "any target" means creature or player, never a spell
       const found = findInstance(state, target.instanceId);
       if (!found || found.instance.zone !== "battlefield") return false;
-      return !isProtectedByHexproof(state, target.instanceId, controllerId);
+      return !isProtectedFromThisSource(state, target.instanceId, controllerId, sourceInstanceId);
     }
     case "creature": {
       if (target.kind !== "card") return false;
@@ -78,7 +97,7 @@ export function isValidTarget(
         }
         if (target.instanceId === sourceInstanceId) return false;
       }
-      return !isProtectedByHexproof(state, target.instanceId, controllerId);
+      return !isProtectedFromThisSource(state, target.instanceId, controllerId, sourceInstanceId);
     }
     case "permanent": {
       if (target.kind !== "card") return false;
@@ -90,8 +109,10 @@ export function isValidTarget(
       if (selector.cardTypes && !selector.cardTypes.some((t) => def.types.includes(t))) return false;
       // "an opponent controls" - your own board is not a legal target, which is
       // the difference between Assassin's Trophy and a spell that can misfire.
-      if (selector.controlledBy === "opponent" && found.instance.controllerId === controllerId) {
-        return false;
+      if (selector.controlledBy) {
+        const mine = found.instance.controllerId === controllerId;
+        if (selector.controlledBy === "you" && !mine) return false;
+        if (selector.controlledBy === "opponent" && mine) return false;
       }
       // "noncreature artifact" excludes an Artifact Creature, which is a legal
       // target for plain "target artifact" and not for this.
@@ -99,7 +120,7 @@ export function isValidTarget(
       // "target **attacking** creature" - asked of the live combat rather than
       // of a remembered list, so a creature taken out of combat stops being one.
       if (selector.attacking && state.attackers[found.instance.instanceId] === undefined) return false;
-      return !isProtectedByHexproof(state, target.instanceId, controllerId);
+      return !isProtectedFromThisSource(state, target.instanceId, controllerId, sourceInstanceId);
     }
     case "player":
       return target.kind === "player";

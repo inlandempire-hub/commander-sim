@@ -62,6 +62,7 @@ export function botShouldAct(state: GameState, botPlayerId: string): boolean {
    * the bot's firing on the human's turn.
    */
   if (state.pendingSearch?.playerId === botPlayerId) return true;
+  if (state.pendingColorChoice?.playerId === botPlayerId) return true;
   if (state.pendingConfirmation?.playerId === botPlayerId) return true;
   if (state.pendingTargetChoices[0]?.playerId === botPlayerId) return true;
   if (state.pendingDiscards[0]?.playerId === botPlayerId) return true;
@@ -78,7 +79,7 @@ export function botShouldAct(state: GameState, botPlayerId: string): boolean {
    * search or discard, and neither demo deck had one. Scheming Symmetry makes
    * both players search and found it on the first game.
    */
-  if (someoneElseOwesAnAnswer(state)) return false;
+  if (someoneElseOwesAnAnswer(state, botPlayerId)) return false;
 
   const holdsPriority = state.players[state.priorityPlayerIndex]?.id === botPlayerId;
   if (holdsPriority) return true;
@@ -130,15 +131,30 @@ export function runBotUntilIdle(harness: BotHarness, botPlayerId: string, maxAct
  * as a bot that stops the game, which is why the engine's own list carries the
  * same warning.
  */
-function someoneElseOwesAnAnswer(state: GameState): boolean {
-  return (
-    state.pendingSearch !== null ||
-    state.pendingEnterChoice !== null ||
-    state.pendingConfirmation !== null ||
-    state.pendingSacrifice !== null ||
-    state.pendingAmount !== null ||
-    state.pendingTargetChoices.length > 0 ||
-    state.pendingDiscards.length > 0 ||
-    state.pendingCardChoices.length > 0
-  );
+function someoneElseOwesAnAnswer(state: GameState, botPlayerId: string): boolean {
+  /*
+   * Whose question it is, not merely that there is one.
+   *
+   * This took the state alone when it was written, and that was a bug of its own:
+   * `botShouldAct` names only some of these kinds in its early "this bot's
+   * question" checks, so a bot that owed a *sacrifice* or an *amount* was told to
+   * do nothing by this, having not been woken by those. Nobody acted and the game
+   * stalled - which is exactly the failure this function was added to prevent,
+   * pointed at the wrong player.
+   *
+   * Listing the owners rather than asking "is any of these set" also means the
+   * early checks above and this one cannot disagree.
+   */
+  const owners = [
+    state.pendingSearch?.playerId,
+    state.pendingEnterChoice?.playerId,
+    state.pendingConfirmation?.playerId,
+    state.pendingSacrifice?.playerId,
+    state.pendingAmount?.playerId,
+    state.pendingColorChoice?.playerId,
+    state.pendingTargetChoices[0]?.playerId,
+    state.pendingDiscards[0]?.playerId,
+    state.pendingCardChoices[0]?.playerId,
+  ];
+  return owners.some((owner) => owner !== undefined && owner !== botPlayerId);
 }

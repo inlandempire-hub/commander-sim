@@ -1,4 +1,6 @@
-import type { ChosenOnEntry } from "@mtg-commander-sim/engine";
+import type { ChosenOnEntry,
+  ProtectionQuality,
+} from "@mtg-commander-sim/engine";
 import type { AttackerDeclaration, BlockerDeclaration, GameState, StackTarget } from "@mtg-commander-sim/engine";
 
 /**
@@ -58,6 +60,8 @@ export interface GameController {
   resolveCardChoice(playerId: string, instanceIds: string[]): void;
   /** Answers "pay any amount of life". */
   resolveAmountChoice(playerId: string, amount: number): void;
+  /** Naming the colour a protection ability is waiting on - Mother of Runes. */
+  resolveColorChoice(playerId: string, quality: ProtectionQuality): void;
   /**
    * Answers "as this permanent enters, choose ..." - see the engine's
    * `EnterChoice`. The game holds until this is answered, so every controller

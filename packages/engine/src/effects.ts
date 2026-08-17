@@ -6,6 +6,7 @@ import type {
   GameState,
   Keyword,
   ManaCost,
+  ProtectionQuality,
   Player,
   StackTarget,
 } from "./types.js";
@@ -27,6 +28,7 @@ import { effectivePower, hasKeyword } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
 import { enteredBattlefield, moveControl, pushTrigger, putOntoBattlefield } from "./permanents.js";
 import { gainLife } from "./life.js";
+import { qualityWord } from "./protection.js";
 import { useRegenerationShield } from "./regeneration.js";
 import { destroyPermanent, leaveBattlefield, sacrificePermanent } from "./sba.js";
 import { countersPlaced, tokensCreated } from "./replacements.js";
@@ -77,6 +79,7 @@ export function applyEffect(
             // Counted after prevention, so a shielded target denies lifelink
             // the life it would otherwise have gained.
             totalDealt += damageCreature(state, found.instance, effect.amount, {
+              sourceInstanceId,
               deathtouch: hasDeathtouch,
               infect: hasInfect,
             }).dealt;
@@ -369,6 +372,31 @@ export function applyEffect(
           `${cardName(state, instance.instanceId)} gains ${effect.grants.join(" and ").toLowerCase()} until end of turn`,
         );
       }
+      return;
+    }
+    case "grantProtection": {
+      /*
+       * "Target creature you control gains protection from the color of your
+       * choice until end of turn."
+       *
+       * The colour is named as this *resolves*, which is the whole card: Mother
+       * of Runes is played by pointing at a creature early and holding the colour
+       * until you see what is coming. So nothing is granted here - the question
+       * is parked, and `resolveColorChoice` grants it.
+       */
+      const target = targets.find((t) => t.kind === "card");
+      if (!target || target.kind !== "card") return;
+      const found = findInstance(state, target.instanceId);
+      // Gone in response, so there is nothing to protect and no colour worth
+      // asking for.
+      if (!found || found.instance.zone !== "battlefield") return;
+      state.pendingColorChoice = {
+        playerId: controllerId,
+        sourceInstanceId,
+        targetInstanceId: target.instanceId,
+        allowColorless: effect.orColorless === true,
+        prompt: `${cardName(state, sourceInstanceId)}: choose a colour ${cardName(state, target.instanceId)} gains protection from`,
+      };
       return;
     }
     case "returnControlToOwners": {
@@ -1724,6 +1752,39 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
  * answered honestly should not be refused by something that happened in
  * between.
  */
+/**
+ * Names the colour a protection ability was waiting on, and grants it.
+ *
+ * Re-checked against the pending entry rather than trusted, the same as every
+ * other resolver here: a client cannot answer a question asked of somebody else,
+ * and cannot name colourless unless the card offered it.
+ */
+export function resolveColorChoice(
+  state: GameState,
+  playerId: string,
+  quality: ProtectionQuality,
+): void {
+  const pending = state.pendingColorChoice;
+  if (!pending) throw new Error("No colour is waiting to be named");
+  if (pending.playerId !== playerId) throw new Error(`The choice belongs to ${pending.playerId}`);
+  if (quality === "colorless" && !pending.allowColorless) {
+    throw new Error("That card does not offer protection from colorless");
+  }
+  state.pendingColorChoice = null;
+
+  const found = findInstance(state, pending.targetInstanceId);
+  // It may have died while the question sat there. The ability has finished
+  // resolving either way.
+  if (!found || found.instance.zone !== "battlefield") return;
+  if (!found.instance.protectionFrom.includes(quality)) {
+    found.instance.protectionFrom.push(quality);
+  }
+  log(
+    state,
+    `${cardName(state, pending.targetInstanceId)} gains protection from ${qualityWord(quality)} until end of turn`,
+  );
+}
+
 export function resolveAmountChoice(state: GameState, playerId: string, amount: number): void {
   const pending = state.pendingAmount;
   if (!pending) throw new Error("No amount is waiting to be named");

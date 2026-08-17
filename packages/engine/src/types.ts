@@ -20,6 +20,21 @@ export const ALL_COLORS: Color[] = ["W", "U", "B", "R", "G"];
  */
 export type ManaColor = Color | "C";
 
+/**
+ * What a permanent can have protection *from*.
+ *
+ * A colour, or colourless - Giver of Runes prints "protection from colorless or
+ * from the color of your choice", and colourless is a real answer rather than a
+ * sixth colour: it is what stops an artifact creature or an Eldrazi, neither of
+ * which any colour choice would touch.
+ *
+ * Not `ManaColor`, though the members happen to line up. That type is about mana
+ * being produced and spent; this is about what a source *is*, and the two would
+ * drift the moment either grew - a mana type for snow or a protection from
+ * multicolour would belong to one and be nonsense in the other.
+ */
+export type ProtectionQuality = Color | "colorless";
+
 export type CardType =
   | "Land"
   | "Creature"
@@ -396,14 +411,16 @@ export type TargetSelector =
        */
       cardTypes?: CardType[];
       /**
-       * "target permanent **an opponent controls**".
+       * "target permanent **an opponent controls**" (Assassin's Trophy), or
+       * "target creature or enchantment **you control**" (Alseid of Life's
+       * Bounty).
        *
-       * A real restriction and not decoration: without it Assassin's Trophy
-       * can blow up your own land, which is not a play the card offers. Left
-       * off, the selector means any permanent on the table, which is what
-       * every other card using it says.
+       * A real restriction and not decoration, in both directions: without the
+       * first, Assassin's Trophy can blow up your own land, and without the
+       * second Alseid can hand protection to an opponent's creature. Left off,
+       * the selector means any permanent on the table.
        */
-      controlledBy?: "opponent";
+      controlledBy?: "you" | "opponent";
       /**
        * "**noncreature** artifact" - excludes anything that is also a creature.
        *
@@ -1203,6 +1220,27 @@ export type Effect =
    * card. Reads `ownerId`, which every instance has carried from the start.
    */
   | { kind: "returnControlToOwners" }
+  /**
+   * "Target creature you control gains protection from the color of your choice
+   * until end of turn." - Mother of Runes, Giver of Runes, Alseid of Life's
+   * Bounty.
+   *
+   * The colour is chosen as the ability *resolves*, not as it is activated, and
+   * that is not a detail: the point of Mother of Runes is holding the choice
+   * open until you see what is being cast at you. So this effect does not carry
+   * a colour at all - it parks a `PendingColorChoice` and the protection is
+   * granted when that is answered.
+   */
+  | {
+      kind: "grantProtection";
+      target: TargetSelector;
+      /**
+       * "protection from **colorless or** from the color of your choice" - Giver
+       * of Runes, the only card in the pool that offers it. Left off, the
+       * question is the five colours, which is what the other two print.
+       */
+      orColorless?: boolean;
+    }
   /**
    * "For each token you control that entered this turn, create a token that's
    * a copy of it." - Ocelot Pride's second sentence.
@@ -2374,6 +2412,20 @@ export interface CardInstance {
    * a reset anywhere. Set by `enteredBattlefield`, the one door every arrival
    * goes through.
    */
+  /**
+   * Qualities this permanent has protection from - see `ProtectionQuality`.
+   *
+   * Cleared in the cleanup step and on any zone change, like the granted
+   * keywords beside it, because every printing in this pool grants it "until end
+   * of turn". A card with protection printed on its face would need this to be
+   * read through a layer the way `effectiveKeywords` is; nothing here prints one,
+   * and `hasProtectionFrom` is the single door so that day is one function.
+   *
+   * A list rather than a single quality: Mother of Runes can be activated twice
+   * in a turn on the same creature, and the second colour does not replace the
+   * first.
+   */
+  protectionFrom: ProtectionQuality[];
   enteredOnTurn: number;
   /**
    * Who controlled this before somebody took it until end of turn, if anybody
@@ -2611,6 +2663,29 @@ export interface PendingAmount {
   max: number;
   /** What the chosen number feeds. */
   mode: "pay-life-draw";
+}
+
+/**
+ * A colour waiting to be named, and the permanent the answer lands on.
+ *
+ * Parked during a resolution rather than before one, like `PendingSearch` and
+ * unlike `PendingTargetChoice`: the target was chosen when the ability went on
+ * the stack, and only the colour is still open. That ordering is the card -
+ * Mother of Runes is played by pointing at a creature early and naming the
+ * colour late.
+ *
+ * While this is set nobody holds priority and no step advances, the same as
+ * every other pending question here.
+ */
+export interface PendingColorChoice {
+  playerId: string;
+  /** The card that asked, so the client can show it beside the question. */
+  sourceInstanceId: string;
+  prompt: string;
+  /** The permanent that gains the protection once a colour is named. */
+  targetInstanceId: string;
+  /** Whether "colorless" is one of the answers. Giver of Runes is the only card that offers it. */
+  allowColorless: boolean;
 }
 
 export interface PendingDiscard {
@@ -2991,6 +3066,8 @@ export interface GameState {
   pendingCardChoices: PendingCardChoice[];
   /** A number waiting to be named - Necrodominance. */
   pendingAmount: PendingAmount | null;
+  /** A colour waiting to be named - Mother of Runes and the other protection granters. */
+  pendingColorChoice: PendingColorChoice | null;
   /**
    * How many creatures have died this turn, for morbid ("if a creature died
    * this turn"). Reset in cleanup with everything else that lasts a turn.

@@ -56,6 +56,7 @@ import { describeActivated, describeCard } from "./cardText.js";
 import { burstsForFlight, spellColor } from "./particles.js";
 import { findInstance } from "./cardLookup.js";
 import { EnterChoicePrompt } from "./components/EnterChoicePrompt.js";
+import { ColorChoicePrompt } from "./components/ColorChoicePrompt.js";
 import {
   emitParticles,
   particlesEnabled,
@@ -463,6 +464,15 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
   const pendingEnterChoice =
     state.pendingEnterChoice && controller.canControlPlayer(state.pendingEnterChoice.playerId)
       ? state.pendingEnterChoice
+      : null;
+
+  /*
+   * Only the player who owes the colour sees the picker, like every other pending
+   * question here. Everyone else sees the game held, which is what is happening.
+   */
+  const pendingColorChoice =
+    state.pendingColorChoice && controller.canControlPlayer(state.pendingColorChoice.playerId)
+      ? state.pendingColorChoice
       : null;
 
   const pendingConfirmation =
@@ -1489,6 +1499,19 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
               ]?.name ?? "It"
             }
             onAnswer={(answer: ChosenOnEntry) => controller.resolveEnterChoice(pendingEnterChoice.playerId, answer)}
+          />
+        )}
+
+        {pendingColorChoice && (
+          <ColorChoicePrompt
+            prompt={pendingColorChoice.prompt}
+            allowColorless={pendingColorChoice.allowColorless}
+            cardName={
+              state.cardDefinitions[
+                findInstance(state, pendingColorChoice.sourceInstanceId)?.definitionId ?? ""
+              ]?.name ?? "It"
+            }
+            onAnswer={(quality) => controller.resolveColorChoice(pendingColorChoice.playerId, quality)}
           />
         )}
 

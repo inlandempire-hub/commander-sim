@@ -4010,3 +4010,125 @@ exercises it far harder than forty basics ever did. Five instances were fixed
 today. There may be more in the tail; the full-game test is the net that catches
 them, and it is a much better net now that it plays a deck with a mana base, an
 alternative cost, a sacrifice cost and a symmetrical tutor in it.
+
+## Protection, properly - the core of the plan's batch 6 (2026-08-17)
+
+**The list is at 55 of 100. The pool is at 992 fixtures.**
+
+Protection is four prohibitions wearing one word, and the four are why it is a
+system rather than a keyword. A permanent with protection from a quality cannot
+be **d**amaged, **e**nchanted or equipped, **b**locked, or **t**argeted by
+anything with that quality.
+
+Three cards: **Mother of Runes**, **Giver of Runes**, **Alseid of Life's Bounty**.
+
+### One file owns the question
+
+`protection.ts` answers all four, and nothing else does. Four checks scattered
+across four files is the shape this rots into - one gets widened for a new card,
+the others do not, and Mother of Runes quietly stops working against one kind of
+removal while looking fine against the rest.
+
+Where each bites:
+
+- **Targeting** - in `isValidTarget`, beside hexproof, behind one function that
+  asks both. The source's colour is what is measured, and it needed no new
+  plumbing: the source instance arrived in that function yesterday, for "another
+  target creature you control".
+- **Damage** - inside `damageCreature`, the one door every point of damage goes
+  through. Checked before the shield and before anything is marked, because the
+  damage does not happen: no lifelink for the attacker, no deathtouch mark, no
+  "whenever this creature is dealt damage". The three call sites now name their
+  source; combat names the attacker one way and the blocker the other.
+- **Blocking** - in `blockProblem`. **The direction matters**: protection on the
+  *attacker* stops it being blocked, and protection on a blocker does not stop it
+  blocking. Reading it the other way round would make all three cards better than
+  printed, so there is a test for each direction.
+- **Enchanted and equipped** - no code, and that is a claim rather than a gap.
+  Both routes onto a creature here, the `attach` effect and bestow, choose their
+  host by *targeting* it, so the targeting check already refuses them. There is a
+  test asserting that rather than assuming it, and a note saying what would need
+  a fourth function: an attach that did not target.
+
+### What protection does not do is most of the card
+
+It does not stop a board wipe, an edict, or a -3/-3 that names nothing. That is
+why a one-mana 1/1 can hand it out every turn without ending the game, and it is
+the first thing to check when this looks broken. There is a whole describe block
+for it - including a Mother of Runes creature dying to an untargeted -4/-4 - because
+a protection layer that also beat wraths would look like the system working.
+
+### The colour is named late, and that is the card
+
+"Protection from the color of your choice" is chosen as the ability **resolves**,
+not as it is activated. That is not a detail: the whole point of Mother of Runes
+is pointing at a creature early and holding the colour until you see what is
+being cast at you.
+
+So the effect carries no colour at all. It parks a `PendingColorChoice` and the
+protection is granted when that is answered - the same shape as the search
+picker, and gated in the same places: while it is set nobody holds priority and
+no step advances.
+
+Naming a colour had to reach **seven** places, because a question in this engine
+is answered by a human through a `GameController`, by a bot through its own
+harness, and by a networked seat over the protocol. A question wired into six of
+them is a question that hangs the game in the seventh. The list: the bot's action
+type, its decision, its local harness, its two narrating switches, the controller
+interface and both implementations, the protocol, the server, and the client's
+picker.
+
+**Colourless is a real answer, not a sixth colour.** Giver of Runes prints
+"protection from colorless or from the color of your choice", and it is what
+answers an artifact creature that no colour choice touches. The other two do not
+print it, and the engine refuses it for them rather than trusting the client.
+
+### Two things the read-back test found
+
+**The `permanent` selector could say "an opponent controls" and not "you
+control".** Alseid says "target creature or enchantment **you control**", so
+without it the card could hand protection to an opponent's creature - a different
+card, and one that would read as a targeting bug rather than a fixture one.
+
+**The bot's colour choice needed a reason.** It names whichever quality the
+opponents have most of in play. Crude and deliberately so: the human play is to
+hold the ability and answer what is actually cast, and the bot has no notion of
+holding a response. Counting the board at least beats naming white every time.
+
+### Two bugs from yesterday, found by the same suite
+
+Both mine, both from the Blech batch, and both only visible over many randomised
+games - which is why they are worth naming rather than quietly fixing:
+
+**`someoneElseOwesAnAnswer` blocked the priority holder over their own
+question.** `botShouldAct` names only some pending kinds in its early checks, so a
+bot that owed a *sacrifice* was told to wait by the very guard added to stop
+stalls. It takes the player id now and asks whose question it is.
+
+**The bot answered an "up to one target" trigger with one target that was not a
+target.** With `min: 0` and nothing legal, the engine parks a choice with an empty
+candidate list; the bot fell through to `candidates[0]`, which is `undefined`.
+Moseo is in the Blech deck, so this was reachable from the first game.
+
+### Where it stands
+
+**992 fixtures. 1,255 tests, typecheck clean**, all three audits clean bar the two
+long-known gaps. Six consecutive runs of the whole suite green, which after
+yesterday is the number that matters rather than one.
+
+**Not verified by hand in the browser: the colour picker.** It is wired at the same
+site as the other prompts and typechecks, and the engine layer under it has
+sixteen tests, but I did not manage to drive a game to the point of activating
+Mother of Runes through the UI - the mulligan overlay defeated the scripted
+clicks. Worth a human's two minutes before trusting it.
+
+**Still left in batch 6**, and each is its own piece rather than a card:
+
+- **Skrelv, Defector Mite** wants *hexproof from a colour* (narrower than
+  protection - it stops targeting only), **toxic 1**, and "can't be blocked by
+  creatures of that colour". Three new things, one of which is a poison keyword.
+- **Signal Pest** and **Gingerbrute** want "can't be blocked except by creatures
+  with flying or reach" and "...with haste" - pure blocking restrictions,
+  independent of protection and much smaller than it.
+- **Inkmoth Nexus** is a land that becomes a creature, which the plan itself files
+  under batch 7.

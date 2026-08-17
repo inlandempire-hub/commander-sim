@@ -280,6 +280,8 @@ export function mustNotAutoPass(state: GameState, playerId: string): boolean {
   if (state.pendingSacrifice) return true;
   if (state.pendingCardChoices.length > 0) return true;
   if (state.pendingAmount) return true;
+  // And for a protection ability waiting on a colour to be named.
+  if (state.pendingColorChoice) return true;
 
   const activePlayerId = state.players[state.activePlayerIndex]?.id;
 

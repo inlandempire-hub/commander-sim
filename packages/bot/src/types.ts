@@ -1,4 +1,6 @@
-import type { ChosenOnEntry } from "@mtg-commander-sim/engine";
+import type { ChosenOnEntry,
+  ProtectionQuality,
+} from "@mtg-commander-sim/engine";
 import type { AttackerDeclaration, BlockerDeclaration, StackTarget } from "@mtg-commander-sim/engine";
 
 /**
@@ -48,6 +50,8 @@ export type BotAction =
   | { kind: "resolveSacrificeChoice"; instanceId: string | null }
   | { kind: "resolveCardChoice"; instanceIds: string[] }
   | { kind: "resolveAmountChoice"; amount: number }
+  /** Naming the colour a protection ability is waiting on - Mother of Runes. */
+  | { kind: "resolveColorChoice"; quality: ProtectionQuality }
   /** Settling an opening hand, before the game has begun. */
   | { kind: "takeMulligan" }
   | { kind: "keepHand" }

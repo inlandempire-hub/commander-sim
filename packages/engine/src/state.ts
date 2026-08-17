@@ -65,6 +65,7 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     creatureDeathsThisTurn: 0,
     combatDamagePrevention: null,
     mulligan: null,
+    pendingColorChoice: null,
     delayedTriggers: [],
     cardDefinitions,
     nextInstanceId: 1,
@@ -125,6 +126,7 @@ export function createCardInstance(
     removedFromCombat: false,
     exerted: false,
     isCommander: options.isCommander ?? false,
+    protectionFrom: [],
     // Never been to the battlefield. `enteredBattlefield` stamps the real turn.
     enteredOnTurn: -1,
     summoningSickness: true,
@@ -235,6 +237,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.regenerationShields = 0; // likewise - a regenerated creature that later leaves keeps nothing
   instance.removedFromCombat = false;
   instance.exerted = false; // a new object has not been exerted, whatever the old one did
+  instance.protectionFrom = []; // and protection was granted to the object that left, not to this one
   instance.attachedTo = undefined; // an Equipment that changes zones falls off
   instance.controllerId = owner.id; // zone changes return control to the owner
   instance.summoningSickness = destination === "battlefield";

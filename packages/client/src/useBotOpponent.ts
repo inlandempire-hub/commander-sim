@@ -124,6 +124,9 @@ function perform(controller: GameController, playerId: string, action: BotAction
     case "resolveAmountChoice":
       controller.resolveAmountChoice(playerId, action.amount);
       return;
+    case "resolveColorChoice":
+      controller.resolveColorChoice(playerId, action.quality);
+      return;
     case "chooseOnEntry":
       controller.resolveEnterChoice(playerId, action.answer);
       return;

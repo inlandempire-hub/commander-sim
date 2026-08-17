@@ -1,4 +1,5 @@
 import {
+  qualityWord,
   ARCHETYPES,
   createGameFromDecks,
   DEADLY_DONNY,
@@ -73,6 +74,8 @@ function describe(state: GameState, seat: string, action: BotAction): string | n
   switch (action.kind) {
     case "playLand":
       return `${seat} plays ${nameOf(state, action.instanceId)}.`;
+    case "resolveColorChoice":
+      return `${seat} names ${qualityWord(action.quality)}.`;
     case "chooseOnEntry": {
       const { answer } = action;
       const chosen =

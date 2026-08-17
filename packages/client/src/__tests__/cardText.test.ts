@@ -681,6 +681,11 @@ describe("no fixture carries a clause the panel never mentions", () => {
       applies: (d) => hasNode(d, (n) => n.kind === "citys-blessing"),
       expect: /you (have|don't have) the city's blessing/,
     },
+    {
+      field: "effect.grantProtection",
+      applies: (d) => hasNode(d, (n) => n.kind === "grantProtection"),
+      expect: /gains protection from (colorless or from )?the color of your choice until end of turn\./,
+    },
     { field: "suspend", applies: (d) => d.suspend !== undefined, expect: /Suspend \d/ },
     {
       field: "effect.exertSelf",
@@ -932,5 +937,36 @@ describe("copying and borrowing", () => {
     expect(text).toContain(
       "create a 1/1 white Cat creature token. Then if you have the city's blessing, for each token you control that entered this turn, create a token that's a copy of it.",
     );
+  });
+});
+
+/**
+ * Protection, read back as the three cards print it.
+ *
+ * None of them names a colour, and the panel must not either: the choice is made
+ * on resolution, so a panel that printed one would be telling the player the
+ * decision had already been taken.
+ */
+describe("protection", () => {
+  it("prints Mother of Runes without naming a colour", () => {
+    const text = textOf("mother-of-runes");
+    expect(text).toContain(
+      "{T}: target creature you control gains protection from the color of your choice until end of turn.",
+    );
+    for (const colour of ["white", "blue", "black", "red", "green"]) {
+      expect(text).not.toContain(colour);
+    }
+  });
+
+  it("prints Giver of Runes' colourless option, and that it cannot point at itself", () => {
+    const text = textOf("giver-of-runes");
+    expect(text).toContain("another target creature you control");
+    expect(text).toContain("gains protection from colorless or from the color of your choice until end of turn.");
+  });
+
+  it("prints Alseid's cost and its wider target", () => {
+    const text = textOf("alseid-of-lifes-bounty");
+    expect(text).toContain("Lifelink");
+    expect(text).toContain("target creature or enchantment you control gains protection from");
   });
 });

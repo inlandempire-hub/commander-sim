@@ -11,6 +11,7 @@ import {
   resolveSacrificeChoice,
   resolveCardChoice,
   resolveAmountChoice,
+  resolveColorChoice,
   takeMulligan,
   keepHand,
   putOnBottom,
@@ -85,6 +86,9 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
       return;
     case "resolveAmountChoice":
       resolveAmountChoice(state, playerId, action.amount);
+      return;
+    case "resolveColorChoice":
+      resolveColorChoice(state, playerId, action.quality);
       return;
     case "passPriority":
       passPriority(state, playerId);

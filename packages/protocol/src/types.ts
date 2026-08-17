@@ -1,4 +1,6 @@
-import type { AttackerDeclaration, BlockerDeclaration, GameState, StackTarget } from "@mtg-commander-sim/engine";
+import type { AttackerDeclaration, BlockerDeclaration, GameState, StackTarget,
+  ProtectionQuality,
+} from "@mtg-commander-sim/engine";
 
 /**
  * Messages a client sends to the server. Deliberately do NOT carry a
@@ -55,6 +57,7 @@ export type ClientMessage =
   | { type: "resolveCardChoice"; instanceIds: string[] }
   /** The number named for "pay any amount of life" - Necrodominance. */
   | { type: "resolveAmountChoice"; amount: number }
+  | { type: "resolveColorChoice"; quality: ProtectionQuality }
   /**
    * Playing a card by suspending it, which is not casting it - nothing goes on
    * the stack and no cast trigger fires.

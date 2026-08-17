@@ -65,10 +65,23 @@ describe("bot vs bot", () => {
     const { state } = playOut();
 
     for (const player of state.players) {
-      const lands = player.battlefield.filter((c) =>
-        state.cardDefinitions[c.definitionId]?.types.includes("Land"),
+      /*
+       * Lands *played*, not lands still standing.
+       *
+       * This counted the battlefield until 2026-08-17, which was the same thing
+       * for as long as both demo decks were basics. The Blech list has fetchlands
+       * in it - they sacrifice themselves to find something - so a player who had
+       * played five lands could legitimately be showing two, and the test failed
+       * about one game in ten with nothing wrong.
+       *
+       * `enteredOnTurn` is stamped on arrival and deliberately survives a zone
+       * change, so a cracked fetchland in the graveyard still counts as the land
+       * drop it was.
+       */
+      const landsPlayed = [...player.battlefield, ...player.graveyard, ...player.exile].filter(
+        (c) => state.cardDefinitions[c.definitionId]?.types.includes("Land") && c.enteredOnTurn >= 0,
       );
-      expect(lands.length).toBeGreaterThan(2);
+      expect(landsPlayed.length).toBeGreaterThan(2);
     }
     // Somebody's life total moved, so combat happened.
     expect(state.players.some((p) => p.life < 40)).toBe(true);

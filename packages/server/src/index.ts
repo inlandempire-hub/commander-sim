@@ -14,6 +14,7 @@ import {
   activateLoyaltyAbility,
   castPreparedSpell,
   resolveAmountChoice,
+  resolveColorChoice,
   suspendCard,
   resolveCardChoice,
   resolveSacrificeChoice,
@@ -111,6 +112,9 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
     case "resolveCardChoice":
       resolveCardChoice(state, playerId, message.instanceIds);
       break;
+    case "resolveColorChoice":
+      resolveColorChoice(state, playerId, message.quality);
+      return;
     case "resolveAmountChoice":
       resolveAmountChoice(state, playerId, message.amount);
       break;

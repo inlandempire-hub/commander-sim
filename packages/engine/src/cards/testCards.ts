@@ -14055,6 +14055,90 @@ export const HOMEWARD_PATH: CardDefinition = {
   tier: "scripted",
 };
 
+/*
+ * Protection, the plan's batch 6.
+ *
+ * All three grant it the same way and none of them carries a colour: "the color
+ * of your choice" is named as the ability *resolves*, which is what makes Mother
+ * of Runes a card you hold up rather than a card you cast. See
+ * `grantProtection` and `PendingColorChoice`.
+ */
+
+export const MOTHER_OF_RUNES: CardDefinition = {
+  id: "mother-of-runes",
+  name: "Mother of Runes",
+  scryfallId: "a5e19147-e459-43a6-8ef0-e37968a462e3",
+  types: ["Creature"],
+  subtypes: ["Human", "Cleric"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [
+    {
+      cost: { tap: true },
+      effect: {
+        kind: "grantProtection",
+        // "Target creature **you control**" - and unlike Giver of Runes below, it
+        // may point at itself.
+        target: { kind: "creature", controlledBy: "you" },
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+export const GIVER_OF_RUNES: CardDefinition = {
+  id: "giver-of-runes",
+  name: "Giver of Runes",
+  scryfallId: "4e117771-5a8b-4812-b487-32ba34b7f724",
+  types: ["Creature"],
+  subtypes: ["Kor", "Cleric"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 2,
+  activatedAbilities: [
+    {
+      cost: { tap: true },
+      effect: {
+        kind: "grantProtection",
+        // "**Another** target creature you control" - never itself, which is the
+        // real cost of the extra toughness and the colourless option.
+        target: { kind: "creature", controlledBy: "you", excludeSource: true },
+        orColorless: true,
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+export const ALSEID_OF_LIFES_BOUNTY: CardDefinition = {
+  id: "alseid-of-lifes-bounty",
+  name: "Alseid of Life's Bounty",
+  scryfallId: "36c8c075-9597-412e-9fc4-9d73b4405d12",
+  // An Enchantment Creature: both types, in the order the card prints them.
+  types: ["Enchantment", "Creature"],
+  subtypes: ["Nymph"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Lifelink"],
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: {} }, sacrificeSelf: true },
+      effect: {
+        kind: "grantProtection",
+        // "Target creature **or enchantment** you control" - the wider selector,
+        // because this one can also save an Aura.
+        target: { kind: "permanent", cardTypes: ["Creature", "Enchantment"], controlledBy: "you" },
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -15046,5 +15130,8 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     OCELOT_PRIDE,
     ZEALOUS_CONSCRIPTS,
     HOMEWARD_PATH,
+    MOTHER_OF_RUNES,
+    GIVER_OF_RUNES,
+    ALSEID_OF_LIFES_BOUNTY,
   ].map((def) => [def.id, def]),
 );

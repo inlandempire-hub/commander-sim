@@ -38,6 +38,8 @@ function toClientMessage(action: BotAction): ClientMessage | null {
   switch (action.kind) {
     case "playLand":
       return { type: "playLand", instanceId: action.instanceId };
+    case "resolveColorChoice":
+      return { type: "resolveColorChoice", quality: action.quality };
     case "castSpell":
       return {
         type: "castSpell",

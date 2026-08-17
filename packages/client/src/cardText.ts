@@ -72,7 +72,12 @@ export function describeTarget(selector: TargetSelector): string {
       const noun = selector.cardTypes
         ? listOr(selector.cardTypes.map((t) => `${prefix}${t.toLowerCase()}`))
         : `${prefix}permanent`;
-      const whose = selector.controlledBy === "opponent" ? " an opponent controls" : "";
+      const whose =
+        selector.controlledBy === "you"
+          ? " you control"
+          : selector.controlledBy === "opponent"
+            ? " an opponent controls"
+            : "";
       // "one or two target attacking **creatures**" - a count above one takes a
       // plural noun, the same way the player selector already does.
       const many = selector.count && selector.count.max !== "x" && selector.count.max > 1 ? "s" : "";
@@ -451,6 +456,15 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
     }
     case "returnControlToOwners":
       return "Each player gains control of all creatures they own.";
+    case "grantProtection":
+      /*
+       * The colour is not in the effect, because it is not chosen until the
+       * ability resolves - so the panel prints the card's own wording, "the color
+       * of your choice", rather than a colour it cannot know.
+       */
+      return effect.orColorless
+        ? `${describeTarget(effect.target)} gains protection from colorless or from the color of your choice until end of turn.`
+        : `${describeTarget(effect.target)} gains protection from the color of your choice until end of turn.`;
     case "delayedRemoval":
       /*
        * Never reached from a card's own text - a delayed trigger is scheduled by

@@ -1,5 +1,6 @@
 import type { ChosenOnEntry } from "@mtg-commander-sim/engine";
-import { activateRestrictionProblem, staticBuffsOf } from "@mtg-commander-sim/engine";
+import { activateRestrictionProblem, qualitiesOf, staticBuffsOf } from "@mtg-commander-sim/engine";
+import type { ProtectionQuality } from "@mtg-commander-sim/engine";
 import {
   abilityAvailable,
   isValidTarget,
@@ -116,6 +117,18 @@ function chooseTriggerTargets(state: GameState, botPlayerId: string): StackTarge
    * targeting a *cost* would need this to read the effect rather than assume
    * more is better, exactly as `chooseTriggerTarget` below already warns.
    */
+  /*
+   * "Return **up to one** target creature card" - Moseo, and the shape of every
+   * trigger the engine parks with `min: 0`. When nothing is legal to point at, the
+   * ability still resolves and the answer is *no targets at all*.
+   *
+   * This used to fall through to `candidates[0]`, which on an empty list is
+   * `undefined` - so the bot sent one target that was not a target, the engine
+   * refused it, and the game died. Invisible until a deck carried an
+   * up-to-one-target trigger.
+   */
+  if (pending.candidates.length === 0) return [];
+
   if (pending.max > 1) {
     const ranked = [...pending.candidates].sort(
       (a, b) => targetPreference(state, botPlayerId, b) - targetPreference(state, botPlayerId, a),
@@ -272,6 +285,22 @@ export function decideAction(state: GameState, botPlayerId: string): BotAction {
    */
   if (state.pendingAmount?.playerId === botPlayerId) {
     return { kind: "resolveAmountChoice", amount: 0 };
+  }
+
+  /*
+   * "Protection from the color of your choice."
+   *
+   * The colour that answers the most: whatever an opponent has most of on the
+   * battlefield. Crude, and deliberately so - the play a human makes is to hold
+   * the ability until something is cast and then name *that* colour, and the bot
+   * has no notion of holding a response. Naming the commonest colour opposite is
+   * at least a reason, which beats naming white every time.
+   *
+   * Colourless is only ever named when the card offers it and there is genuinely
+   * a colourless threat, since it answers nothing else.
+   */
+  if (state.pendingColorChoice?.playerId === botPlayerId) {
+    return { kind: "resolveColorChoice", quality: mostThreateningQuality(state, botPlayerId) };
   }
 
   if (state.pendingSacrifice?.playerId === botPlayerId) {
@@ -893,4 +922,37 @@ function chooseOnEntry(state: GameState, me: Player): ChosenOnEntry {
     case "mode":
       return { mode: choice.options[0]! };
   }
+}
+
+/**
+ * Which quality is worth naming protection from, read off the opponents' boards.
+ *
+ * Counts permanents rather than creatures: an opponent's removal is the thing
+ * this is really being held against, and the colours of what they have in play
+ * are the best guess available about the colours of what is still in their hand.
+ */
+function mostThreateningQuality(state: GameState, botPlayerId: string): ProtectionQuality {
+  const pending = state.pendingColorChoice;
+  const counts = new Map<ProtectionQuality, number>();
+  for (const player of state.players) {
+    if (player.id === botPlayerId) continue;
+    for (const instance of player.battlefield) {
+      const def = definitionOf(state, instance);
+      if (!def) continue;
+      for (const quality of qualitiesOf(def)) {
+        // Colourless is only an answer on the card that prints it.
+        if (quality === "colorless" && !pending?.allowColorless) continue;
+        counts.set(quality, (counts.get(quality) ?? 0) + 1);
+      }
+    }
+  }
+  let best: ProtectionQuality = "W";
+  let bestCount = -1;
+  for (const [quality, count] of counts) {
+    if (count > bestCount) {
+      best = quality;
+      bestCount = count;
+    }
+  }
+  return best;
 }

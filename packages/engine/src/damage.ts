@@ -2,6 +2,7 @@ import type { CardInstance, GameState, Player } from "./types.js";
 import { findInstance, log, requireDefinition } from "./state.js";
 import { pushTrigger } from "./permanents.js";
 import { effectiveTriggers, hasKeyword } from "./counters.js";
+import { protectionStopsDamage } from "./protection.js";
 
 /**
  * The one place damage is actually dealt.
@@ -101,8 +102,21 @@ export function damageCreature(
   state: GameState,
   instance: CardInstance,
   amount: number,
-  options: { deathtouch?: boolean; infect?: boolean } = {},
+  options: { deathtouch?: boolean; infect?: boolean; sourceInstanceId?: string } = {},
 ): DamageResult {
+  /*
+   * "...can't be dealt damage by sources with that quality." - protection, rule
+   * 702.16b. Checked before the shield and before anything is marked, because
+   * the damage does not happen at all: no lifelink for the attacker, no
+   * deathtouch mark, and no "whenever this creature is dealt damage" trigger.
+   *
+   * Here rather than at each caller because this is the one door every point of
+   * damage goes through - combat, a burn spell, a fight - so a damage source
+   * added later is covered without knowing protection exists.
+   */
+  if (protectionStopsDamage(state, instance, options.sourceInstanceId)) {
+    return { dealt: 0, prevented: amount };
+  }
   const result = applyShield(instance, amount);
   /*
    * Infect damage to a creature is -1/-1 counters, which is a different thing

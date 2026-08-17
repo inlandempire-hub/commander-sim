@@ -85,6 +85,7 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
       send({ type: "resolveSacrificeChoice", instanceId }),
     resolveCardChoice: (_playerId, instanceIds) => send({ type: "resolveCardChoice", instanceIds }),
     resolveAmountChoice: (_playerId, amount) => send({ type: "resolveAmountChoice", amount }),
+    resolveColorChoice: (_playerId, quality) => send({ type: "resolveColorChoice", quality }),
     /*
      * The protocol has no message for this yet. Thrown rather than dropped: a
      * silently swallowed answer hangs the game with nothing to debug, which is

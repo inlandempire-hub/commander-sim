@@ -4010,3 +4010,64 @@ body {
   opacity: 0.4;
   cursor: default;
 }
+
+/*
+ * The protection colour picker - Mother of Runes.
+ *
+ * Tinted rather than fully coloured: the button still has to read as a button in
+ * a dark panel, and five saturated blocks would fight the card art behind them.
+ * The names are printed too, so the colour is a shortcut rather than the only cue.
+ */
+.colour-choice {
+  min-width: 4.4rem;
+  text-transform: capitalize;
+}
+
+.colour-choice--w {
+  border-color: rgba(248, 246, 216, 0.8);
+  background: rgba(248, 246, 216, 0.18);
+}
+
+.colour-choice--u {
+  border-color: rgba(122, 186, 226, 0.8);
+  background: rgba(122, 186, 226, 0.18);
+}
+
+.colour-choice--b {
+  border-color: rgba(166, 152, 168, 0.8);
+  background: rgba(166, 152, 168, 0.2);
+}
+
+.colour-choice--r {
+  border-color: rgba(226, 130, 106, 0.8);
+  background: rgba(226, 130, 106, 0.18);
+}
+
+.colour-choice--g {
+  border-color: rgba(126, 190, 146, 0.8);
+  background: rgba(126, 190, 146, 0.18);
+}
+
+.colour-choice--colorless {
+  border-color: rgba(202, 202, 202, 0.7);
+  background: rgba(202, 202, 202, 0.14);
+}
+
+/*
+ * "pro-white" on a creature Mother of Runes has touched.
+ *
+ * Tinted like the picker buttons and kept short, because it sits on a card that
+ * is often only a couple of centimetres wide - the full sentence is in the
+ * inspect panel, and this is the reminder that sends you there.
+ */
+.card__protection {
+  align-self: center;
+  padding: 0 0.2rem;
+  border-radius: 0.2rem;
+  background: rgba(248, 246, 216, 0.22);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 0.5rem;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
