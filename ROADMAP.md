@@ -4347,3 +4347,81 @@ at them. Two of them make it four times.
 
 **1,010 fixtures. 1,329 tests, typecheck clean**, all three audits clean bar the
 two long-known gaps.
+
+## Batch 8, part two: four of the five subsystems (2026-08-17)
+
+**The list is at 76 of 100. The pool is at 1,015 fixtures.** Four of the five
+cards that each wanted a system are built; the fifth is specified below rather
+than half-built.
+
+### Built
+
+**Professional Face-Breaker** and **Ragavan** needed three firsts between them.
+
+*Combat damage to a player is two events, not one.* "Whenever Ragavan deals
+combat damage to a player" fires per creature; "whenever one or more creatures
+you control deal combat damage to a player" fires once however many connected.
+Writing the second as the first makes three Treasures off a three-creature
+attack. Both read one record of what connected, collected as the damage is dealt.
+
+*A trigger can carry the player it happened to.* Ragavan exiles the top of "that
+player's" library, so the damaged player rides along as a target - which is what
+a target is, and every effect downstream already reads one. Nothing was chosen,
+so hexproof never enters into it. `spell-cast` carries the caster the same way,
+which is what Esper Sentinel taxes.
+
+*A card can be played from exile.* The permission names a card **and** a player
+and is stamped with the turn. That naming is what makes Ragavan work: the card is
+exiled from the defender's library and cast by Ragavan's controller - the one
+place in this engine where the owner and the player allowed to play it come
+apart. "Play" (Face-Breaker) covers a land drop; "cast" (Ragavan) does not.
+
+**Dash** is a price rather than a discount, and both riders land as the creature
+arrives: haste, and back to hand at the next end step through the delayed-trigger
+machinery, which grew a third action.
+
+**The monarch** is three rules belonging to no permanent - one holder, a card at
+their end step, and combat damage taking it away - so it lives on the game state
+and is enforced by the turn machine and the combat step. The crown moves from the
+same list of hits the Pirate triggers read, so what connected is recorded once.
+
+**Éomer** enters with a counter for each other Human as a *replacement*, not a
+trigger, so he is never on the battlefield at his printed size and his own damage
+is read off the big one. `audit_fixtures` caught the name being spelled without
+its accent, which is exactly what that audit is for.
+
+**Esper Sentinel** counts "first noncreature spell each turn" off the list the
+hate pieces already keep. The engine pays the tax for the opponent when it can,
+the same shortcut the counterspell family takes - a real simplification, noted on
+the effect.
+
+### Not built: Ajani, Nacatl Pariah // Ajani, Nacatl Avenger
+
+Specified rather than attempted, because a half-built Ajani is a card that looks
+right and is not, which is the one thing docs/ADDING-CARDS.md forbids.
+
+What it needs, in the order it would be built:
+
+1. **Transform** - a permanent that becomes a different definition while staying
+   on the battlefield. Distinct from the MDFC swap already here, which happens on
+   the way *in* from hand and turns back on the way out.
+2. **A planeswalker on the back** with 3 starting loyalty. Loyalty abilities
+   already exist.
+3. **"Whenever one or more other Cats you control die"** - a `permanent-dies`
+   watcher narrowed by creature type, firing once for a batch rather than per
+   creature, which is the same "one or more" shape Professional Face-Breaker
+   needed.
+4. **A reflexive trigger with a board condition** on the 0 ability: "when you do,
+   **if you control a red permanent other than Ajani**, he deals damage equal to
+   the number of creatures you control". The damage rider would need a second
+   member beside `source-power`.
+5. **The -4**, which is the real work: each opponent chooses an artifact, a
+   creature, an enchantment and a planeswalker to keep, then sacrifices every
+   other nonland permanent. That is a four-category multi-select aimed at
+   somebody else, and a question in this engine has to reach the controller
+   interface and both implementations, the bot's action type and decision, its
+   local harness and both narrating switches, the protocol, the server and the
+   client's picker. One place missed hangs the game.
+
+**1,015 fixtures. 1,354 tests, typecheck clean**, all three audits clean bar the
+two long-known gaps.
