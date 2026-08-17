@@ -136,6 +136,8 @@ export function sacrificePermanent(state: GameState, instanceId: string): void {
  * conditions (life <= 0, drawing from an empty library, 21+ commander damage).
  */
 export function checkStateBasedActions(state: GameState): void {
+  grantAscend(state);
+
   let changed = true;
   while (changed) {
     changed = false;
@@ -260,5 +262,33 @@ export function checkStateBasedActions(state: GameState): void {
         }
       }
     }
+  }
+}
+
+/**
+ * Ascend: "If you control ten or more permanents, you get the city's blessing
+ * for the rest of the game."
+ *
+ * A static ability on a permanent, so the game notices it without being asked -
+ * which is what makes this the right place rather than an enters-the-battlefield
+ * trigger. Play the tenth permanent and the blessing arrives at once, with
+ * nothing on the stack and no window for anybody to respond in.
+ *
+ * One-way on purpose. Losing permanents afterwards does not take the blessing
+ * away, so this only ever sets the flag and never clears it, and Ocelot Pride
+ * keeps copying tokens through a board wipe.
+ */
+function grantAscend(state: GameState): void {
+  for (const player of state.players) {
+    if (player.hasCitysBlessing) continue;
+    const hasAscend = player.battlefield.some(
+      (instance) => state.cardDefinitions[instance.definitionId]?.ascend === true,
+    );
+    if (!hasAscend) continue;
+    // "ten or more **permanents**" - every card type on the battlefield counts,
+    // lands included, which is most of what gets a one-mana Cat there.
+    if (player.battlefield.length < 10) continue;
+    player.hasCitysBlessing = true;
+    log(state, `${player.id} gets the city's blessing`);
   }
 }

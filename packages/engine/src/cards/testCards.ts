@@ -13891,6 +13891,170 @@ export const WINDCRAG_SIEGE: CardDefinition = {
   tier: "weird",
 };
 
+/*
+ * Batch 5: copying and borrowing.
+ *
+ * The four cards here that make token copies are the first in the pool to copy
+ * something they *point at* rather than their own source, and the first to hand
+ * the copy a scheduled ending - "sacrifice it at the beginning of the next end
+ * step" is an ability that exists once, belongs to no permanent, and fires
+ * later. Zealous Conscripts and Homeward Path are the pair that pull control and
+ * ownership apart.
+ */
+
+export const TOKEN_W_11_CAT: CardDefinition = {
+  id: "token-w-11-cat",
+  name: "Cat",
+  types: ["Creature"],
+  subtypes: ["Cat"],
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const KIKI_JIKI_MIRROR_BREAKER: CardDefinition = {
+  id: "kiki-jiki-mirror-breaker",
+  name: "Kiki-Jiki, Mirror Breaker",
+  scryfallId: "a2ff0ee3-9600-4c7d-acec-6ec90595384e",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Goblin", "Shaman"],
+  manaCost: { generic: 2, colors: { R: 3 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Haste"],
+  activatedAbilities: [
+    {
+      cost: { tap: true },
+      effect: {
+        kind: "createCopyToken",
+        of: "target",
+        // "nonlegendary" is the whole reason this is not a two-card combo with
+        // any legend on the board: a copy of one dies to the legend rule at once.
+        target: { kind: "creature", controlledBy: "you", nonlegendary: true },
+        grants: ["Haste"],
+        delayedEnd: "sacrifice",
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+export const RIONYA_FIRE_DANCER: CardDefinition = {
+  id: "rionya-fire-dancer",
+  name: "Rionya, Fire Dancer",
+  scryfallId: "086e68b5-0f89-46d0-9a04-7f8658a9ab53",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 3, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  power: 3,
+  toughness: 4,
+  triggeredAbilities: [
+    {
+      event: "begin-combat",
+      watches: "controller",
+      effect: {
+        kind: "createCopyToken",
+        of: "target",
+        // "**another** target creature you control" - never itself, which is
+        // what `excludeSource` is for and why it refuses to be asked without one.
+        target: { kind: "creature", controlledBy: "you", excludeSource: true },
+        count: { kind: "count", of: { what: "one-plus-instants-and-sorceries-cast-this-turn" } },
+        grants: ["Haste"],
+        delayedEnd: "exile",
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+export const OCELOT_PRIDE: CardDefinition = {
+  id: "ocelot-pride",
+  name: "Ocelot Pride",
+  scryfallId: "89cf6f57-230f-497e-a14e-ad1e8737fd42",
+  types: ["Creature"],
+  subtypes: ["Cat"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  keywords: ["First Strike", "Lifelink"],
+  ascend: true,
+  triggeredAbilities: [
+    {
+      event: "end-step",
+      watches: "controller",
+      // The intervening-if gates the whole ability, both sentences of it: no
+      // life gained means no Cat and no copies.
+      onlyIf: { kind: "gained-life-this-turn" },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "createToken", count: 1, tokenDefinitionId: "token-w-11-cat" },
+          {
+            /*
+             * "**Then** if you have the city's blessing..." - a second sentence
+             * inside the same resolution, which is why it is a sequence rather
+             * than a second ability. The Cat the first step just made is one of
+             * the tokens this copies, and that is the card rather than a
+             * coincidence.
+             */
+            kind: "conditional",
+            condition: { kind: "citys-blessing" },
+            then: { kind: "copyTokensThatEnteredThisTurn" },
+          },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+export const ZEALOUS_CONSCRIPTS: CardDefinition = {
+  id: "zealous-conscripts",
+  name: "Zealous Conscripts",
+  scryfallId: "b5ca6c08-bfe0-4021-b6ad-e235c8905661",
+  types: ["Creature"],
+  subtypes: ["Human", "Warrior"],
+  manaCost: { generic: 4, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 3,
+  toughness: 3,
+  keywords: ["Haste"],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "gainControl",
+        // "target **permanent**" - any type at all, which is what makes this an
+        // untapper for a Kiki-Jiki as readily as a Threaten for a creature.
+        target: { kind: "permanent" },
+        untap: true,
+        grants: ["Haste"],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+export const HOMEWARD_PATH: CardDefinition = {
+  id: "homeward-path",
+  name: "Homeward Path",
+  scryfallId: "54734347-eee7-4c52-b514-7342afeccabd",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "returnControlToOwners" } },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -14876,5 +15040,11 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     HEXING_SQUELCHER,
     TOKEN_R_11_GOBLIN,
     WINDCRAG_SIEGE,
+    TOKEN_W_11_CAT,
+    KIKI_JIKI_MIRROR_BREAKER,
+    RIONYA_FIRE_DANCER,
+    OCELOT_PRIDE,
+    ZEALOUS_CONSCRIPTS,
+    HOMEWARD_PATH,
   ].map((def) => [def.id, def]),
 );

@@ -78,6 +78,40 @@ def static_buffs(fx):
     return buff if isinstance(buff, list) else [buff]
 
 
+def copy_features(fx):
+    """
+    The parts of a copy or control effect that are fields on it rather than kinds.
+
+    `createCopyToken` covers "create a token that's a copy"; it does not say
+    whether the copy is modified or when it goes away, and both of those are
+    separate printed sentences. Same for `gainControl` and its "Untap that
+    permanent."
+    """
+    feat = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            if node.get("kind") == "createCopyToken":
+                if node.get("grants"):
+                    feat.add("copyGrants")
+                if node.get("delayedEnd"):
+                    feat.add("delayedEnd")
+            if node.get("kind") == "gainControl":
+                if node.get("untap"):
+                    feat.add("gainControlUntap")
+                if node.get("grants"):
+                    feat.add("grantsKeywords")
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    for field in ("castEffect", "activatedAbilities", "triggeredAbilities", "loyaltyAbilities"):
+        walk(fx.get(field))
+    return feat
+
+
 def card_features(fx):
     """
     Fixture fields that are not effects but do implement rules text.
@@ -103,6 +137,11 @@ def card_features(fx):
         feat.add("cantBeCountered")
     if fx.get("becomesChosenBasicType"):
         feat.add("becomesChosenBasicType")
+    # Ascend is a static ability rather than something the card does, so it lives
+    # here with the other properties - the reminder text is stripped separately,
+    # which leaves the bare keyword to be accounted for.
+    if fx.get("ascend"):
+        feat.add("ascend")
     # Each static rule contributes its own name, so a card printing two of them
     # accounts for both sentences rather than one covering the other.
     for rule, value in (fx.get("staticRules") or {}).items():
@@ -385,6 +424,28 @@ RULES = [
     (r"\bput a card from among those cards into your hand\b", {"millThenMayTake"}),
     (r"\bwithout paying its mana cost\b", {"alternativeCost", "castFreeFromHand", "suspend"}),
     (r"\btoken that's a copy\b", {"createCopyToken"}),
+    # Batch 5: copying and borrowing.
+    #
+    # "create X tokens that are copies of ..." is the plural half of the rule
+    # above, which only matched the singular - Rionya's whole first sentence read
+    # as unimplemented.
+    (r"\btokens that are copies of\b", {"createCopyToken"}),
+    # The scheduled ending. Tied to `delayedEnd` rather than to the copy effect,
+    # because a card can print one without the other and this is the clause that
+    # makes the copy temporary.
+    (r"\b(sacrifice|exile) (it|them) at the beginning of the next end step\b",
+     {"delayedEnd", "delayedRemoval"}),
+    # "except it has haste" / "They gain haste" - the copy modification.
+    (r"^they gain \w+( and \w+)*\.?$", {"copyGrants", "grantsKeywords"}),
+    (r"\bexcept it has haste\b", {"copyGrants"}),
+    (r"\bfor each token you control that entered this turn\b",
+     {"copyTokensThatEnteredThisTurn"}),
+    (r"^ascend$", {"ascend"}),
+    (r"\bgain control of target permanent until end of turn\b", {"gainControl"}),
+    # "Untap that permanent." - the second of Zealous Conscripts' three
+    # sentences, folded into the one effect that holds the target.
+    (r"^untap that permanent\.?$", {"gainControlUntap"}),
+    (r"\beach player gains control of all creatures they own\b", {"returnControlToOwners"}),
     (r"\bif a card or token would be put into your graveyard\b", {"replacementEffects"}),
     # "They have '...'" - a token's own rules text, which lives on the token
     # definition rather than on the card that makes them.
@@ -492,7 +553,7 @@ def main():
         if not card:
             continue
         checked += 1
-        have = effect_kinds(fx) | card_features(fx)
+        have = effect_kinds(fx) | card_features(fx) | copy_features(fx)
 
         oracle = strip_reminders((card.get("oracle_text") or "").replace("—", "-"))
         leftovers = []

@@ -32,6 +32,8 @@ export function createPlayer(id: string): Player {
     poisonCounters: 0,
     lifeGainedThisTurn: 0,
     plusOneCountersPlacedThisTurn: 0,
+    // Ascend grants it; nothing ever takes it away.
+    hasCitysBlessing: false,
   };
 }
 
@@ -63,6 +65,7 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     creatureDeathsThisTurn: 0,
     combatDamagePrevention: null,
     mulligan: null,
+    delayedTriggers: [],
     cardDefinitions,
     nextInstanceId: 1,
     nextStackObjectId: 1,
@@ -122,6 +125,8 @@ export function createCardInstance(
     removedFromCombat: false,
     exerted: false,
     isCommander: options.isCommander ?? false,
+    // Never been to the battlefield. `enteredBattlefield` stamps the real turn.
+    enteredOnTurn: -1,
     summoningSickness: true,
   };
   const player = requirePlayer(state, ownerId);

@@ -309,7 +309,7 @@ export function castSpell(
     }
     if (targets.length > max) throw new Error(`${def.name} takes at most ${max} target(s)`);
     for (const target of targets) {
-      if (!isValidTarget(state, selector, target, playerId)) {
+      if (!isValidTarget(state, selector, target, playerId, instanceId)) {
         throw new Error(`Illegal target for ${def.name}`);
       }
     }
@@ -479,7 +479,7 @@ export function castSuspended(state: GameState, playerId: string, instanceId: st
   if (!found || found.instance.zone !== "exile") return;
   const def = requireDefinition(state, found.instance.definitionId);
   const selector = targetSelectorOf(def.castEffect ?? { kind: "draw", amount: 0 });
-  const targets = selector ? legalTargetsFor(state, selector, playerId).slice(0, 1) : [];
+  const targets = selector ? legalTargetsFor(state, selector, playerId, instanceId).slice(0, 1) : [];
   if (selector && targets.length === 0) return;
 
   /*

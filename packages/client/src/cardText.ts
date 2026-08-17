@@ -38,12 +38,23 @@ export function describeTarget(selector: TargetSelector): string {
   switch (selector.kind) {
     case "any-target":
       return "any target";
-    case "creature":
+    case "creature": {
       // "target Insect, Rat, Spider, or Squirrel" - the printed wording lists
       // the types instead of saying creature at all.
-      return selector.subtypes?.length
-        ? `target ${listOr(selector.subtypes)}`
-        : "target creature";
+      if (selector.subtypes?.length) return `target ${listOr(selector.subtypes)}`;
+      // "**another** target creature you control" - the word goes before
+      // "target", which is where Rionya prints it.
+      const another = selector.excludeSource ? "another " : "";
+      // "target **nonlegendary** creature you control" - Kiki-Jiki.
+      const legend = selector.nonlegendary ? "nonlegendary " : "";
+      const whose =
+        selector.controlledBy === "you"
+          ? " you control"
+          : selector.controlledBy === "opponent"
+            ? " an opponent controls"
+            : "";
+      return `${another}target ${legend}creature${whose}`;
+    }
     case "player":
       return `${countPrefix(selector.count)}target player${
         selector.count && selector.count.max !== "x" && selector.count.max > 1 ? "s" : ""
@@ -383,10 +394,73 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
           ? ` Otherwise, ${lowerFirst(describeEffect(effect.otherwise, definitions))}`
           : ""
       }`;
-    case "createCopyToken":
-      return effect.of === "self"
-        ? "Create a token that's a copy of this creature."
-        : "Create a token that's a copy of the creature this is attached to.";
+    case "createCopyToken": {
+      if (effect.of === "self") return "Create a token that's a copy of this creature.";
+      if (effect.of === "attached-creature") {
+        return "Create a token that's a copy of the creature this is attached to.";
+      }
+      /*
+       * Kiki-Jiki and Rionya. Every clause here used to be missing: the "except
+       * it has haste" that makes the copy worth making, and the end step that
+       * takes it away again.
+       */
+      const what = effect.target ? describeTarget(effect.target) : "target creature";
+      const count = effect.count;
+      /*
+       * "create **X** tokens that are copies of ..., where X is one plus the
+       * number of instant and sorcery spells you've cast this turn" - Rionya
+       * prints the letter and then explains it, which is what a counted amount
+       * is: a phrase and not a number.
+       */
+      const dynamic = typeof count === "object" && count.kind === "count";
+      const many = dynamic || (typeof count === "number" && count > 1);
+      const howMany = dynamic ? "X" : typeof count === "number" ? countWord(count) : "a";
+      const head = many
+        ? `Create ${howMany} tokens that are copies of ${what}`
+        : `Create a token that's a copy of ${what}`;
+      /*
+       * "except it has haste" is a copy modification; "They gain haste" is a
+       * separate continuous effect. The two cards genuinely read differently and
+       * the count is what separates them - one token is modified as it is
+       * copied, several are granted the keyword afterwards.
+       */
+      const gained = listAnd((effect.grants ?? []).map((k) => k.toLowerCase()));
+      const modifier = effect.grants?.length && !many ? `, except it has ${gained}` : "";
+      const explainX = dynamic ? `, where X is ${describeCount(count.of)}` : "";
+      const grantSentence = effect.grants?.length && many ? ` They gain ${gained}.` : "";
+      const it = many ? "them" : "it";
+      const ending = effect.delayedEnd
+        ? ` ${effect.delayedEnd === "sacrifice" ? "Sacrifice" : "Exile"} ${it} at the beginning of the next end step.`
+        : "";
+      return `${head}${modifier}${explainX}.${grantSentence}${ending}`;
+    }
+    case "copyTokensThatEnteredThisTurn":
+      return "For each token you control that entered this turn, create a token that's a copy of it.";
+    case "gainControl": {
+      /*
+       * Zealous Conscripts' three sentences, printed as three sentences. They
+       * are one effect because they act on one permanent, which is a fact about
+       * the engine and not something a player should have to read.
+       */
+      const parts = [`Gain control of ${describeTarget(effect.target)} until end of turn.`];
+      if (effect.untap) parts.push("Untap that permanent.");
+      if (effect.grants?.length) {
+        parts.push(`It gains ${listAnd(effect.grants.map((k) => k.toLowerCase()))} until end of turn.`);
+      }
+      return parts.join(" ");
+    }
+    case "returnControlToOwners":
+      return "Each player gains control of all creatures they own.";
+    case "delayedRemoval":
+      /*
+       * Never reached from a card's own text - a delayed trigger is scheduled by
+       * `createCopyToken`, which prints the sentence itself. It is here because
+       * the effect does appear on the stack, and the stack panel renders
+       * whatever is on it.
+       */
+      return effect.action === "sacrifice"
+        ? "Sacrifice it at the beginning of the next end step."
+        : "Exile it at the beginning of the next end step.";
     case "addOtherCounter":
       return `Put ${countWord(effect.amount)} counter${effect.amount === 1 ? "" : "s"} on this creature.`;
     case "millThenMayTake": {
@@ -580,7 +654,23 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         const exert = steps[0]!.replace(EXERT_REMINDER, "");
         return [`${exert} When you do, ${clause}`, ...later].join(" ") + EXERT_REMINDER;
       }
-      return steps.join(" ");
+      /*
+       * "...create a 1/1 white Cat creature token. **Then** if you have the
+       * city's blessing, ..." - Ocelot Pride.
+       *
+       * A conditional that follows another step is printed with the connective,
+       * on this card and on every card that prints the shape. Without it the
+       * second sentence reads as a separate ability that might have happened
+       * first, which matters here: the Cat the first step made is one of the
+       * tokens the second one copies.
+       */
+      return steps
+        .map((step, index) =>
+          index > 0 && effect.effects[index]?.kind === "conditional"
+            ? `Then ${step.charAt(0).toLowerCase()}${step.slice(1)}`
+            : step,
+        )
+        .join(" ");
     }
     case "searchLibrary": {
       /**
@@ -704,6 +794,10 @@ function listAnd(items: string[]): string {
  */
 function describeCount(of: Countable): string {
   switch (of.what) {
+    case "one-plus-instants-and-sorceries-cast-this-turn":
+      // The "one plus" is part of the printed phrase, so it is part of the
+      // sentence too - see the Countable entry.
+      return "one plus the number of instant and sorcery spells you've cast this turn";
     case "creatures": {
       const noun = of.excludeSubtype ? `non-${of.excludeSubtype} creature` : "creature";
       return of.withCounter
@@ -1034,6 +1128,8 @@ function describeTriggerCondition(condition: TriggerCondition): string {
  */
 function negateCondition(condition: BoardCondition): string {
   switch (condition.kind) {
+    case "citys-blessing":
+      return "you don't have the city's blessing";
     case "controls-subtype":
       return `you control no ${listOr(condition.subtypes.map((s) => `${s}s`))}`;
     case "controls-color":
@@ -1166,6 +1262,8 @@ function article(noun: string): string {
  */
 function describeCondition(condition: BoardCondition): string {
   switch (condition.kind) {
+    case "citys-blessing":
+      return "you have the city's blessing";
     case "controls-other-lands":
       return `you control ${condition.count} or more other lands`;
     case "opponents":
@@ -1448,6 +1546,17 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
   // "This land is the chosen type." Without it Multiversal Passage read as a
   // land that asks you to name a basic type and then does nothing with it.
   if (def.becomesChosenBasicType) lines.push(`This ${selfNoun(def)} is the chosen type.`);
+
+  /*
+   * Ascend, with its reminder text, because the keyword alone says nothing: a
+   * player reading "Ascend" on Ocelot Pride has no way to connect it to the
+   * "city's blessing" its own next line asks about.
+   */
+  if (def.ascend) {
+    lines.push(
+      "Ascend (If you control ten or more permanents, you get the city's blessing for the rest of the game.)",
+    );
+  }
 
   for (const buff of staticBuffsOf(def)) {
     lines.push(describeStaticBuff(buff, def, definitions));

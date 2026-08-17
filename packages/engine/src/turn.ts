@@ -1,9 +1,9 @@
-import type { GameState, Phase, Step, TriggerEvent } from "./types.js";
-import { drawCard, log, moveCard, requireDefinition } from "./state.js";
+import type { GameState, Phase, StackTarget, Step, TriggerEvent } from "./types.js";
+import { drawCard, findInstance, log, moveCard, requireDefinition } from "./state.js";
 import { emptyManaPool } from "./mana.js";
 import { combatHasFirstStrike, dealCombatDamage } from "./combat.js";
 import { castSuspended } from "./casting.js";
-import { pushTrigger } from "./permanents.js";
+import { moveControl, pushOntoStack, pushTrigger } from "./permanents.js";
 import { effectiveTriggers } from "./counters.js";
 
 const TURN_SEQUENCE: Array<{ phase: Phase; step: Step }> = [
@@ -339,6 +339,7 @@ function runAutomaticStepActions(state: GameState): void {
       state.creatureDeathsThisTurn = 0;
       // "Prevent all combat damage ... this turn" ends with the turn.
       state.combatDamagePrevention = null;
+      returnTemporaryControl(state);
       // "Your opponents can't cast spells **this turn**" - Silence. Ends here
       // rather than when its spell left the stack, which is the whole point of
       // holding it on the turn instead of on a permanent.
@@ -352,4 +353,73 @@ function runAutomaticStepActions(state: GameState): void {
   // After the step's automatic actions, so an upkeep trigger goes on the stack
   // above nothing and a draw-step trigger sees the card already drawn.
   fireTurnTriggers(state);
+  fireDelayedTriggers(state);
+}
+
+/**
+ * Puts every delayed trigger whose end step has arrived onto the stack.
+ *
+ * After `fireTurnTriggers`, so a permanent's own end-step ability goes on the
+ * stack below this and therefore resolves after it. That ordering is a
+ * simplification - the real rules let the player order simultaneous triggers
+ * they control - and it is invisible for the two cards here, whose delayed
+ * abilities only sacrifice or exile tokens nothing else in the pool watches.
+ *
+ * Each trigger is removed from the list as it is pushed, whether or not its
+ * permanents are still there: a token that already died takes its scheduled
+ * sacrifice with it, and the ability does not wait around for another turn.
+ */
+function fireDelayedTriggers(state: GameState): void {
+  if (!(state.phase === "ending" && state.step === "end")) return;
+
+  const due = state.delayedTriggers.filter((trigger) => state.turnNumber >= trigger.readyOnTurn);
+  if (due.length === 0) return;
+  state.delayedTriggers = state.delayedTriggers.filter((trigger) => !due.includes(trigger));
+
+  for (const trigger of due) {
+    /*
+     * Only the permanents still on the battlefield. A token that was destroyed,
+     * bounced or exiled in the meantime is simply not there, and the ability
+     * resolving over an empty list does nothing - which is the rule rather than
+     * a shortcut.
+     */
+    const targets: StackTarget[] = trigger.instanceIds
+      .filter((instanceId) => findInstance(state, instanceId)?.instance.zone === "battlefield")
+      .map((instanceId) => ({ kind: "card", instanceId }));
+    if (targets.length === 0) continue;
+    pushOntoStack(
+      state,
+      trigger.sourceInstanceId,
+      trigger.controllerId,
+      { kind: "delayedRemoval", action: trigger.action },
+      targets,
+      false,
+    );
+  }
+}
+
+/**
+ * Hands back everything somebody took until end of turn.
+ *
+ * In the cleanup step with the rest of the turn's state, and as its own pass
+ * over a copied list because handing a permanent back moves it between two
+ * players' battlefield arrays - mutating the array being iterated is how a
+ * second stolen creature would get skipped.
+ *
+ * A creature going home is summoning-sick for the player it returns to, which
+ * is rule 302.6 read the other way round: they have not controlled it
+ * continuously since their turn began either. It costs nothing in practice,
+ * because their untap step clears it before they could use it.
+ */
+function returnTemporaryControl(state: GameState): void {
+  const stolen = state.players.flatMap((player) =>
+    player.battlefield.filter((instance) => instance.controlGainedFrom !== undefined),
+  );
+  for (const instance of stolen) {
+    const returnTo = instance.controlGainedFrom!;
+    delete instance.controlGainedFrom;
+    if (returnTo === instance.controllerId) continue;
+    moveControl(state, instance, returnTo);
+    log(state, `${requireDefinition(state, instance.definitionId).name} returns to ${returnTo}`);
+  }
 }

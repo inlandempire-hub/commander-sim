@@ -1,4 +1,14 @@
-import type { CardDefinition, CardInstance, Effect, GameState, ManaCost, Player, StackTarget } from "./types.js";
+import type {
+  CardDefinition,
+  CardInstance,
+  DelayedAction,
+  Effect,
+  GameState,
+  Keyword,
+  ManaCost,
+  Player,
+  StackTarget,
+} from "./types.js";
 import { ALL_COLORS } from "./types.js";
 import {
   cardName,
@@ -15,7 +25,7 @@ import { addMana, canPayManaCost, manaValue, payManaCost } from "./mana.js";
 import { damageCreature, damagePlayer } from "./damage.js";
 import { effectivePower, hasKeyword } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
-import { enteredBattlefield, pushTrigger, putOntoBattlefield } from "./permanents.js";
+import { enteredBattlefield, moveControl, pushTrigger, putOntoBattlefield } from "./permanents.js";
 import { gainLife } from "./life.js";
 import { useRegenerationShield } from "./regeneration.js";
 import { destroyPermanent, leaveBattlefield, sacrificePermanent } from "./sba.js";
@@ -249,18 +259,160 @@ export function applyEffect(
         if (!host || host.instance.zone !== "battlefield") return;
         copied = host.instance;
       }
-      const made = tokensCreated(state, controllerId, 1);
-      for (let i = 0; i < made; i++) {
-        const token = createCardInstance(state, copied.definitionId, controllerId, "battlefield");
+      if (effect.of === "target") {
         /*
-         * Flagged on the instance, never on the definition. The definition
-         * being copied is a printed card, and marking *it* a token would make
-         * every real copy of that card cease to exist on leaving play.
+         * Kiki-Jiki and Rionya. The creature was pointed at when the ability
+         * went on the stack, so a target that has since left the battlefield
+         * takes the whole ability with it: no token at all, rather than a copy
+         * of something that is no longer there.
          */
-        token.isTokenCopy = true;
-        enteredBattlefield(state, token);
+        const target = targets.find((t) => t.kind === "card");
+        if (!target || target.kind !== "card") return;
+        const found = findInstance(state, target.instanceId);
+        if (!found || found.instance.zone !== "battlefield") return;
+        copied = found.instance;
       }
-      log(state, `${controllerId} creates a token copy of ${cardName(state, copied.instanceId)}`);
+      /*
+       * "create **X** tokens that are copies" - Rionya. Counted here rather
+       * than substituted earlier, so an instant cast while the trigger sits on
+       * the stack really does add a copy.
+       *
+       * Doubling Season and its family are asked once for the whole event, not
+       * per token: "would create one or more tokens" is a single event.
+       */
+      const wanted = evaluateAmount(
+        state,
+        controllerId,
+        effect.count ?? 1,
+        "createCopyToken count",
+        sourceInstanceId,
+      );
+      const made = tokensCreated(state, controllerId, wanted);
+      const tokens: CardInstance[] = [];
+      for (let i = 0; i < made; i++) {
+        tokens.push(makeCopyToken(state, controllerId, copied.definitionId, effect.grants));
+      }
+      log(
+        state,
+        `${controllerId} creates ${made === 1 ? "a token copy" : `${made} token copies`} of ${cardName(state, copied.instanceId)}`,
+      );
+      /*
+       * "Sacrifice it at the beginning of the next end step." Scheduled over
+       * the tokens that were actually made - not over the count, and not over
+       * the card that made them, which may be dead by then.
+       */
+      if (effect.delayedEnd && tokens.length > 0) {
+        scheduleDelayedRemoval(state, controllerId, sourceInstanceId, tokens, effect.delayedEnd);
+      }
+      return;
+    }
+    case "copyTokensThatEnteredThisTurn": {
+      /*
+       * "For each token you control that entered this turn, create a token
+       * that's a copy of it." - Ocelot Pride.
+       *
+       * The list is taken before any copy is made. Copying into the list being
+       * walked would double every token again for each one added, which is an
+       * infinite loop rather than a big turn.
+       */
+      const controllerTokens = requirePlayer(state, controllerId).battlefield.filter((instance) => {
+        if (instance.enteredOnTurn !== state.turnNumber) return false;
+        // A token is either minted from a token definition or a copy of a real
+        // card flagged on the instance - see `isTokenCopy`.
+        return instance.isTokenCopy || state.cardDefinitions[instance.definitionId]?.isToken === true;
+      });
+      if (controllerTokens.length === 0) return;
+      for (const original of controllerTokens) {
+        // Doubling Season applies to each of these, because each token is its
+        // own "create a token" event - the card says "for each".
+        const made = tokensCreated(state, controllerId, 1);
+        for (let i = 0; i < made; i++) makeCopyToken(state, controllerId, original.definitionId);
+      }
+      log(state, `${controllerId} copies ${controllerTokens.length} token${controllerTokens.length === 1 ? "" : "s"} that entered this turn`);
+      return;
+    }
+    case "gainControl": {
+      /*
+       * "Gain control of target permanent until end of turn. Untap that
+       * permanent. It gains haste until end of turn." - Zealous Conscripts,
+       * all three sentences over the one target.
+       */
+      const target = targets.find((t) => t.kind === "card");
+      if (!target || target.kind !== "card") return;
+      const found = findInstance(state, target.instanceId);
+      if (!found || found.instance.zone !== "battlefield") return;
+      const instance = found.instance;
+      if (instance.controllerId !== controllerId) {
+        /*
+         * Only if it is not already set. Two effects stealing the same
+         * permanent in one turn both end at cleanup, and it goes back to
+         * whoever held it before the first of them - not to the first thief.
+         */
+        if (instance.controlGainedFrom === undefined) instance.controlGainedFrom = instance.controllerId;
+        moveControl(state, instance, controllerId);
+        log(state, `${controllerId} gains control of ${cardName(state, instance.instanceId)}`);
+      }
+      if (effect.untap && instance.tapped) {
+        instance.tapped = false;
+        log(state, `${cardName(state, instance.instanceId)} untaps`);
+      }
+      for (const keyword of effect.grants ?? []) {
+        if (!instance.grantedKeywords.includes(keyword)) instance.grantedKeywords.push(keyword);
+        // Haste on a creature that has just changed hands is the whole point of
+        // the card, so the sickness `moveControl` set has to go now rather than
+        // at the next untap step.
+        if (keyword === "Haste") instance.summoningSickness = false;
+      }
+      if (effect.grants?.length) {
+        log(
+          state,
+          `${cardName(state, instance.instanceId)} gains ${effect.grants.join(" and ").toLowerCase()} until end of turn`,
+        );
+      }
+      return;
+    }
+    case "returnControlToOwners": {
+      /*
+       * "Each player gains control of all creatures they own." - Homeward Path.
+       *
+       * Everything, not only what this turn's effects took: the card answers a
+       * board that has been stolen by anything at all. `controlGainedFrom` is
+       * cleared as it goes, so the cleanup step does not later try to hand the
+       * same creature somewhere else.
+       */
+      const displaced = state.players.flatMap((player) =>
+        player.battlefield.filter(
+          (instance) =>
+            instance.controllerId !== instance.ownerId &&
+            (state.cardDefinitions[instance.definitionId]?.types.includes("Creature") ?? false),
+        ),
+      );
+      for (const instance of displaced) {
+        delete instance.controlGainedFrom;
+        moveControl(state, instance, instance.ownerId);
+        log(state, `${instance.ownerId} regains control of ${cardName(state, instance.instanceId)}`);
+      }
+      return;
+    }
+    case "delayedRemoval": {
+      /*
+       * The body of a delayed trigger. Its permanents were fixed when the
+       * ability that scheduled it resolved, so they arrive as targets and there
+       * is nothing to choose.
+       */
+      for (const target of targets) {
+        if (target.kind !== "card") continue;
+        const found = findInstance(state, target.instanceId);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        if (effect.action === "sacrifice") {
+          // Sacrificing is a death, so anything watching for one sees it. That
+          // is the whole difference from Rionya's exile.
+          sacrificePermanent(state, target.instanceId);
+        } else {
+          log(state, `${cardName(state, target.instanceId)} is exiled`);
+          moveCard(state, target.instanceId, "exile");
+        }
+      }
       return;
     }
     case "addOtherCounter": {
@@ -1606,7 +1758,7 @@ function castForFree(state: GameState, playerId: string, instanceId: string): vo
    * has exactly one legal target; here it can be more than one.
    */
   const selector = targetSelectorOf(def.castEffect ?? { kind: "draw", amount: 0 });
-  const targets = selector ? legalTargetsFor(state, selector, playerId).slice(0, 1) : [];
+  const targets = selector ? legalTargetsFor(state, selector, playerId, instanceId).slice(0, 1) : [];
   if (selector && targets.length === 0) return;
   const priorityBefore = state.priorityPlayerIndex;
   state.priorityPlayerIndex = state.players.findIndex((p) => p.id === playerId);
@@ -1659,4 +1811,60 @@ function deployOptions(
   const defenderId = Object.values(state.attackers)[0];
   if (!defenderId) return {};
   return { tapped: true, attackingPlayerId: defenderId };
+}
+
+/**
+ * One token that is a copy of a printed card.
+ *
+ * The flag goes on the *instance* and never on the definition. The definition
+ * being copied is a real card, and marking it `isToken` would make every real
+ * copy of that card cease to exist the moment it left the battlefield.
+ */
+function makeCopyToken(
+  state: GameState,
+  controllerId: string,
+  definitionId: string,
+  grants?: Keyword[],
+): CardInstance {
+  const token = createCardInstance(state, definitionId, controllerId, "battlefield");
+  token.isTokenCopy = true;
+  /*
+   * A copy enters the battlefield like anything else, so it goes through the
+   * same arrival path - its own enters-the-battlefield triggers included. A
+   * copy of a creature with an arrival trigger really does fire it, which is
+   * most of why Kiki-Jiki is a combo piece rather than a Threaten.
+   */
+  enteredBattlefield(state, token);
+  for (const keyword of grants ?? []) {
+    if (!token.grantedKeywords.includes(keyword)) token.grantedKeywords.push(keyword);
+    // Haste is the point of the grant on both cards that use it: a copy made in
+    // your precombat main phase is meant to attack this turn.
+    if (keyword === "Haste") token.summoningSickness = false;
+  }
+  return token;
+}
+
+/**
+ * Sets up "sacrifice it at the beginning of the next end step".
+ *
+ * The turn it becomes due is worked out here, once, rather than being asked
+ * again at every end step: during the end step itself "the next end step" is the
+ * following turn's, which is what activating Kiki-Jiki in your own end step
+ * means and is otherwise very easy to get wrong by a whole turn.
+ */
+function scheduleDelayedRemoval(
+  state: GameState,
+  controllerId: string,
+  sourceInstanceId: string,
+  tokens: CardInstance[],
+  action: DelayedAction,
+): void {
+  const alreadyPastIt = state.phase === "ending";
+  state.delayedTriggers.push({
+    instanceIds: tokens.map((token) => token.instanceId),
+    controllerId,
+    sourceInstanceId,
+    action,
+    readyOnTurn: state.turnNumber + (alreadyPastIt ? 1 : 0),
+  });
 }

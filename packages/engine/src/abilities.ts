@@ -61,7 +61,7 @@ export function activatableAbilities(
     // An ability that needs a target and has none is not a usable ability - it
     // would only walk the player into a targeting prompt with nothing to click.
     const selector = targetSelectorOf(ability.effect);
-    if (selector && legalTargetsFor(state, selector, playerId).length === 0) return;
+    if (selector && legalTargetsFor(state, selector, playerId, instance.instanceId).length === 0) return;
     usable.push(index);
   });
 

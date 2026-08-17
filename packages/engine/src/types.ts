@@ -300,7 +300,22 @@ export type Countable =
   /** "the amount of life you gained this turn" - Moseo, Vein's New Dean. */
   | { what: "life-gained-this-turn" }
   /** "For each opponent" - Turn Stones. One in a duel, three in a pod. */
-  | { what: "opponents" };
+  | { what: "opponents" }
+  /**
+   * "where X is **one plus** the number of instant and sorcery spells you've
+   * cast this turn" - Rionya, Fire Dancer.
+   *
+   * The whole phrase is one entry, including the "one plus", because that is
+   * what the card prints and this list is a list of printed phrases. An
+   * arithmetic `Amount` that could add one to another amount would be a small
+   * expression language, which is exactly what every closed list here exists to
+   * avoid.
+   *
+   * Read off `spellTypesCastThisTurn`, the list of type lines the casting layer
+   * already appends to for the hate pieces. No new tally, and so no second place
+   * for the answer to go stale.
+   */
+  | { what: "one-plus-instants-and-sorceries-cast-this-turn" };
 
 /**
  * How many things an effect points at.
@@ -324,7 +339,39 @@ export type TargetSelector =
    * "Target creature", or - with `subtypes` - "target Insect, Rat, Spider, or
    * Squirrel" (Swarmyard). Any one of the listed subtypes qualifies.
    */
-  | { kind: "creature"; subtypes?: string[] }
+  | {
+      kind: "creature";
+      subtypes?: string[];
+      /**
+       * "target creature **you control**" - Kiki-Jiki and Rionya.
+       *
+       * A real restriction rather than decoration, and in the other direction
+       * from the usual one: a Kiki-Jiki that could copy an opponent's creature
+       * is a materially better card, and one that could copy a creature it does
+       * not control is not the card printed. Left off, this means any creature
+       * on the table, which is what every other card using the selector says.
+       */
+      controlledBy?: "you" | "opponent";
+      /**
+       * "target **nonlegendary** creature you control" - Kiki-Jiki, which may
+       * not copy itself or any other legend.
+       *
+       * The legend rule would put a second Kiki-Jiki in the graveyard
+       * immediately, so a card that ignored this would read as a copy effect
+       * that sometimes silently does nothing.
+       */
+      nonlegendary?: boolean;
+      /**
+       * "**another** target creature you control" - Rionya, which copies
+       * something else and never itself.
+       *
+       * Needs the source to mean anything, so `isValidTarget` throws rather
+       * than quietly allowing the source when it is not given one. A selector
+       * that silently stopped excluding would let Rionya make X copies of
+       * Rionya, which is a combo the card does not have.
+       */
+      excludeSource?: boolean;
+    }
   | { kind: "player"; count?: TargetCount }
   | { kind: "opponent-of-controller" }
   /** "Target spell" - a spell on the stack, as opposed to a triggered or activated ability. */
@@ -1035,7 +1082,52 @@ export type Effect =
    * must not be marked `isToken`, or every real one would cease to exist on
    * leaving the battlefield.
    */
-  | { kind: "createCopyToken"; of: "self" | "attached-creature" }
+  | {
+      kind: "createCopyToken";
+      /**
+       * What is copied. `target` is Kiki-Jiki's and Rionya's "a copy of target
+       * nonlegendary creature you control" - the first copy effect here that
+       * points at something rather than reading its own source.
+       */
+      of: "self" | "attached-creature" | "target";
+      /** The selector for `of: "target"`. Ignored, and absent, for the other two. */
+      target?: TargetSelector;
+      /**
+       * "create **X** tokens that are copies" - Rionya, whose X is one plus the
+       * instants and sorceries you have cast this turn.
+       *
+       * An `Amount` rather than a number, and counted at resolution rather than
+       * substituted early: cast another instant while the trigger is on the
+       * stack and you really do get another copy. Absent means one, which is
+       * every other printing.
+       */
+      count?: Amount;
+      /**
+       * "...**except it has haste**" (Kiki-Jiki) and "**They gain haste**"
+       * (Rionya).
+       *
+       * Two different rules on paper - a copy modification against a separate
+       * continuous effect - and the same field here, which is worth defending
+       * rather than glossing. Both tokens are sacrificed or exiled at the
+       * beginning of the next end step, which is *before* the cleanup step that
+       * takes granted keywords away, so no token of either card ever reaches
+       * the moment the two would diverge. The one shape this would not serve is
+       * a copy modification on a token meant to outlive the turn, and nothing
+       * in the pool prints one.
+       */
+      grants?: Keyword[];
+      /**
+       * "**Sacrifice it** at the beginning of the next end step" (Kiki-Jiki)
+       * against "**Exile them**" (Rionya).
+       *
+       * Set up as a `DelayedTrigger` over the tokens this made, not as a
+       * property of the tokens: the ability that schedules it has finished
+       * resolving, and the tokens are ordinary permanents until the end step
+       * comes for them. Sacrifice and exile are genuinely different - a
+       * sacrificed token dies, so anything watching for a death sees it.
+       */
+      delayedEnd?: DelayedAction;
+    }
   /**
    * "Mill three cards. Then you may pay {1} and 3 life. If you do, put a card
    * from among those cards into your hand." - Ripples of Undeath.
@@ -1078,6 +1170,61 @@ export type Effect =
    * counted. See `CardInstance.otherCounters`.
    */
   | { kind: "addOtherCounter"; amount: number }
+  /**
+   * "Gain control of target permanent until end of turn. Untap that permanent.
+   * It gains haste until end of turn." - Zealous Conscripts.
+   *
+   * Three printed sentences and one effect, because all three act on the same
+   * permanent and there is nothing to point them at separately - the same
+   * reason `millThenMayTake` is one effect. Splitting them into a `sequence`
+   * would need each step to re-find "that permanent", which is the target this
+   * one already holds.
+   *
+   * Control is the interesting part. It moves the permanent between the two
+   * players' battlefields and remembers where it came from on the instance, so
+   * the cleanup step can hand it back; and it makes the creature summoning-sick
+   * for its new controller, which is rule 302.6 and is exactly why the card
+   * grants haste in the same breath.
+   */
+  | {
+      kind: "gainControl";
+      target: TargetSelector;
+      /** "Untap that permanent." */
+      untap?: boolean;
+      /** "It gains haste until end of turn." */
+      grants?: Keyword[];
+    }
+  /**
+   * "Each player gains control of all creatures they own." - Homeward Path.
+   *
+   * Untargeted and symmetrical: it hands back everything, including creatures
+   * whose control was taken by something other than the effect above, which is
+   * what makes it the answer to a stolen board rather than a mirror of one
+   * card. Reads `ownerId`, which every instance has carried from the start.
+   */
+  | { kind: "returnControlToOwners" }
+  /**
+   * "For each token you control that entered this turn, create a token that's
+   * a copy of it." - Ocelot Pride's second sentence.
+   *
+   * Untargeted, and a set that cannot be named any other way: it is every token
+   * that arrived this turn, including the Cat the same ability just made, which
+   * is the whole reason the card is played. `enteredOnTurn` on the instance is
+   * what makes "this turn" answerable - a tally on the player could not say
+   * *which* tokens.
+   */
+  | { kind: "copyTokensThatEnteredThisTurn" }
+  /**
+   * The body of a delayed trigger: sacrifice or exile the permanents it was set
+   * up over.
+   *
+   * Reads them off the stack object's targets rather than a selector, because a
+   * delayed trigger's objects were fixed when the ability that scheduled it
+   * resolved. There is no choice left to make and nothing to point at, which is
+   * also why this is the one effect with no `TargetSelector` that still expects
+   * targets.
+   */
+  | { kind: "delayedRemoval"; action: DelayedAction }
   /**
    * Grist's +1, which is a loop: "create a token, then mill a card. If an
    * Insect card was milled this way, put a loyalty counter on Grist and repeat
@@ -1159,7 +1306,15 @@ export type BoardCondition =
    */
   | { kind: "controls-lands"; count: number }
   /** "if this permanent is attached to a creature you control" - Springheart Nantuko. */
-  | { kind: "attached-to-a-creature" };
+  | { kind: "attached-to-a-creature" }
+  /**
+   * "**if you have the city's blessing**" - Ocelot Pride's second sentence.
+   *
+   * A question about the player and not the board, which is the whole point of
+   * Ascend: once you have had ten permanents you keep the blessing for the rest
+   * of the game, so this stays true after the board is wiped.
+   */
+  | { kind: "citys-blessing" };
 
 /**
  * "If an effect would X instead" - a replacement effect.
@@ -1933,6 +2088,17 @@ export interface CardDefinition {
    * "Plains you control".
    */
   becomesChosenBasicType?: boolean;
+  /**
+   * "**Ascend** (If you control ten or more permanents, you get the city's
+   * blessing for the rest of the game.)" - Ocelot Pride.
+   *
+   * A static ability on a permanent, so it is checked continuously rather than
+   * on an event - `checkStateBasedActions` is where, alongside the other things
+   * the game notices without being asked. Once the blessing is granted it is
+   * never taken away, which is what "for the rest of the game" means and is why
+   * the flag lives on the player rather than being derived from the board.
+   */
+  ascend?: boolean;
   entersTapped?: boolean;
   /**
    * "This land enters tapped **unless** ..." - the drawback most nonbasic duals
@@ -2198,8 +2364,70 @@ export interface CardInstance {
    * stale.
    */
   exerted: boolean;
+  /**
+   * The turn number this permanent arrived on the battlefield, or -1 if it has
+   * never been there.
+   *
+   * A turn number rather than a boolean, so nothing has to remember to clear
+   * it: "did this enter *this* turn" is a comparison against
+   * `state.turnNumber`, and it stays right through any number of turns without
+   * a reset anywhere. Set by `enteredBattlefield`, the one door every arrival
+   * goes through.
+   */
+  enteredOnTurn: number;
+  /**
+   * Who controlled this before somebody took it until end of turn, if anybody
+   * has.
+   *
+   * The cleanup step reads this to hand the permanent back. Set only by a
+   * temporary control change and only if it is not already set, so two effects
+   * stealing the same permanent in one turn still return it to whoever really
+   * owns the board position rather than to the first thief.
+   *
+   * Not the same as `ownerId`, which never changes: control and ownership come
+   * apart the moment anything steals a creature, and Homeward Path is the card
+   * that reads the difference.
+   */
+  controlGainedFrom?: string;
   isCommander: boolean;
   summoningSickness: boolean;
+}
+
+/**
+ * What a delayed trigger does when its end step arrives. A closed list of the
+ * phrases the pool prints, like every other list in this DSL.
+ */
+export type DelayedAction = "sacrifice" | "exile";
+
+/**
+ * "Sacrifice it at the beginning of the next end step." - a one-shot ability
+ * that is set up now and fires later, over permanents that are already known.
+ *
+ * The first thing in this engine that is scheduled rather than watched. It is
+ * not a `TriggeredAbility`: those are printed on a card and fire whenever their
+ * event happens, while this exists once, belongs to no permanent, and is gone
+ * after it goes on the stack. The source that set it up may well be dead by
+ * then - Kiki-Jiki can be killed and its token is still sacrificed - which is
+ * why the permanents are held here by id rather than looked up from the card.
+ */
+export interface DelayedTrigger {
+  /** The permanents this was set up over. Ones that have already left are simply not there any more. */
+  instanceIds: string[];
+  /** Who controls the ability, and so who the sacrifice is made by. */
+  controllerId: string;
+  /** The card that scheduled it, for the log and the stack panel. Need not still exist. */
+  sourceInstanceId: string;
+  action: DelayedAction;
+  /**
+   * The earliest turn whose end step this may fire in.
+   *
+   * "The **next** end step" is the current turn's when the ability resolved
+   * before it, and the next turn's when it resolved during it - activate
+   * Kiki-Jiki in your own end step and the token lives until the following one.
+   * Storing the turn rather than a "seen one already" flag means an end step
+   * that is somehow reached twice cannot fire it twice.
+   */
+  readyOnTurn: number;
 }
 
 export type StackTarget =
@@ -2633,6 +2861,17 @@ export interface Player {
    * Reset in the cleanup step with the rest of the turn's state.
    */
   plusOneCountersPlacedThisTurn: number;
+  /**
+   * The city's blessing - "you get the city's blessing **for the rest of the
+   * game**".
+   *
+   * Never cleared, by the cleanup step or anything else. Granted by
+   * `checkStateBasedActions` the moment a player with an Ascend permanent
+   * controls ten or more, and true from then on however the board changes,
+   * which is the whole difference between Ascend and an ordinary "as long as
+   * you control ten permanents".
+   */
+  hasCitysBlessing: boolean;
 }
 
 export type Phase = "beginning" | "precombat-main" | "combat" | "postcombat-main" | "ending";
@@ -2776,6 +3015,15 @@ export interface GameState {
    * never set it at all.
    */
   mulligan: MulliganState | null;
+  /**
+   * Delayed triggers waiting for an end step - see `DelayedTrigger`.
+   *
+   * On the state rather than on the permanents they act over, because that is
+   * where they live in the rules: the ability exists whether or not its
+   * creatures do, and it belongs to nobody once the source that made it is
+   * gone.
+   */
+  delayedTriggers: DelayedTrigger[];
   cardDefinitions: Record<string, CardDefinition>;
   nextInstanceId: number;
   nextStackObjectId: number;

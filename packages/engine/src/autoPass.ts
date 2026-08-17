@@ -16,11 +16,17 @@ const EMPTY_COST: ManaCost = { generic: 0, colors: {} };
  * treating it as one would leave a player stuck being asked for priority they
  * can't use. Untargeted effects are always fine.
  */
-function hasSomethingToTarget(state: GameState, playerId: string, effect: Effect | undefined): boolean {
+function hasSomethingToTarget(
+  state: GameState,
+  playerId: string,
+  effect: Effect | undefined,
+  /** The permanent whose ability this is, for a selector that says "another". */
+  sourceInstanceId?: string,
+): boolean {
   if (!effect) return true;
   const selector = targetSelectorOf(effect);
   if (!selector) return true;
-  return legalTargetsFor(state, selector, playerId).length > 0;
+  return legalTargetsFor(state, selector, playerId, sourceInstanceId).length > 0;
 }
 
 /**
@@ -190,7 +196,7 @@ export function hasAnyLegalAction(state: GameState, playerId: string): boolean {
       // Life is a cost like any other: an ability you cannot pay for is not an
       // action, and offering it stops the turn for something you can't do.
       if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) continue;
-      if (hasSomethingToTarget(state, playerId, ability.effect)) return true;
+      if (hasSomethingToTarget(state, playerId, ability.effect, instance.instanceId)) return true;
     }
   }
 

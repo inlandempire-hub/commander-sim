@@ -88,12 +88,15 @@ function shouldAcceptTrigger(state: GameState, botPlayerId: string): boolean {
 /**
  * Where to point a triggered ability the engine has parked.
  *
- * Deliberately crude, and only two cards reach it. A trigger aimed at a player
- * goes at an opponent - Blood Artist drains them rather than the bot. One aimed
- * at a permanent goes at the bot's own best creature, which is right for
- * Duskshell Crawler's +1/+1 counter and would be wrong for a trigger that hurt
- * what it touched; the day one of those exists this has to read the effect the
- * way `removeSomething` does rather than assume the target is a gift.
+ * Deliberately crude. A trigger aimed at a player goes at an opponent - Blood
+ * Artist drains them rather than the bot. One aimed at a permanent goes at the
+ * bot's own best creature, which is right for Duskshell Crawler's +1/+1 counter.
+ *
+ * It reads the effect for the one shape where the target is not a gift: "gain
+ * control of target permanent" wants somebody else's board, and Zealous
+ * Conscripts pointed at the bot's own creature is a five-mana 3/3 that untapped
+ * something. Anything else added later whose target is a cost rather than a
+ * present belongs in the same check.
  *
  * The engine only parks a choice when there are two or more legal targets, and
  * guarantees every candidate here is one of them.
@@ -128,16 +131,24 @@ function targetPreference(state: GameState, botPlayerId: string, target: StackTa
 }
 
 function chooseTriggerTarget(state: GameState, botPlayerId: string): StackTarget {
-  const candidates = state.pendingTargetChoices[0]!.candidates;
+  const pending = state.pendingTargetChoices[0]!;
+  const candidates = pending.candidates;
   const opponent = candidates.find((c) => c.kind === "player" && c.playerId !== botPlayerId);
   if (opponent) return opponent;
 
-  const mine = candidates
+  // Whose board this trigger wants. Stealing something is the one case where the
+  // answer is not the bot's own best creature.
+  const steals = pending.object.effect.kind === "gainControl";
+  const wanted = candidates
     .filter((c): c is Extract<StackTarget, { kind: "card" }> => c.kind === "card")
     .map((c) => ({ target: c as StackTarget, instance: findOnBattlefield(state, c.instanceId) }))
-    .filter((entry) => entry.instance?.controllerId === botPlayerId);
-  if (mine.length > 0) {
-    const best = mine.reduce((a, b) =>
+    .filter((entry) =>
+      steals
+        ? entry.instance !== undefined && entry.instance.controllerId !== botPlayerId
+        : entry.instance?.controllerId === botPlayerId,
+    );
+  if (wanted.length > 0) {
+    const best = wanted.reduce((a, b) =>
       creatureValue(state, b.instance!) > creatureValue(state, a.instance!) ? b : a,
     );
     return best.target;

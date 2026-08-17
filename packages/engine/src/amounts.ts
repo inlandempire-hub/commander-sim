@@ -94,6 +94,21 @@ function countOf(
     }
     case "life-gained-this-turn":
       return player.lifeGainedThisTurn;
+    case "one-plus-instants-and-sorceries-cast-this-turn": {
+      /*
+       * `spellTypesCastThisTurn` is a list of the type lines of the spells this
+       * player has cast this turn, kept for the hate pieces. A spell counts once
+       * however many of the two types it has - no printed card is both - because
+       * "instant and sorcery spells" counts spells rather than types.
+       *
+       * The "one plus" is part of the printed phrase, so it is added here: a
+       * Rionya trigger with no spells cast still makes one copy.
+       */
+      const spells = player.spellTypesCastThisTurn.filter(
+        (types) => types.includes("Instant") || types.includes("Sorcery"),
+      ).length;
+      return 1 + spells;
+    }
     case "opponents":
       return state.players.filter((p) => p.id !== controllerId && !p.hasLost).length;
     case "creatures-attacking-you":

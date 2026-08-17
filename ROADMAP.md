@@ -3767,3 +3767,161 @@ Also worth flagging, because the report will keep saying otherwise: "Granting
 keywords finishes 2: Serra Ascendant, **Zealous Conscripts**". Zealous Conscripts
 also gains control of a permanent, which nothing does. The heading is necessary
 and not sufficient, as it always is.
+
+## Batch 6: copying and borrowing, which is the plan's batch 5 (2026-08-17)
+
+**The list is at 52 of 100. The pool is at 989 fixtures.**
+
+Numbered 6 because the batch shipped yesterday took the name 5 for a different
+set of cards. The plan's batch 5 is this one, and it is five cards: Kiki-Jiki,
+Rionya, Ocelot Pride, Zealous Conscripts and Homeward Path.
+
+Two capabilities, and they are the two the plan predicted would turn this deck
+from a beatdown pile into what it is. Copying something you point at, with an
+ending scheduled for it; and control coming apart from ownership.
+
+### An ability that exists once and fires later
+
+`createCopyToken` copied only `self` or `attached-creature` - it read its own
+source and pointed at nothing. It takes a target now, a count, keywords for the
+copy, and the thing none of the four cards works without: **a delayed trigger**.
+
+"Sacrifice it at the beginning of the next end step" is the first ability in this
+engine that is *scheduled* rather than *watched*. It is not a `TriggeredAbility`:
+those are printed on a card and fire whenever their event happens, while this
+exists once, belongs to no permanent, and is gone after it goes on the stack.
+Kiki-Jiki can be killed and its token is still sacrificed, which is why the
+tokens are held by id on `GameState.delayedTriggers` rather than looked up from
+the card that made them.
+
+The awkward part is what "the **next** end step" means, and it is a whole turn
+wide: an ability that resolves *during* an end step waits for the following
+turn's. Activate Kiki-Jiki in your own end step and the token lives an extra
+turn, which is the sort of thing that is invisible until somebody does it. So the
+turn it becomes due is worked out once, when the trigger is scheduled, rather
+than being asked again at each end step.
+
+**Sacrifice and exile are not interchangeable.** Kiki-Jiki's token dies, so
+anything watching for a death sees it; Rionya's is exiled and nothing does. Both
+tests assert the death count rather than the zone, because a token that leaves
+the battlefield ceases to exist (rule 111.7) and is in no zone to be found.
+
+### The three narrowings a copy effect needs
+
+- **nonlegendary** - Kiki-Jiki. Not decoration: the legend rule would bin a copy
+  of a legend immediately, so a card that ignored this would be offering a play
+  that silently does nothing.
+- **you control** - both. A Kiki-Jiki that could copy an opponent's creature is a
+  materially better card than the one printed.
+- **another** - Rionya, which copies something else and never itself.
+
+The third one needs the *source* to mean anything, and `isValidTarget` had never
+been told which permanent was asking. It takes one now, and **throws rather than
+going without**: a fire site that forgot to hand it over would quietly turn
+"another target creature you control" into "any", which is a combo Rionya does
+not have. Every engine site that resolves a selector passes it.
+
+### Control, which is not ownership
+
+`CardInstance` has carried `ownerId` and `controllerId` since the first day and
+nothing had ever made them differ. Zealous Conscripts does.
+
+A control change **moves the instance between the two players' battlefield
+arrays**, not only rewriting the id: nearly everything here reads a board by
+walking `player.battlefield`, so a creature whose id said one thing and whose
+array said another would attack for one player and block for the other.
+
+It also comes back on summoning sickness, which is rule 302.6 and is the whole
+reason the card grants haste in the same sentence. That is what makes Conscripts
+a combo piece rather than a Threaten - and pointed at your own untapped Kiki-Jiki
+it is a second activation, which is exactly the kill the plan named.
+
+Homeward Path hands **everything** back, not only what this turn's effects took,
+because that is what the card answers: a board that has been stolen by anything
+at all.
+
+Zealous Conscripts' three printed sentences are one effect. They act on one
+permanent and there is nothing to point them at separately, so splitting them
+into a `sequence` would need each step to re-find "that permanent" - which the
+one effect already holds. The panel still prints three sentences.
+
+### Ascend, and a question no permanent could answer
+
+Ocelot Pride needed two things nothing else here has.
+
+**The city's blessing** is a flag on the player, not a reading of the board, and
+that is the entire mechanic: "for the rest of the game" means it survives a wipe
+that takes you back below ten permanents. Granted in `checkStateBasedActions`,
+which is where the game notices things without being asked - play the tenth
+permanent and the blessing arrives at once, with nothing on the stack and no
+window to respond in. The function only ever sets the flag and never clears it.
+
+**"For each token you control that entered this turn"** needed the instances to
+remember when they arrived. `enteredOnTurn` is a turn number rather than a
+boolean, so nothing has to remember to clear it: "this turn" is a comparison
+against `state.turnNumber` and it stays right through any number of turns with no
+reset anywhere. Stamped in `enteredBattlefield`, the single door every arrival
+goes through.
+
+The card's two sentences are a `sequence`, and the Cat the first one makes is one
+of the tokens the second one copies. That is the card rather than a coincidence,
+and it is why the second sentence is printed with its connective - see below.
+
+### Rionya's X is a printed phrase, not arithmetic
+
+"where X is **one plus** the number of instant and sorcery spells you've cast
+this turn" is one entry in `Countable`, including the "one plus". An arithmetic
+`Amount` that could add one to another amount would be a small expression
+language, which is what every closed list in this DSL exists to avoid.
+
+It needed no new tally: `spellTypesCastThisTurn` has been kept for the hate
+pieces since batch 2, so there is no second place for the answer to go stale.
+Counted at resolution rather than substituted early, so casting an instant while
+the trigger is on the stack really does add a copy.
+
+### The renderer, and the batch it did not fail
+
+**Four of the switches this touched are exhaustive over a union, so the compiler
+asked before the panel could go quiet.** That is the first time in six batches
+the renderer's missing lines were found by anything other than reading the
+output, and it is worth naming why: the previous silent failures were all
+*optional fields* on an existing effect, which no compiler can notice.
+
+Reading the output still found one thing. Ocelot Pride's second sentence was
+missing its "**Then**", and the connective is load-bearing here - without it the
+sentence reads as a separate ability that might have happened first, when the
+whole point is that the Cat was made before the copying. Every card in the pool
+that prints a conditional after another step in one ability was checked; Ocelot
+Pride is the only one, and it now reads exactly as printed.
+
+There are pool-wide checks for all ten fields this batch added.
+
+### The bot
+
+`chooseTriggerTarget` warned in its own comment that the day a trigger arrived
+whose target was not a gift, it would have to read the effect rather than assume
+the bot's own best creature. Zealous Conscripts is that day, and a Conscripts
+pointed at your own board is a five-mana 3/3 that untapped something.
+
+Rionya is also the first **mandatory** targeted trigger in the pool that fires
+every single turn, which is the exact shape of the bug batch 4 found: a parked
+target choice nobody answers stops the game dead. No archetype deck contains any
+of these five cards, so the full-game tests would have stayed green while a real
+game hung. Both cards have a bot test standing them in front of it deliberately.
+
+### Where the list stands
+
+**52 of 100, up from 47.** 989 fixtures. 1,227 tests, typecheck clean,
+`audit_fixtures` and `audit_triggers` clean, `audit_text` clean bar the two
+long-known gaps (Incinerate's "can't be regenerated", Winding Constrictor).
+
+The report's remaining queue, and what has actually changed in it: "copying" and
+"gaining control" are gone from the blocked reasons entirely. What is left at the
+top is **"unrecognised - needs reading by hand"** at 28 cards and **"dynamic
+amounts"** at 12 - and the first of those is the heading batch 5 proved is worth
+reading rather than trusting, since six of the seventeen it named then needed
+almost no engine work.
+
+Still not walked by a human: a real second combat phase in the client, the
+entry-choice overlay, and now a stolen permanent moving across the table. All
+three are blocked on the same thing - the card lab has no Boros board.

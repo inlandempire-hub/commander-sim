@@ -622,6 +622,65 @@ describe("no fixture carries a clause the panel never mentions", () => {
         ),
       expect: /with (power|toughness|mana value) \d+ or less/,
     },
+    {
+      field: "ascend",
+      applies: (d) => d.ascend === true,
+      expect: /Ascend \(If you control ten or more permanents/,
+    },
+    {
+      field: "createCopyToken.of=target",
+      applies: (d) => hasNode(d, (n) => n.kind === "createCopyToken" && n.of === "target"),
+      expect: /[Cc]reate (a token that's a copy|X tokens that are copies) of/,
+    },
+    {
+      field: "createCopyToken.delayedEnd",
+      applies: (d) => hasNode(d, (n) => n.kind === "createCopyToken" && n.delayedEnd !== undefined),
+      expect: /(Sacrifice|Exile) (it|them) at the beginning of the next end step/,
+    },
+    {
+      field: "createCopyToken.grants",
+      // The copy's keywords, not a token definition's or a staticBuff's.
+      applies: (d) =>
+        hasNode(d, (n) => n.kind === "createCopyToken" && Array.isArray(n.grants) && n.grants.length > 0),
+      expect: /(except it has|They gain) \w/,
+    },
+    {
+      field: "creature selector narrowings",
+      applies: (d) =>
+        hasNode(
+          d,
+          (n) =>
+            n.kind === "creature" &&
+            (n.nonlegendary === true || n.excludeSource === true || n.controlledBy !== undefined),
+        ),
+      expect: /target (nonlegendary )?creature (you control|an opponent controls)/,
+    },
+    {
+      field: "effect.gainControl",
+      applies: (d) => hasNode(d, (n) => n.kind === "gainControl"),
+      expect: /[Gg]ain control of target .* until end of turn\./,
+    },
+    {
+      field: "effect.returnControlToOwners",
+      applies: (d) => hasNode(d, (n) => n.kind === "returnControlToOwners"),
+      expect: /Each player gains control of all creatures they own\./,
+    },
+    {
+      field: "effect.copyTokensThatEnteredThisTurn",
+      applies: (d) => hasNode(d, (n) => n.kind === "copyTokensThatEnteredThisTurn"),
+      expect: /for each token you control that entered this turn/,
+    },
+    {
+      field: "count.one-plus-instants-and-sorceries",
+      applies: (d) =>
+        hasNode(d, (n) => n.what === "one-plus-instants-and-sorceries-cast-this-turn"),
+      expect: /one plus the number of instant and sorcery spells you've cast this turn/,
+    },
+    {
+      field: "condition.citys-blessing",
+      applies: (d) => hasNode(d, (n) => n.kind === "citys-blessing"),
+      expect: /you (have|don't have) the city's blessing/,
+    },
     { field: "suspend", applies: (d) => d.suspend !== undefined, expect: /Suspend \d/ },
     {
       field: "effect.exertSelf",
@@ -822,5 +881,56 @@ describe("the leftovers and the free ones", () => {
     expect(textOf("ranger-captain-of-eos")).toContain("with mana value 1 or less");
     // "an artifact", not "a artifact".
     expect(textOf("enlightened-tutor")).toContain("an artifact or enchantment card");
+  });
+});
+
+/**
+ * Batch 5's five, read back as they are printed.
+ *
+ * The four copy effects are the first in the pool to point at something rather
+ * than read their own source, and every clause of the printed sentence is
+ * load-bearing: the modifier that makes the copy worth making, the count that
+ * says how many, and the end step that takes them away.
+ */
+describe("copying and borrowing", () => {
+  it("prints Kiki-Jiki's ability exactly as the card does", () => {
+    expect(textOf("kiki-jiki-mirror-breaker")).toContain(
+      "{T}: Create a token that's a copy of target nonlegendary creature you control, except it has haste. Sacrifice it at the beginning of the next end step.",
+    );
+  });
+
+  it("prints Rionya's X, and explains it", () => {
+    const text = textOf("rionya-fire-dancer");
+    expect(text).toContain(
+      "create X tokens that are copies of another target creature you control, where X is one plus the number of instant and sorcery spells you've cast this turn. They gain haste. Exile them at the beginning of the next end step.",
+    );
+    // "another", not "a": a Rionya that could copy itself is a different card.
+    expect(text).toContain("another target creature you control");
+  });
+
+  it("prints all three of Zealous Conscripts' sentences", () => {
+    const text = textOf("zealous-conscripts");
+    expect(text).toContain("gain control of target permanent until end of turn.");
+    expect(text).toContain("Untap that permanent.");
+    expect(text).toContain("It gains haste until end of turn.");
+  });
+
+  it("prints both of Homeward Path's abilities", () => {
+    const text = textOf("homeward-path");
+    expect(text).toContain("{T}: Add {C}.");
+    expect(text).toContain("{T}: Each player gains control of all creatures they own.");
+  });
+
+  it("prints Ocelot Pride's reminder text and the connective between its two sentences", () => {
+    const text = textOf("ocelot-pride");
+    expect(text).toContain(
+      "Ascend (If you control ten or more permanents, you get the city's blessing for the rest of the game.)",
+    );
+    // "**Then** if you have the city's blessing" - without it the second
+    // sentence reads as something that might have happened first, and the Cat
+    // the first sentence made is one of the tokens the second one copies.
+    expect(text).toContain(
+      "create a 1/1 white Cat creature token. Then if you have the city's blessing, for each token you control that entered this turn, create a token that's a copy of it.",
+    );
   });
 });

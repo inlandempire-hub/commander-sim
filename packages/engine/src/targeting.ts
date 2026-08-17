@@ -31,6 +31,14 @@ export function isValidTarget(
   selector: TargetSelector,
   target: StackTarget,
   controllerId: string,
+  /**
+   * The permanent whose ability is doing the targeting.
+   *
+   * Only `excludeSource` needs it - "another target creature you control" - and
+   * that one throws rather than going without, because a selector that quietly
+   * stopped excluding the source would let Rionya copy Rionya.
+   */
+  sourceInstanceId?: string,
 ): boolean {
   switch (selector.kind) {
     case "any-target": {
@@ -49,6 +57,26 @@ export function isValidTarget(
       // "target Insect, Rat, Spider, or Squirrel" - any one of them qualifies.
       if (selector.subtypes?.length && !selector.subtypes.some((s) => def.subtypes?.includes(s))) {
         return false;
+      }
+      if (selector.controlledBy) {
+        const mine = found.instance.controllerId === controllerId;
+        if (selector.controlledBy === "you" && !mine) return false;
+        if (selector.controlledBy === "opponent" && mine) return false;
+      }
+      // "target **nonlegendary** creature you control" - Kiki-Jiki. A copy of a
+      // legend would be put into the graveyard by the legend rule at once, so
+      // the card excludes them rather than offering a play that does nothing.
+      if (selector.nonlegendary && def.supertypes?.includes("Legendary")) return false;
+      if (selector.excludeSource) {
+        /*
+         * Loud rather than permissive. A fire site that forgets to hand over
+         * its source would otherwise turn "another target creature you
+         * control" into "any", which is a different card and a silent one.
+         */
+        if (sourceInstanceId === undefined) {
+          throw new Error('A selector with excludeSource was asked without a source - "another target" cannot be checked');
+        }
+        if (target.instanceId === sourceInstanceId) return false;
       }
       return !isProtectedByHexproof(state, target.instanceId, controllerId);
     }
@@ -123,7 +151,13 @@ export function isValidTarget(
  * treating it as always-castable would wedge auto-pass into offering a
  * priority window forever.
  */
-export function legalTargetsFor(state: GameState, selector: TargetSelector, controllerId: string): StackTarget[] {
+export function legalTargetsFor(
+  state: GameState,
+  selector: TargetSelector,
+  controllerId: string,
+  /** Passed straight through to `isValidTarget` - see the note there. */
+  sourceInstanceId?: string,
+): StackTarget[] {
   const candidates: StackTarget[] = [];
   for (const player of state.players) {
     if (player.hasLost) continue;
@@ -135,7 +169,7 @@ export function legalTargetsFor(state: GameState, selector: TargetSelector, cont
   for (const obj of state.stack) {
     candidates.push({ kind: "spell", stackObjectId: obj.id });
   }
-  return candidates.filter((target) => isValidTarget(state, selector, target, controllerId));
+  return candidates.filter((target) => isValidTarget(state, selector, target, controllerId, sourceInstanceId));
 }
 
 /**
@@ -212,6 +246,20 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
      */
     case "untap":
       return effect.target;
+    /*
+     * "Gain control of target permanent" - always targeted, so it sits with the
+     * unconditional group rather than the optional ones.
+     */
+    case "gainControl":
+      return effect.target;
+    /*
+     * A copy effect targets only when it copies something other than itself:
+     * Scute Swarm copies its own source and names nothing, Kiki-Jiki points at
+     * a creature. Missing from here would be silent - the ability would resolve
+     * with no target, find nothing to copy, and make no token.
+     */
+    case "createCopyToken":
+      return effect.of === "target" ? effect.target : undefined;
     /*
      * A sequence targets if one of its steps does, and the targets chosen for
      * the whole are handed to every step - which is right while exactly one

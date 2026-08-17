@@ -87,6 +87,13 @@ export function meetsBoardCondition(
         player.battlefield.filter((card) => state.cardDefinitions[card.definitionId]?.types.includes("Land"))
           .length >= condition.count
       );
+    case "citys-blessing":
+      /*
+       * A question about the player, not the board. Ocelot Pride keeps paying
+       * out after a wipe takes it below ten permanents, because the blessing
+       * was granted "for the rest of the game" and this flag is never cleared.
+       */
+      return player.hasCitysBlessing;
     case "attached-to-a-creature": {
       // Asked of the permanent itself rather than of the board, so the one
       // being excluded is the one doing the asking - see the call site.

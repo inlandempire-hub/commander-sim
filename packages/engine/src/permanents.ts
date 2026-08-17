@@ -122,6 +122,34 @@ function entersTappedByOpponentsRule(
   );
 }
 
+/**
+ * Moves a permanent from one player's battlefield to another's.
+ *
+ * The single door for every control change, and it has to move the instance
+ * between the two arrays rather than only rewriting `controllerId`: nearly
+ * everything in this engine reads a player's board by walking
+ * `player.battlefield`, so a creature whose id said one thing and whose array
+ * said another would attack for one player and block for the other.
+ *
+ * Summoning sickness comes back on, because the new controller has not
+ * controlled it continuously since their turn began (rule 302.6). That is not
+ * an inconvenience to be worked around - it is the reason Zealous Conscripts
+ * grants haste in the same sentence, and the reason the card is a combo piece
+ * rather than a Threaten.
+ */
+export function moveControl(state: GameState, instance: CardInstance, toPlayerId: string): void {
+  const from = state.players.find((player) =>
+    player.battlefield.some((candidate) => candidate.instanceId === instance.instanceId),
+  );
+  if (!from) return;
+  if (from.id === toPlayerId) return;
+  from.battlefield = from.battlefield.filter((candidate) => candidate.instanceId !== instance.instanceId);
+  instance.controllerId = toPlayerId;
+  instance.summoningSickness = true;
+  if (hasKeyword(state, instance, "Haste")) instance.summoningSickness = false;
+  requirePlayer(state, toPlayerId).battlefield.push(instance);
+}
+
 export function enteredBattlefield(
   state: GameState,
   instance: CardInstance,
@@ -161,6 +189,14 @@ export function enteredBattlefield(
       prompt: describeEnterChoice(def.enterChoice),
     };
   }
+  /*
+   * "for each token you control that **entered this turn**" - Ocelot Pride.
+   *
+   * Stamped here because this is the single door every arrival goes through, so
+   * a permanent that reaches the battlefield by a route nobody thought about
+   * still answers the question correctly.
+   */
+  instance.enteredOnTurn = state.turnNumber;
   if (options.attackingPlayerId) {
     state.attackers[instance.instanceId] = options.attackingPlayerId;
     instance.summoningSickness = false;
@@ -540,7 +576,7 @@ function pushTriggerOnce(
    */
   const selector = targetSelectorOf(effect);
   if (selector) {
-    const candidates = legalTargetsFor(state, selector, controllerId);
+    const candidates = legalTargetsFor(state, selector, controllerId, sourceInstanceId);
     const { min } = targetCountOf(selector, chosenX);
 
     /*
