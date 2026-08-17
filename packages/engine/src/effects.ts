@@ -34,7 +34,7 @@ import { useRegenerationShield } from "./regeneration.js";
 import { destroyPermanent, leaveBattlefield, sacrificePermanent } from "./sba.js";
 import { countersPlaced, tokensCreated } from "./replacements.js";
 import { evaluateAmount } from "./amounts.js";
-import { meetsBoardCondition } from "./conditions.js";
+import { cardColors, meetsBoardCondition } from "./conditions.js";
 import { hasCreatureType } from "./counters.js";
 import { resolveAmounts } from "./x.js";
 import { castSpell } from "./casting.js";
@@ -73,7 +73,7 @@ export function applyEffect(
       for (const target of targets) {
         if (target.kind === "player") {
           const player = requirePlayer(state, target.playerId);
-          totalDealt += damagePlayer(state, player, effect.amount, { infect: hasInfect }).dealt;
+          totalDealt += damagePlayer(state, player, effect.amount, { infect: hasInfect, sourceInstanceId }).dealt;
         } else if (target.kind === "card") {
           const found = findInstance(state, target.instanceId);
           if (found) {
@@ -115,7 +115,19 @@ export function applyEffect(
       return;
     }
     case "gainLife": {
-      const life = evaluateAmount(state, controllerId, effect.amount, "gainLife amount");
+      /*
+       * The targets are handed to the amount because Swords to Plowshares reads
+       * the power of the creature it is aimed at - every other printing in the
+       * pool takes a plain number and is unaffected.
+       */
+      const life = evaluateAmount(
+        state,
+        controllerId,
+        effect.amount,
+        "gainLife amount",
+        sourceInstanceId,
+        targets,
+      );
       // Gaining 0 is not gaining life, and firing the "whenever you gain life"
       // watchers for it would be a real difference - see gainLife in life.ts.
       if (life <= 0) return;
@@ -124,6 +136,19 @@ export function applyEffect(
       if (effect.who === "controller") {
         gainLife(state, controllerId, life);
         log(state, `${controllerId} gains ${life} life`);
+        return;
+      }
+      /*
+       * "**Its controller** gains life equal to its power" - Swords to
+       * Plowshares. The player who controls the creature this is pointed at,
+       * which is very often not the player casting it.
+       */
+      if (effect.who === "target-controller") {
+        const first = targets.find((t) => t.kind === "card");
+        const found = first && first.kind === "card" ? findInstance(state, first.instanceId) : undefined;
+        if (!found) return;
+        gainLife(state, found.instance.controllerId, life);
+        log(state, `${found.instance.controllerId} gains ${life} life`);
         return;
       }
       for (const target of targets) {
@@ -629,7 +654,7 @@ export function applyEffect(
        * of damage in the engine, so a prevention shield covers it and anything
        * watching for damage sees it.
        */
-      const dealt = damagePlayer(state, controller, effect.amount).dealt;
+      const dealt = damagePlayer(state, controller, effect.amount, { sourceInstanceId }).dealt;
       if (dealt > 0) log(state, `${cardName(state, sourceInstanceId)} deals ${dealt} damage to ${controllerId}`);
       return;
     }
@@ -654,6 +679,38 @@ export function applyEffect(
         state,
         `${cardName(state, sourceInstanceId)} becomes a ${effect.power}/${effect.toughness} creature until end of turn`,
       );
+      return;
+    }
+    case "discardRandom": {
+      /*
+       * "Discard a card at random" - Gamble, and the randomness is the card.
+       *
+       * Taken from the controller's own hand, and taken *blind*: the whole
+       * difference between this and the `discard` effect above is that nobody
+       * chooses, which is what stops Gamble being an unconditional one-mana
+       * tutor. An empty hand discards nothing rather than erroring.
+       */
+      for (let i = 0; i < effect.amount; i++) {
+        const hand = controller.hand;
+        if (hand.length === 0) return;
+        const victim = hand[Math.floor(Math.random() * hand.length)]!;
+        log(state, `${controllerId} discards ${cardName(state, victim.instanceId)} at random`);
+        moveCard(state, victim.instanceId, "graveyard");
+      }
+      return;
+    }
+    case "addManaVariable": {
+      // "Then add {R} for each card named Rite of Flame in each graveyard."
+      const extra = evaluateAmount(
+        state,
+        controllerId,
+        effect.amount,
+        "addManaVariable amount",
+        sourceInstanceId,
+      );
+      if (extra <= 0) return;
+      addMana(controller.manaPool, effect.color, extra);
+      log(state, `${controllerId} adds ${extra} mana`);
       return;
     }
     case "becomePrepared": {
@@ -1108,10 +1165,24 @@ export function applyEffect(
        * because exiling does not change what the card *is*.
        */
       const hit = targets.some((target) => {
-        if (target.kind !== "card") return false;
-        const found = findInstance(state, target.instanceId);
-        if (!found) return false;
-        return requireDefinition(state, found.instance.definitionId).types.includes(effect.cardType);
+        /*
+         * "Counter target spell **if it's blue**" - Pyroblast, whose target is a
+         * spell on the stack rather than a card in a zone. Both shapes read the
+         * same definition in the end.
+         */
+        const definitionId =
+          target.kind === "card"
+            ? findInstance(state, target.instanceId)?.instance.definitionId
+            : target.kind === "spell"
+              ? state.stackCards.find(
+                  (c) => c.instanceId === state.stack.find((o) => o.id === target.stackObjectId)?.sourceInstanceId,
+                )?.definitionId
+              : undefined;
+        if (!definitionId) return false;
+        const def = requireDefinition(state, definitionId);
+        if (effect.cardType && !def.types.includes(effect.cardType)) return false;
+        if (effect.color && !cardColors(def).includes(effect.color)) return false;
+        return true;
       });
       if (hit) applyEffect(state, controllerId, sourceInstanceId, effect.then, targets);
       return;

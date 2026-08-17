@@ -175,8 +175,11 @@ def card_features(fx):
         feat.add("entersTappedUnless")
     if fx.get("entersTappedUnlessPayLife") is not None:
         feat.add("entersTappedUnlessPayLife")
-    if fx.get("replacementEffects"):
+    for replacement in fx.get("replacementEffects") or []:
         feat.add("replacementEffects")
+        # Each kind accounts for its own sentence: a card with two replacements
+        # prints two, and one covering the other is how a rule goes too loose.
+        feat.add(replacement.get("kind"))
     if fx.get("wardCost"):
         feat.add("ward")
     # Ward's cost is not always mana - Sedgemoor Witch asks for life.
@@ -483,6 +486,12 @@ RULES = [
     # "They gain haste until end of turn" - a grant on the tokens the same ability
     # just made, which is `grants` on createToken rather than an effect of its own.
     (r"^they gain haste until end of turn$", {"createToken"}),
+    # Batch 8 - the singles.
+    (r"^its controller gains life equal to its power$", {"target-power"}),
+    (r"^add \{r\}\{r\}, then add \{r\} for each card named .+ in each graveyard$",
+     {"addManaVariable"}),
+    (r"if a source you control would deal damage to a permanent or player, it deals double that damage",
+     {"double-damage-you-deal"}),
     (r"\bif a card or token would be put into your graveyard\b", {"replacementEffects"}),
     # "They have '...'" - a token's own rules text, which lives on the token
     # definition rather than on the card that makes them.

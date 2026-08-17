@@ -1,6 +1,7 @@
 import type { GameState, StackObject, StackTarget, TargetSelector, Effect } from "./types.js";
 import { findInstance, requireDefinition } from "./state.js";
 import { hasCreatureType, hasKeyword, typesOf } from "./counters.js";
+import { cardColors } from "./conditions.js";
 import { protectionStopsTargeting } from "./protection.js";
 import { evaluateAmount } from "./amounts.js";
 import { manaValue } from "./mana.js";
@@ -126,6 +127,8 @@ export function isValidTarget(
       if (selector.noncreature && def.types.includes("Creature")) return false;
       // "target **attacking** creature" - asked of the live combat rather than
       // of a remembered list, so a creature taken out of combat stops being one.
+      // "Destroy target **blue** permanent" - Red Elemental Blast.
+      if (selector.color && !cardColors(def).includes(selector.color)) return false;
       if (selector.attacking && state.attackers[found.instance.instanceId] === undefined) return false;
       // "attacking **or blocking**" - Eiganjo. Either map will do.
       if (
@@ -144,7 +147,14 @@ export function isValidTarget(
     case "spell": {
       if (target.kind !== "spell") return false;
       const obj = findStackObject(state, target.stackObjectId);
-      return obj !== undefined && isSpellOnStack(state, obj);
+      if (obj === undefined || !isSpellOnStack(state, obj)) return false;
+      // "target **blue** spell" - the colour of the card on the stack.
+      if (selector.color) {
+        const card = state.stackCards.find((c) => c.instanceId === obj.sourceInstanceId);
+        if (!card) return false;
+        if (!cardColors(requireDefinition(state, card.definitionId)).includes(selector.color)) return false;
+      }
+      return true;
     }
     case "card-in-your-graveyard": {
       if (target.kind !== "card") return false;

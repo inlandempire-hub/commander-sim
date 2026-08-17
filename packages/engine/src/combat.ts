@@ -308,6 +308,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       // lifelink for the attacker and took no commander damage either.
       const { dealt } = damagePlayer(state, defender, power, {
         infect: hasKeyword(state, attackerFound.instance, "Infect"),
+        sourceInstanceId: attackerInstanceId,
       });
       if (attackerHasLifelink && dealt > 0) {
         gainLife(state, attackerFound.instance.controllerId, dealt);
@@ -375,6 +376,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       const defender = requirePlayer(state, defendingPlayerId);
       trampledThrough = damagePlayer(state, defender, remainingPower, {
         infect: hasKeyword(state, attackerFound.instance, "Infect"),
+        sourceInstanceId: attackerInstanceId,
       }).dealt;
       if (attackerFound.instance.isCommander && trampledThrough > 0) {
         defender.commanderDamageTaken[attackerInstanceId] =

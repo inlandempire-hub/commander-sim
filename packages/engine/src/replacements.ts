@@ -1,5 +1,5 @@
 import type { CardInstance, CardType, GameState, ReplacementEffect } from "./types.js";
-import { requirePlayer } from "./state.js";
+import { findInstance, requirePlayer } from "./state.js";
 
 /**
  * Replacement effects - "if an effect would X, do Y instead".
@@ -44,6 +44,34 @@ function activeFor(state: GameState, controllerId: string): ReplacementEffect[] 
  * puts on your permanents, the choice stops being automatic and has to be
  * asked for real.
  */
+/**
+ * "If a source you control would deal damage ... it deals double that damage
+ * instead." - Angrath's Marauders.
+ *
+ * Asked with the *source* rather than with a player, because that is what the
+ * card says: the doubler is on the battlefield of whoever controls the source,
+ * and a damage event with no source (a state-based loss, a paid cost) is
+ * doubled by nobody.
+ *
+ * Multiplies rather than adds, and stacks the way real replacement effects do:
+ * two Marauders make it four times, because each applies to the result of the
+ * one before.
+ */
+export function damageDealt(state: GameState, amount: number, sourceInstanceId?: string): number {
+  if (amount <= 0 || !sourceInstanceId) return amount;
+  const source = findInstance(state, sourceInstanceId);
+  if (!source) return amount;
+  const controllerId = source.instance.controllerId;
+  let doublers = 0;
+  for (const instance of requirePlayer(state, controllerId).battlefield) {
+    const def = state.cardDefinitions[instance.definitionId];
+    for (const replacement of def?.replacementEffects ?? []) {
+      if (replacement.kind === "double-damage-you-deal") doublers += 1;
+    }
+  }
+  return amount * 2 ** doublers;
+}
+
 export function countersPlaced(state: GameState, instance: CardInstance, amount: number): number {
   // "would put one or more counters" - replacing nothing is not an event.
   if (amount <= 0) return amount;

@@ -335,7 +335,7 @@ export function activateAbility(
      * covers it exactly as it would cover a burn spell.
      */
     if (ability.damageToController) {
-      const dealt = damagePlayer(state, player, ability.damageToController).dealt;
+      const dealt = damagePlayer(state, player, ability.damageToController, { sourceInstanceId: instanceId }).dealt;
       if (dealt > 0) log(state, `${def.name} deals ${dealt} damage to ${playerId}`);
     }
   } else {

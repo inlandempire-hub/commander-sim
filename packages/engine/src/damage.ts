@@ -3,6 +3,7 @@ import { findInstance, log, requireDefinition } from "./state.js";
 import { pushTrigger } from "./permanents.js";
 import { effectiveTriggers, hasKeyword } from "./counters.js";
 import { protectionStopsDamage } from "./protection.js";
+import { damageDealt } from "./replacements.js";
 
 /**
  * The one place damage is actually dealt.
@@ -69,8 +70,24 @@ export function dealsInfect(state: GameState, sourceInstanceId: string | undefin
 /**
  * Damage to a player, prevention applied.
  */
-export function damagePlayer(state: GameState, player: Player, amount: number, options: { infect?: boolean } = {}): DamageResult {
-  const result = applyShield(player, amount);
+export function damagePlayer(
+  state: GameState,
+  player: Player,
+  amount: number,
+  options: { infect?: boolean; sourceInstanceId?: string } = {},
+): DamageResult {
+  /*
+   * "It deals double that damage instead" - Angrath's Marauders, applied before
+   * the shield.
+   *
+   * The order is a simplification: two replacement effects waiting on one event
+   * are ordered by the player they affect, so a defender with a shield could in
+   * principle prevent first and be doubled after. Doubling first is the reading
+   * that matches how both cards are played, and it is the only order in which
+   * "prevent the next 3 damage" means the 3 that actually arrive.
+   */
+  const doubled = damageDealt(state, amount, options.sourceInstanceId);
+  const result = applyShield(player, doubled);
   /*
    * Infect damage to a player is poison counters, not life loss. Prevention
    * still applies first - a shield stops the damage before it becomes
@@ -117,7 +134,8 @@ export function damageCreature(
   if (protectionStopsDamage(state, instance, options.sourceInstanceId)) {
     return { dealt: 0, prevented: amount };
   }
-  const result = applyShield(instance, amount);
+  // Doubled before the shield, for the reason set out in damagePlayer.
+  const result = applyShield(instance, damageDealt(state, amount, options.sourceInstanceId));
   /*
    * Infect damage to a creature is -1/-1 counters, which is a different thing
    * from damage in three ways that matter: it does not wear off at end of

@@ -14574,6 +14574,215 @@ export const SOKENZAN_CRUCIBLE_OF_DEFIANCE: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * Swords to Plowshares - {W} Instant.
+ *
+ * "Exile target creature. Its controller gains life equal to its power."
+ *
+ * The best removal spell ever printed, and the life is the whole reason it is
+ * fair: one mana exiles anything, and hands the life straight back to the player
+ * who lost the creature.
+ *
+ * **The order is reversed on purpose.** The card exiles first and then gains
+ * life "equal to its power", which the rules read off last-known information -
+ * the creature is already gone. Reading the power *before* the exile gives the
+ * identical number from a creature that is still on the battlefield, counters
+ * and anthems included, and needs no last-known-information machinery for the
+ * single card in the pool that wants it. Nothing can respond between the two
+ * halves of a resolution, so the swap is invisible in play.
+ */
+export const SWORDS_TO_PLOWSHARES: CardDefinition = {
+  id: "swords-to-plowshares",
+  name: "Swords to Plowshares",
+  scryfallId: "b4e9c870-23c0-413a-ae39-265f09da16d1",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      {
+        kind: "gainLife",
+        amount: { kind: "target-power" },
+        who: "target-controller",
+      },
+      { kind: "exile", target: { kind: "creature" } },
+    ],
+  },
+  tier: "scripted",
+};
+
+/**
+ * Gamble - {R} Sorcery.
+ *
+ * "Search your library for a card, put that card into your hand, discard a card
+ * at random, then shuffle."
+ *
+ * A tutor for anything at all, at the price in the name: the card you just found
+ * is in a hand the discard picks from blind. With one card in hand it is a
+ * coin flip on your own tutor.
+ *
+ * The random discard is a separate effect from the pool's ordinary `discard`,
+ * and the difference is the whole card - a Gamble whose discard you chose would
+ * be an unconditional one-mana tutor.
+ */
+export const GAMBLE: CardDefinition = {
+  id: "gamble",
+  name: "Gamble",
+  scryfallId: "8e37fae5-ddd0-4e16-8581-71579f89d9c5",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      // No card type at all: "search your library for a card" really does mean
+      // any of them, which is why the card is worth its drawback.
+      { kind: "searchLibrary", destination: "hand" },
+      { kind: "discardRandom", amount: 1 },
+    ],
+  },
+  tier: "scripted",
+};
+
+/**
+ * Rite of Flame - {R} Sorcery.
+ *
+ * "Add {R}{R}, then add {R} for each card named Rite of Flame in each graveyard."
+ *
+ * A ritual that pays for itself and then some, once one is already in a
+ * graveyard - which is why it counts *each* graveyard rather than yours, and by
+ * name rather than by owner.
+ *
+ * The variable half is its own effect rather than an `addMana` with an amount:
+ * the mana-source scanners read `addMana` to plan a payment, and an ability whose
+ * output nobody can predict would break the auto-tapper. A spell nothing plans
+ * around can be as variable as it likes.
+ */
+export const RITE_OF_FLAME: CardDefinition = {
+  id: "rite-of-flame",
+  name: "Rite of Flame",
+  scryfallId: "c062caf7-f0eb-44db-9f74-e6711a13fada",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "addMana", color: "R", amount: 2 },
+      {
+        kind: "addManaVariable",
+        color: "R",
+        amount: { kind: "count", of: { what: "cards-named-this-in-all-graveyards" } },
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+/**
+ * Pyroblast - {R} Instant.
+ *
+ * "Choose one -"
+ * "- Counter target spell if it's blue."
+ * "- Destroy target permanent if it's blue."
+ *
+ * **Not the same card as Red Elemental Blast**, and the difference is the whole
+ * reason both are in the deck. Pyroblast may be pointed at *anything* - so it can
+ * be cast at an empty blue board to trigger something, or aimed at a spell that
+ * turns out not to be blue - and simply does nothing when the target is not blue.
+ * Written with a colour filter on the selector it would be uncastable in exactly
+ * the spots where the real card is a bluff.
+ */
+export const PYROBLAST: CardDefinition = {
+  id: "pyroblast",
+  name: "Pyroblast",
+  scryfallId: "b029eb9a-dd7a-40c2-96c4-0063d9cc002c",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  castEffect: {
+    kind: "modal",
+    modes: [
+      {
+        label: "Counter target spell if it's blue",
+        effect: {
+          kind: "ifTargetWas",
+          color: "U",
+          then: { kind: "counter", target: { kind: "spell" } },
+        },
+      },
+      {
+        label: "Destroy target permanent if it's blue",
+        effect: {
+          kind: "ifTargetWas",
+          color: "U",
+          then: { kind: "destroy", target: { kind: "permanent" } },
+        },
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+/**
+ * Red Elemental Blast - {R} Instant.
+ *
+ * "Choose one -"
+ * "- Counter target blue spell."
+ * "- Destroy target blue permanent."
+ *
+ * Pyroblast's twin, with the restriction in the *targeting* rather than in the
+ * effect: this one cannot be cast at all without something blue to point at.
+ */
+export const RED_ELEMENTAL_BLAST: CardDefinition = {
+  id: "red-elemental-blast",
+  name: "Red Elemental Blast",
+  scryfallId: "70a45e9b-699e-425a-9f3d-267274830d3e",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  castEffect: {
+    kind: "modal",
+    modes: [
+      {
+        label: "Counter target blue spell",
+        effect: { kind: "counter", target: { kind: "spell", color: "U" } },
+      },
+      {
+        label: "Destroy target blue permanent",
+        effect: { kind: "destroy", target: { kind: "permanent", color: "U" } },
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+/**
+ * Angrath's Marauders - {5}{R}{R} 4/4 Creature, Human Pirate.
+ *
+ * "If a source you control would deal damage to a permanent or player, it deals
+ * double that damage to that permanent or player instead."
+ *
+ * A replacement effect on damage itself, which is why it reaches everything at
+ * once: combat, burn, a painland's own rider. "A source **you control**" is the
+ * half that needs the source to be named at every damage site - an opponent's
+ * Marauders must not double the burn spell you point at them.
+ */
+export const ANGRATHS_MARAUDERS: CardDefinition = {
+  id: "angraths-marauders",
+  name: "Angrath's Marauders",
+  scryfallId: "cf0a0bef-ed72-4fdf-9799-6f6430c8a8a7",
+  types: ["Creature"],
+  subtypes: ["Human", "Pirate"],
+  manaCost: { generic: 5, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  power: 4,
+  toughness: 4,
+  replacementEffects: [{ kind: "double-damage-you-deal" }],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     SANCTUM_PRELATE,
@@ -15578,6 +15787,12 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     INKMOTH_NEXUS,
     TOKEN_C_11_SPIRIT,
     SIMIAN_SPIRIT_GUIDE,
+    SWORDS_TO_PLOWSHARES,
+    GAMBLE,
+    RITE_OF_FLAME,
+    PYROBLAST,
+    RED_ELEMENTAL_BLAST,
+    ANGRATHS_MARAUDERS,
     EIGANJO_SEAT_OF_THE_EMPIRE,
     SOKENZAN_CRUCIBLE_OF_DEFIANCE,
   ].map((def) => [def.id, def]),

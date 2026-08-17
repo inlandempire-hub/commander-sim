@@ -300,7 +300,17 @@ export type Amount =
    * creature is still on the battlefield - as the cost is paid, or as the
    * sacrifice is chosen - and substituted the way X is.
    */
-  | { kind: "sacrificed-power" };
+  | { kind: "sacrificed-power" }
+  /**
+   * "Its controller gains life equal to **its power**" - Swords to Plowshares.
+   *
+   * The power of the creature this effect's spell is pointed at, read when the
+   * effect runs. Distinct from `sacrificed-power` above, which is captured
+   * early because the creature is already gone; here it is still on the
+   * battlefield, so the board is the honest place to read it - counters,
+   * anthems and all.
+   */
+  | { kind: "target-power" };
 
 /**
  * What a `count` amount counts. Each entry is a phrase a real card prints, not
@@ -357,7 +367,17 @@ export type Countable =
    * already appends to for the hate pieces. No new tally, and so no second place
    * for the answer to go stale.
    */
-  | { what: "one-plus-instants-and-sorceries-cast-this-turn" };
+  | { what: "one-plus-instants-and-sorceries-cast-this-turn" }
+  /**
+   * "for each card named Rite of Flame in **each** graveyard" - Rite of Flame,
+   * the only card in the pool that counts copies of itself.
+   *
+   * Every graveyard, not just yours, and by *name* rather than by definition id
+   * - which are the same thing here and would stop being so the day a token
+   * copies a card. The spell itself is still on the stack while this is counted,
+   * so it never counts itself.
+   */
+  | { what: "cards-named-this-in-all-graveyards" };
 
 /**
  * How many things an effect points at.
@@ -417,7 +437,18 @@ export type TargetSelector =
   | { kind: "player"; count?: TargetCount }
   | { kind: "opponent-of-controller" }
   /** "Target spell" - a spell on the stack, as opposed to a triggered or activated ability. */
-  | { kind: "spell" }
+  | {
+      kind: "spell";
+      /**
+       * "Counter target **blue** spell" - Red Elemental Blast.
+       *
+       * A restriction on what may be *pointed at*, which is the whole difference
+       * between this card and Pyroblast beside it: Pyroblast may target any spell
+       * and simply does nothing to a red one. Written the other way round, Red
+       * Elemental Blast would be castable with no blue spell on the stack.
+       */
+      color?: Color;
+    }
   /**
    * "Target land", "Target artifact", "Target noncreature artifact or
    * noncreature enchantment" - a permanent on the battlefield of a named type.
@@ -481,6 +512,8 @@ export type TargetSelector =
        * removed from combat stops being a legal target.
        */
       attackingOrBlocking?: boolean;
+      /** "Destroy target **blue** permanent" - Red Elemental Blast. */
+      color?: Color;
     }
   /**
    * "Target creature card in your graveyard", and the other card types the
@@ -559,7 +592,16 @@ export type Effect =
        * a plain number and reads exactly as it always did.
        */
       amount: Amount;
-      who?: "controller";
+      /**
+       * Who gains it.
+       *
+       * `"controller"` is the effect's own controller - "you gain 1 life"
+       * beside a target the rest of the card is aimed at. `"target-controller"`
+       * is Swords to Plowshares: the life goes to the player whose creature was
+       * just exiled, which is what makes the card a fair trade rather than a
+       * strict one. Absent means the targeted *player* gains it.
+       */
+      who?: "controller" | "target-controller";
     }
   /**
    * "Prevent the next N damage that would be dealt to any target this turn"
@@ -975,7 +1017,15 @@ export type Effect =
    * target it asks about, and it reads the target's *current* definition -
    * which is right, since exiling does not change what the card is.
    */
-  | { kind: "ifTargetWas"; cardType: CardType; then: Effect }
+  /**
+   * "...**if it's blue**" - Pyroblast, and Feral Appetite's "if it was a
+   * creature card".
+   *
+   * A test on what the effect is aimed at, run after the targets are already
+   * chosen. Both halves are optional and a card prints one of them; asking both
+   * would be a card that does not exist.
+   */
+  | { kind: "ifTargetWas"; cardType?: CardType; color?: Color; then: Effect }
   /**
    * The "yes" half of a shockland's arrival: pay the life, and the land that
    * has just entered tapped untaps.
@@ -1388,6 +1438,24 @@ export type Effect =
       subtypes: string[];
       keywords: Keyword[];
     }
+  /**
+   * "discard a card **at random**" - Gamble, and the reason the card is a gamble
+   * at all: it finds any card in your deck and then may well throw it away.
+   *
+   * Deliberately not the `discard` effect above, which stops and asks - the
+   * whole difference between the two is who chooses, and a Gamble that let you
+   * pick would be an unconditional tutor for one mana.
+   */
+  | { kind: "discardRandom"; amount: number }
+  /**
+   * "then add {R} **for each** card named Rite of Flame in each graveyard".
+   *
+   * Separate from `addMana` because that one is read by the mana-source
+   * scanners, which need a fixed number to plan a payment with: a mana *ability*
+   * whose output nobody can predict would break the auto-tapper. This is a
+   * spell effect and nothing plans around it.
+   */
+  | { kind: "addManaVariable"; color: ManaColor; amount: Amount }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -1492,7 +1560,20 @@ export type ReplacementEffect =
    * change. It sits in `moveCard`, which is the one door every zone change
    * goes through - the whole reason that was worth keeping as a single door.
    */
-  | { kind: "graveyard-to-exile" };
+  | { kind: "graveyard-to-exile" }
+  /**
+   * "If a source **you control** would deal damage to a permanent or player, it
+   * deals **double** that damage instead." - Angrath's Marauders.
+   *
+   * The first replacement in the pool on an event that is not a counter or a
+   * token, and it lives here rather than in damage.ts's callers because damage
+   * arrives from everywhere: combat, burn spells, a painland, a trigger. Both
+   * `damageCreature` and `damagePlayer` ask.
+   *
+   * "A source you control" is why the doubling needs the source: an opponent's
+   * Marauders must not double the burn spell you point at them.
+   */
+  | { kind: "double-damage-you-deal" };
 
 /** The tapland half of `BoardCondition`, named for where it reads. */
 export type EntersUntappedCondition = BoardCondition;

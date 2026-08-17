@@ -1,4 +1,4 @@
-import type { Amount, Countable, GameState } from "./types.js";
+import type { Amount, Countable, GameState, StackTarget } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
 import { effectivePower } from "./counters.js";
 
@@ -32,9 +32,24 @@ export function evaluateAmount(
    * guessing.
    */
   sourceInstanceId?: string,
+  /**
+   * What the effect is pointed at. Only `target-power` needs it - every other
+   * amount reads the board, the player or the source - so it is optional, and an
+   * amount that needs targets without being given any answers zero rather than
+   * guessing at a number.
+   */
+  targets?: StackTarget[],
 ): number {
   if (typeof amount === "number") return amount;
   if (amount.kind === "count") return countOf(state, controllerId, amount.of, sourceInstanceId);
+  if (amount.kind === "target-power") {
+    // The first card target, which is the creature every card of this shape
+    // points at. Effective power, so a pumped creature really is worth more life.
+    const first = (targets ?? []).find((t) => t.kind === "card");
+    if (!first || first.kind !== "card") return 0;
+    const found = findInstance(state, first.instanceId);
+    return found ? effectivePower(state, found.instance) : 0;
+  }
   /*
    * An unresolved X or event-amount reaching here means a fire site skipped
    * `resolveAmounts`. Loud, because the alternative is a board wipe that
@@ -111,6 +126,20 @@ function countOf(
     }
     case "opponents":
       return state.players.filter((p) => p.id !== controllerId && !p.hasLost).length;
+    case "cards-named-this-in-all-graveyards": {
+      // By name, and across every graveyard on the table. The source is the
+      // spell being resolved, which is still on the stack - so it is not one of
+      // the copies it counts.
+      const source = sourceInstanceId ? findInstance(state, sourceInstanceId) : undefined;
+      if (!source) return 0;
+      const name = requireDefinition(state, source.instance.definitionId).name;
+      return state.players.reduce(
+        (total, p) =>
+          total +
+          p.graveyard.filter((card) => requireDefinition(state, card.definitionId).name === name).length,
+        0,
+      );
+    }
     case "creatures-attacking-you":
       // `state.attackers` maps an attacker to the player it is attacking, so
       // this is a count of the entries pointed at us - not of our creatures,

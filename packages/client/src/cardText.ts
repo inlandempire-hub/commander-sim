@@ -199,6 +199,7 @@ function signedAmount(amount: Amount): string {
   // Likewise never in a power/toughness slot: the sacrificed creature's power
   // counts tokens on Tend the Pests and cards on Disciple of Freyalise.
   if (amount.kind === "sacrificed-power") return "that creature's power";
+  if (amount.kind === "target-power") return "its power";
   return amount.negate ? "-X" : "+X";
 }
 
@@ -213,6 +214,8 @@ function countAmount(amount: Amount): string {
   if (amount.kind === "event-amount") return "that many";
   if (amount.kind === "count") return describeCount(amount.of);
   if (amount.kind === "sacrificed-power") return "X";
+  // "life equal to **its power**" - Swords to Plowshares.
+  if (amount.kind === "target-power") return "its power";
   // "Create **twice X**" - Pest Infestation, whose {X}{X} cost charges X twice
   // and whose token count is doubled again on top. Printing a plain "X" here
   // halves the card in the panel you decide what to cast it for.
@@ -354,12 +357,18 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         : "Prevent all combat damage that would be dealt this turn.";
     case "exileGraveyard":
       return sentence(`Exile ${describeTarget(effect.target)}'s graveyard.`);
-    case "ifTargetWas":
-      // "If a creature card is exiled this way, ..." - the reflexive half, and
-      // the sentence the card actually prints for it.
-      return `If a ${effect.cardType.toLowerCase()} card is exiled this way, ${
-        describeEffect(effect.then, definitions).charAt(0).toLowerCase()
-      }${describeEffect(effect.then, definitions).slice(1)}`;
+    case "ifTargetWas": {
+      const inner = describeEffect(effect.then, definitions);
+      const lowered = `${inner.charAt(0).toLowerCase()}${inner.slice(1)}`;
+      /*
+       * Two cards, two sentences. Feral Appetite asks about a card type and reads
+       * as a reflexive rider; Pyroblast asks about a colour and reads as a
+       * condition on the whole effect, which is how the card prints it - "counter
+       * target spell if it's blue".
+       */
+      if (effect.color) return `${inner.replace(/\.$/, "")} if it's ${colorWord(effect.color)}.`;
+      return `If a ${(effect.cardType ?? "card").toLowerCase()} card is exiled this way, ${lowered}`;
+    }
     case "preventDamage":
       return `Prevent the next ${effect.amount} damage that would be dealt to ${describeTarget(
         effect.target,
@@ -591,6 +600,17 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return sentence(
         `this land becomes a ${effect.power}/${effect.toughness} ${types}${withWhat} until end of turn. It's still a land.`,
       );
+    }
+    case "discardRandom":
+      return sentence(
+        `discard ${effect.amount === 1 ? "a card" : `${countWord(effect.amount)} cards`} at random.`,
+      );
+    case "addManaVariable": {
+      const per =
+        typeof effect.amount !== "number" && effect.amount.kind === "count"
+          ? describeCount(effect.amount.of)
+          : countAmount(effect.amount);
+      return sentence(`add {${effect.color}} for each ${per}.`);
     }
     case "restrictBlockersThisTurn":
       return sentence(
@@ -832,6 +852,10 @@ function listAnd(items: string[]): string {
  */
 function describeCount(of: Countable): string {
   switch (of.what) {
+    case "cards-named-this-in-all-graveyards":
+      // Rite of Flame names itself, so the panel does too - "for each card named
+      // this in each graveyard" would be a sentence no printed card contains.
+      return "card with this name in each graveyard";
     case "one-plus-instants-and-sorceries-cast-this-turn":
       // The "one plus" is part of the printed phrase, so it is part of the
       // sentence too - see the Countable entry.
@@ -1716,6 +1740,12 @@ function describeReplacement(replacement: ReplacementEffect): string {
     return (
       "If an effect would create one or more tokens under your control, it creates " +
       `${timesWord(replacement.multiply)} that many of those tokens instead.`
+    );
+  }
+  if (replacement.kind === "double-damage-you-deal") {
+    return (
+      "If a source you control would deal damage to a permanent or player, " +
+      "it deals double that damage to that permanent or player instead."
     );
   }
   const what = replacement.cardTypes
