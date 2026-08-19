@@ -40,6 +40,7 @@ export type Keyword =
   | "Haste"
   | "Vigilance"
   | "Menace"
+  | "Fear"
   | "Reach"
   | "Defender"
   | "Hexproof"

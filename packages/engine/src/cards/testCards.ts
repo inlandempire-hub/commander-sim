@@ -11218,6 +11218,24 @@ export const LABORATORY_MANIAC: CardDefinition = {
   tier: "scripted",
 };
 
+export const SHADOWMAGE_INFILTRATOR: CardDefinition = {
+  id: "shadowmage-infiltrator",
+  name: "Shadowmage Infiltrator",
+  scryfallId: "2ac920d7-013f-40ad-b79f-0bb59062d42a",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 1, colors: { U: 1, B: 1 } },
+  colorIdentity: ["B", "U"],
+  power: 1,
+  toughness: 3,
+  keywords: ["Fear"],
+  // "Whenever this creature deals combat damage to a player, you may draw a
+  // card." No `watches`, so it fires only when this creature is the one that
+  // connected; optional, so it can be declined.
+  triggeredAbilities: [{ event: "combat-damage-to-player", optional: true, effect: { kind: "draw", amount: 1 } }],
+  tier: "scripted",
+};
+
 export const NECROPOLIS_REGENT: CardDefinition = {
   id: "necropolis-regent",
   name: "Necropolis Regent",
@@ -14275,5 +14293,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     ARBOR_ELF,
     DEATH_BEGETS_LIFE,
     NECROPOLIS_REGENT,
+    SHADOWMAGE_INFILTRATOR,
   ].map((def) => [def.id, def]),
 );

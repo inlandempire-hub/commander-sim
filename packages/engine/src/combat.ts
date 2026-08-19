@@ -102,6 +102,14 @@ export function blockProblem(
         return `${blockerDef.name} cannot block ${attackerDef.name} - it has flying, and this has neither flying nor reach`;
       }
     }
+    // Fear: "can't be blocked except by artifact creatures and/or black creatures."
+    if (hasKeyword(state, attackerFound.instance, "Fear")) {
+      const isArtifact = blockerDef.types.includes("Artifact");
+      const isBlack = (blockerDef.manaCost?.colors?.B ?? 0) > 0;
+      if (!isArtifact && !isBlack) {
+        return `${blockerDef.name} cannot block ${attackerDef.name} - it has fear, and this is neither an artifact nor black`;
+      }
+    }
   }
   return null;
 }
