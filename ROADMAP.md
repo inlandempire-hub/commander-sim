@@ -4425,3 +4425,100 @@ What it needs, in the order it would be built:
 
 **1,015 fixtures. 1,354 tests, typecheck clean**, all three audits clean bar the
 two long-known gaps.
+
+## Batch 9: the attack step (2026-08-19)
+
+**The list is at 86 of 100. The pool is at 1,030 fixtures.** Ten cards, and one
+theme between them: the declare-attackers step.
+
+### The distinction that is the card, again
+
+**"Whenever you attack with one or more creatures" is not "whenever a creature
+attacks".** The second fires per attacker - which is what Winota says - and the
+first fires once for the whole declaration. Anim Pakal written as the second
+would put three counters on and make six Gnomes off a three-creature swing.
+
+It is the same "one or more" shape Professional Face-Breaker needed, and it
+decides membership over the *whole list* rather than one subject at a time,
+which is exactly why it cannot go through `fireWatchers`: "did any of these
+qualify" and "does this one qualify" are different questions and only the first
+can fire once.
+
+Ainok Strike Leader rides the same event with a different narrowing - "this
+creature and/or your commander" names two particular permanents rather than a
+class of them, so it is a field beside `onlyFirstNoncreatureEachTurn` rather
+than a `watchFor`, which reads printed characteristics.
+
+### Being made to attack
+
+**Attacking is the only declaration a player can be compelled into.** Goblin
+Rabblemaster's other Goblins and Legion Warboss's token both have to, and "if
+able" is the whole of the enforcement - a creature that is tapped, sick or has
+defender is not required.
+
+One function answers it (`attackRequirement`, with `compelledAttackers` pairing
+it against `attackProblem`), and three places ask:
+
+- the engine refuses a declaration that leaves one out, checked before anything
+  is tapped so a rejection leaves the board as it found it;
+- the bot folds them into whatever its own weighing produced - all three of
+  `chooseAttackers`'s exits, and the third one is the one that had it wrong
+  first time, which a test caught;
+- the client selects them as the step arrives and refuses to take them back, in
+  the engine's own words.
+
+Three copies of that rule would be three chances to disagree, and a bot losing
+an argument with the engine is a hung turn on its own board that no full-game
+test would catch, because no archetype deck contains a Rabblemaster.
+
+Legion Warboss's requirement ends with the **combat**, not the turn: this deck
+makes extra combat phases on purpose.
+
+### The rest
+
+**Serra Ascendant's buff reaches only itself.** Written as an ordinary static it
+is a one-mana anthem giving the whole board +5/+5 and flying - the kind of wrong
+that looks right in the panel. `selfOnly` is the opposite end of the same axis
+as `includesSelf`, so the two are answered together.
+
+**Ainok's Goblins are aimed one per opponent**, not all at whoever is already
+being attacked. Invisible in a duel, the whole card in a pod. Driven by the
+count rather than by the list, so a Doubling Season makes two each.
+
+**Archivist of Oghma fires as a search is set up**, not as it finishes: a player
+who searches and finds nothing has still searched. Deliberately blind to
+Winota's "look at the top six", because looking is not searching - which is why
+one of the two shuffles.
+
+**Mana Vault** brought the draw step, which had been the one "at the beginning
+of" step with no event, and the first permanent that never untaps on its own.
+Its damage is an intervening-if, which is the escape: untap it in your upkeep
+and the damage never happens.
+
+**Myrel** needed nothing new at all - its static half is Grand Abolisher's, word
+for word, and its X is a Countable that already existed.
+
+### Caught by the tests, not by inspection
+
+The panel test found two renderer bugs before anything shipped: a counted pump
+printed as "gets other attacking Goblin/+0" (a counted modifier is one per thing
+counted, so the number is +1 and the count is a trailing clause, which is how
+the card prints it), and the token riders said nothing at all about a Goblin
+that has to attack.
+
+`audit_triggers` now reads mentor and mobilize - reminder-text keywords, the
+same shape battle cry already had - and the three new events. `audit_text`
+accounts for all five new sentences, and trigger *events* are features there
+now, because a keyword whose whole text is reminder text leaves nothing on the
+line but the keyword.
+
+**1,030 fixtures. 1,409 tests, typecheck clean**, all three audits clean bar the
+two long-known gaps.
+
+### What is left: 14 cards
+
+Ajani (specified above), Boromir (deliberately not built), the four MDFCs and
+the three cards that begin the game on the battlefield, plus Chrome Mox's
+imprint, Deflecting Swat, Skrelv, Charismatic Conqueror, Goblin Cratermaker and
+Dollmaker's Shop. The last three each want a question aimed at a player, or a
+mode chosen on an activated ability - neither of which exists yet.
