@@ -1575,6 +1575,13 @@ export interface CardDefinition {
      */
     grants?: Keyword[];
     /**
+     * The ward cost handed to whatever this is attached to - Lavaspur Boots'
+     * "ward {1}", Winged Boots' "ward {4}". Meaningful only when `grants`
+     * includes "Ward"; ward.ts reads it off the attached Equipment because the
+     * warded creature's own definition carries no ward cost.
+     */
+    grantsWardCost?: ManaCost;
+    /**
      * Which of the controller's permanents it reaches, beyond the subtype.
      *
      * `"attacking"` is Blight Mound's "**Attacking** Pests you control", which

@@ -11218,6 +11218,46 @@ export const LABORATORY_MANIAC: CardDefinition = {
   tier: "scripted",
 };
 
+export const LAVASPUR_BOOTS: CardDefinition = {
+  id: "lavaspur-boots",
+  name: "Lavaspur Boots",
+  scryfallId: "e50709de-e6ef-4dbc-af1e-290fed279f34",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 1, colors: {} },
+  staticBuff: { power: 1, toughness: 0, grants: ["Haste", "Ward"], grantsWardCost: { generic: 1, colors: {} } },
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 1, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const WINGED_BOOTS: CardDefinition = {
+  id: "winged-boots",
+  name: "Winged Boots",
+  scryfallId: "116361c4-fddd-440a-ad02-8d71df733231",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  equipCost: { generic: 1, colors: {} },
+  staticBuff: { power: 0, toughness: 0, grants: ["Flying", "Ward"], grantsWardCost: { generic: 4, colors: {} } },
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 1, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TRAILBLAZERS_BOOTS: CardDefinition = {
   id: "trailblazers-boots",
   name: "Trailblazer's Boots",
@@ -14315,5 +14355,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     NECROPOLIS_REGENT,
     SHADOWMAGE_INFILTRATOR,
     TRAILBLAZERS_BOOTS,
+    LAVASPUR_BOOTS,
+    WINGED_BOOTS,
   ].map((def) => [def.id, def]),
 );

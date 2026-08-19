@@ -42,7 +42,19 @@ export function attemptWardPayments(state: GameState, casterId: string, targets:
       log(state, `${casterId} pays ${def.wardLifeCost} life for ward`);
       continue;
     }
-    const cost = def.wardCost ?? { generic: 0, colors: {} };
+    // A creature warded by an Equipment (Lavaspur/Winged Boots) has no ward cost
+    // of its own; the {1} or {4} lives on the attached Equipment's staticBuff.
+    let wardCost = def.wardCost;
+    if (wardCost === undefined) {
+      for (const player of state.players) {
+        for (const attached of player.battlefield) {
+          if (attached.attachedTo !== found.instance.instanceId) continue;
+          const attachedDef = requireDefinition(state, attached.definitionId);
+          if (attachedDef.staticBuff?.grantsWardCost) wardCost = attachedDef.staticBuff.grantsWardCost;
+        }
+      }
+    }
+    const cost = wardCost ?? { generic: 0, colors: {} };
     if (!canPayManaCost(caster, cost)) return false;
     payManaCost(caster, cost);
   }
