@@ -394,7 +394,18 @@ export type Countable =
    * copies a card. The spell itself is still on the stack while this is counted,
    * so it never counts itself.
    */
-  | { what: "cards-named-this-in-all-graveyards" };
+  | { what: "cards-named-this-in-all-graveyards" }
+  /**
+   * "+1/+0 until end of turn **for each other attacking Goblin**" - Goblin
+   * Rabblemaster.
+   *
+   * Read off `state.attackers` rather than off a flag on the creature, exactly
+   * as the attacking target selector and `pumpAll`'s attacking restriction both
+   * do, so a creature removed from combat stops counting mid-combat. Distinct
+   * from `creatures` above, which counts the board: Rabblemaster's own tokens
+   * sitting at home are not part of its number.
+   */
+  | { what: "attacking-creatures"; subtype?: string; excludeSource?: boolean };
 
 /**
  * How many things an effect points at.
@@ -531,6 +542,19 @@ export type TargetSelector =
       attackingOrBlocking?: boolean;
       /** "Destroy target **blue** permanent" - Red Elemental Blast. */
       color?: Color;
+      /**
+       * "target attacking creature **with lesser power**" - mentor, on Legion
+       * Warboss.
+       *
+       * Lesser than the *source's* power, read at the moment the target is
+       * checked, which is what makes mentor a rich-get-richer ability rather
+       * than a free counter: a Warboss that has already grown can point at
+       * things it could not before, and one that has shrunk cannot.
+       *
+       * Needs the source to mean anything, like `creature.excludeSource`, and
+       * excludes the source for free - nothing has lesser power than itself.
+       */
+      lesserPowerThanSource?: boolean;
     }
   /**
    * "Target creature card in your graveyard", and the other card types the
@@ -859,7 +883,35 @@ export type Effect =
        * without it Myrel's own trigger would see the Soldiers it just made and
        * make more, forever.
        */
-      attacking?: boolean;
+      /**
+       * `"each-opponent"` is Ainok Strike Leader's "for each opponent, create a
+       * ... token that's tapped and attacking **that player**".
+       *
+       * Not the same as `true` with a count of one per opponent: plain
+       * `attacking` sends every token at whoever is already being attacked,
+       * which in a duel is the same thing and in a pod is a materially
+       * different card. The tokens are made one per opponent, each aimed at
+       * their own.
+       */
+      attacking?: boolean | "each-opponent";
+      /**
+       * "That token ... **attacks this combat if able**" - Legion Warboss.
+       *
+       * A requirement stamped on the token as it is made, not a keyword: the
+       * creature is not attacking yet - it is being told it must, in a combat
+       * whose attackers have not been declared. See `CardInstance.mustAttackThisCombat`.
+       */
+      mustAttack?: boolean;
+      /**
+       * "**Sacrifice them at the beginning of the next end step**" - mobilize,
+       * on Voice of Victory.
+       *
+       * Scheduled over the tokens that were actually made, which is why it lives
+       * here rather than on the card: the delayed trigger has to name instances,
+       * and by the end step the creature that made them may be dead. Exactly
+       * what `createCopyToken.delayedEnd` does for Rionya.
+       */
+      delayedEnd?: DelayedAction;
       /**
        * "It gains lifelink and haste **until end of turn**" - Windcrag Siege's
        * Goblin.
@@ -907,8 +959,18 @@ export type Effect =
    */
   | {
       kind: "pump";
-      power: number;
-      toughness: number;
+      /**
+       * `Amount` rather than a plain number because of Goblin Rabblemaster's
+       * "+1/+0 until end of turn **for each other attacking Goblin**" - a number
+       * that is only known once attackers have been declared.
+       *
+       * Every other card in the pool prints a literal, and a literal is a valid
+       * `Amount`, so none of them changed. Counted at resolution like every
+       * other `count` amount: kill an attacking Goblin in response and
+       * Rabblemaster really does end up smaller.
+       */
+      power: Amount;
+      toughness: Amount;
       target?: TargetSelector;
       /**
        * "**It gains indestructible** until end of turn" - Revitalizing Repast.
@@ -963,7 +1025,12 @@ export type Effect =
        * counter. Without it the shield would cover the whole board, which is a
        * much better card.
        */
-      restriction?: "with-counter" | "attacking";
+      /**
+       * `"token"` is Ainok Strike Leader's "**Creature tokens** you control gain
+       * indestructible until end of turn" - the sacrifice half of the card,
+       * which protects the Goblins it just made and nothing else you own.
+       */
+      restriction?: "with-counter" | "attacking" | "token";
       /**
        * "each **other** attacking creature gets +1/+0" - battle cry, on Signal
        * Pest.
@@ -1586,7 +1653,15 @@ export type BoardCondition =
    * untapped for one player and tapped for the other. Counted on the player -
    * see `Player.turnsTaken`.
    */
-  | { kind: "within-your-first-turns"; turns: number };
+  | { kind: "within-your-first-turns"; turns: number }
+  /**
+   * "As long as you have **30 or more life**" - Serra Ascendant.
+   *
+   * The controller's life total, read every time the buff is asked for like
+   * every other condition here, so the creature grows and shrinks as the total
+   * crosses the line rather than being latched at the moment it entered.
+   */
+  | { kind: "life-at-least"; life: number };
 
 /**
  * "If an effect would X instead" - a replacement effect.
@@ -1788,6 +1863,39 @@ export type TriggerEvent =
    */
   | "first-main"
   | "begin-combat"
+  /**
+   * "At the beginning of your **draw step**" - Mana Vault.
+   *
+   * The fourth "at the beginning of" step, and the one that had been missing.
+   * Fired from the same table in turn.ts as the other three, so whose step it
+   * is decides who it fires for in exactly the same way.
+   */
+  | "draw-step"
+  /**
+   * "Whenever you attack with **one or more** non-Gnome creatures" - Anim Pakal;
+   * "whenever you attack with **this creature and/or your commander**" - Ainok
+   * Strike Leader.
+   *
+   * Fires **once** however many creatures were declared, which is the whole
+   * difference from `permanent-attacks` beside it: that one fires per attacker,
+   * which is what Winota says and would give Anim Pakal a second batch of Gnomes
+   * for every extra creature in the swing.
+   *
+   * The same "one or more" shape `creatures-dealt-combat-damage` has, and for the
+   * same reason - see `fireCreaturesAttack`, which decides membership over the
+   * whole declaration rather than one subject at a time.
+   */
+  | "creatures-attack"
+  /**
+   * "Whenever an opponent **searches their library**" - Archivist of Oghma.
+   *
+   * Fired as the search is set up rather than as it finishes, because that is
+   * when the searching happens: a player who searches and finds nothing has
+   * still searched, and Archivist still pays out. Fired from the one place
+   * `searchLibrary` puts a pending search on the state, so a tutor added later
+   * is covered without knowing this card exists.
+   */
+  | "library-searched"
   | "end-step";
 
 /**
@@ -1844,7 +1952,27 @@ export type TriggerCondition =
    * so a Raph & Leo whose trigger somehow waits until a later combat does
    * nothing rather than adding another one.
    */
-  | { kind: "first-combat-phase" };
+  | { kind: "first-combat-phase" }
+  /**
+   * "**Lieutenant** - At the beginning of combat on your turn, **if you control
+   * your commander**, ..." - Loyal Apprentice.
+   *
+   * The positive twin of `not` above, which has carried a `BoardCondition` since
+   * Ophiomancer. Both halves being one wrapper means a condition added for a
+   * tapland is immediately available to an intervening-if, and there is no
+   * second list of board questions to keep level with the first.
+   */
+  | { kind: "board"; condition: BoardCondition }
+  /**
+   * "At the beginning of your draw step, **if this artifact is tapped**, it
+   * deals 1 damage to you." - Mana Vault.
+   *
+   * A question about the permanent printing the trigger, like
+   * `source-has-counters`, and an intervening-if rather than an ordinary
+   * condition because that is how it is printed: untap the Vault in response
+   * and the damage never happens.
+   */
+  | { kind: "source-is-tapped" };
 
 export interface TriggeredAbility {
   event: TriggerEvent;
@@ -1894,6 +2022,19 @@ export interface TriggeredAbility {
    * no second tally to go stale.
    */
   onlyFirstNoncreatureEachTurn?: boolean;
+  /**
+   * "Whenever you attack with **this creature and/or your commander**" - Ainok
+   * Strike Leader.
+   *
+   * `creatures-attack` only. A narrowing on *which* of the declared attackers
+   * count, and it names two specific permanents rather than a class of them, so
+   * it cannot be written as a `watchFor`: that reads one subject's printed
+   * characteristics and neither "this one" nor "your commander" is one of those.
+   *
+   * The "and/or" is the reason this is a membership test rather than two
+   * triggers - both attacking is still one trigger, not two.
+   */
+  attackersIncludeSelfOrCommander?: boolean;
   watchFor?: {
     /**
      * The card type the subject has to have.
@@ -2279,6 +2420,19 @@ export interface StaticRules {
   skipDrawStep?: boolean;
   /** "Your maximum hand size is five." - Necrodominance. */
   maxHandSize?: number;
+  /**
+   * "**Other Goblin creatures you control attack each combat if able.**" -
+   * Goblin Rabblemaster.
+   *
+   * The value is the creature type it compels, not a flag, for the same reason
+   * `doublesAttackTriggersWhenMode` holds a mode: a second card of this shape
+   * naming a different type must not need a second rule.
+   *
+   * "If able" is the whole of the enforcement: a creature that is tapped,
+   * summoning sick or has defender is not able, and is simply not required.
+   * See `attackRequirement`, which is the one place that decides.
+   */
+  othersOfSubtypeMustAttack?: string;
 }
 
 /**
@@ -2338,6 +2492,16 @@ export interface StaticBuff {
   grantsAbilities?: ActivatedAbility[];
   /** "Creature **tokens** you control" - narrows to tokens only. */
   tokensOnly?: boolean;
+  /**
+   * "As long as you have 30 or more life, **this creature** gets +5/+5 and has
+   * flying." - Serra Ascendant.
+   *
+   * The buff reaches its own source and nothing else. Distinct from
+   * `includesSelf`, which *adds* the source to a group: left to the default this
+   * buff would be an anthem handing +5/+5 to your whole board, which is not a
+   * card anybody printed for one white mana.
+   */
+  selfOnly?: boolean;
   /**
    * "**As long as you control four or more Humans**, Humans you control get
    * +2/+2" - Greymond. Read on every access like everything else here, so
@@ -2503,6 +2667,16 @@ export interface CardDefinition {
    */
   entersWithCounters?: Amount;
   entersTapped?: boolean;
+  /**
+   * "**This artifact doesn't untap during your untap step.**" - Mana Vault.
+   *
+   * The untap step untaps everything its controller owns, and until this there
+   * was exactly one way out of it: `CardInstance.exerted`, which is spent as it
+   * is skipped. This is the other shape - a permanent that never untaps on its
+   * own, every turn, for as long as it is in play - so it belongs on the
+   * definition rather than on the instance.
+   */
+  doesNotUntap?: boolean;
   /**
    * "This land enters tapped **unless** ..." - the drawback most nonbasic duals
    * carry, and the reason those cards were refused until now. Writing one as
@@ -2815,6 +2989,16 @@ export interface CardInstance {
    * blocker with both. Cleared in the cleanup step and on any zone change.
    */
   blockRestrictionsThisTurn: BlockRestriction[];
+  /**
+   * "That token ... **attacks this combat if able**" - Legion Warboss.
+   *
+   * A requirement on one creature for one combat, as opposed to Goblin
+   * Rabblemaster's, which is a static on the board and is read off the card that
+   * prints it. Cleared in the cleanup step with the rest of the turn's state:
+   * a token that kept it would be compelled to attack every turn it lived,
+   * which is a different and much worse card.
+   */
+  mustAttackThisCombat: boolean;
   /**
    * "**You may play that card this turn**" - Professional Face-Breaker, and
    * Ragavan's "until end of turn, you may cast that card".

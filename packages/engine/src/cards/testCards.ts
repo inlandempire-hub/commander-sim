@@ -14985,8 +14985,555 @@ export const ESPER_SENTINEL: CardDefinition = {
   tier: "weird",
 };
 
+
+/* ==========================================================================
+ * Batch 9 - the attack step.
+ *
+ * Ten cards whose common thread is the declaration itself: creatures that are
+ * compelled into it, tokens that arrive already in it, and numbers that cannot
+ * be counted until it has happened.
+ * ========================================================================== */
+
+/** The 1/1 red Goblin with haste printed on it - Goblin Rabblemaster's. */
+export const TOKEN_R_11_GOBLIN_HASTE: CardDefinition = {
+  id: "token-r-11-goblin-haste",
+  name: "Goblin",
+  types: ["Creature"],
+  subtypes: ["Goblin"],
+  colorIdentity: ["R"],
+  power: 1,
+  toughness: 1,
+  // Printed on the token, unlike Legion Warboss's Goblin, which is made without
+  // haste and *gains* it for the turn. A separate definition rather than a flag,
+  // because the two really are different tokens: Rabblemaster's can attack the
+  // turn after as well.
+  keywords: ["Haste"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+/** "a 1/1 colorless Thopter artifact creature token with flying" - Loyal Apprentice. */
+export const TOKEN_C_11_THOPTER_FLYING: CardDefinition = {
+  id: "token-c-11-thopter-flying",
+  name: "Thopter",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Thopter"],
+  colorIdentity: [],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+/** "X 1/1 colorless Soldier artifact creature tokens" - Myrel. */
+export const TOKEN_C_11_SOLDIER_ARTIFACT: CardDefinition = {
+  id: "token-c-11-soldier-artifact",
+  name: "Soldier",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Soldier"],
+  colorIdentity: [],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+/** "X 1/1 colorless Gnome artifact creature tokens" - Anim Pakal. */
+export const TOKEN_C_11_GNOME_ARTIFACT: CardDefinition = {
+  id: "token-c-11-gnome-artifact",
+  name: "Gnome",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Gnome"],
+  colorIdentity: [],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+/** "two tapped and attacking 1/1 red Warrior creature tokens" - mobilize. */
+export const TOKEN_R_11_WARRIOR: CardDefinition = {
+  id: "token-r-11-warrior",
+  name: "Warrior",
+  types: ["Creature"],
+  subtypes: ["Warrior"],
+  colorIdentity: ["R"],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+/**
+ * Loyal Apprentice - {1}{R} 2/1 Human Artificer.
+ *
+ * "Haste. Lieutenant - At the beginning of combat on your turn, if you control
+ * your commander, create a 1/1 colorless Thopter artifact creature token with
+ * flying. That token gains haste until end of turn."
+ *
+ * Lieutenant is an intervening-if and nothing more, which is why it needed no
+ * new machinery beyond a positive board question: the ability is checked as it
+ * would go on the stack and again as it resolves, so a commander killed in
+ * response really does stop the Thopter.
+ */
+export const LOYAL_APPRENTICE: CardDefinition = {
+  id: "loyal-apprentice",
+  name: "Loyal Apprentice",
+  scryfallId: "d4d469ea-824b-4eff-82e8-2a0b9b4c0e2d",
+  types: ["Creature"],
+  subtypes: ["Human", "Artificer"],
+  manaCost: { generic: 1, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 1,
+  keywords: ["Haste"],
+  triggeredAbilities: [
+    {
+      event: "begin-combat",
+      watches: "controller",
+      onlyIf: { kind: "board", condition: { kind: "controls-commander" } },
+      effect: {
+        kind: "createToken",
+        count: 1,
+        tokenDefinitionId: "token-c-11-thopter-flying",
+        // "That token **gains** haste until end of turn" - granted, not printed,
+        // which is the whole difference from Rabblemaster's Goblin.
+        grants: ["Haste"],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * Myrel, Shield of Argive - {3}{W} 3/4 Legendary Human Soldier.
+ *
+ * "During your turn, your opponents can't cast spells or activate abilities of
+ * artifacts, creatures, or enchantments. Whenever Myrel attacks, create X 1/1
+ * colorless Soldier artifact creature tokens, where X is the number of Soldiers
+ * you control."
+ *
+ * The static half is Grand Abolisher's, word for word, and is written the same
+ * way. The X is counted when the trigger resolves, so the Soldiers Myrel is
+ * about to make are not among the ones it counts - and Myrel is, because it is
+ * a Soldier itself.
+ */
+export const MYREL_SHIELD_OF_ARGIVE: CardDefinition = {
+  id: "myrel-shield-of-argive",
+  name: "Myrel, Shield of Argive",
+  scryfallId: "e632ed57-bb00-4493-adef-7b4805edd7ea",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 4,
+  staticRestrictions: [
+    { kind: "opponents-cannot-cast", duringYourTurnOnly: true },
+    {
+      kind: "cannot-activate",
+      types: ["Artifact", "Creature", "Enchantment"],
+      who: "opponents",
+      duringYourTurnOnly: true,
+    },
+  ],
+  triggeredAbilities: [
+    {
+      event: "attacks",
+      effect: {
+        kind: "createToken",
+        count: { kind: "count", of: { what: "creatures", subtype: "Soldier" } },
+        tokenDefinitionId: "token-c-11-soldier-artifact",
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * Serra Ascendant - {W} 1/1 Human Monk.
+ *
+ * "Lifelink. As long as you have 30 or more life, this creature gets +5/+5 and
+ * has flying."
+ *
+ * The buff reaches its own source and nothing else, which is what `selfOnly`
+ * exists for: written as an ordinary static it would be a one-mana anthem
+ * giving the whole board +5/+5 and flying. Read every time, so a 6/6 flier drops
+ * back to a 1/1 the moment the life total falls under 30.
+ */
+export const SERRA_ASCENDANT: CardDefinition = {
+  id: "serra-ascendant",
+  name: "Serra Ascendant",
+  scryfallId: "0a22ee47-fc56-436d-8570-88fbff421027",
+  types: ["Creature"],
+  subtypes: ["Human", "Monk"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Lifelink"],
+  staticBuff: {
+    power: 5,
+    toughness: 5,
+    grants: ["Flying"],
+    selfOnly: true,
+    condition: { kind: "life-at-least", life: 30 },
+  },
+  tier: "scripted",
+};
+
+/**
+ * Archivist of Oghma - {1}{W} 2/2 Halfling Cleric.
+ *
+ * "Flash. Whenever an opponent searches their library, you gain 1 life and draw
+ * a card."
+ *
+ * Fired as the search is set up rather than as it finishes, because searching is
+ * what the opponent is doing: one who searches and finds nothing has still
+ * searched. Deliberately blind to Winota's "look at the top six cards", which is
+ * not a search - which is why one of them shuffles and the other does not.
+ */
+export const ARCHIVIST_OF_OGHMA: CardDefinition = {
+  id: "archivist-of-oghma",
+  name: "Archivist of Oghma",
+  scryfallId: "f6589e02-8c84-4069-88d1-ebcc8520cae1",
+  types: ["Creature"],
+  subtypes: ["Halfling", "Cleric"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Flash"],
+  triggeredAbilities: [
+    {
+      event: "library-searched",
+      watches: "any",
+      watchFor: { controlledBy: "opponent" },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "gainLife", amount: 1, who: "controller" },
+          { kind: "draw", amount: 1 },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * Anim Pakal, Thousandth Moon - {1}{R}{W} 1/2 Legendary Human Soldier.
+ *
+ * "Whenever you attack with one or more non-Gnome creatures, put a +1/+1 counter
+ * on Anim Pakal, then create X 1/1 colorless Gnome artifact creature tokens that
+ * are tapped and attacking, where X is the number of +1/+1 counters on Anim
+ * Pakal."
+ *
+ * "One or more" is the card, and it is why this needed a new event: written as
+ * `permanent-attacks` it would fire once per attacking creature, so a three-
+ * creature swing would put three counters on and make 1 + 2 + 3 Gnomes.
+ *
+ * The Gnomes arrive tapped and attacking, which means they were never declared -
+ * so they are not among the "one or more" and cannot set the trigger off again.
+ * The counter goes on before the tokens are counted, which is the printed order
+ * and is worth one extra Gnome every combat.
+ */
+export const ANIM_PAKAL_THOUSANDTH_MOON: CardDefinition = {
+  id: "anim-pakal-thousandth-moon",
+  name: "Anim Pakal, Thousandth Moon",
+  scryfallId: "868856b7-8875-43c1-8249-0f8fb2c8319b",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 1, colors: { R: 1, W: 1 } },
+  colorIdentity: ["R", "W"],
+  power: 1,
+  toughness: 2,
+  triggeredAbilities: [
+    {
+      event: "creatures-attack",
+      watches: "controller",
+      watchFor: { excludeSubtype: "Gnome" },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "addCounter", amount: 1 },
+          {
+            kind: "createToken",
+            count: { kind: "count", of: { what: "counters-on-source" } },
+            tokenDefinitionId: "token-c-11-gnome-artifact",
+            attacking: true,
+          },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * Voice of Victory - {1}{W} 1/3 Human Bard.
+ *
+ * "Mobilize 2 (Whenever this creature attacks, create two tapped and attacking
+ * 1/1 red Warrior creature tokens. Sacrifice them at the beginning of the next
+ * end step.) Your opponents can't cast spells during your turn."
+ *
+ * Mobilize is two clauses that have to travel together: without the sacrifice it
+ * is a two-Warrior anthem every combat, which is a materially better card. The
+ * delayed trigger names the tokens that were actually made, so a second attack
+ * in an extra combat phase schedules its own pair rather than reusing the first.
+ */
+export const VOICE_OF_VICTORY: CardDefinition = {
+  id: "voice-of-victory",
+  name: "Voice of Victory",
+  scryfallId: "ec3de5f4-bb55-4ab9-995f-f3e0dc22c1bb",
+  types: ["Creature"],
+  subtypes: ["Human", "Bard"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 3,
+  staticRestrictions: [{ kind: "opponents-cannot-cast", duringYourTurnOnly: true }],
+  triggeredAbilities: [
+    {
+      event: "attacks",
+      effect: {
+        kind: "createToken",
+        count: 2,
+        tokenDefinitionId: "token-r-11-warrior",
+        attacking: true,
+        delayedEnd: "sacrifice",
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * Legion Warboss - {2}{R} 2/2 Goblin Soldier.
+ *
+ * "Mentor (Whenever this creature attacks, put a +1/+1 counter on target
+ * attacking creature with lesser power.) At the beginning of combat on your
+ * turn, create a 1/1 red Goblin creature token. That token gains haste until end
+ * of turn and attacks this combat if able."
+ *
+ * Both halves of the second sentence matter and they pull in opposite
+ * directions: the haste lets the Goblin attack, and "attacks this combat if
+ * able" means it has to. A Warboss whose token merely *could* attack is a card
+ * that plays around blockers, which is the opposite of what it is for.
+ *
+ * Mentor's target is the first selector in the pool that compares against its
+ * own source, and it is what makes the ability snowball rather than being a free
+ * counter: a bigger Warboss can point at more.
+ */
+export const LEGION_WARBOSS: CardDefinition = {
+  id: "legion-warboss",
+  name: "Legion Warboss",
+  scryfallId: "3d726dff-2904-4a82-adaa-29c57a5c2aed",
+  types: ["Creature"],
+  subtypes: ["Goblin", "Soldier"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [
+    {
+      event: "attacks",
+      effect: {
+        kind: "addCounter",
+        amount: 1,
+        target: {
+          kind: "permanent",
+          cardTypes: ["Creature"],
+          attacking: true,
+          lesserPowerThanSource: true,
+        },
+      },
+    },
+    {
+      event: "begin-combat",
+      watches: "controller",
+      effect: {
+        kind: "createToken",
+        count: 1,
+        tokenDefinitionId: "token-r-11-goblin",
+        grants: ["Haste"],
+        mustAttack: true,
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * Goblin Rabblemaster - {2}{R} 2/2 Goblin Warrior.
+ *
+ * "Other Goblin creatures you control attack each combat if able. At the
+ * beginning of combat on your turn, create a 1/1 red Goblin creature token with
+ * haste. Whenever this creature attacks, it gets +1/+0 until end of turn for
+ * each other attacking Goblin."
+ *
+ * The word "other" appears twice and does different work each time: the
+ * Rabblemaster itself is free to stay home, and it does not count itself among
+ * the Goblins that pump it. Its own Goblins are compelled, which is why a
+ * Rabblemaster left alone empties your board into a blocker one Goblin at a
+ * time - and is exactly the card.
+ *
+ * The pump is counted at resolution off the live combat, so a Goblin removed
+ * from combat in response really does take a point back off.
+ */
+export const GOBLIN_RABBLEMASTER: CardDefinition = {
+  id: "goblin-rabblemaster",
+  name: "Goblin Rabblemaster",
+  scryfallId: "bce84a87-093a-42de-9696-8c3250e0f33b",
+  types: ["Creature"],
+  subtypes: ["Goblin", "Warrior"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  staticRules: { othersOfSubtypeMustAttack: "Goblin" },
+  triggeredAbilities: [
+    {
+      event: "begin-combat",
+      watches: "controller",
+      effect: {
+        kind: "createToken",
+        count: 1,
+        // Haste is printed on this token, not granted - "a 1/1 red Goblin
+        // creature token **with haste**".
+        tokenDefinitionId: "token-r-11-goblin-haste",
+      },
+    },
+    {
+      event: "attacks",
+      effect: {
+        kind: "pump",
+        power: {
+          kind: "count",
+          of: { what: "attacking-creatures", subtype: "Goblin", excludeSource: true },
+        },
+        toughness: 0,
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * Ainok Strike Leader - {1}{W} 2/2 Dog Warrior.
+ *
+ * "Whenever you attack with this creature and/or your commander, for each
+ * opponent, create a 1/1 red Goblin creature token that's tapped and attacking
+ * that player. Sacrifice this creature: Creature tokens you control gain
+ * indestructible until end of turn."
+ *
+ * "And/or" is the reason this is one trigger rather than two: both attacking
+ * still makes one batch of Goblins, not two. And "that player" is the reason the
+ * tokens are aimed individually - in a duel it is invisible, and in a pod it is
+ * the whole card.
+ */
+export const AINOK_STRIKE_LEADER: CardDefinition = {
+  id: "ainok-strike-leader",
+  name: "Ainok Strike Leader",
+  scryfallId: "cabd77a6-0913-4522-891d-c8a412a536c2",
+  types: ["Creature"],
+  subtypes: ["Dog", "Warrior"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [
+    {
+      event: "creatures-attack",
+      watches: "controller",
+      attackersIncludeSelfOrCommander: true,
+      effect: {
+        kind: "createToken",
+        count: { kind: "count", of: { what: "opponents" } },
+        tokenDefinitionId: "token-r-11-goblin",
+        attacking: "each-opponent",
+      },
+    },
+  ],
+  activatedAbilities: [
+    {
+      cost: { sacrificeSelf: true },
+      effect: {
+        kind: "pumpAll",
+        power: 0,
+        toughness: 0,
+        scope: "controller",
+        restriction: "token",
+        grants: ["Indestructible"],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * Mana Vault - {1} Artifact.
+ *
+ * "This artifact doesn't untap during your untap step. At the beginning of your
+ * upkeep, you may pay {4}. If you do, untap this artifact. At the beginning of
+ * your draw step, if this artifact is tapped, it deals 1 damage to you.
+ * {T}: Add {C}{C}{C}."
+ *
+ * Three clauses that only make sense together: two mana of profit, and a bill
+ * that comes due every turn until you either pay four or take the damage. The
+ * intervening-if on the draw step is the escape - untap it in your upkeep and the
+ * damage never happens - which is why it is an intervening-if and not a
+ * condition checked once.
+ */
+export const MANA_VAULT: CardDefinition = {
+  id: "mana-vault",
+  name: "Mana Vault",
+  scryfallId: "c1a31d52-a407-4ded-bfca-cc812f11afa0",
+  types: ["Artifact"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  doesNotUntap: true,
+  triggeredAbilities: [
+    {
+      event: "upkeep",
+      watches: "controller",
+      effect: {
+        kind: "mayPay",
+        cost: { mana: { generic: 4, colors: {} } },
+        then: { kind: "untap" },
+      },
+    },
+    {
+      event: "draw-step",
+      watches: "controller",
+      onlyIf: { kind: "source-is-tapped" },
+      effect: { kind: "damageController", amount: 1 },
+    },
+  ],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 3 } }],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    LOYAL_APPRENTICE,
+    MYREL_SHIELD_OF_ARGIVE,
+    SERRA_ASCENDANT,
+    ARCHIVIST_OF_OGHMA,
+    ANIM_PAKAL_THOUSANDTH_MOON,
+    VOICE_OF_VICTORY,
+    LEGION_WARBOSS,
+    GOBLIN_RABBLEMASTER,
+    AINOK_STRIKE_LEADER,
+    MANA_VAULT,
+    TOKEN_R_11_GOBLIN_HASTE,
+    TOKEN_C_11_THOPTER_FLYING,
+    TOKEN_C_11_SOLDIER_ARTIFACT,
+    TOKEN_C_11_GNOME_ARTIFACT,
+    TOKEN_R_11_WARRIOR,
     SANCTUM_PRELATE,
     DEAFENING_SILENCE,
     ETHERSWORN_CANONIST,

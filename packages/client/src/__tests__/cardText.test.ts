@@ -970,3 +970,74 @@ describe("protection", () => {
     expect(text).toContain("target creature or enchantment you control gains protection from");
   });
 });
+
+/**
+ * Batch 9 - the attack step.
+ *
+ * Six of these ten hang on a distinction the panel is the only place to see: a
+ * trigger that fires once against one that fires per creature, a token that
+ * *must* attack against one that merely can, and a keyword printed on a token
+ * against one granted to it for the turn.
+ */
+describe("batch 9", () => {
+  it("says Anim Pakal fires once for the swing, not per creature", () => {
+    const text = textOf("anim-pakal-thousandth-moon");
+    expect(text).toContain("Whenever you attack with one or more non-Gnome creatures");
+    expect(text).toContain("tapped and attacking");
+  });
+
+  it("says Ainok's trigger takes it or the commander, and aims at that player", () => {
+    const text = textOf("ainok-strike-leader");
+    expect(text).toContain("Whenever you attack with this creature and/or your commander");
+    // "that player" is the difference between a duel and a pod.
+    expect(text).toContain("tapped and attacking that player");
+    expect(text).toContain("Creature tokens you control");
+    expect(text).toContain("indestructible");
+  });
+
+  it("says the Warboss's token must attack, and the Rabblemaster's Goblins too", () => {
+    const warboss = textOf("legion-warboss");
+    expect(warboss).toContain("attacks this combat if able");
+    expect(warboss).toContain("target attacking creature with lesser power");
+
+    const rabble = textOf("goblin-rabblemaster");
+    expect(rabble).toContain("Other Goblin creatures you control attack each combat if able.");
+    expect(rabble).toContain("for each other attacking Goblin");
+  });
+
+  it("says mobilize's tokens do not stay", () => {
+    const text = textOf("voice-of-victory");
+    expect(text).toContain("tapped and attacking");
+    // The clause that stops it being an anthem.
+    expect(text).toContain("Sacrifice them at the beginning of the next end step.");
+  });
+
+  it("says Loyal Apprentice needs a commander", () => {
+    const text = textOf("loyal-apprentice");
+    expect(text).toContain("At the beginning of combat on your turn, if you control a commander");
+    expect(text).toContain("gains haste until end of turn");
+  });
+
+  it("says Serra Ascendant's buff is about itself and about your life total", () => {
+    const text = textOf("serra-ascendant");
+    expect(text).toContain("As long as you have 30 or more life");
+    // The card prints the whole thing as one sentence, so "this creature" is
+    // mid-line and lower case. What matters is that it is not an anthem.
+    expect(text).toContain("this creature gets +5/+5 and has flying");
+    expect(text).not.toContain("creatures you control");
+  });
+
+  it("says Archivist watches an opponent's search", () => {
+    expect(textOf("archivist-of-oghma")).toContain("Whenever an opponent searches their library");
+  });
+
+  it("says Mana Vault does not untap, and bills you in the draw step", () => {
+    const text = textOf("mana-vault");
+    expect(text).toContain("This artifact doesn't untap during your untap step.");
+    expect(text).toContain("At the beginning of your draw step, if it's tapped");
+  });
+
+  it("says Myrel counts Soldiers", () => {
+    expect(textOf("myrel-shield-of-argive")).toContain("Soldier");
+  });
+});

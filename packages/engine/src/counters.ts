@@ -37,9 +37,22 @@ function buffApplies(
   const sourceDef = state.cardDefinitions[source.definitionId];
   if (sourceDef?.equipCost) return source.attachedTo === candidate.instanceId;
 
-  // "*other* creatures you control", unless the card omits the word - see
-  // `includesSelf`.
-  if (source.instanceId === candidate.instanceId && !buff.includesSelf) return false;
+  /*
+   * "As long as you have 30 or more life, **this creature** gets +5/+5 and has
+   * flying." - Serra Ascendant, whose buff reaches its own source and nothing
+   * else on the board.
+   *
+   * The opposite end of the same axis as `includesSelf` below, which *adds* the
+   * source to a group - so the two are one question and are answered together.
+   * Left to the default, Serra Ascendant would be a one-mana anthem handing the
+   * whole board +5/+5 and flying.
+   */
+  if (buff.selfOnly) {
+    if (source.instanceId !== candidate.instanceId) return false;
+  } else if (source.instanceId === candidate.instanceId && !buff.includesSelf) {
+    // "*other* creatures you control", unless the card omits the word.
+    return false;
+  }
   // Every card of this shape says "creatures". Without this, Duskshell
   // Crawler's trample would land on any land carrying a counter, which is
   // invisible right up until something starts counting keywords.

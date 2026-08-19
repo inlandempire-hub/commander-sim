@@ -5,6 +5,7 @@ import {
   manaValue,
   type Amount,
   type CardDefinition,
+  type Effect,
   type CardInstance,
   type GameState,
   type Player,
@@ -156,4 +157,23 @@ export function eligibleAttackers(state: GameState, player: Player): CardInstanc
 
 export function untappedCreatures(state: GameState, player: Player): CardInstance[] {
   return creaturesOf(state, player).filter((c) => !c.tapped);
+}
+
+/**
+ * The two numbers on a pump effect, when both of them are printed.
+ *
+ * `Effect.pump` carries an `Amount` since Goblin Rabblemaster, whose "+1/+0 for
+ * each other attacking Goblin" is not knowable until attackers have been
+ * declared. The bot decides what to cast *before* that, so a pump it cannot put
+ * a number on is not a trick it can weigh - and `null` here means it is skipped
+ * rather than guessed at.
+ *
+ * Nothing in the pool prints a dynamic pump on a spell, so today this always
+ * answers. It exists so that the day one is added, the bot leaves it alone
+ * instead of treating an object as a number.
+ */
+export function printedPump(effect: Effect | undefined): { power: number; toughness: number } | null {
+  if (effect?.kind !== "pump") return null;
+  if (typeof effect.power !== "number" || typeof effect.toughness !== "number") return null;
+  return { power: effect.power, toughness: effect.toughness };
 }

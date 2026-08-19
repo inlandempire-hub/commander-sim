@@ -89,7 +89,10 @@ export function describeTarget(selector: TargetSelector): string {
         : selector.attackingOrBlocking
           ? "attacking or blocking "
           : "";
-      return `${countPrefix(selector.count)}target ${attacking}${noun}${many}${whose}`;
+      // "target attacking creature **with lesser power**" - mentor. A trailing
+      // clause, which is where the card prints it.
+      const lesser = selector.lesserPowerThanSource ? " with lesser power" : "";
+      return `${countPrefix(selector.count)}target ${attacking}${noun}${many}${whose}${lesser}`;
     }
     case "card-in-your-graveyard": {
       const noun = selector.cardType
@@ -251,6 +254,10 @@ function perThing(of: Countable): string | undefined {
       return "creature card in your graveyard";
     case "creatures-attacking-you":
       return "creature attacking you";
+    case "attacking-creatures":
+      // "for each **other** attacking Goblin" - the word is the card's, and it
+      // is the difference between +1/+0 and +2/+0 on a board of one Goblin.
+      return `${of.excludeSource ? "other " : ""}attacking ${of.subtype ?? "creature"}`;
     case "opponents":
       return "opponent";
     case "life-gained-this-turn":
@@ -566,8 +573,34 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       const gains = effect.grants?.length
         ? ` ${one ? "It gains" : "They gain"} ${listAnd(effect.grants.map((k) => k.toLowerCase()))} until end of turn.`
         : "";
-      if (!effect.attacking) return `${base}${gains}`;
-      return `${base.slice(0, -1)} ${one ? "that's" : "that are"} tapped and attacking.${gains}`;
+      /*
+       * "That token ... **attacks this combat if able**" - Legion Warboss.
+       * Its own sentence, following the grant, because the card prints the two
+       * together: "It gains haste until end of turn and attacks this combat if
+       * able."
+       */
+      const compelled = effect.mustAttack
+        ? ` ${one ? "It attacks" : "They attack"} this combat if able.`
+        : "";
+      /*
+       * "**Sacrifice them at the beginning of the next end step.**" - mobilize.
+       * The clause that makes the tokens a rental rather than a board, so it is
+       * never dropped.
+       */
+      const ends = effect.delayedEnd
+        ? ` ${effect.delayedEnd === "sacrifice" ? "Sacrifice" : effect.delayedEnd === "exile" ? "Exile" : "Return"} ${
+            one ? "it" : "them"
+          }${effect.delayedEnd === "return-to-hand" ? " to your hand" : ""} at the beginning of the next end step.`
+        : "";
+      const tail = `${gains}${compelled}${ends}`;
+      if (!effect.attacking) return `${base}${tail}`;
+      /*
+       * "for each opponent, create a ... token that's tapped and attacking
+       * **that player**" - Ainok Strike Leader, whose tokens are each aimed at
+       * their own opponent rather than all at whoever is already being attacked.
+       */
+      const whom = effect.attacking === "each-opponent" ? " that player" : "";
+      return `${base.slice(0, -1)} ${one ? "that's" : "that are"} tapped and attacking${whom}.${tail}`;
     }
     case "restrictThisTurn":
       // Silence. Phrased for the turn rather than as a permanent's static,
@@ -634,20 +667,41 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       );
     case "pump": {
       const who = effect.target ? describeTarget(effect.target) : "this creature";
+      /*
+       * "+1/+0 until end of turn **for each other attacking Goblin**" - Goblin
+       * Rabblemaster.
+       *
+       * A counted modifier is one per thing counted, so the number the card
+       * prints is +1 and the count is a trailing clause. Printed the other way
+       * round - "gets +other attacking Goblin/+0" - is not English, and it was
+       * the first thing the panel test caught.
+       */
+      const counted = (amount: Amount): Countable | undefined =>
+        typeof amount === "object" && amount.kind === "count" ? amount.of : undefined;
+      const perEach = counted(effect.power) ?? counted(effect.toughness);
+      const unit = (amount: Amount): Amount => (counted(amount) ? 1 : amount);
       // Revitalizing Repast pumps nothing and grants everything, so a +0/+0
       // is dropped for the same reason `pumpAll` drops it.
       const parts: string[] = [];
       if (effect.power !== 0 || effect.toughness !== 0) {
-        parts.push(`gets ${signed(effect.power)}/${signed(effect.toughness)}`);
+        parts.push(`gets ${signedAmount(unit(effect.power))}/${signedAmount(unit(effect.toughness))}`);
       }
       if (effect.grants?.length) {
         parts.push(`gains ${listAnd(effect.grants.map((k) => k.toLowerCase()))}`);
       }
-      return sentence(`${who} ${parts.join(" and ")} until end of turn.`);
+      const forEach = perEach ? ` for each ${perThing(perEach) ?? describeCount(perEach)}` : "";
+      return sentence(`${who} ${parts.join(" and ")} until end of turn${forEach}.`);
     }
     case "pumpAll": {
       const noun = (effect.appliesTo ?? "creatures") === "permanents" ? "Permanents" : "Creatures";
-      const who = effect.scope === "controller" ? `${noun} you control` : `All ${noun.toLowerCase()}`;
+      // "**Creature tokens** you control gain indestructible" - Ainok Strike
+      // Leader's sacrifice half, which protects the Goblins and nothing else.
+      const who =
+        effect.restriction === "token"
+          ? `${noun === "Permanents" ? "Permanent" : "Creature"} tokens you control`
+          : effect.scope === "controller"
+            ? `${noun} you control`
+            : `All ${noun.toLowerCase()}`;
       /*
        * Heroic Intervention is +0/+0 and is entirely about the keywords, so
        * printing "get +0/+0 and gain hexproof" would bury the card under a
@@ -898,6 +952,8 @@ function describeCount(of: Countable): string {
       return "each opponent";
     case "creatures-attacking-you":
       return "creature attacking you";
+    case "attacking-creatures":
+      return `${of.excludeSource ? "other " : ""}attacking ${of.subtype ?? "creature"}`;
   }
 }
 
@@ -995,9 +1051,13 @@ function describeStaticBuff(
   // "Each creature ..." is singular and takes "gets"/"has"; every other form
   // here is plural and takes "get"/"have". Printed as one sentence either way,
   // so the verb has to agree or the panel reads as broken English.
-  const singular = buff.restriction === "with-counter";
-  const subject =
-    buff.restriction === "attacking"
+  // "As long as you have 30 or more life, **this creature** gets +5/+5 and has
+  // flying." - Serra Ascendant, whose buff is about itself and takes a singular
+  // verb like the counter form below.
+  const singular = buff.restriction === "with-counter" || buff.selfOnly === true;
+  const subject = buff.selfOnly
+    ? "This creature"
+    : buff.restriction === "attacking"
       ? `Attacking ${noun} you control`
       : singular
         ? `Each ${buff.subtype ?? "creature"} you control with a +1/+1 counter on it`
@@ -1193,6 +1253,10 @@ function describeTriggerCondition(condition: TriggerCondition): string {
       return `if ${condition.mode} was chosen`;
     case "not":
       return `if ${negateCondition(condition.condition)}`;
+    case "board":
+      return `if ${describeCondition(condition.condition)}`;
+    case "source-is-tapped":
+      return "if it's tapped";
   }
 }
 
@@ -1226,6 +1290,8 @@ function negateCondition(condition: BoardCondition): string {
       return `you control fewer than ${condition.count} lands`;
     case "attached-to-a-creature":
       return "this permanent is not attached to a creature";
+    case "life-at-least":
+      return `you have fewer than ${condition.life} life`;
   }
 }
 
@@ -1318,6 +1384,34 @@ function describeTrigger(
       return `At the beginning of combat on ${whoseStep === "each" ? "each" : "your"} turn, ${tail}`;
     case "end-step":
       return `At the beginning of ${whoseStep} end step, ${tail}`;
+    case "draw-step":
+      return `At the beginning of ${whoseStep} draw step, ${tail}`;
+    case "creatures-attack":
+      /*
+       * "one or more" is the printed phrase and the rule at once - it fires
+       * once however many were declared - which is why this reads differently
+       * from `permanent-attacks` above despite watching the same moment.
+       */
+      return ability.attackersIncludeSelfOrCommander
+        ? `Whenever you attack with this creature and/or your commander, ${tail}`
+        : `Whenever you attack with one or more ${
+            ability.watchFor?.excludeSubtype
+              ? `non-${
+                  Array.isArray(ability.watchFor.excludeSubtype)
+                    ? listOr(ability.watchFor.excludeSubtype)
+                    : ability.watchFor.excludeSubtype
+                } creatures`
+              : "creatures"
+          }, ${tail}`;
+    case "library-searched": {
+      // Whose search it has to be, read off the same field `spell-cast` uses
+      // for whose spell it has to be. Omitted means anybody's, which is what
+      // `controlledBy` means everywhere else.
+      const who = ability.watchFor?.controlledBy;
+      const [subject, verb] =
+        who === "opponent" ? ["an opponent", "searches"] : who === "you" ? ["you", "search"] : ["a player", "searches"];
+      return `Whenever ${subject} ${verb} their library, ${tail}`;
+    }
   }
 }
 
@@ -1384,6 +1478,8 @@ function describeCondition(condition: BoardCondition): string {
       return `you control ${condition.count} or more lands`;
     case "attached-to-a-creature":
       return "this permanent is attached to a creature you control";
+    case "life-at-least":
+      return `you have ${condition.life} or more life`;
   }
 }
 
@@ -1634,6 +1730,17 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
       `If ${def.staticRules.doublesAttackTriggersWhenMode} was chosen, if a creature attacking causes ` +
         "a triggered ability of a permanent you control to trigger, that ability triggers an additional time.",
     );
+  }
+  if (def.staticRules?.othersOfSubtypeMustAttack) {
+    // "Other Goblin creatures you control attack each combat if able." The word
+    // "other" is the card's and is load-bearing: the Rabblemaster itself is free
+    // to stay home.
+    lines.push(
+      `Other ${def.staticRules.othersOfSubtypeMustAttack} creatures you control attack each combat if able.`,
+    );
+  }
+  if (def.doesNotUntap) {
+    lines.push(`This ${selfNoun(def)} doesn't untap during your untap step.`);
   }
   if (def.staticRules?.skipDrawStep) lines.push("Skip your draw step.");
   if (def.staticRules?.maxHandSize !== undefined) {

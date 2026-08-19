@@ -1,4 +1,5 @@
 import type { AttackerDeclaration, BlockerDeclaration, CardInstance, GameState, Player } from "@mtg-commander-sim/engine";
+import { compelledAttackers } from "@mtg-commander-sim/engine";
 import {
   canBlock,
   creatureValue,
@@ -101,8 +102,27 @@ export function chooseAttackers(state: GameState, botPlayerId: string): Attacker
   const defender = opponentsOf(state, botPlayerId)[0];
   if (!me || !defender) return [];
 
+  /*
+   * "attack each combat if able" - Goblin Rabblemaster's other Goblins, and
+   * Legion Warboss's token. Not a preference, so it is settled before any of the
+   * weighing below and folded into whatever that comes up with.
+   *
+   * Asked of the engine rather than re-derived here. `declareAttackers` throws
+   * on a declaration that leaves one of these out, and a bot with its own idea
+   * of the rule would eventually disagree with it and hang the game on its own
+   * turn.
+   */
+  const compelled = compelledAttackers(state, botPlayerId).map((c) => ({
+    attackerInstanceId: c.instanceId,
+    defendingPlayerId: defender.id,
+  }));
+  const withCompelled = (chosen: AttackerDeclaration[]): AttackerDeclaration[] => {
+    const seen = new Set(chosen.map((d) => d.attackerInstanceId));
+    return [...chosen, ...compelled.filter((d) => !seen.has(d.attackerInstanceId))];
+  };
+
   const attackers = eligibleAttackers(state, me).filter((c) => worthAttackingWith(state, c));
-  if (attackers.length === 0) return [];
+  if (attackers.length === 0) return withCompelled([]);
   const blockers = untappedCreatures(state, defender);
 
   // 1. Lethal check. Assume the defender blocks our biggest threats first, so
@@ -112,7 +132,9 @@ export function chooseAttackers(state: GameState, botPlayerId: string): Attacker
   const guaranteedDamage = unblocked.reduce((sum, c) => sum + power(state, c), 0);
   const lowestThreshold = Math.min(...attackers.map((a) => effectiveLethalThreshold(defender, a)), defender.life);
   if (guaranteedDamage >= lowestThreshold) {
-    return attackers.map((a) => ({ attackerInstanceId: a.instanceId, defendingPlayerId: defender.id }));
+    return withCompelled(
+      attackers.map((a) => ({ attackerInstanceId: a.instanceId, defendingPlayerId: defender.id })),
+    );
   }
 
   // Restraint, sized to the actual threat. A creature that attacks can't block,
@@ -178,7 +200,10 @@ export function chooseAttackers(state: GameState, botPlayerId: string): Attacker
     }
   }
 
-  return declarations;
+  // The last of the three ways out of this function, and the one that had it
+  // wrong first time: a Goblin held back by the restraint logic above is still
+  // compelled, and a declaration without it is one the engine refuses.
+  return withCompelled(declarations);
 }
 
 /**

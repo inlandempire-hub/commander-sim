@@ -1,9 +1,16 @@
 import type { CardInstance, GameState } from "./types.js";
 import { log, requireDefinition, requirePlayer } from "./state.js";
 import { gainLife } from "./life.js";
-import { effectivePower, effectiveToughness, effectiveTriggers, hasKeyword, typesOf } from "./counters.js";
+import { effectivePower, effectiveToughness, effectiveTriggers, hasCreatureType, hasKeyword, typesOf } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
-import { describeSubject, fireCombatDamageToPlayer, fireWatchers, pushTrigger, tapPermanent } from "./permanents.js";
+import {
+  describeSubject,
+  fireCombatDamageToPlayer,
+  fireCreaturesAttack,
+  fireWatchers,
+  pushTrigger,
+  tapPermanent,
+} from "./permanents.js";
 import { protectionStopsBlock, qualityWord } from "./protection.js";
 import { blockRestrictionProblem } from "./blocking.js";
 
@@ -75,6 +82,69 @@ export function attackProblem(state: GameState, playerId: string, attackerInstan
 }
 
 /**
+ * Why this creature *has* to attack, or null if it is free not to.
+ *
+ * The mirror of `attackProblem` above, and it exists for the same reason: the
+ * engine enforces it, the bot has to plan around it and the client has to draw
+ * it, and three copies of one rule is three chances for them to disagree. A
+ * creature that has to attack but *cannot* is not required to - that is the
+ * whole of "if able" - so callers ask both questions and this one only settles
+ * the requirement.
+ *
+ * Returns the reason in the words the player will be shown, because a
+ * requirement they cannot see is indistinguishable from a bug.
+ */
+export function attackRequirement(
+  state: GameState,
+  playerId: string,
+  attackerInstanceId: string,
+): string | null {
+  const player = requirePlayer(state, playerId);
+  const instance = player.battlefield.find((c) => c.instanceId === attackerInstanceId);
+  if (!instance) return null;
+  const def = requireDefinition(state, instance.definitionId);
+
+  /*
+   * "That token gains haste until end of turn and **attacks this combat if
+   * able**" - Legion Warboss. One creature, one combat, stamped on the instance
+   * as the token was made.
+   */
+  if (instance.mustAttackThisCombat) return `${def.name} must attack this combat`;
+
+  /*
+   * "**Other** Goblin creatures you control attack each combat if able." -
+   * Goblin Rabblemaster. A static on the board rather than a mark on the
+   * creature, so it is read off whatever is in play right now: kill the
+   * Rabblemaster and its Goblins are free again mid-combat.
+   */
+  for (const other of player.battlefield) {
+    if (other.instanceId === instance.instanceId) continue; // "**Other** Goblins"
+    const subtype = state.cardDefinitions[other.definitionId]?.staticRules?.othersOfSubtypeMustAttack;
+    if (!subtype) continue;
+    if (!hasCreatureType(state, instance, subtype)) continue;
+    const otherDef = requireDefinition(state, other.definitionId);
+    return `${def.name} must attack each combat - ${otherDef.name} says so`;
+  }
+  return null;
+}
+
+/**
+ * Every creature this player must declare as an attacker right now.
+ *
+ * Both questions together: a creature that has to attack and legally cannot is
+ * not on this list, which is what "if able" means and is why nothing else in
+ * the engine may read `attackRequirement` on its own.
+ */
+export function compelledAttackers(state: GameState, playerId: string): CardInstance[] {
+  const player = requirePlayer(state, playerId);
+  return player.battlefield.filter(
+    (instance) =>
+      attackRequirement(state, playerId, instance.instanceId) !== null &&
+      attackProblem(state, playerId, instance.instanceId) === null,
+  );
+}
+
+/**
  * Why this creature cannot block that attacker, or null if it can.
  *
  * Menace is deliberately not checked here: it is a restriction on the whole
@@ -138,6 +208,20 @@ export function declareAttackers(state: GameState, playerId: string, declaration
   }
   const player = requirePlayer(state, playerId);
 
+  /*
+   * "...attack each combat if able." Checked across the whole declaration
+   * rather than per creature, because that is what it is: a requirement is only
+   * broken by the declaration *ending* without the creature in it.
+   *
+   * Checked before anything is tapped, so a rejected declaration leaves the
+   * board exactly as it found it.
+   */
+  const declared = new Set(declarations.map((d) => d.attackerInstanceId));
+  for (const compelled of compelledAttackers(state, playerId)) {
+    if (declared.has(compelled.instanceId)) continue;
+    throw new Error(attackRequirement(state, playerId, compelled.instanceId)!);
+  }
+
   for (const { attackerInstanceId, defendingPlayerId } of declarations) {
     const problem = attackProblem(state, playerId, attackerInstanceId);
     if (problem) throw new Error(problem);
@@ -173,6 +257,12 @@ export function declareAttackers(state: GameState, playerId: string, declaration
      */
     fireWatchers(state, "permanent-attacks", describeSubject(state, instance));
   }
+
+  /*
+   * "Whenever you attack with one or more ..." - once for the whole swing, and
+   * so outside the loop above rather than inside it. See `fireCreaturesAttack`.
+   */
+  fireCreaturesAttack(state, playerId, declarations.map((d) => d.attackerInstanceId));
 
   if (declarations.length > 0) {
     log(

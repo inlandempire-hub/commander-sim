@@ -140,7 +140,7 @@ function startNextTurn(state: GameState): void {
 }
 
 /**
- * The four steps a card can say "at the beginning of" and mean it.
+ * The five steps a card can say "at the beginning of" and mean it.
  *
  * Keyed on phase *and* step, not step alone: a turn has two main phases and
  * both of them are `step: "main"`, so "at the beginning of your first main
@@ -150,6 +150,7 @@ function startNextTurn(state: GameState): void {
  */
 const TURN_TRIGGER_EVENTS: Array<{ phase: Phase; step: Step; event: TriggerEvent }> = [
   { phase: "beginning", step: "upkeep", event: "upkeep" },
+  { phase: "beginning", step: "draw", event: "draw-step" },
   { phase: "precombat-main", step: "main", event: "first-main" },
   { phase: "combat", step: "begin-combat", event: "begin-combat" },
   { phase: "ending", step: "end", event: "end-step" },
@@ -217,7 +218,19 @@ function runAutomaticStepActions(state: GameState): void {
          * Summoning sickness still wears off: an exerted creature is not a new
          * arrival, it is simply still tapped.
          */
-        if (instance.exerted) {
+        /*
+         * "This artifact doesn't untap during your untap step." - Mana Vault.
+         *
+         * Checked before exert, and it is the opposite kind of rule: exert is a
+         * one-off the untap step spends, this is a permanent property of the
+         * card and is read off the definition every turn. Summoning sickness
+         * still wears off below, because a Vault that stays tapped is not a new
+         * arrival.
+         */
+        if (state.cardDefinitions[instance.definitionId]?.doesNotUntap) {
+          // Deliberately silent. It never untaps, every turn, for as long as it
+          // is in play - a log line every upkeep would be noise rather than news.
+        } else if (instance.exerted) {
           instance.exerted = false;
           log(state, `${requireDefinition(state, instance.definitionId).name} was exerted and does not untap`);
         } else {
@@ -275,7 +288,19 @@ function runAutomaticStepActions(state: GameState): void {
       state.blockers = {};
       state.blockersDeclared = false;
       for (const player of state.players) {
-        for (const instance of player.battlefield) instance.removedFromCombat = false;
+        for (const instance of player.battlefield) {
+          instance.removedFromCombat = false;
+          /*
+           * "attacks **this combat** if able" - and this is the end of it.
+           *
+           * Cleared here rather than in cleanup because this deck makes extra
+           * combat phases on purpose (Combat Celebrant, Zealous Conscripts):
+           * a token compelled into the first one is not compelled into the
+           * second, and a flag cleared at end of turn would compel it into
+           * every one.
+           */
+          instance.mustAttackThisCombat = false;
+        }
       }
       break;
     }

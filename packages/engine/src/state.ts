@@ -123,6 +123,9 @@ export function createCardInstance(
     damageMarked: 0,
     deathtouchDamage: false,
     plusOneCounters: 0,
+    // "attacks this combat if able" belongs to one combat, so a fresh card is
+    // never under it - see turn.ts's cleanup, which takes it back off.
+    mustAttackThisCombat: false,
     grantedKeywords: [],
     grantedTriggers: [],
     minusOneCounters: 0,
@@ -255,6 +258,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.exerted = false; // a new object has not been exerted, whatever the old one did
   instance.protectionFrom = []; // and protection was granted to the object that left, not to this one
   instance.blockRestrictionsThisTurn = []; // likewise: Gingerbrute's evasion belonged to the object that left
+  instance.mustAttackThisCombat = false; // and Legion Warboss's token is not compelled anywhere but the battlefield
   /*
    * Cleared only on the way *out*. The move that puts a dashed creature onto the
    * battlefield is the move that makes it a permanent, and `enteredBattlefield`

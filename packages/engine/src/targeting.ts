@@ -1,6 +1,6 @@
 import type { GameState, StackObject, StackTarget, TargetSelector, Effect } from "./types.js";
 import { findInstance, requireDefinition } from "./state.js";
-import { hasCreatureType, hasKeyword, typesOf } from "./counters.js";
+import { effectivePower, hasCreatureType, hasKeyword, typesOf } from "./counters.js";
 import { cardColors } from "./conditions.js";
 import { protectionStopsTargeting } from "./protection.js";
 import { evaluateAmount } from "./amounts.js";
@@ -137,6 +137,23 @@ export function isValidTarget(
         state.blockers[found.instance.instanceId] === undefined
       ) {
         return false;
+      }
+      /*
+       * "target attacking creature **with lesser power**" - mentor.
+       *
+       * Compared against the source's power *now*, so a Warboss that has grown
+       * can point at things it could not a moment ago - which is what makes
+       * mentor snowball. Throws without a source rather than silently accepting
+       * everything, exactly as `excludeSource` does: a mentor that quietly
+       * stopped comparing would be a free counter on any attacker.
+       */
+      if (selector.lesserPowerThanSource) {
+        if (sourceInstanceId === undefined) {
+          throw new Error('A selector with lesserPowerThanSource was asked without a source - "lesser power" has nothing to compare against');
+        }
+        const source = findInstance(state, sourceInstanceId);
+        if (!source) return false;
+        if (effectivePower(state, found.instance) >= effectivePower(state, source.instance)) return false;
       }
       return !isProtectedFromThisSource(state, target.instanceId, controllerId, sourceInstanceId);
     }

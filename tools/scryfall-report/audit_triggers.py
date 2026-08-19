@@ -39,6 +39,7 @@ MODELLED = {
     "spell-cast", "damaged", "upkeep", "first-main", "begin-combat", "end-step",
     "land-played", "becomes-tapped",
     "combat-damage-to-player", "creatures-dealt-combat-damage",
+    "creatures-attack", "library-searched", "draw-step",
 }
 
 
@@ -91,8 +92,23 @@ def clauses(card):
     # a general keyword table because it is the only one in the pool whose
     # reminder text is a trigger.
     for line in raw.splitlines():
-        if line.strip().lower().startswith("battle cry"):
+        stripped = line.strip().lower()
+        if stripped.startswith("battle cry"):
             found.append("Whenever this creature attacks, each other attacking creature gets +1/+0 until end of turn.")
+        # Mentor (Legion Warboss) and mobilize (Voice of Victory) are the same
+        # shape battle cry is: a keyword whose entire trigger lives in the
+        # reminder text `strip_reminders` has just removed. Three of them is
+        # still a written-out list rather than a table - the reminder wording is
+        # what is being matched, and a table would invite matching the keyword
+        # alone on a card that only mentions it.
+        if stripped.startswith("mentor"):
+            found.append(
+                "Whenever this creature attacks, put a +1/+1 counter on target attacking creature with lesser power."
+            )
+        if stripped.startswith("mobilize"):
+            found.append(
+                "Whenever this creature attacks, create tapped and attacking Warrior creature tokens."
+            )
     for line in text.split("\n"):
         # An ability word sits in front of the trigger and is pure flavour:
         # "Landfall - Whenever a land you control enters...". Stripping it is
@@ -178,12 +194,14 @@ def classify(clause, card_name):
         re.escape(short_name),
     )
 
-    # Turn-based triggers became real events on 2026-08-10 (Deathreap Ritual).
-    # The draw step is deliberately still not one: no card in the pool wants
-    # it, and an event nothing ever fires is worse than no event.
+    # Turn-based triggers became real events on 2026-08-10 (Deathreap Ritual),
+    # and the draw step joined them on 2026-08-19 with Mana Vault - the one card
+    # in the pool that bills you during it.
     if re.match(r"^at the beginning of", c) or re.match(r"^at end of", c):
         if "upkeep" in c:
             return "upkeep", None
+        if "draw step" in c:
+            return "draw-step", None
         if "end step" in c or re.match(r"^at end of turn", c):
             return "end-step", None
         if "first main phase" in c:
@@ -253,6 +271,20 @@ def classify(clause, card_name):
         return None, "combat damage to a player by something else - not modelled"
     if re.search(r"deals damage", c):
         return None, "damage-dealt trigger - not modelled"
+
+    # "Whenever you attack with one or more non-Gnome creatures" (Anim Pakal),
+    # "whenever you attack with this creature and/or your commander" (Ainok
+    # Strike Leader) - a real event since 2026-08-19.
+    #
+    # Checked before the "whenever ... attacks" branch below, and the difference
+    # is the whole reason the event exists: "you attack with" is one event for
+    # the whole declaration, and "a creature attacks" is one per creature.
+    if re.search(r"^when(ever)? you attack with ", c):
+        return "creatures-attack", None
+
+    # "Whenever an opponent searches their library" - Archivist of Oghma.
+    if re.search(r"^when(ever)? (a player|an opponent|you) searche?s? ", c):
+        return "library-searched", None
 
     # "You may exert it as it attacks" - Combat Celebrant. A triggered ability
     # that never says "whenever", and the only shape in the pool that does not.

@@ -70,6 +70,13 @@ export function meetsBoardCondition(
       );
     case "opponents":
       return state.players.length - 1 >= condition.count;
+    /*
+     * "As long as you have 30 or more life" - Serra Ascendant. A question about
+     * the player rather than the board, like `citys-blessing`, and read fresh
+     * every time so the creature shrinks the moment the total falls back under.
+     */
+    case "life-at-least":
+      return player.life >= condition.life;
     case "controls-subtype": {
       // "a Swamp or a Forest" - any one of them will do, and a dual counts for
       // both at once because this reads the type line rather than card names.

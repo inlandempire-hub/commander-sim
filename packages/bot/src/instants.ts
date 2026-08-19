@@ -19,6 +19,7 @@ import {
   power,
   strikesEarly,
   toughness,
+  printedPump,
 } from "./evaluate.js";
 import { castableFromHand, castOrTapToward, NO_COST, type Castable } from "./handOptions.js";
 import type { BotAction } from "./types.js";
@@ -205,13 +206,17 @@ export function combatTrick(state: GameState, me: Player): BotAction | null {
   for (const trick of tricks) {
     const effect = trick.definition.castEffect;
     if (effect?.kind !== "pump" || !effect.target) continue;
+    // A pump whose size is counted at resolution cannot be weighed before it is
+    // cast - see `printedPump`. Left alone rather than guessed at.
+    const printed = printedPump(effect);
+    if (!printed) continue;
 
     // A negative pump is removal: point it at the enemy creature it can kill.
-    if (effect.toughness < 0) {
+    if (printed.toughness < 0) {
       const killable = inCombat
         .map((f) => f.theirs)
         .filter((c) => !hasKeyword(state, c, "Indestructible"))
-        .filter((c) => toughness(state, c) + effect.toughness <= 0)
+        .filter((c) => toughness(state, c) + printed.toughness <= 0)
         .filter((c) => isValidTarget(state, effect.target!, { kind: "card", instanceId: c.instanceId }, me.id))
         .sort((a, b) => creatureValue(state, b) - creatureValue(state, a));
       if (killable[0]) {
@@ -224,11 +229,11 @@ export function combatTrick(state: GameState, me: Player): BotAction | null {
       if (!isValidTarget(state, effect.target, { kind: "card", instanceId: mine.instanceId }, me.id)) continue;
 
       const savesMine =
-        diesInFight(state, mine, theirs) && !diesInFight(state, mine, theirs, effect.toughness);
+        diesInFight(state, mine, theirs) && !diesInFight(state, mine, theirs, printed.toughness);
       const killsTheirs =
         !diesInFight(state, theirs, mine) &&
         !hasKeyword(state, theirs, "Indestructible") &&
-        power(state, mine) + effect.power >= toughness(state, theirs);
+        power(state, mine) + printed.power >= toughness(state, theirs);
 
       if (savesMine || killsTheirs) {
         return castOrTapToward(state, me, trick, [{ kind: "card", instanceId: mine.instanceId }]);

@@ -133,6 +133,14 @@ def card_features(fx):
             feat.add("grantsWard")
         if buff.get("condition"):
             feat.add("conditionalBuff")
+    # "This artifact doesn't untap during your untap step." - Mana Vault. A
+    # property of the card rather than something it does, like `entersTapped`.
+    if fx.get("doesNotUntap"):
+        feat.add("doesNotUntap")
+    # "Other Goblin creatures you control attack each combat if able." - Goblin
+    # Rabblemaster. A static on the board, so it lives in `staticRules`.
+    if (fx.get("staticRules") or {}).get("othersOfSubtypeMustAttack"):
+        feat.add("othersMustAttack")
     if fx.get("cantBeCountered"):
         feat.add("cantBeCountered")
     if fx.get("becomesChosenBasicType"):
@@ -494,6 +502,25 @@ RULES = [
     # "They gain haste until end of turn" - a grant on the tokens the same ability
     # just made, which is `grants` on createToken rather than an effect of its own.
     (r"^they gain haste until end of turn$", {"createToken"}),
+    # "That token gains haste until end of turn" - the singular twin, on Loyal
+    # Apprentice; and Legion Warboss, which adds the requirement in the same
+    # sentence. Tied to `createToken` because both riders live on that effect.
+    (r"^that token gains haste until end of turn$", {"createToken"}),
+    (r"^that token gains haste until end of turn and attacks this combat if able$",
+     {"createToken"}),
+    # Mentor and mobilize are keywords whose whole text is reminder text, so what
+    # is left on the line is the bare keyword. Tied to the trigger event each of
+    # them actually is, so a fixture that prints the keyword and models nothing
+    # is still reported.
+    (r"^mentor$", {"trigger:attacks"}),
+    (r"^mobilize \d+$", {"trigger:attacks"}),
+    # Goblin Rabblemaster's static, and Mana Vault's three clauses.
+    (r"^other \w+ creatures you control attack each combat if able$", {"othersMustAttack"}),
+    (r"^this (artifact|creature|permanent|enchantment|land) doesn't untap during your untap step$",
+     {"doesNotUntap"}),
+    (r"^if you do, untap this (artifact|creature|permanent|enchantment|land)$", {"mayPay"}),
+    (r"^at the beginning of your draw step, if this artifact is tapped, it deals \d+ damage to you$",
+     {"trigger:draw-step"}),
     # Batch 8 - the singles.
     (r"^its controller gains life equal to its power$", {"target-power"}),
     (r"^add \{r\}\{r\}, then add \{r\} for each card named .+ in each graveyard$",
@@ -622,7 +649,16 @@ def main():
         if not card:
             continue
         checked += 1
-        have = effect_kinds(fx) | card_features(fx) | copy_features(fx)
+        # Trigger *events*, alongside the effect kinds. A keyword whose whole
+        # text is reminder text - mentor, mobilize - leaves nothing on the line
+        # but the keyword itself, and the only honest thing to tie it to is the
+        # event it actually is.
+        have = (
+            effect_kinds(fx)
+            | card_features(fx)
+            | copy_features(fx)
+            | {'trigger:%s' % e for e in trigger_events(fx) if e}
+        )
 
         oracle = strip_reminders((card.get("oracle_text") or "").replace("—", "-"))
         leftovers = []

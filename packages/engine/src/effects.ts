@@ -26,7 +26,7 @@ import { addMana, canPayManaCost, manaValue, payManaCost } from "./mana.js";
 import { damageCreature, damagePlayer } from "./damage.js";
 import { effectivePower, hasKeyword } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
-import { enteredBattlefield, moveControl, pushTrigger, putOntoBattlefield } from "./permanents.js";
+import { enteredBattlefield, fireLibrarySearched, moveControl, pushTrigger, putOntoBattlefield } from "./permanents.js";
 import { gainLife } from "./life.js";
 import { qualityWord } from "./protection.js";
 import { describeBlockRestriction } from "./blocking.js";
@@ -953,7 +953,15 @@ export function applyEffect(
         controllerId,
         evaluateAmount(state, controllerId, effect.count, "createToken count", sourceInstanceId),
       );
-      for (let i = 0; i < count; i++) {
+      /*
+       * "For each opponent, create a ... token that's tapped and attacking that
+       * player" - Ainok Strike Leader, whose count *is* the list of opponents.
+       * Every other card makes `count` tokens with nobody in particular to
+       * attack, and gets a list of that many nulls.
+       */
+      const aimedAt = attackTargets(state, controllerId, effect.attacking, count);
+      const made: CardInstance[] = [];
+      for (let i = 0; i < aimedAt.length; i++) {
         const token = createCardInstance(state, effect.tokenDefinitionId, controllerId, "battlefield");
         /*
          * A token enters the battlefield like anything else, so it goes
@@ -962,7 +970,22 @@ export function applyEffect(
          * here by hand, which meant three Soldier tokens beside a Soul Warden
          * gained nothing.
          */
-        enteredBattlefield(state, token, deployOptions(state, controllerId, effect.attacking));
+        const aim = aimedAt[i];
+        enteredBattlefield(
+          state,
+          token,
+          aim === null
+            ? deployOptions(state, controllerId, effect.attacking === true)
+            : { tapped: true, attackingPlayerId: aim },
+        );
+        made.push(token);
+        /*
+         * "That token ... attacks this combat if able" - Legion Warboss, whose
+         * Goblin is made *before* attackers are declared and is told it must be
+         * one of them. Nothing to do with the flag above, which is for tokens
+         * that arrive in a combat already under way.
+         */
+        if (effect.mustAttack) token.mustAttackThisCombat = true;
         /*
          * "It gains lifelink and haste **until end of turn**" - Windcrag
          * Siege's Goblin. Granted to the instance rather than printed on the
@@ -971,7 +994,18 @@ export function applyEffect(
          */
         for (const keyword of effect.grants ?? []) {
           if (!token.grantedKeywords.includes(keyword)) token.grantedKeywords.push(keyword);
+          // Haste granted as a token is made is granted so that it can attack
+          // *now*, which is also what `makeCopyToken` does with it.
+          if (keyword === "Haste") token.summoningSickness = false;
         }
+      }
+      /*
+       * "Sacrifice them at the beginning of the next end step" - mobilize.
+       * Scheduled over the tokens that were actually made, not over the count
+       * and not over the creature that made them, which may be dead by then.
+       */
+      if (effect.delayedEnd && made.length > 0) {
+        scheduleDelayedRemoval(state, controllerId, sourceInstanceId, made, effect.delayedEnd);
       }
       return;
     }
@@ -1015,6 +1049,22 @@ export function applyEffect(
       return;
     }
     case "pump": {
+      /*
+       * Counted here rather than substituted earlier, because Goblin
+       * Rabblemaster's "+1/+0 for each other attacking Goblin" is only knowable
+       * once attackers have been declared - and stays knowable, so a Goblin
+       * removed from combat in response really does take a point back off.
+       * Every other card in the pool prints a literal, which evaluates to
+       * itself.
+       */
+      const power = evaluateAmount(state, controllerId, effect.power, "pump power", sourceInstanceId);
+      const toughness = evaluateAmount(
+        state,
+        controllerId,
+        effect.toughness,
+        "pump toughness",
+        sourceInstanceId,
+      );
       const cardTargets = targets.filter((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card");
       // No explicit target means "this creature" - the activated-ability form
       // ("{G}: this creature gets +2/+2"), same convention as addCounter.
@@ -1024,8 +1074,8 @@ export function applyEffect(
         // A creature that has already left the battlefield just isn't there to
         // be pumped - the spell fizzles on it rather than tracking a ghost.
         if (!found || found.instance.zone !== "battlefield") continue;
-        found.instance.temporaryPowerBonus += effect.power;
-        found.instance.temporaryToughnessBonus += effect.toughness;
+        found.instance.temporaryPowerBonus += power;
+        found.instance.temporaryToughnessBonus += toughness;
         // "It gains indestructible until end of turn" - Revitalizing Repast.
         for (const keyword of effect.grants ?? []) {
           if (!found.instance.grantedKeywords.includes(keyword)) {
@@ -1060,6 +1110,13 @@ export function applyEffect(
            * combat stops counting.
            */
           if (effect.restriction === "attacking" && !(instance.instanceId in state.attackers)) continue;
+          /*
+           * "**Creature tokens** you control gain indestructible" - Ainok Strike
+           * Leader. Both halves of what a token is, because the engine has two:
+           * a token minted from a token definition, and a token that is a copy
+           * of a real card, flagged on the instance.
+           */
+          if (effect.restriction === "token" && !(affectedDef?.isToken || instance.isTokenCopy)) continue;
           // "each **other** attacking creature" - the source is not one of them.
           if (effect.excludeSelf && instance.instanceId === sourceInstanceId) continue;
           // "Non-Human creatures you control" - Return of the Wildspeaker.
@@ -1414,6 +1471,7 @@ export function applyEffect(
           ],
           followUpTargets: rest.map((playerId) => ({ kind: "player" as const, playerId })),
         };
+        fireLibrarySearched(state, first!);
         return;
       }
       // Searching stops the game and asks: which card you take is the whole
@@ -1436,6 +1494,13 @@ export function applyEffect(
         // left to do after the shuffle.
         followUp: pendingFollowUp,
       };
+      /*
+       * "Whenever an opponent searches their library" - Archivist of Oghma.
+       * Fired here rather than in `resolveSearch`, because searching is what
+       * the player is doing now: one who finds nothing has still searched, and
+       * one who never answers has still set the trigger off.
+       */
+      fireLibrarySearched(state, searcherId);
       return;
     }
     case "sacrifice": {
@@ -2098,6 +2163,36 @@ function deployOptions(
   const defenderId = Object.values(state.attackers)[0];
   if (!defenderId) return {};
   return { tapped: true, attackingPlayerId: defenderId };
+}
+
+/**
+ * Who each token Ainok Strike Leader makes is attacking.
+ *
+ * "For each opponent, create a ... token that's tapped and attacking **that
+ * player**" - one token per opponent, each aimed at its own, which is a
+ * different card from one token per opponent all piling onto whoever is already
+ * being attacked. In a duel the two are the same and the distinction is
+ * invisible; in a pod it is the whole ability.
+ *
+ * Returns one entry per token to make. `null` in the list means "not attacking
+ * anybody", which is what a token made outside combat is.
+ */
+function attackTargets(
+  state: GameState,
+  controllerId: string,
+  attacking: boolean | "each-opponent" | undefined,
+  count: number,
+): Array<string | null> {
+  if (attacking !== "each-opponent") return new Array<string | null>(count).fill(null);
+  const opponents = state.players.filter((player) => player.id !== controllerId).map((player) => player.id);
+  if (opponents.length === 0) return [];
+  /*
+   * Driven by the count rather than by the list, so that a Doubling Season
+   * beside Ainok Strike Leader makes two tokens per opponent rather than two
+   * tokens total. The card's own count is "for each opponent", so without a
+   * doubler the two are the same length and each token lands on its own player.
+   */
+  return Array.from({ length: count }, (_, i) => opponents[i % opponents.length]!);
 }
 
 /**

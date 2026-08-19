@@ -149,6 +149,27 @@ function countOf(
         0,
       );
     }
+    case "attacking-creatures": {
+      /*
+       * "for each other attacking Goblin" - Goblin Rabblemaster.
+       *
+       * Every attacker on the table, not just this player's: `state.attackers`
+       * is one map for the combat, and a card that says "attacking Goblin"
+       * means any of them. Nothing in the pool attacks on somebody else's
+       * behalf, so in practice they are the controller's - but reading the
+       * combat rather than the battlefield is what makes the number fall as
+       * attackers are removed from combat.
+       */
+      let total = 0;
+      for (const attackerInstanceId of Object.keys(state.attackers)) {
+        if (of.excludeSource && attackerInstanceId === sourceInstanceId) continue;
+        const found = findInstance(state, attackerInstanceId);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        if (of.subtype && !hasCreatureType(state, found.instance, of.subtype)) continue;
+        total += 1;
+      }
+      return total;
+    }
     case "creatures-attacking-you":
       // `state.attackers` maps an attacker to the player it is attacking, so
       // this is a count of the entries pointed at us - not of our creatures,

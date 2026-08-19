@@ -26,6 +26,7 @@ import {
   power,
   toughness,
   wouldDie,
+  printedPump,
 } from "./evaluate.js";
 import { chooseSearchResult, couldAfford } from "./mana.js";
 import { chooseCardsToBottom, shouldKeepHand } from "./mulligan.js";
@@ -713,7 +714,7 @@ function removeSomething(state: GameState, me: Player, reserve: ManaCost = NO_CO
   const shrink = castableFromHand(
     state,
     me,
-    (def) => def.castEffect?.kind === "pump" && def.castEffect.toughness < 0,
+    (def) => (printedPump(def.castEffect)?.toughness ?? 0) < 0,
     reserve,
   );
   shrink.sort((a, b) => manaValue(a.cost) - manaValue(b.cost));
@@ -721,9 +722,11 @@ function removeSomething(state: GameState, me: Player, reserve: ManaCost = NO_CO
   for (const spell of shrink) {
     const effect = spell.definition.castEffect;
     if (effect?.kind !== "pump" || !effect.target) continue;
+    const printed = printedPump(effect);
+    if (!printed) continue;
     const killable = enemyCreatures
       .filter((c) => !hasKeyword(state, c, "Indestructible"))
-      .filter((c) => toughness(state, c) + effect.toughness <= 0)
+      .filter((c) => toughness(state, c) + printed.toughness <= 0)
       .filter((c) => isValidTarget(state, effect.target!, { kind: "card", instanceId: c.instanceId }, me.id))
       .sort((a, b) => creatureValue(state, b) - creatureValue(state, a));
     const best = killable[0];

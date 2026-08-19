@@ -3,7 +3,9 @@ import {
   activatableAbilities,
   affordableXValues,
   attackProblem,
+  attackRequirement,
   blockProblem,
+  compelledAttackers,
   canMulliganAgain,
   canPlayCardNow,
   canPlayLandsFromGraveyard,
@@ -394,6 +396,31 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     });
     if (pass) controller.passPriority(priorityPlayerId);
   }, [state, controller, pendingTarget, stops, fullControl, showStops]);
+
+  /*
+   * "...attack each combat if able." Selected for the player as the step
+   * arrives, rather than left for them to discover by being refused.
+   *
+   * Asked of the engine every render and merged into what is already picked, so
+   * a Rabblemaster that dies mid-step stops compelling anything and a Goblin
+   * that arrives late is picked up. Only ever adds: taking one back is refused
+   * in the click handler, and adding one that is already there is a no-op that
+   * leaves the set identical, so this cannot loop.
+   */
+  useEffect(() => {
+    if (!state) return;
+    if (!(state.phase === "combat" && state.step === "declare-attackers")) return;
+    const active = state.players[state.activePlayerIndex];
+    if (!active || !controller.canControlPlayer(active.id)) return;
+    const compelled = compelledAttackers(state, active.id).map((c) => c.instanceId);
+    if (compelled.length === 0) return;
+    setSelectedAttackerIds((prev) => {
+      if (compelled.every((id) => prev.has(id))) return prev;
+      const next = new Set(prev);
+      for (const id of compelled) next.add(id);
+      return next;
+    });
+  }, [state, controller]);
 
   if (!state) {
     return (
@@ -840,6 +867,17 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
         const problem = attackProblem(state!, ownerId, instanceId);
         if (problem) {
           setNotice(problem);
+          return;
+        }
+      } else {
+        /*
+         * "attacks each combat if able" - taking it back would build a
+         * declaration the engine refuses, so the refusal happens here, in the
+         * engine's own words, at the moment the player tries.
+         */
+        const required = attackRequirement(state!, ownerId, instanceId);
+        if (required) {
+          setNotice(required);
           return;
         }
       }

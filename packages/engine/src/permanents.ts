@@ -578,6 +578,94 @@ export function fireCombatDamageToPlayer(
   }
 }
 
+/**
+ * "Whenever you attack with **one or more** ... creatures" - fired once for the
+ * whole declaration, however many were declared.
+ *
+ * The twin of `fireCombatDamageToPlayer`'s second half, and the same distinction
+ * it draws: `permanent-attacks` beside this fires per attacker, which is what
+ * Winota says, and would give Anim Pakal a fresh batch of Gnomes for every extra
+ * creature in the swing.
+ *
+ * Membership is decided over the whole list rather than one subject at a time,
+ * which is exactly why this cannot go through `fireWatchers`: "did any of these
+ * qualify" is a different question from "does this one qualify", and only the
+ * first can fire once.
+ */
+export function fireCreaturesAttack(
+  state: GameState,
+  attackingPlayerId: string,
+  attackerInstanceIds: string[],
+): void {
+  if (attackerInstanceIds.length === 0) return;
+  for (const player of state.players) {
+    for (const watcher of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "creatures-attack") continue;
+        // "Whenever **you** attack" - every card of this shape watches its own
+        // controller's swing, which is what the default `watches` means.
+        if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== attackingPlayerId) {
+          continue;
+        }
+        const qualifies = attackerInstanceIds.some((instanceId) => {
+          const found = findInstance(state, instanceId);
+          if (!found) return false;
+          /*
+           * "this creature and/or your commander" - Ainok Strike Leader, which
+           * names two particular permanents rather than a class of them. Not a
+           * `watchFor`, because that reads printed characteristics and neither
+           * "this one" nor "mine" is one.
+           */
+          if (trigger.attackersIncludeSelfOrCommander) {
+            if (instanceId === watcher.instanceId) return true;
+            return found.instance.isCommander && found.instance.controllerId === watcher.controllerId;
+          }
+          return matchesWatchFor(trigger.watchFor, describeSubject(state, found.instance), watcher.controllerId);
+        });
+        if (!qualifies) continue;
+        pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger);
+      }
+    }
+  }
+}
+
+/**
+ * "Whenever an opponent searches their library" - Archivist of Oghma.
+ *
+ * Fired from the one place a search is set up, so a tutor added later sets it
+ * off without knowing this card exists - the same posture `tapPermanent` and
+ * `gainLife` take for their events.
+ *
+ * Deliberately not fired by Winota's "look at the top six": looking is not
+ * searching, which is why one of them can be answered without a shuffle.
+ */
+export function fireLibrarySearched(state: GameState, searcherId: string): void {
+  for (const player of state.players) {
+    for (const watcher of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "library-searched") continue;
+        /*
+         * "an **opponent** searches their library" - whose search it has to be,
+         * read off `watchFor.controlledBy`, the same field `spell-cast` uses for
+         * whose spell it has to be. The subject of both events is a player
+         * rather than a permanent, which is why neither goes through
+         * `matchesWatchFor`: that one is handed a permanent to look at.
+         *
+         * Omitted means anybody's, which is what `controlledBy` means everywhere.
+         */
+        const mine = searcherId === watcher.controllerId;
+        // "**each** player" vs "you", the same first gate every watcher event
+        // has, so a card written here reads like a card written anywhere else.
+        if ((trigger.watches ?? "controller") === "controller" && !mine) continue;
+        const wants = trigger.watchFor?.controlledBy;
+        if (wants === "you" && !mine) continue;
+        if (wants === "opponent" && mine) continue;
+        pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger);
+      }
+    }
+  }
+}
+
 export function fireLandPlayed(state: GameState, played: CardInstance): void {
   fireWatchers(state, "land-played", describeSubject(state, played));
 }
@@ -868,10 +956,10 @@ export function triggerConditionMet(
   controllerId: string,
   condition: TriggerCondition,
   /**
-   * The permanent the trigger is printed on. Only `source-has-counters` needs
-   * it - every other condition asks about the board rather than about the card
-   * - so it is optional, and a condition that needs it and is not given one
-   * answers false rather than guessing.
+   * The permanent the trigger is printed on. Only the conditions that ask about
+   * the card itself need it - `source-has-counters`, `source-not-exerted`,
+   * `source-is-tapped` - so it is optional, and one that needs it and is not
+   * given one answers false rather than guessing.
    */
   sourceInstanceId?: string,
 ): boolean {
@@ -901,6 +989,24 @@ export function triggerConditionMet(
       const found = findInstance(state, sourceInstanceId);
       // A permanent that was never asked has no mode, so neither half is live.
       return found?.instance.chosenOnEntry?.mode === condition.mode;
+    }
+    /*
+     * "if you control your commander" - Loyal Apprentice's lieutenant, and any
+     * other board question an intervening-if wants to ask. One wrapper for both
+     * directions, so a condition added for a tapland is available here the same
+     * day.
+     */
+    case "board":
+      return meetsBoardCondition(state, controllerId, condition.condition);
+    /*
+     * "if this artifact is tapped" - Mana Vault. A question about the permanent
+     * printing the trigger, so it answers false without one, exactly as
+     * `source-has-counters` does.
+     */
+    case "source-is-tapped": {
+      if (!sourceInstanceId) return false;
+      const found = findInstance(state, sourceInstanceId);
+      return found?.instance.zone === "battlefield" && found.instance.tapped;
     }
     case "first-combat-phase":
       return state.combatPhasesThisTurn <= 1;
