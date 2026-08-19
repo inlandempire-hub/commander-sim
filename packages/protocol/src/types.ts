@@ -9,7 +9,8 @@ import type { AttackerDeclaration, BlockerDeclaration, GameState, StackTarget,
  * client-supplied identity for "who is doing this."
  */
 export type ClientMessage =
-  | { type: "playLand"; instanceId: string }
+  /** `face` is only meaningful for a card with a land on both sides - see `playLand`. */
+  | { type: "playLand"; instanceId: string; face?: "front" | "back" }
   /**
    * `chosenMode` and `chosenX` are both settled as the spell is cast (rule
    * 601.2b), so they travel with the cast rather than being asked for

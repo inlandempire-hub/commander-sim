@@ -343,6 +343,22 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Pay ${effect.life} life.`;
     case "regenerateAll":
       return "Regenerate each creature you control.";
+    case "tap":
+      return sentence(
+        `tap ${effect.target ? describeTarget(effect.target) : "this permanent"}.`,
+      );
+    case "theyMay":
+      /*
+       * "They may tap that permanent. If they don't, you create a ... token."
+       *
+       * Both halves printed, because the card is only comprehensible as a pair -
+       * a panel that said only "they may tap that permanent" would describe a
+       * card with no upside at all.
+       */
+      return sentence(
+        `they may ${lowerFirst(describeEffect(effect.then, definitions)).replace(/\.$/, "")}. ` +
+          `If they don't, ${lowerFirst(describeEffect(effect.otherwise, definitions))}`,
+      );
     case "untap":
       // No target named is the "untap this permanent" form, which is what the
       // card says when it is talking about itself.
@@ -728,9 +744,12 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       // Manipulation prints it, and putting the duration first is what stops a
       // sentence that ends in a quoted ability from trailing off into
       // "...you gain 1 life." until end of turn."
+      // "until **your next turn**" - Emeria's Call, the one printing in the
+      // pool whose shield has to survive the opponent's turn.
+      const until = effect.grantsUntil === "your-next-turn" ? "until your next turn" : "until end of turn";
       return gains.some((g) => g.startsWith('"'))
-        ? finish(`Until end of turn, ${lowerFirst(who)} ${parts.join(" and ")}`)
-        : `${who} ${parts.join(" and ")} until end of turn.`;
+        ? finish(`${until.charAt(0).toUpperCase()}${until.slice(1)}, ${lowerFirst(who)} ${parts.join(" and ")}`)
+        : `${who} ${parts.join(" and ")} ${until}.`;
     }
     case "loseLife":
       // Loss, not damage, and the panel says so - a player who reads "deals 1
@@ -963,6 +982,15 @@ function countWord(n: number): string {
 }
 
 /** "creature", "Aura", "permanent" - what a watcher is looking out for. */
+/**
+ * "...enters **untapped**" - Charismatic Conqueror. A trailing word rather than
+ * part of the noun, because that is where the card prints it, and it is the
+ * whole drawback of the card: against a deck of taplands it does nothing.
+ */
+function arrivalQualifier(watchFor: TriggeredAbility["watchFor"]): string {
+  return watchFor?.untapped ? " untapped" : "";
+}
+
 function watchedNoun(watchFor: TriggeredAbility["watchFor"]): string {
   // A list of types is only ever written on a spell trigger, which uses
   // `watchedSpell` instead - but the field allows one, so this reads it rather
@@ -1218,6 +1246,12 @@ function watchedSubject(ability: TriggeredAbility, self: CardDefinition): string
     // watcher by *how many* - only The Ozolith reads the number, and it reads
     // it from the event rather than filtering on it.
     counters: 1,
+    // Nor is there an arrival to have been tapped or untapped. Charismatic
+    // Conqueror's "enters untapped" narrows *how* a permanent arrived, and a
+    // card asked about in the abstract has not arrived at all - so it is
+    // offered as untapped, which is what "would this trigger see that card"
+    // means here.
+    tapped: false,
     isToken: self.isToken === true,
   });
   /*
@@ -1335,7 +1369,9 @@ function describeTrigger(
       // Worded to match the printed card, because these variants really do
       // play differently and the panel is where you find that out: what is
       // watched, whose it has to be, and whether this card counts itself.
-      return `Whenever ${watchedSubject(ability, self)} enters the battlefield, ${tail}`;
+      return `Whenever ${watchedSubject(ability, self)} enters the battlefield${arrivalQualifier(
+        ability.watchFor,
+      )}, ${tail}`;
     case "permanent-dies":
       return `Whenever ${watchedSubject(ability, self)} dies, ${tail}`;
     case "permanent-sacrificed":

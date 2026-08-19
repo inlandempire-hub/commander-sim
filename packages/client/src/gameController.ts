@@ -16,7 +16,7 @@ export interface GameController {
   state: GameState | null;
   lastError: string | null;
   clearError(): void;
-  playLand(playerId: string, instanceId: string): void;
+  playLand(playerId: string, instanceId: string, face?: "front" | "back"): void;
   castSpell(
     playerId: string,
     instanceId: string,

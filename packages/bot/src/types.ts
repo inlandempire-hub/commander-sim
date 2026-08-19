@@ -11,7 +11,7 @@ import type { AttackerDeclaration, BlockerDeclaration, StackTarget } from "@mtg-
  * there is deliberately no engine or server code path that knows it exists.
  */
 export type BotAction =
-  | { kind: "playLand"; instanceId: string }
+  | { kind: "playLand"; instanceId: string; face?: "front" | "back" }
   | {
       kind: "castSpell";
       instanceId: string;

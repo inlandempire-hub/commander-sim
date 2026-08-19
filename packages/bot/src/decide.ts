@@ -9,6 +9,8 @@ import {
   targetSelectorOf,
   manaValue,
   type CardDefinition,
+  type CardInstance,
+  type Color,
   type Effect,
   type GameState,
   type ManaCost,
@@ -529,12 +531,49 @@ function drawCards(state: GameState, me: Player, reserve: ManaCost = NO_COST): B
   return castOrTapToward(state, me, draws[0]!);
 }
 
+/**
+ * Which side of a two-faced land to play - Needleverge Pathway, which is a
+ * Mountain on one side and a Plains on the other.
+ *
+ * Whichever colour the hand is shortest of, counted against what the board
+ * already produces. A bot that always took the front would play a deck of
+ * Mountains in a two-colour deck and simply never cast its white cards.
+ *
+ * Answered here rather than in `playALand` so the one-face case stays what it
+ * always was: `undefined` means "front", which is the only face a card with a
+ * spell on the other side could mean.
+ */
+function landFaceFor(state: GameState, me: Player, land: CardInstance): "front" | "back" | undefined {
+  const front = definitionOf(state, land);
+  const backId = front?.backFaceId;
+  const back = backId ? state.cardDefinitions[backId] : undefined;
+  // Only a card that is a land on both sides is a choice at all.
+  if (!front?.types.includes("Land") || !back?.types.includes("Land")) return undefined;
+
+  const produced = (def: CardDefinition | undefined): Color | undefined =>
+    def?.activatedAbilities?.flatMap((a) => (a.effect.kind === "addMana" && a.effect.color !== "C" ? [a.effect.color] : []))[0];
+  const frontColor = produced(front);
+  const backColor = produced(back);
+  if (!frontColor || !backColor) return undefined;
+
+  // How badly each colour is wanted: pips in hand, less what the board makes.
+  const need = (color: Color): number => {
+    const wanted = me.hand.reduce(
+      (total, card) => total + (definitionOf(state, card)?.manaCost?.colors[color] ?? 0),
+      0,
+    );
+    const have = me.battlefield.filter((c) => produced(definitionOf(state, c)) === color).length;
+    return wanted - have;
+  };
+  return need(backColor) > need(frontColor) ? "back" : "front";
+}
+
 /** Land drops are close to free value - always take one if it's available. */
 function playALand(state: GameState, me: Player): BotAction | null {
   if (me.landsPlayedThisTurn >= 1) return null;
   const land = me.hand.find((c) => definitionOf(state, c)?.types.includes("Land"));
   if (!land) return null;
-  return { kind: "playLand", instanceId: land.instanceId };
+  return { kind: "playLand", instanceId: land.instanceId, face: landFaceFor(state, me, land) };
 }
 
 /** Anything that puts power on the board: a creature, a token maker, or an anthem. */

@@ -591,7 +591,21 @@ export function mayPlayFromExile(state: GameState, playerId: string, instance: C
   return true;
 }
 
-export function playLand(state: GameState, playerId: string, instanceId: string): void {
+export function playLand(
+  state: GameState,
+  playerId: string,
+  instanceId: string,
+  /**
+   * Which face of a modal double-faced card is being played.
+   *
+   * Only ever consulted when *both* faces are lands - Needleverge Pathway - and
+   * ignored otherwise, because there is nothing to choose: a card with a spell
+   * on the front and a land on the back can only be reaching `playLand` for its
+   * land. Defaults to the front, which is what a client that has never heard of
+   * two-land cards would mean.
+   */
+  face: "front" | "back" = "front",
+): void {
   if (state.players[state.priorityPlayerIndex]?.id !== playerId) {
     throw new Error(`${playerId} does not have priority`);
   }
@@ -626,8 +640,14 @@ export function playLand(state: GameState, playerId: string, instanceId: string)
    */
   const front = requireDefinition(state, instance.definitionId);
   const back = front.backFaceId ? requireDefinition(state, front.backFaceId) : undefined;
-  if (back?.types.includes("Land") && !front.types.includes("Land")) {
-    instance.definitionId = front.backFaceId!;
+  if (back?.types.includes("Land")) {
+    /*
+     * One land face means there is nothing to decide: a spell on the front and a
+     * land on the back can only be here for the land. Two land faces - the
+     * Pathway cycle - is a genuine choice, and it is the entire card.
+     */
+    const wanted = front.types.includes("Land") ? face : "back";
+    if (wanted === "back") instance.definitionId = front.backFaceId!;
   }
 
   const def = requireDefinition(state, instance.definitionId);

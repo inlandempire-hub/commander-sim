@@ -1041,3 +1041,32 @@ describe("batch 9", () => {
     expect(textOf("myrel-shield-of-argive")).toContain("Soldier");
   });
 });
+
+/**
+ * Batch 10, tranche one. Two of these three are two cards in one, and the panel
+ * is the only place a player finds out which half they are looking at.
+ */
+describe("batch 10", () => {
+  it("says Emeria's Call's shield lasts longer than a turn", () => {
+    const text = textOf("emerias-call");
+    expect(text).toContain("Angel Warrior");
+    // The one word that makes the card worth seven mana.
+    expect(text).toContain("until your next turn");
+    expect(text).not.toContain("until end of turn");
+  });
+
+  it("says both Pathway faces make different mana", () => {
+    expect(textOf("needleverge-pathway")).toContain("Add {R}");
+    expect(textOf("pillarverge-pathway")).toContain("Add {W}");
+  });
+
+  it("says Charismatic Conqueror asks them, and what happens if they refuse", () => {
+    const text = textOf("charismatic-conqueror");
+    expect(text).toContain("enters the battlefield untapped");
+    expect(text).toContain("they may");
+    // Both halves, because a panel with only the first describes a card with no
+    // upside at all.
+    expect(text.toLowerCase()).toContain("if they don't");
+    expect(text).toContain("Vampire");
+  });
+});

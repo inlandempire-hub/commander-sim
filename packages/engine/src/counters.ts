@@ -150,6 +150,18 @@ function staticBuffFor(state: GameState, instance: CardInstance): { power: numbe
  * The same shape as `effectivePower`, and for the same reason: recomputed on
  * every read, so nothing has to be invalidated.
  */
+/**
+ * Keywords this permanent was granted for a while, from both lists.
+ *
+ * Two lists, one answer. They are separate because they are *cleared* at
+ * different moments - the ordinary one in the cleanup step, the other in its
+ * controller's untap step - and joined here because nothing downstream cares
+ * which of them a keyword came from.
+ */
+function grantedNow(instance: CardInstance): Keyword[] {
+  return [...instance.grantedKeywords, ...instance.grantedKeywordsUntilYourNextTurn];
+}
+
 export function effectiveKeywords(state: GameState, instance: CardInstance): Keyword[] {
   const def = requireDefinition(state, instance.definitionId);
   // "with flying and infect" - an animated land's keywords come from the
@@ -161,7 +173,7 @@ export function effectiveKeywords(state: GameState, instance: CardInstance): Key
   if (instance.zone !== "battlefield") return [...printed];
 
   const all = new Set<Keyword>(printed);
-  for (const keyword of instance.grantedKeywords) all.add(keyword);
+  for (const keyword of grantedNow(instance)) all.add(keyword);
   for (const { buff, source } of buffsReaching(state, instance)) {
     for (const keyword of buff.grants ?? []) all.add(keyword);
     /*

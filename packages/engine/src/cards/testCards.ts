@@ -15517,8 +15517,188 @@ export const MANA_VAULT: CardDefinition = {
   tier: "weird",
 };
 
+
+/* ==========================================================================
+ * Batch 10, tranche one.
+ * ========================================================================== */
+
+/** "two 4/4 white Angel Warrior creature tokens with flying" - Emeria's Call. */
+export const TOKEN_W_44_ANGEL_WARRIOR_FLYING: CardDefinition = {
+  id: "token-w-44-angel-warrior-flying",
+  name: "Angel Warrior",
+  types: ["Creature"],
+  subtypes: ["Angel", "Warrior"],
+  colorIdentity: ["W"],
+  power: 4,
+  toughness: 4,
+  keywords: ["Flying"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+/** "a 1/1 white Vampire creature token with lifelink" - Charismatic Conqueror. */
+export const TOKEN_W_11_VAMPIRE_LIFELINK: CardDefinition = {
+  id: "token-w-11-vampire-lifelink",
+  name: "Vampire",
+  types: ["Creature"],
+  subtypes: ["Vampire"],
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Lifelink"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+/** The land half of Emeria's Call - a Plains that costs 3 life to come in untapped. */
+export const EMERIA_SHATTERED_SKYCLAVE: CardDefinition = {
+  id: "emeria-shattered-skyclave",
+  name: "Emeria, Shattered Skyclave",
+  scryfallId: "c470539a-9cc7-4175-8f7c-c982b6072b6d",
+  types: ["Land"],
+  colorIdentity: ["W"],
+  entersTappedUnlessPayLife: 3,
+  isBackFace: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } }],
+  tier: "scripted",
+};
+
+/**
+ * Emeria's Call - {4}{W}{W}{W} Sorcery // a land.
+ *
+ * "Create two 4/4 white Angel Warrior creature tokens with flying. Non-Angel
+ * creatures you control gain indestructible until your next turn."
+ *
+ * The shield is "until **your next turn**", not until end of turn, and the extra
+ * length is the entire point of it: seven mana of Angels only survives if the
+ * board wipe on the way back cannot answer them. Written as an ordinary
+ * end-of-turn grant the card would be strictly worse than printed, and
+ * invisibly so - the difference only shows on somebody else's turn.
+ *
+ * "Non-Angel" excludes the two it just made, which is not a drawback so much as
+ * the reason the Angels are 4/4s: they are meant to survive on their own.
+ */
+export const EMERIAS_CALL: CardDefinition = {
+  id: "emerias-call",
+  name: "Emeria's Call",
+  scryfallId: "c470539a-9cc7-4175-8f7c-c982b6072b6d",
+  types: ["Sorcery"],
+  manaCost: { generic: 4, colors: { W: 3 } },
+  colorIdentity: ["W"],
+  backFaceId: "emeria-shattered-skyclave",
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "createToken", count: 2, tokenDefinitionId: "token-w-44-angel-warrior-flying" },
+      {
+        kind: "pumpAll",
+        power: 0,
+        toughness: 0,
+        scope: "controller",
+        excludeSubtype: "Angel",
+        grants: ["Indestructible"],
+        grantsUntil: "your-next-turn",
+      },
+    ],
+  },
+  tier: "weird",
+};
+
+/** The white half of the Pathway. */
+export const PILLARVERGE_PATHWAY: CardDefinition = {
+  id: "pillarverge-pathway",
+  name: "Pillarverge Pathway",
+  scryfallId: "6559047e-6ede-4815-a3a0-389062094f9d",
+  types: ["Land"],
+  // The colour identity of the whole physical card, not of this face: it is one
+  // card in a deck and the format checks it once. Every other back face in the
+  // pool happens to match its front, which is why this is worth saying.
+  colorIdentity: ["R", "W"],
+  isBackFace: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } }],
+  tier: "vanilla",
+};
+
+/**
+ * Needleverge Pathway // Pillarverge Pathway - a Mountain on one side, a Plains
+ * on the other, and no drawback at all beyond having to pick.
+ *
+ * The first card in the pool that is a *land on both faces*, which is what made
+ * `playLand` grow a face argument: every other modal double-faced card here has
+ * a spell on the front, so reaching `playLand` at all could only ever have meant
+ * the back. Here it is a real choice, and it is the whole card.
+ */
+export const NEEDLEVERGE_PATHWAY: CardDefinition = {
+  id: "needleverge-pathway",
+  name: "Needleverge Pathway",
+  scryfallId: "6559047e-6ede-4815-a3a0-389062094f9d",
+  types: ["Land"],
+  colorIdentity: ["R", "W"],
+  backFaceId: "pillarverge-pathway",
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } }],
+  tier: "vanilla",
+};
+
+/**
+ * Charismatic Conqueror - {1}{W} 2/2 Vampire Soldier.
+ *
+ * "Vigilance. Whenever an artifact or creature an opponent controls enters
+ * untapped, they may tap that permanent. If they don't, you create a 1/1 white
+ * Vampire creature token with lifelink."
+ *
+ * The first "you may" in this engine aimed at an opponent. `pendingConfirmation`
+ * has always kept the asked player and the effect's controller in separate
+ * fields, so asking somebody else needed no new machinery - but the two halves
+ * really do belong to two different players, and getting that backwards would
+ * hand the Vampire to the wrong side of the table.
+ *
+ * "Untapped" is the drawback, and it is a real one: against a deck of taplands
+ * this card does nothing at all.
+ */
+export const CHARISMATIC_CONQUEROR: CardDefinition = {
+  id: "charismatic-conqueror",
+  name: "Charismatic Conqueror",
+  scryfallId: "599c934d-bfff-43ce-a545-6e3cde124515",
+  types: ["Creature"],
+  subtypes: ["Vampire", "Soldier"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Vigilance"],
+  triggeredAbilities: [
+    {
+      event: "permanent-enters",
+      // Everyone's battlefield, then narrowed to theirs - the same pair Esper
+      // Sentinel uses, because `watches` and `controlledBy` ask different things.
+      watches: "any",
+      watchFor: { type: ["Artifact", "Creature"], controlledBy: "opponent", untapped: true },
+      effect: {
+        kind: "theyMay",
+        prompt: "Tap that permanent, or Charismatic Conqueror's controller makes a Vampire?",
+        // No target named: the permanent that entered rides along on the trigger
+        // as a card target, which is what "that permanent" means.
+        then: { kind: "tap" },
+        otherwise: {
+          kind: "createToken",
+          count: 1,
+          tokenDefinitionId: "token-w-11-vampire-lifelink",
+        },
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    EMERIAS_CALL,
+    EMERIA_SHATTERED_SKYCLAVE,
+    NEEDLEVERGE_PATHWAY,
+    PILLARVERGE_PATHWAY,
+    CHARISMATIC_CONQUEROR,
+    TOKEN_W_44_ANGEL_WARRIOR_FLYING,
+    TOKEN_W_11_VAMPIRE_LIFELINK,
     LOYAL_APPRENTICE,
     MYREL_SHIELD_OF_ARGIVE,
     SERRA_ASCENDANT,

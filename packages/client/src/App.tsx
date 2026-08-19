@@ -1076,7 +1076,10 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     const { ownerId, instanceId } = pendingFace;
     setPendingFace(null);
     if (face === "back") {
-      controller.playLand(ownerId, instanceId);
+      // The back face is always a land - either the only land face (Emeria's
+      // Call) or one of two (Needleverge Pathway), and only the second of those
+      // makes the argument mean anything.
+      controller.playLand(ownerId, instanceId, "back");
       return;
     }
     // Re-enter the normal path now that the face is settled. `pendingFace` is

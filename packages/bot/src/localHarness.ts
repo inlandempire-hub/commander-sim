@@ -34,7 +34,7 @@ import { castOptionsFor, type BotAction } from "./types.js";
 export function applyBotAction(state: GameState, playerId: string, action: BotAction): void {
   switch (action.kind) {
     case "playLand":
-      playLand(state, playerId, action.instanceId);
+      playLand(state, playerId, action.instanceId, action.face);
       return;
     // The auto-tap variants, matching the client's controller and the server.
     // This harness used the raw ones, which made it the only path where the

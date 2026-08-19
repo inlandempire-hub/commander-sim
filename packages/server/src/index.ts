@@ -59,7 +59,7 @@ function broadcastState(state: GameState): void {
 function dispatch(state: GameState, playerId: string, message: ClientMessage): void {
   switch (message.type) {
     case "playLand":
-      playLand(state, playerId, message.instanceId);
+      playLand(state, playerId, message.instanceId, message.face);
       return;
     case "castSpell":
       castSpellWithAutoTap(state, playerId, message.instanceId, message.targets ?? [], {

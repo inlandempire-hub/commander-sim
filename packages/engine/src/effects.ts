@@ -26,7 +26,14 @@ import { addMana, canPayManaCost, manaValue, payManaCost } from "./mana.js";
 import { damageCreature, damagePlayer } from "./damage.js";
 import { effectivePower, hasKeyword } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
-import { enteredBattlefield, fireLibrarySearched, moveControl, pushTrigger, putOntoBattlefield } from "./permanents.js";
+import {
+  enteredBattlefield,
+  fireLibrarySearched,
+  moveControl,
+  pushTrigger,
+  putOntoBattlefield,
+  tapPermanent,
+} from "./permanents.js";
 import { gainLife } from "./life.js";
 import { qualityWord } from "./protection.js";
 import { describeBlockRestriction } from "./blocking.js";
@@ -159,12 +166,20 @@ export function applyEffect(
         log(state, `${found.instance.controllerId} gains ${life} life`);
         return;
       }
-      for (const target of targets) {
-        if (target.kind === "player") {
-          gainLife(state, target.playerId, life);
-        }
+      /*
+       * A player target means them, and no player target means you.
+       *
+       * Read as *player* targets rather than as "any targets at all", which is
+       * what it said until a trigger could carry a permanent along with it:
+       * Charismatic Conqueror put a card target on every arrival trigger, and
+       * Soul Warden - which has no `who` and means its own controller - quietly
+       * stopped gaining anybody life.
+       */
+      const players = targets.filter((t) => t.kind === "player");
+      for (const target of players) {
+        if (target.kind === "player") gainLife(state, target.playerId, life);
       }
-      if (targets.length === 0) gainLife(state, controllerId, life);
+      if (players.length === 0) gainLife(state, controllerId, life);
       log(state, `${controllerId} gains ${life} life`);
       return;
     }
@@ -1123,8 +1138,18 @@ export function applyEffect(
           if (effect.excludeSubtype && affectedDef?.subtypes?.includes(effect.excludeSubtype)) continue;
           instance.temporaryPowerBonus += power;
           instance.temporaryToughnessBonus += toughness;
+          /*
+           * "until your next turn" goes in the other list, which the untap step
+           * sweeps rather than the cleanup step. Same keywords, same reader -
+           * only the moment they end differs, which is the whole reason there
+           * are two lists.
+           */
+          const into =
+            effect.grantsUntil === "your-next-turn"
+              ? instance.grantedKeywordsUntilYourNextTurn
+              : instance.grantedKeywords;
           for (const keyword of effect.grants ?? []) {
-            if (!instance.grantedKeywords.includes(keyword)) instance.grantedKeywords.push(keyword);
+            if (!into.includes(keyword)) into.push(keyword);
           }
           /*
            * A whole ability, handed over for the turn - Root Manipulation.
@@ -1142,6 +1167,58 @@ export function applyEffect(
       if (effect.grants?.length) {
         log(state, `${controllerId}'s ${creaturesOnly ? "creatures" : "permanents"} gain ${effect.grants.join(" and ").toLowerCase()} until end of turn`);
       }
+      return;
+    }
+    case "tap": {
+      /*
+       * "They may tap that permanent." The only place in this engine that taps a
+       * permanent as an *effect* rather than as a cost - and it goes through
+       * `tapPermanent` like every other site, so an opponent's City of Brass
+       * tapped this way still deals them its damage.
+       */
+      const cardTargets = targets.filter((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card");
+      const ids = cardTargets.length > 0 ? cardTargets.map((t) => t.instanceId) : [sourceInstanceId];
+      for (const id of ids) {
+        const found = findInstance(state, id);
+        if (!found || found.instance.zone !== "battlefield" || found.instance.tapped) continue;
+        tapPermanent(state, found.instance);
+        log(state, `${cardName(state, id)} is tapped`);
+      }
+      return;
+    }
+    case "theyMay": {
+      /*
+       * "They may tap that permanent. If they don't, you create a ... token."
+       *
+       * The asked player is read off the permanent the event carried - "that
+       * permanent" belongs to whoever controls it - and the two halves belong to
+       * two different players: they tap their own thing, and the *controller*
+       * gets the token. `pendingConfirmation` already keeps the asked player and
+       * the effect's controller apart, so both halves land on the right side of
+       * the table without any of it being special-cased here.
+       */
+      const subject = targets.find((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card");
+      const found = subject ? findInstance(state, subject.instanceId) : undefined;
+      if (!found || found.instance.zone !== "battlefield") {
+        // The permanent has already gone, so there is nothing to tap and nothing
+        // to decline - and the "if they don't" half does not happen either: the
+        // question was never asked.
+        return;
+      }
+      state.pendingConfirmation = {
+        playerId: found.instance.controllerId,
+        sourceInstanceId,
+        prompt: effect.prompt,
+        object: {
+          id: `they-${state.nextStackObjectId++}`,
+          sourceInstanceId,
+          controllerId,
+          effect: effect.then,
+          targets,
+          isPermanentSpell: false,
+        },
+        otherwise: effect.otherwise,
+      };
       return;
     }
     case "untap": {

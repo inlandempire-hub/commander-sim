@@ -85,7 +85,7 @@ export function useLocalGameController({
     state: stateRef.current,
     lastError,
     clearError: () => setLastError(null),
-    playLand: (playerId, instanceId) => act((s) => playLand(s, playerId, instanceId)),
+    playLand: (playerId, instanceId, face) => act((s) => playLand(s, playerId, instanceId, face)),
     // The auto-tap variants: if the floating mana pool doesn't already cover
     // the cost, lands are tapped for it first, and put back if the action
     // turns out to be illegal. Clicking a card you can afford just plays it.

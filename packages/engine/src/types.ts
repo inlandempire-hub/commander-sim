@@ -812,6 +812,15 @@ export type Effect =
    * Vault's upkeep payment takes and the same convention `pump` and
    * `addCounter` already follow.
    */
+  /**
+   * "**They may tap that permanent.**" - Charismatic Conqueror.
+   *
+   * The mirror of `untap` below, and it arrived much later because until this
+   * card nothing in the pool ever tapped a permanent as an *effect* - tapping
+   * had only ever been a cost. Goes through `tapPermanent`, so an opponent's
+   * City of Brass tapped this way still hurts them.
+   */
+  | { kind: "tap"; target?: TargetSelector }
   | { kind: "untap"; target?: TargetSelector }
   /**
    * "Untap all other creatures you control" - Combat Celebrant.
@@ -1001,6 +1010,21 @@ export type Effect =
        * right home for it rather than a separate effect.
        */
       grants?: Keyword[];
+      /**
+       * "Non-Angel creatures you control gain indestructible **until your next
+       * turn**." - Emeria's Call.
+       *
+       * A longer lifetime than everything else in this family, and the extra
+       * length is the card: the shield has to survive the opponent's turn, which
+       * is the only turn it matters on. Absent means until end of turn, which is
+       * every other printing in the pool.
+       *
+       * Held in its own list on the instance rather than alongside the ordinary
+       * grants - see `grantedKeywordsUntilYourNextTurn`. Two lists because they
+       * are cleared at two different moments, which is the whole difference
+       * between them.
+       */
+      grantsUntil?: "your-next-turn";
       /**
        * "...and gain **'Whenever this creature attacks, you gain 1 life'**" -
        * Root Manipulation, which hands out a whole triggered ability rather
@@ -1593,6 +1617,22 @@ export type Effect =
    * effect.
    */
   | { kind: "drawUnlessTheyPay"; amount: Amount }
+  /**
+   * "**They may tap that permanent. If they don't**, you create a 1/1 white
+   * Vampire creature token with lifelink." - Charismatic Conqueror.
+   *
+   * A yes-or-no aimed at somebody other than the ability's controller, which is
+   * the second question in this engine of that shape - `PendingDiscard` was the
+   * first. It rides on `pendingConfirmation`, whose `playerId` has always been a
+   * field rather than an assumption, so asking an opponent needed no new
+   * machinery: the bot and the client both answer whichever confirmations belong
+   * to a seat they drive.
+   *
+   * The two halves belong to two different players and that is not decoration:
+   * *they* tap their own permanent, and *you* get the Vampire. `then` is
+   * therefore run for the asked player and `otherwise` for the controller.
+   */
+  | { kind: "theyMay"; prompt: string; then: Effect; otherwise: Effect }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -2072,6 +2112,16 @@ export interface TriggeredAbility {
     withCounter?: boolean;
     /** "a **nontoken** creature you control dies" - Blight Mound. */
     nontoken?: boolean;
+    /**
+     * "Whenever an artifact or creature an opponent controls enters
+     * **untapped**" - Charismatic Conqueror.
+     *
+     * A narrowing on how the permanent arrived rather than on what it is, and it
+     * is the whole drawback of the card: against a deck of taplands the
+     * Conqueror does nothing. Read at the moment of the event, which for an
+     * arrival is after every enters-tapped rule has been applied.
+     */
+    untapped?: boolean;
     /**
      * "Whenever **equipped** creature dies" - Skullclamp. Only the one creature
      * this Equipment is currently attached to, so the watcher has to compare
@@ -2999,6 +3049,17 @@ export interface CardInstance {
    * which is a different and much worse card.
    */
   mustAttackThisCombat: boolean;
+  /**
+   * Keywords granted "until your next turn" - Emeria's Call's indestructible.
+   *
+   * A second list beside `grantedKeywords` because the two end at different
+   * moments, and that is the only thing separating them: the ordinary list is
+   * swept in the cleanup step at the end of every turn, and this one in the
+   * *controller's* untap step, which is exactly when "your next turn" arrives.
+   * One list with a deadline per keyword would be the same information written
+   * twice as awkwardly; `effectiveKeywords` reads both and nothing else does.
+   */
+  grantedKeywordsUntilYourNextTurn: Keyword[];
   /**
    * "**You may play that card this turn**" - Professional Face-Breaker, and
    * Ragavan's "until end of turn, you may cast that card".

@@ -55,7 +55,7 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
     // The server always acts as whichever seat this connection was assigned
     // at join time, so the playerId argument here is accepted (to match
     // useLocalGameController's signature) but intentionally unused.
-    playLand: (_playerId, instanceId) => send({ type: "playLand", instanceId }),
+    playLand: (_playerId, instanceId, face) => send({ type: "playLand", instanceId, face }),
     castSpell: (_playerId, instanceId, targets, options) =>
       /*
        * Every announcement travels with the cast. `chosenMode` and `chosenX`

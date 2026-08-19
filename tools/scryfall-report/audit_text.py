@@ -512,6 +512,9 @@ RULES = [
     # is left on the line is the bare keyword. Tied to the trigger event each of
     # them actually is, so a fixture that prints the keyword and models nothing
     # is still reported.
+    # "They may tap that permanent" - Charismatic Conqueror, whose "if they
+    # don't" half is a second sentence the ordinary token rule already covers.
+    (r"they may tap that permanent", {"theyMay"}),
     (r"^mentor$", {"trigger:attacks"}),
     (r"^mobilize \d+$", {"trigger:attacks"}),
     # Goblin Rabblemaster's static, and Mana Vault's three clauses.
@@ -618,6 +621,13 @@ def main():
     with gzip.open(DATA, "rt", encoding="utf-8") as fh:
         for line in fh:
             card = json.loads(line)
+            # Art-series cards are printed art, not cards: their faces carry
+            # the real card's *name* with a type line of "Card" and no colour
+            # identity at all. Indexed first they shadow the genuine face -
+            # which is how Pillarverge Pathway came to be reported as a
+            # colourless non-land that is not Commander legal.
+            if card.get("layout") == "art_series":
+                continue
             if "Token" in card.get("type_line", ""):
                 continue
             by_name.setdefault(card["name"].lower(), card)

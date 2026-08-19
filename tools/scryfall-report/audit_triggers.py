@@ -49,6 +49,13 @@ def load_scryfall():
     with gzip.open(DATA, "rt", encoding="utf-8") as fh:
         for line in fh:
             card = json.loads(line)
+            # Art-series cards are printed art, not cards: their faces carry
+            # the real card's *name* with a type line of "Card" and no colour
+            # identity at all. Indexed first they shadow the genuine face -
+            # which is how Pillarverge Pathway came to be reported as a
+            # colourless non-land that is not Commander legal.
+            if card.get("layout") == "art_series":
+                continue
             if "Token" in card.get("type_line", ""):
                 continue
             by_name.setdefault(card["name"].lower(), card)
@@ -382,7 +389,14 @@ def fixture_watches(trigger):
     """The noun a fixture's watchFor filter amounts to, lowercased, so it can be
     compared with the noun in the printed text."""
     watch_for = trigger.get("watchFor") or {}
-    return (watch_for.get("subtype") or watch_for.get("type") or "").lower() or None
+    wanted = watch_for.get("subtype") or watch_for.get("type") or ""
+    # "an artifact **or** creature an opponent controls" - Charismatic Conqueror,
+    # the first fixture to list two types. `watched_noun` reads the printed
+    # phrase down to its last word ("creature"), so the last entry is the one to
+    # compare against; the alternatives are all in the same sentence anyway.
+    if isinstance(wanted, list):
+        wanted = wanted[-1] if wanted else ""
+    return wanted.lower() or None
 
 
 def audit(fixtures, by_name):

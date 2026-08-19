@@ -37,7 +37,7 @@ function parseArgs(argv: string[]): RunnerOptions {
 function toClientMessage(action: BotAction): ClientMessage | null {
   switch (action.kind) {
     case "playLand":
-      return { type: "playLand", instanceId: action.instanceId };
+      return { type: "playLand", instanceId: action.instanceId, face: action.face };
     case "resolveColorChoice":
       return { type: "resolveColorChoice", quality: action.quality };
     case "castSpell":

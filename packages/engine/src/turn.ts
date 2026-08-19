@@ -227,6 +227,16 @@ function runAutomaticStepActions(state: GameState): void {
          * still wears off below, because a Vault that stays tapped is not a new
          * arrival.
          */
+        /*
+         * "...gain indestructible **until your next turn**" - Emeria's Call.
+         *
+         * Cleared here rather than in the cleanup step, and that is the whole
+         * of what the phrase means: the shield has to survive the opponent's
+         * turn and ends the moment yours begins. The untap step is the first
+         * thing that happens in it, and it only ever runs for the active
+         * player - so "your" is answered by where this loop already is.
+         */
+        instance.grantedKeywordsUntilYourNextTurn = [];
         if (state.cardDefinitions[instance.definitionId]?.doesNotUntap) {
           // Deliberately silent. It never untaps, every turn, for as long as it
           // is in play - a log line every upkeep would be noise rather than news.

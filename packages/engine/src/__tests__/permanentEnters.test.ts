@@ -263,6 +263,7 @@ describe("matchesWatchFor", () => {
     hadCounters: false,
     counters: 0,
     isToken: false,
+    tapped: false,
     ...over,
   });
 

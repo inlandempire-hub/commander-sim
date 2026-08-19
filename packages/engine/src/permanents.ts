@@ -413,6 +413,14 @@ export interface TriggerSubject {
    */
   counters: number;
   isToken: boolean;
+  /**
+   * Whether it was tapped at the moment of the event - "an artifact or creature
+   * an opponent controls enters **untapped**", Charismatic Conqueror.
+   *
+   * Captured for the same reason `counters` is: read afterwards it would be the
+   * wrong answer, because the very trigger this feeds goes on to tap it.
+   */
+  tapped: boolean;
 }
 
 export function describeSubject(
@@ -428,6 +436,7 @@ export function describeSubject(
     hadCounters: instance.plusOneCounters > 0,
     counters: instance.plusOneCounters,
     isToken: definition.isToken === true,
+    tapped: instance.tapped,
   };
 }
 
@@ -505,6 +514,13 @@ export function fireWatchers(
         trigger,
         subject.counters,
         event === "spell-cast" ? subject.controllerId : undefined,
+        /*
+         * "**That permanent**" - the thing the event happened to, which
+         * Charismatic Conqueror needs to point at. Only for arrivals: a
+         * permanent that died or left has no instance worth acting on, and a
+         * spell is not a permanent at all.
+         */
+        event === "permanent-enters" ? subject.instanceId : undefined,
       );
     }
   }
@@ -720,6 +736,12 @@ export function matchesWatchFor(
     if (barred.some((subtype) => (subject.def.subtypes ?? []).includes(subtype))) return false;
   }
   if (watchFor.withCounter && !subject.hadCounters) return false;
+  /*
+   * "an artifact or creature an opponent controls enters **untapped**" -
+   * Charismatic Conqueror. Read off the permanent as the event happens, which
+   * for an arrival is after every enters-tapped rule has had its say.
+   */
+  if (watchFor.untapped && subject.tapped) return false;
   if (watchFor.nontoken && subject.isToken) return false;
   if (watchFor.controlledBy) {
     if (!watcherControllerId) return false;
@@ -759,6 +781,15 @@ export function pushTrigger(
    * downstream already knows how to read one.
    */
   eventPlayerId?: string,
+  /**
+   * The permanent this event happened to - "**that permanent**", the one
+   * Charismatic Conqueror asks its controller to tap.
+   *
+   * Carried exactly as `eventPlayerId` is, and for the same reason: it is the
+   * event's own payload wearing the shape every effect downstream already
+   * reads. Nothing was chosen, so hexproof never enters into it.
+   */
+  eventInstanceId?: string,
 ): StackObject | null {
   /*
    * "If a creature attacking causes a triggered ability of a permanent you
@@ -771,9 +802,17 @@ export function pushTrigger(
    * - including its own targeting - because two instances of an ability really
    * are two abilities, each pointed separately.
    */
-  const first = pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount, eventPlayerId);
+  const first = pushTriggerOnce(
+    state,
+    sourceInstanceId,
+    controllerId,
+    trigger,
+    eventAmount,
+    eventPlayerId,
+    eventInstanceId,
+  );
   for (let i = 0; i < extraAttackTriggers(state, controllerId, trigger); i++) {
-    pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount, eventPlayerId);
+    pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount, eventPlayerId, eventInstanceId);
   }
   return first;
 }
@@ -796,6 +835,7 @@ function pushTriggerOnce(
   trigger: TriggeredAbility,
   eventAmount?: number,
   eventPlayerId?: string,
+  eventInstanceId?: string,
 ): StackObject | null {
   // Rule 603.4, first check: an intervening-if that is false right now means
   // the ability never goes on the stack at all.
@@ -880,7 +920,10 @@ function pushTriggerOnce(
    * enter into it. It is the event's own payload wearing the shape every effect
    * downstream already reads.
    */
-  const eventTargets: StackTarget[] = eventPlayerId ? [{ kind: "player", playerId: eventPlayerId }] : [];
+  const eventTargets: StackTarget[] = [
+    ...(eventPlayerId ? [{ kind: "player" as const, playerId: eventPlayerId }] : []),
+    ...(eventInstanceId ? [{ kind: "card" as const, instanceId: eventInstanceId }] : []),
+  ];
   const obj = pushOntoStack(state, sourceInstanceId, controllerId, effect, eventTargets, false);
   if (trigger.optional) {
     obj.optional = true;
