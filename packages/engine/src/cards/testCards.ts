@@ -11218,6 +11218,26 @@ export const LABORATORY_MANIAC: CardDefinition = {
   tier: "scripted",
 };
 
+export const TRAILBLAZERS_BOOTS: CardDefinition = {
+  id: "trailblazers-boots",
+  name: "Trailblazer's Boots",
+  scryfallId: "aa05985b-e2cb-412f-a2ad-b8d723d9f451",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 2, colors: {} },
+  staticBuff: { power: 0, toughness: 0, grants: ["Nonbasic Landwalk"] },
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 2, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const SHADOWMAGE_INFILTRATOR: CardDefinition = {
   id: "shadowmage-infiltrator",
   name: "Shadowmage Infiltrator",
@@ -14294,5 +14314,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     DEATH_BEGETS_LIFE,
     NECROPOLIS_REGENT,
     SHADOWMAGE_INFILTRATOR,
+    TRAILBLAZERS_BOOTS,
   ].map((def) => [def.id, def]),
 );

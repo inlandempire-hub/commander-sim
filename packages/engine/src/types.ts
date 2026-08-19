@@ -41,6 +41,7 @@ export type Keyword =
   | "Vigilance"
   | "Menace"
   | "Fear"
+  | "Nonbasic Landwalk"
   | "Reach"
   | "Defender"
   | "Hexproof"

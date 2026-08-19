@@ -110,6 +110,19 @@ export function blockProblem(
         return `${blockerDef.name} cannot block ${attackerDef.name} - it has fear, and this is neither an artifact nor black`;
       }
     }
+    // Nonbasic landwalk: unblockable while the defending player (the blocker's
+    // controller, since you may only block attackers aimed at you) controls a
+    // land that is not Basic.
+    if (hasKeyword(state, attackerFound.instance, "Nonbasic Landwalk")) {
+      const defender = requirePlayer(state, blocker.controllerId);
+      const controlsNonbasic = defender.battlefield.some((c) => {
+        const d = requireDefinition(state, c.definitionId);
+        return d.types.includes("Land") && !(d.supertypes ?? []).includes("Basic");
+      });
+      if (controlsNonbasic) {
+        return `${blockerDef.name} cannot block ${attackerDef.name} - it has nonbasic landwalk and you control a nonbasic land`;
+      }
+    }
   }
   return null;
 }
