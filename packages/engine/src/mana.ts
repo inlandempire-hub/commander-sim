@@ -19,8 +19,9 @@ import { cardColors, controllerMeets } from "./conditions.js";
 
 export function manaValue(cost: ManaCost): number {
   const pips = ALL_COLORS.reduce((sum, c) => sum + (cost.colors[c] ?? 0), 0);
-  // A hybrid symbol counts 1 whichever half of it gets paid.
-  return cost.generic + pips + (cost.hybrid?.length ?? 0);
+  // A hybrid symbol counts 1 whichever half of it gets paid, and so does a
+  // Phyrexian one - {W/P} is mana value 1 even when it was paid with life.
+  return cost.generic + pips + (cost.hybrid?.length ?? 0) + (cost.phyrexian?.length ?? 0);
 }
 
 /** The commander tax rule: +{2} generic per previous cast from the command zone this game. */
@@ -67,16 +68,57 @@ function payColoredPart(pool: ManaPool, cost: ManaCost): ManaPool | null {
   return remaining;
 }
 
+/**
+ * "{W/P}" - paid with its colour when the pool holds it, and with 2 life
+ * otherwise.
+ *
+ * Split out because the two halves live in different places: the colour comes
+ * out of the pool this function is walking, and the life comes off the player,
+ * which a pool has no access to. So this reports how many symbols the pool
+ * could not cover, and the caller settles the rest in life.
+ *
+ * Taking the mana first is a shortcut over a real choice. It is the same one
+ * `unlessPays` takes, and it is right nearly always: the case where you would
+ * rather pay life is the case where the pool is empty, which is the case this
+ * already handles.
+ */
+function payPhyrexianFromPool(pool: ManaPool, cost: ManaCost): { pool: ManaPool; unpaidSymbols: number } {
+  const remaining = { ...pool };
+  let unpaidSymbols = 0;
+  for (const color of cost.phyrexian ?? []) {
+    if ((remaining[color] ?? 0) > 0) remaining[color] = (remaining[color] ?? 0) - 1;
+    else unpaidSymbols += 1;
+  }
+  return { pool: remaining, unpaidSymbols };
+}
+
+/** The life a cost demands once the pool has covered what it can - 2 per symbol. */
+export function phyrexianLifeCost(pool: ManaPool, cost: ManaCost): number {
+  return payPhyrexianFromPool(pool, cost).unpaidSymbols * 2;
+}
+
 /** Whether `cost` is payable out of a given mana pool, without mutating anything. */
 export function canPayManaCostFromPool(pool: ManaPool, cost: ManaCost): boolean {
-  const remaining = payColoredPart(pool, cost);
-  if (!remaining) return false;
+  const colored = payColoredPart(pool, cost);
+  if (!colored) return false;
+  // Phyrexian symbols after the fixed pips, so a {W} pip beside a {W/P} is not
+  // paid out from under it - the same ordering hybrids take, and for the same
+  // reason.
+  const { pool: remaining } = payPhyrexianFromPool(colored, cost);
   const leftover = ALL_COLORS.reduce((sum, c) => sum + (remaining[c] ?? 0), 0) + (remaining.generic ?? 0);
   return leftover >= cost.generic;
 }
 
 export function canPayManaCost(player: Player, cost: ManaCost): boolean {
-  return canPayManaCostFromPool(player.manaPool, cost);
+  if (!canPayManaCostFromPool(player.manaPool, cost)) return false;
+  /*
+   * The life half of a Phyrexian symbol the pool could not cover. Checked
+   * against the player rather than the pool because that is where life is - and
+   * `>` rather than `>=`, since a cost that would take you to exactly 0 is one
+   * you may not pay. (Paying *down* to 0 is legal; paying *past* it is not.)
+   */
+  const life = phyrexianLifeCost(player.manaPool, cost);
+  return life === 0 || player.life > life;
 }
 
 /** Deducts a mana cost from the player's mana pool. Throws if they can't pay - callers must check canPayManaCost first. */
@@ -88,7 +130,13 @@ export function payManaCost(player: Player, cost: ManaCost): void {
   // never disagree with the mana the check counted on.
   const afterColored = payColoredPart(player.manaPool, cost);
   if (!afterColored) throw new Error(`${player.id} cannot pay mana cost`);
-  player.manaPool = afterColored;
+  // "{W/P} can be paid with either {W} or 2 life." Whatever the pool could not
+  // cover comes off the life total, at the printed rate.
+  const phyrexian = payPhyrexianFromPool(afterColored, cost);
+  player.manaPool = phyrexian.pool;
+  if (phyrexian.unpaidSymbols > 0) {
+    player.life -= phyrexian.unpaidSymbols * 2;
+  }
 
   let genericRemaining = cost.generic;
   // Spend leftover colored mana first, then generic-pool mana.

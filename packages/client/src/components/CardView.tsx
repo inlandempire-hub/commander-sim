@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
+  describeBlockRestriction,
   qualityWord,
   effectivePower,
   effectiveToughness,
@@ -310,11 +311,14 @@ export function CardView({
             * remember which creature they spent a mana on.
             */}
           {instance.blockRestrictionsThisTurn.length > 0 && (
+            /*
+             * Both shapes, in the engine's own words. Reading `keywords` off
+             * every restriction stopped being safe the moment Skrelv's arrived:
+             * its restriction names a colour that *cannot* block, which is the
+             * opposite of a list of keywords that can.
+             */
             <span className="card__protection">
-              only {instance.blockRestrictionsThisTurn
-                .flatMap((r) => r.keywords)
-                .map((k) => k.toLowerCase())
-                .join("/")} can block
+              {instance.blockRestrictionsThisTurn.map(describeBlockRestriction).join("; ")} can block
             </span>
           )}
           {!showArt && definition.keywords?.length ? (

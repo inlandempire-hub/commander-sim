@@ -23,6 +23,11 @@ export function formatManaCost(cost: ManaCost | undefined): string {
   for (const symbol of cost.hybrid ?? []) {
     symbols.push(symbol.join("/"));
   }
+  // "{W/P}" - Phyrexian. Printed with its colour and the P, because that is the
+  // symbol: rendering it as {W} would hide the half of the cost that is life.
+  for (const color of cost.phyrexian ?? []) {
+    symbols.push(`${color}/P`);
+  }
   if (symbols.length === 0) return "{0}";
   return symbols.map((s) => `{${s}}`).join("");
 }

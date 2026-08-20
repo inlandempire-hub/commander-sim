@@ -439,12 +439,23 @@ export function applyEffect(
       // Gone in response, so there is nothing to protect and no colour worth
       // asking for.
       if (!found || found.instance.zone !== "battlefield") return;
+      /*
+       * "Gains toxic 1 and hexproof from that color" - the toxic is about no
+       * colour at all, so it is granted now rather than waiting on the answer.
+       * The rest is keyed to the colour and waits.
+       */
+      if (effect.toxic) {
+        found.instance.toxicThisTurn += effect.toxic;
+        log(state, `${cardName(state, target.instanceId)} gains toxic ${effect.toxic} until end of turn`);
+      }
+      const grants = effect.grants ?? ["protection"];
       state.pendingColorChoice = {
         playerId: controllerId,
         sourceInstanceId,
         targetInstanceId: target.instanceId,
         allowColorless: effect.orColorless === true,
-        prompt: `${cardName(state, sourceInstanceId)}: choose a colour ${cardName(state, target.instanceId)} gains protection from`,
+        grants,
+        prompt: `${cardName(state, sourceInstanceId)}: choose a colour for ${cardName(state, target.instanceId)}`,
       };
       return;
     }
@@ -2187,12 +2198,31 @@ export function resolveColorChoice(
   // It may have died while the question sat there. The ability has finished
   // resolving either way.
   if (!found || found.instance.zone !== "battlefield") return;
-  if (!found.instance.protectionFrom.includes(quality)) {
-    found.instance.protectionFrom.push(quality);
+
+  /*
+   * Every clause keyed to the colour just named, applied together.
+   *
+   * Mother of Runes and Giver of Runes name one; Skrelv names three, and they
+   * are three clauses of one sentence rather than three abilities - so they are
+   * answered by one question and applied at one moment.
+   */
+  const granted = pending.grants ?? ["protection"];
+  const words: string[] = [];
+  if (granted.includes("protection")) {
+    if (!found.instance.protectionFrom.includes(quality)) found.instance.protectionFrom.push(quality);
+    words.push(`protection from ${qualityWord(quality)}`);
+  }
+  if (granted.includes("hexproof-from")) {
+    if (!found.instance.hexproofFrom.includes(quality)) found.instance.hexproofFrom.push(quality);
+    words.push(`hexproof from ${qualityWord(quality)}`);
+  }
+  if (granted.includes("unblockable-by") && quality !== "colorless") {
+    found.instance.blockRestrictionsThisTurn.push({ kind: "not-color", color: quality });
+    words.push(`unblockability by ${qualityWord(quality)} creatures`);
   }
   log(
     state,
-    `${cardName(state, pending.targetInstanceId)} gains protection from ${qualityWord(quality)} until end of turn`,
+    `${cardName(state, pending.targetInstanceId)} gains ${words.join(" and ")} until end of turn`,
   );
 }
 

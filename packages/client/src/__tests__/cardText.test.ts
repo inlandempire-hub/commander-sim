@@ -684,7 +684,14 @@ describe("no fixture carries a clause the panel never mentions", () => {
     {
       field: "effect.grantProtection",
       applies: (d) => hasNode(d, (n) => n.kind === "grantProtection"),
-      expect: /gains protection from (colorless or from )?the color of your choice until end of turn\./,
+      /*
+       * The effect is "choose a colour, then grant what that colour buys", and
+       * what it buys is no longer always protection: Skrelv's names hexproof
+       * from it and unblockability by it instead. So the coverage check asks
+       * only that the grant reaches the panel at all; which clauses each card
+       * prints is asserted card by card, where the wording can be exact.
+       */
+      expect: /gains .* until end of turn\./,
     },
     { field: "suspend", applies: (d) => d.suspend !== undefined, expect: /Suspend \d/ },
     {
@@ -1084,5 +1091,17 @@ describe("batch 10, tranche two", () => {
     // Both conditions, because neither implies the other.
     expect(text).toContain("colorless");
     expect(text).toContain("nonland");
+  });
+});
+
+describe("Skrelv in the panel", () => {
+  it("prints all three of the clauses keyed to the chosen colour", () => {
+    const text = textOf("skrelv-defector-mite");
+    expect(text).toContain("Toxic 1");
+    expect(text).toContain("can't block");
+    expect(text).toContain("Choose a color");
+    expect(text).toContain("toxic 1 and hexproof from that color");
+    // The half that wins the game, and its own sentence on the card.
+    expect(text).toContain("can't be blocked by creatures of that color this turn");
   });
 });

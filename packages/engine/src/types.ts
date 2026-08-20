@@ -207,16 +207,40 @@ export type Keyword =
  * "can't be blocked by creatures of that color" is the second shape and is not
  * built: see the roadmap.
  */
-export type BlockRestriction = {
-  kind: "only-with-keyword";
+export type BlockRestriction =
+  | {
+      kind: "only-with-keyword";
+      /**
+       * Any one of these will do. Two of them for flying ("flying **or** reach"),
+       * one for Gingerbrute's haste.
+       */
+      keywords: Keyword[];
+    }
   /**
-   * Any one of these will do. Two of them for flying ("flying **or** reach"),
-   * one for Gingerbrute's haste.
+   * "It **can't be blocked by creatures of that color** this turn." - Skrelv,
+   * whose colour is named as the ability resolves.
+   *
+   * The second shape, and it is the opposite of the first: that one names an
+   * ability a blocker must *have*, this names a quality that disqualifies it.
+   * Neither can be written as the other, which is why this is a union rather
+   * than a longer first member.
    */
-  keywords: Keyword[];
-};
+  | { kind: "not-color"; color: Color };
 
 /** Generic mana + colored pips. A card with no mana cost (most lands) omits this entirely. */
+/**
+ * "{W/P}" - a Phyrexian symbol, payable with its colour **or with 2 life**.
+ *
+ * The same shape as `hybrid` beside it - one entry per printed symbol - and the
+ * difference is what the other half is: another colour there, a fixed price in
+ * life here. Which is why it cannot simply be folded into `hybrid`, whose halves
+ * all come out of the mana pool.
+ *
+ * The engine pays the colour whenever the pool holds it and the life otherwise.
+ * That is a shortcut over a real choice, and it is the same one `unlessPays`
+ * takes: a player who has the mana almost always spends it, and the case where
+ * they would rather not is exactly the case where the pool is empty.
+ */
 export interface ManaCost {
   generic: number;
   colors: Partial<Record<Color, number>>;
@@ -229,6 +253,8 @@ export interface ManaCost {
    * It counts 1 towards mana value however it is paid.
    */
   hybrid?: Color[][];
+  /** One entry per Phyrexian symbol - see the note above. */
+  phyrexian?: Color[];
   /**
    * How many {X} symbols the cost prints. One for The Meathook Massacre
    * ({X}{B}{B}), two for Pest Infestation ({X}{X}{G}) - where choosing X = 3
@@ -1473,6 +1499,20 @@ export type Effect =
        * question is the five colours, which is what the other two print.
        */
       orColorless?: boolean;
+      /**
+       * What the named colour actually buys.
+       *
+       * Defaults to protection, which is every printing in the pool but one.
+       * Skrelv's names three clauses at once - hexproof from that colour, and
+       * unblockable by creatures of it - and they are all keyed to the same
+       * answer, so they belong to the same question rather than to three.
+       */
+      grants?: Array<"protection" | "hexproof-from" | "unblockable-by">;
+      /**
+       * "gains **toxic 1** and hexproof from that color" - granted alongside,
+       * and about no colour at all. It rides here because it is one ability.
+       */
+      toxic?: number;
     }
   /**
    * "For each token you control that entered this turn, create a token that's
@@ -2762,6 +2802,28 @@ export interface CardDefinition {
    */
   doesNotUntap?: boolean;
   /**
+   * "**Toxic 1**" - Skrelv. A player dealt combat damage by this creature also
+   * gets that many poison counters.
+   *
+   * A number rather than a keyword, for the same reason `wardLife` is one: the
+   * keyword is always printed with a figure beside it, and a second card with a
+   * different figure must not need a second keyword.
+   *
+   * Deliberately not infect, which it superficially resembles. Infect *changes*
+   * what damage is - a player loses no life at all - and toxic adds poison on
+   * top of ordinary damage. A Skrelv written as infect would deal no damage to
+   * anybody's face for the rest of the game.
+   */
+  toxic?: number;
+  /**
+   * "**Skrelv can't block.**"
+   *
+   * Its own field rather than the absence of something, because it is printed
+   * text with no other home: `Defender` is the opposite restriction (cannot
+   * attack), and there is no keyword for this one.
+   */
+  cantBlock?: boolean;
+  /**
    * "This land enters tapped **unless** ..." - the drawback most nonbasic duals
    * carry, and the reason those cards were refused until now. Writing one as
    * flatly tapped makes it strictly worse than the printed card, so a condition
@@ -3095,6 +3157,22 @@ export interface CardInstance {
    */
   grantedKeywordsUntilYourNextTurn: Keyword[];
   /**
+   * "Another target creature you control **gains toxic 1** ... until end of
+   * turn." - Skrelv. Added to whatever the card prints, and swept in the
+   * cleanup step with the rest of the turn's grants.
+   */
+  toxicThisTurn: number;
+  /**
+   * "...and **hexproof from that color** until end of turn." - Skrelv.
+   *
+   * Not the same as protection, and the difference is exactly why it needs its
+   * own list: protection stops damage, enchanting, blocking *and* targeting,
+   * while hexproof stops only targeting - and only by an opponent. A creature
+   * with hexproof from white can still be blocked by a white creature and still
+   * takes damage from a white one; it just cannot be pointed at.
+   */
+  hexproofFrom: ProtectionQuality[];
+  /**
    * The card this permanent has imprinted - Chrome Mox's exiled spell.
    *
    * An instance rather than a set of colours, because the card is a real object
@@ -3418,6 +3496,14 @@ export interface PendingColorChoice {
   targetInstanceId: string;
   /** Whether "colorless" is one of the answers. Giver of Runes is the only card that offers it. */
   allowColorless: boolean;
+  /**
+   * What the named colour buys, once it is named.
+   *
+   * Carried on the question rather than looked up from the card, for the same
+   * reason a "you may" holds its whole stack object: the permanent that asked
+   * may be dead by the time the answer comes, and the ability still resolves.
+   */
+  grants?: Array<"protection" | "hexproof-from" | "unblockable-by">;
 }
 
 export interface PendingDiscard {

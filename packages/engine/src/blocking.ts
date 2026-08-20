@@ -1,6 +1,7 @@
-import type { BlockRestriction, CardInstance, GameState, Keyword } from "./types.js";
+import type { BlockRestriction, CardInstance, Color, GameState, Keyword } from "./types.js";
 import { requireDefinition } from "./state.js";
 import { hasKeyword } from "./counters.js";
+import { cardColors } from "./conditions.js";
 
 /**
  * Who may block this attacker, and nothing else.
@@ -50,9 +51,18 @@ export function blockRestrictionsOn(state: GameState, attacker: CardInstance): B
 
 /** "creatures with flying or reach" - the printed phrase, for a message or a panel. */
 export function describeBlockRestriction(restriction: BlockRestriction): string {
+  if (restriction.kind === "not-color") {
+    // Worded as the *exclusion* it is - "except by white creatures" would be the
+    // opposite of what Skrelv says.
+    return `creatures that aren't ${colorWord(restriction.color)}`;
+  }
   const words = restriction.keywords.map((keyword) => keyword.toLowerCase());
   const list = words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}`;
   return `creatures with ${list}`;
+}
+
+function colorWord(color: Color): string {
+  return { W: "white", U: "blue", B: "black", R: "red", G: "green" }[color];
 }
 
 /**
@@ -65,7 +75,15 @@ export function blockRestrictionProblem(
   blocker: CardInstance,
 ): string | null {
   for (const restriction of blockRestrictionsOn(state, attacker)) {
-    const qualifies = restriction.keywords.some((keyword: Keyword) => hasKeyword(state, blocker, keyword));
+    /*
+     * Two shapes, and they are opposites: one names an ability the blocker must
+     * have, the other a colour that disqualifies it. Written as one test with a
+     * flag, whichever half was added second would silently invert the other.
+     */
+    const qualifies =
+      restriction.kind === "not-color"
+        ? !cardColors(requireDefinition(state, blocker.definitionId)).includes(restriction.color)
+        : restriction.keywords.some((keyword: Keyword) => hasKeyword(state, blocker, keyword));
     if (!qualifies) return `it can only be blocked by ${describeBlockRestriction(restriction)}`;
   }
   return null;

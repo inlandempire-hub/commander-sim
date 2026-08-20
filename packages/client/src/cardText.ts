@@ -508,15 +508,38 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
     }
     case "returnControlToOwners":
       return "Each player gains control of all creatures they own.";
-    case "grantProtection":
+    case "grantProtection": {
       /*
        * The colour is not in the effect, because it is not chosen until the
        * ability resolves - so the panel prints the card's own wording, "the color
        * of your choice", rather than a colour it cannot know.
+       *
+       * Every clause keyed to that colour, in the card's own order: Mother of
+       * Runes names one, Skrelv names three, and a panel that printed only the
+       * first would describe a materially weaker card.
        */
-      return effect.orColorless
-        ? `${describeTarget(effect.target)} gains protection from colorless or from the color of your choice until end of turn.`
-        : `${describeTarget(effect.target)} gains protection from the color of your choice until end of turn.`;
+      const granted = effect.grants ?? ["protection"];
+      const colourWords = [
+        ...(effect.toxic ? [`toxic ${effect.toxic}`] : []),
+        ...(granted.includes("protection")
+          ? [`protection from ${effect.orColorless ? "colorless or from " : ""}the color of your choice`]
+          : []),
+        ...(granted.includes("hexproof-from") ? ["hexproof from that color"] : []),
+      ];
+      // "It can't be blocked by creatures of that color this turn" is its own
+      // sentence on the card, and it is the half that actually wins the game.
+      const unblockable = granted.includes("unblockable-by")
+        ? " It can't be blocked by creatures of that color this turn."
+        : "";
+      /*
+       * "Choose a color." is its own sentence in front, so what follows it
+       * starts a new one and is capitalised - without this the panel read
+       * "Choose a color. another target creature ...".
+       */
+      const chooses = effect.grants ? "Choose a color. " : "";
+      const body = `${describeTarget(effect.target)} gains ${listAnd(colourWords)} until end of turn.`;
+      return `${chooses}${chooses ? sentence(body) : body}${unblockable}`;
+    }
     case "delayedRemoval":
       /*
        * Never reached from a card's own text - a delayed trigger is scheduled by
@@ -1789,6 +1812,17 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
       `Other ${def.staticRules.othersOfSubtypeMustAttack} creatures you control attack each combat if able.`,
     );
   }
+  if (def.toxic) {
+    // "Toxic 1 (Players dealt combat damage by this creature also get a poison
+    // counter.)" The reminder text matters here - poison is rare enough in this
+    // pool that the number alone would mean nothing.
+    lines.push(
+      `Toxic ${def.toxic} (Players dealt combat damage by this creature also get ${
+        def.toxic === 1 ? "a poison counter" : `${def.toxic} poison counters`
+      }.)`,
+    );
+  }
+  if (def.cantBlock) lines.push(`This ${selfNoun(def)} can't block.`);
   if (def.doesNotUntap) {
     lines.push(`This ${selfNoun(def)} doesn't untap during your untap step.`);
   }

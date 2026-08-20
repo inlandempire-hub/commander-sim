@@ -141,6 +141,12 @@ def card_features(fx):
     # Rabblemaster. A static on the board, so it lives in `staticRules`.
     if (fx.get("staticRules") or {}).get("othersOfSubtypeMustAttack"):
         feat.add("othersMustAttack")
+    # "Toxic 1" and "Skrelv can't block" - printed properties of the card, like
+    # `entersTapped`, rather than anything it does.
+    if fx.get("toxic"):
+        feat.add("toxic")
+    if fx.get("cantBlock"):
+        feat.add("cantBlock")
     if fx.get("cantBeCountered"):
         feat.add("cantBeCountered")
     if fx.get("becomesChosenBasicType"):
@@ -515,6 +521,13 @@ RULES = [
     # "They may tap that permanent" - Charismatic Conqueror, whose "if they
     # don't" half is a second sentence the ordinary token rule already covers.
     (r"they may tap that permanent", {"theyMay"}),
+    # Skrelv. Its ability is one sentence per clause on the printed card, and all
+    # of them are keyed to the colour `grantProtection` asks for.
+    (r"^toxic \d+$", {"toxic"}),
+    (r"can't block$", {"cantBlock"}),
+    (r"^\{./p\}, \{t\}: choose a color$", {"grantProtection"}),
+    (r"gains toxic \d+ and hexproof from that color until end of turn", {"grantProtection"}),
+    (r"^it can't be blocked by creatures of that color this turn$", {"grantProtection"}),
     # Imprint - Chrome Mox. The ability word is part of the printed line, and the
     # mana ability underneath it is the *only* thing the imprinted card is for.
     (r"^imprint [-—] when this artifact enters, you may exile a .* card from your hand$",

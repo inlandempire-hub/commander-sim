@@ -1,7 +1,15 @@
 import type { CardInstance, GameState } from "./types.js";
 import { log, requireDefinition, requirePlayer } from "./state.js";
 import { gainLife } from "./life.js";
-import { effectivePower, effectiveToughness, effectiveTriggers, hasCreatureType, hasKeyword, typesOf } from "./counters.js";
+import {
+  effectivePower,
+  effectiveToughness,
+  effectiveToxic,
+  effectiveTriggers,
+  hasCreatureType,
+  hasKeyword,
+  typesOf,
+} from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
 import {
   describeSubject,
@@ -164,6 +172,9 @@ export function blockProblem(
   if (!blocker) return "That creature is not on your battlefield";
   const blockerDef = requireDefinition(state, blocker.definitionId);
   if (!typesOf(state, blocker).includes("Creature")) return `${blockerDef.name} is not a creature`;
+  // "Skrelv can't block." Printed text with no keyword of its own - the mirror
+  // of Defender, which is the same restriction pointed the other way.
+  if (blockerDef.cantBlock) return `${blockerDef.name} can't block`;
   if (blocker.tapped) return `${blockerDef.name} is tapped and cannot block`;
   if (!(attackerInstanceId in state.attackers)) return "That creature is not attacking";
 
@@ -353,6 +364,24 @@ function combatDamageIsPrevented(state: GameState, instance: CardInstance): bool
   return !requireDefinition(state, instance.definitionId).subtypes?.includes(fog.exceptSubtype);
 }
 
+/**
+ * "**Toxic 1** - Players dealt combat damage by this creature also get a poison
+ * counter."
+ *
+ * Applied beside the damage rather than instead of it, which is the whole
+ * difference from infect: a player takes the damage *and* the poison. Called
+ * from both paths that reach a player - unblocked, and trampled through -
+ * because both are combat damage dealt by that creature.
+ */
+function applyToxic(state: GameState, attacker: CardInstance, defenderId: string, dealt: number): void {
+  if (dealt <= 0) return;
+  const toxic = effectiveToxic(state, attacker);
+  if (toxic <= 0) return;
+  const defender = requirePlayer(state, defenderId);
+  defender.poisonCounters += toxic;
+  log(state, `${defenderId} gets ${toxic} poison counter${toxic === 1 ? "" : "s"}`);
+}
+
 export function dealCombatDamage(state: GameState, step: DamageStep = "regular"): void {
   /*
    * Every creature that got through to a player this sub-step, collected as the
@@ -416,6 +445,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
         defender.commanderDamageTaken[attackerInstanceId] =
           (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + dealt;
       }
+      applyToxic(state, attackerFound.instance, defendingPlayerId, dealt);
       if (dealt > 0) hits.push({ attackerInstanceId, defendingPlayerId });
       continue;
     }
@@ -484,6 +514,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       }
       // Damage that trampled through is combat damage to a player like any
       // other, which is why this is here and not only on the unblocked path.
+      applyToxic(state, attackerFound.instance, defendingPlayerId, trampledThrough);
       if (trampledThrough > 0) hits.push({ attackerInstanceId, defendingPlayerId });
     }
 

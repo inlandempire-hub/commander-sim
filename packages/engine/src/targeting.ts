@@ -34,16 +34,42 @@ function isProtectedFromThisSource(
   controllerId: string,
   sourceInstanceId: string | undefined,
 ): boolean {
-  if (isProtectedByHexproof(state, instanceId, controllerId)) return true;
+  if (isProtectedByHexproof(state, instanceId, controllerId, sourceInstanceId)) return true;
   return protectionStopsTargeting(state, instanceId, sourceInstanceId);
 }
 
 /** Hexproof: can't be the target of a spell/ability controlled by anyone other than its own controller. */
-function isProtectedByHexproof(state: GameState, instanceId: string, controllerId: string): boolean {
+function isProtectedByHexproof(
+  state: GameState,
+  instanceId: string,
+  controllerId: string,
+  sourceInstanceId: string | undefined,
+): boolean {
   const found = findInstance(state, instanceId);
   if (!found) return false;
   if (found.instance.controllerId === controllerId) return false;
-  return hasKeyword(state, found.instance, "Hexproof");
+  if (hasKeyword(state, found.instance, "Hexproof")) return true;
+  /*
+   * "**Hexproof from that color**" - Skrelv.
+   *
+   * Narrower than plain hexproof by exactly one thing, and narrower than
+   * protection by rather more: it stops an opponent *targeting* it with a
+   * source of that colour, and nothing else. A creature with hexproof from
+   * white can still be blocked by a white creature and still takes damage from
+   * one.
+   *
+   * With no source at all - a spell being cast from a hand rather than an
+   * ability on the battlefield - there is nothing to compare a colour against,
+   * so the shield does not apply. That matters: writing it the other way would
+   * make the creature untargetable by anything.
+   */
+  const shields = found.instance.hexproofFrom;
+  if (shields.length === 0) return false;
+  const source = sourceInstanceId ? findInstance(state, sourceInstanceId) : undefined;
+  if (!source) return false;
+  const colors = cardColors(requireDefinition(state, source.instance.definitionId));
+  if (colors.length === 0) return shields.includes("colorless");
+  return colors.some((color) => shields.includes(color));
 }
 
 export function isValidTarget(

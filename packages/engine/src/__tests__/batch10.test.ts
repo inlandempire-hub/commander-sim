@@ -4,9 +4,11 @@ import { createCardInstance, moveCard, requirePlayer } from "../state.js";
 import { enteredBattlefield, putOntoBattlefield } from "../permanents.js";
 import { resolveTopOfStack, resolveConfirmation } from "../stack.js";
 import { advanceStep } from "../turn.js";
-import { applyEffect, resolveCardChoice } from "../effects.js";
+import { applyEffect, resolveCardChoice, resolveColorChoice } from "../effects.js";
 import { playLand } from "../casting.js";
 import { activatableAbilities, activateAbility } from "../abilities.js";
+import { blockProblem, dealCombatDamage, declareAttackers, declareBlockers } from "../combat.js";
+import { isValidTarget } from "../targeting.js";
 import { hasKeyword } from "../counters.js";
 import type { CardInstance, GameState } from "../types.js";
 
@@ -394,5 +396,123 @@ describe("Goblin Cratermaker", () => {
     requirePlayer(state, me).manaPool.generic = 1;
 
     expect(activatableAbilities(state, me, maker.instanceId)).toEqual([0]);
+  });
+});
+
+/**
+ * Skrelv, Defector Mite - one white mana and five mechanics, four of them keyed
+ * to the same named colour.
+ */
+describe("Skrelv, Defector Mite", () => {
+  it("gives a poison counter alongside its combat damage, not instead of it", () => {
+    const { state, me, them } = game();
+    const skrelv = put(state, "skrelv-defector-mite", me);
+    const before = requirePlayer(state, them).life;
+
+    state.phase = "combat";
+    state.step = "declare-attackers";
+    declareAttackers(state, me, [{ attackerInstanceId: skrelv.instanceId, defendingPlayerId: them }]);
+    state.step = "declare-blockers";
+    declareBlockers(state, them, []);
+    dealCombatDamage(state);
+
+    // Both. Infect would have done one and not the other, which is why toxic is
+    // not written as infect.
+    expect(requirePlayer(state, them).life).toBe(before - 1);
+    expect(requirePlayer(state, them).poisonCounters).toBe(1);
+  });
+
+  it("cannot block", () => {
+    const { state, me, them } = game();
+    const skrelv = put(state, "skrelv-defector-mite", them);
+    const attacker = put(state, "grizzly-bears", me);
+
+    state.phase = "combat";
+    state.step = "declare-attackers";
+    declareAttackers(state, me, [{ attackerInstanceId: attacker.instanceId, defendingPlayerId: them }]);
+    state.step = "declare-blockers";
+
+    expect(blockProblem(state, them, skrelv.instanceId, attacker.instanceId)).toMatch(/can't block/);
+  });
+
+  it("its ability takes a white mana when there is one", () => {
+    const { state, me } = game();
+    const skrelv = put(state, "skrelv-defector-mite", me);
+    put(state, "grizzly-bears", me);
+    const player = requirePlayer(state, me);
+    player.manaPool.W = 1;
+    const life = player.life;
+
+    activateAbility(state, me, skrelv.instanceId, 0, [
+      { kind: "card", instanceId: player.battlefield.find((c) => c.definitionId === "grizzly-bears")!.instanceId },
+    ]);
+
+    expect(player.manaPool.W).toBe(0);
+    expect(player.life).toBe(life);
+  });
+
+  it("and 2 life when there is not", () => {
+    const { state, me } = game();
+    const skrelv = put(state, "skrelv-defector-mite", me);
+    const bear = put(state, "grizzly-bears", me);
+    const player = requirePlayer(state, me);
+    const life = player.life;
+
+    activateAbility(state, me, skrelv.instanceId, 0, [{ kind: "card", instanceId: bear.instanceId }]);
+
+    // "{W/P} can be paid with either {W} or 2 life."
+    expect(player.life).toBe(life - 2);
+  });
+
+  it("hands over toxic, hexproof from a colour, and unblockability by it", () => {
+    const { state, me } = game();
+    const skrelv = put(state, "skrelv-defector-mite", me);
+    const bear = put(state, "grizzly-bears", me);
+
+    activateAbility(state, me, skrelv.instanceId, 0, [{ kind: "card", instanceId: bear.instanceId }]);
+    settle(state);
+    // Toxic is about no colour, so it lands as the ability resolves rather than
+    // waiting on the answer.
+    expect(bear.toxicThisTurn).toBe(1);
+
+    expect(state.pendingColorChoice?.targetInstanceId).toBe(bear.instanceId);
+    resolveColorChoice(state, me, "R");
+
+    expect(bear.hexproofFrom).toContain("R");
+    expect(bear.blockRestrictionsThisTurn).toContainEqual({ kind: "not-color", color: "R" });
+    // Hexproof from a colour is not protection from it - the difference is the
+    // reason the card spells out the unblockable clause separately.
+    expect(bear.protectionFrom).not.toContain("R");
+  });
+
+  it("the colour it named cannot block it", () => {
+    const { state, me, them } = game();
+    const attacker = put(state, "grizzly-bears", me);
+    attacker.blockRestrictionsThisTurn.push({ kind: "not-color", color: "R" });
+    const red = put(state, "mountain-bandit", them); // a red creature
+    const white = put(state, "savannah-lions", them); // a white one
+
+    state.phase = "combat";
+    state.step = "declare-attackers";
+    declareAttackers(state, me, [{ attackerInstanceId: attacker.instanceId, defendingPlayerId: them }]);
+    state.step = "declare-blockers";
+
+    expect(blockProblem(state, them, red.instanceId, attacker.instanceId)).toMatch(/aren't red/);
+    // The exclusion is a colour, not a keyword: everything else still blocks.
+    expect(blockProblem(state, them, white.instanceId, attacker.instanceId)).toBeNull();
+  });
+
+  it("hexproof from a colour stops an opponent's red spell and not their white one", () => {
+    const { state, me, them } = game();
+    const bear = put(state, "grizzly-bears", me);
+    bear.hexproofFrom.push("R");
+    const bolt = createCardInstance(state, "lightning-bolt", them, "battlefield");
+    const swords = createCardInstance(state, "swords-to-plowshares", them, "battlefield");
+
+    const target = { kind: "card" as const, instanceId: bear.instanceId };
+    expect(isValidTarget(state, { kind: "any-target" }, target, them, bolt.instanceId)).toBe(false);
+    expect(isValidTarget(state, { kind: "creature" }, target, them, swords.instanceId)).toBe(true);
+    // And it never stops its own controller.
+    expect(isValidTarget(state, { kind: "any-target" }, target, me, bolt.instanceId)).toBe(true);
   });
 });

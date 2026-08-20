@@ -162,6 +162,18 @@ function grantedNow(instance: CardInstance): Keyword[] {
   return [...instance.grantedKeywords, ...instance.grantedKeywordsUntilYourNextTurn];
 }
 
+/**
+ * "Toxic N" - printed plus granted.
+ *
+ * Its own function for the same reason `effectiveKeywords` is one: the moment a
+ * card can hand toxic to something that never printed it, a read of the printed
+ * number is a read of a stale answer.
+ */
+export function effectiveToxic(state: GameState, instance: CardInstance): number {
+  const def = requireDefinition(state, instance.definitionId);
+  return (def.toxic ?? 0) + instance.toxicThisTurn;
+}
+
 export function effectiveKeywords(state: GameState, instance: CardInstance): Keyword[] {
   const def = requireDefinition(state, instance.definitionId);
   // "with flying and infect" - an animated land's keywords come from the

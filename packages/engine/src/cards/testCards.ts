@@ -15789,8 +15789,60 @@ export const GOBLIN_CRATERMAKER: CardDefinition = {
   tier: "weird",
 };
 
+
+/**
+ * Skrelv, Defector Mite - {W} 1/1 Legendary Artifact Creature, Phyrexian Mite.
+ *
+ * "Toxic 1. Skrelv can't block. {W/P}, {T}: Choose a color. Another target
+ * creature you control gains toxic 1 and hexproof from that color until end of
+ * turn. It can't be blocked by creatures of that color this turn."
+ *
+ * One white mana and five things this engine could not previously do. Four of
+ * them are keyed to the same named colour, which is why they are one question
+ * and not four: `pendingColorChoice` carries what the answer buys.
+ *
+ * Toxic is deliberately not infect. Infect *changes* what damage is, and a
+ * Skrelv written that way would never reduce anybody's life total again.
+ *
+ * Hexproof from a colour is deliberately not protection from one either: it
+ * stops an opponent targeting it and nothing else. The creature can still be
+ * blocked by that colour and still takes damage from it - which is why the
+ * ability spells out the unblockable clause separately rather than relying on
+ * the hexproof to cover it.
+ */
+export const SKRELV_DEFECTOR_MITE: CardDefinition = {
+  id: "skrelv-defector-mite",
+  name: "Skrelv, Defector Mite",
+  scryfallId: "60b565da-a49b-479c-b0c4-8ff3dd20cc0b",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Phyrexian", "Mite"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  toxic: 1,
+  cantBlock: true,
+  activatedAbilities: [
+    {
+      // "{W/P}" - one white mana, or 2 life. See `ManaCost.phyrexian`.
+      cost: { mana: { generic: 0, colors: {}, phyrexian: ["W"] }, tap: true },
+      effect: {
+        kind: "grantProtection",
+        // "**Another** target creature you control" - never itself, which is
+        // what stops a lone Skrelv making itself unblockable.
+        target: { kind: "creature", controlledBy: "you", excludeSource: true },
+        grants: ["hexproof-from", "unblockable-by"],
+        toxic: 1,
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    SKRELV_DEFECTOR_MITE,
     CHROME_MOX,
     GOBLIN_CRATERMAKER,
     EMERIAS_CALL,
