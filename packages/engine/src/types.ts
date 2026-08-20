@@ -321,6 +321,13 @@ export type Effect =
    * creatures you control".
    */
   | { kind: "draw"; amount: Amount; who?: "target" }
+  /**
+   * "... at the beginning of the next turn's upkeep" - Arcane Denial, Mishra's
+   * Bauble. Queues `effect` to run then, for the controller or for each
+   * opponent (Arcane Denial's "its controller may draw", which in a two-player
+   * game is the one opponent).
+   */
+  | { kind: "atNextUpkeep"; who: "controller" | "each-opponent"; effect: Effect }
   | { kind: "addMana"; color: ManaColor; amount: number }
   /**
    * One activation producing mana of more than one colour - "Add {B}{G}", the
@@ -2430,6 +2437,12 @@ export interface GameState {
    * front-first in `startNextTurn`.
    */
   extraTurns: string[];
+  /**
+   * Effects queued for "the beginning of the next turn's upkeep" - Arcane
+   * Denial, Mishra's Bauble. Each fires (as `controllerId`) at the first upkeep
+   * whose turn number is at least `fireAtTurn`, then is removed.
+   */
+  delayedUpkeepEffects: Array<{ controllerId: string; effect: Effect; fireAtTurn: number }>;
   /**
    * The top N cards of a library shown to a player, waiting on the order they
    * go back. Gated exactly like `pendingSearch`: no priority, no step advance.

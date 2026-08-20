@@ -11165,6 +11165,44 @@ export const DISPEL: CardDefinition = {
   tier: "scripted",
 };
 
+export const MISHRAS_BAUBLE: CardDefinition = {
+  id: "mishras-bauble",
+  name: "Mishra's Bauble",
+  scryfallId: "45bbbf9b-8fee-4c32-a513-02dac6ac8a39",
+  types: ["Artifact"],
+  colorIdentity: [],
+  manaCost: { generic: 0, colors: {} },
+  // "Look at the top card of target player's library" is purely informational
+  // and is not modelled; the mechanical half is the delayed draw.
+  activatedAbilities: [
+    {
+      cost: { tap: true, sacrificeSelf: true },
+      effect: { kind: "atNextUpkeep", who: "controller", effect: { kind: "draw", amount: 1 } },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const ARCANE_DENIAL: CardDefinition = {
+  id: "arcane-denial",
+  name: "Arcane Denial",
+  scryfallId: "5eb843ef-b223-40d0-a461-54b16d188d0e",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  // "Its controller may draw up to two cards" is modelled as a mandatory two;
+  // the delayed timing (next upkeep) and the card advantage are the point.
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "counter", target: { kind: "spell" } },
+      { kind: "atNextUpkeep", who: "each-opponent", effect: { kind: "draw", amount: 2 } },
+      { kind: "atNextUpkeep", who: "controller", effect: { kind: "draw", amount: 1 } },
+    ],
+  },
+  tier: "scripted",
+};
+
 export const BLASPHEMOUS_EDICT: CardDefinition = {
   id: "blasphemous-edict",
   name: "Blasphemous Edict",
@@ -14516,5 +14554,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     FLARE_OF_DENIAL,
     FLARE_OF_MALICE,
     BLASPHEMOUS_EDICT,
+    MISHRAS_BAUBLE,
+    ARCANE_DENIAL,
   ].map((def) => [def.id, def]),
 );

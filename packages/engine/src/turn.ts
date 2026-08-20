@@ -3,6 +3,7 @@ import { drawCard, log, moveCard, requireDefinition } from "./state.js";
 import { emptyManaPool } from "./mana.js";
 import { combatHasFirstStrike, dealCombatDamage } from "./combat.js";
 import { castSuspended } from "./casting.js";
+import { applyEffect } from "./effects.js";
 import { pushTrigger } from "./permanents.js";
 import { effectiveTriggers } from "./counters.js";
 
@@ -168,6 +169,13 @@ function runAutomaticStepActions(state: GameState): void {
 
   switch (state.step) {
     case "upkeep": {
+      // Delayed "at the beginning of the next turn's upkeep" effects - Arcane
+      // Denial, Mishra's Bauble. Fired for any turn number now reached.
+      const due = state.delayedUpkeepEffects.filter((d) => d.fireAtTurn <= state.turnNumber);
+      state.delayedUpkeepEffects = state.delayedUpkeepEffects.filter((d) => d.fireAtTurn > state.turnNumber);
+      for (const d of due) {
+        applyEffect(state, d.controllerId, d.controllerId, d.effect, []);
+      }
       /*
        * Suspend: "At the beginning of your upkeep, remove a time counter. When
        * the last is removed, cast it without paying its mana cost."

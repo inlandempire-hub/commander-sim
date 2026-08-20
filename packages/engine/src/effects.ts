@@ -285,6 +285,22 @@ export function applyEffect(
       if (effect.thenDraw && destroyed > 0) drawCard(state, controllerId, destroyed);
       return;
     }
+    case "atNextUpkeep": {
+      // Queued for the next turn's upkeep. "each-opponent" is Arcane Denial's
+      // "its controller", which in a two-player game is the one opponent.
+      const recipients =
+        effect.who === "each-opponent"
+          ? state.players.filter((p) => p.id !== controllerId).map((p) => p.id)
+          : [controllerId];
+      for (const rid of recipients) {
+        state.delayedUpkeepEffects.push({
+          controllerId: rid,
+          effect: effect.effect,
+          fireAtTurn: state.turnNumber + 1,
+        });
+      }
+      return;
+    }
     case "eachSacrifices": {
       const affected =
         effect.who === "each-opponent"

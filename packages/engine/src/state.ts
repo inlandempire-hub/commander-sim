@@ -48,6 +48,7 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     blockersDeclared: false,
     pendingSearch: null,
     extraTurns: [],
+    delayedUpkeepEffects: [],
     pendingArrange: null,
     pendingConfirmation: null,
     pendingTargetChoices: [],
