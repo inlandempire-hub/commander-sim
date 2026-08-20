@@ -13,6 +13,7 @@ import {
 import { damageCreature, damagePlayer } from "./damage.js";
 import {
   describeSubject,
+  fireBecomesBlocked,
   fireCombatDamageToPlayer,
   fireCreaturesAttack,
   fireWatchers,
@@ -313,6 +314,15 @@ export function declareBlockers(state: GameState, playerId: string, declarations
     if (problem) throw new Error(problem);
     state.blockers[blockerInstanceId] = attackerInstanceId;
   }
+  /*
+   * "Becomes blocked" - after every blocker is recorded, not as each is
+   * assigned, because declaring blockers is one simultaneous action. Once per
+   * blocker, which is what "by a creature" says.
+   */
+  for (const { blockerInstanceId, attackerInstanceId } of declarations) {
+    fireBecomesBlocked(state, attackerInstanceId, blockerInstanceId);
+  }
+
   const blockCount = declarations.length;
   log(
     state,

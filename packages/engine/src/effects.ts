@@ -25,7 +25,7 @@ import {
 } from "./state.js";
 import { addMana, canPayManaCost, manaValue, payManaCost } from "./mana.js";
 import { damageCreature, damagePlayer } from "./damage.js";
-import { effectivePower, hasKeyword } from "./counters.js";
+import { effectivePower, hasKeyword, typesOf } from "./counters.js";
 import { isSpellOnStack } from "./targeting.js";
 import {
   enteredBattlefield,
@@ -42,6 +42,7 @@ import { useRegenerationShield } from "./regeneration.js";
 import { destroyPermanent, leaveBattlefield, sacrificePermanent } from "./sba.js";
 import { countersPlaced, tokensCreated } from "./replacements.js";
 import { evaluateAmount } from "./amounts.js";
+import { MAX_RING_LEVEL } from "./ring.js";
 import { cardColors, meetsBoardCondition } from "./conditions.js";
 import { hasCreatureType } from "./counters.js";
 import { resolveAmounts } from "./x.js";
@@ -499,6 +500,27 @@ export function applyEffect(
       return;
     }
     case "delayedRemoval": {
+      /*
+       * "...sacrifices it **at end of combat**" - The Ring's third ability,
+       * which is scheduled rather than done: the blocker stays until combat is
+       * over, so it blocks and deals its damage first.
+       *
+       * Every other user of this effect is already the *body* of a delayed
+       * trigger and acts at once. This one is the trigger that sets one up,
+       * which is the difference between "sacrifice it" and "sacrifice it later".
+       */
+      if (effect.at === "end-of-combat") {
+        const victims = targets
+          .filter((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card")
+          .map((t) => findInstance(state, t.instanceId)?.instance)
+          .filter((c): c is CardInstance => c !== undefined && c.zone === "battlefield");
+        if (victims.length > 0) {
+          // Sacrificed by *that creature's controller*, which is who the delayed
+          // trigger belongs to - not by the Ring-bearer's.
+          scheduleDelayedRemoval(state, victims[0]!.controllerId, sourceInstanceId, victims, effect.action, "end-of-combat");
+        }
+        return;
+      }
       /*
        * The body of a delayed trigger. Its permanents were fixed when the
        * ability that scheduled it resolved, so they arrive as targets and there
@@ -997,6 +1019,35 @@ export function applyEffect(
       }
       return;
     }
+    case "theRingTemptsYou": {
+      /*
+       * "The Ring tempts you." Two things, in this order: the emblem gains its
+       * next ability, and then you choose a Ring-bearer.
+       *
+       * The level is not a choice and never stops the game. The bearer is, and
+       * does - and a player with no creatures is simply not asked, which is what
+       * the rules say and is why the emblem can sit at a level with nobody
+       * carrying it.
+       */
+      const player = requirePlayer(state, controllerId);
+      if (player.ringLevel < MAX_RING_LEVEL) player.ringLevel += 1;
+      log(state, `The Ring tempts ${controllerId} (${player.ringLevel} of ${MAX_RING_LEVEL})`);
+      const creatures = player.battlefield.filter((c) => typesOf(state, c).includes("Creature"));
+      if (creatures.length === 0) return;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        sourceInstanceId,
+        prompt: "Choose a creature to be your Ring-bearer",
+        candidateInstanceIds: creatures.map((c) => c.instanceId),
+        // Not optional: a player with a creature must name one, and keeping the
+        // one they already have means naming it again.
+        min: 1,
+        max: 1,
+        mode: "ring-bearer",
+        effectControllerId: controllerId,
+      });
+      return;
+    }
     case "becomePrepared": {
       const source = findInstance(state, sourceInstanceId);
       if (!source || source.instance.zone !== "battlefield") return;
@@ -1482,6 +1533,23 @@ export function applyEffect(
       return;
     }
     case "discard": {
+      /*
+       * "Draw a card, then **discard a card**" - The Ring's second ability,
+       * where the player discarding is the one who drew. Queued like everybody
+       * else's, because which card you give up is the same real decision it is
+       * for an opponent.
+       */
+      if (effect.who === "controller") {
+        const player = requirePlayer(state, controllerId);
+        if (player.hand.length === 0) return;
+        state.pendingDiscards.push({
+          playerId: controllerId,
+          sourceInstanceId,
+          remaining: effect.amount,
+          prompt: `${cardName(state, sourceInstanceId)}: discard ${effect.amount === 1 ? "a card" : `${effect.amount} cards`}`,
+        });
+        return;
+      }
       /*
        * Each opponent picks their own card, so this queues a question per
        * opponent rather than taking one. `resolveDiscard` finishes the job.
@@ -2261,6 +2329,15 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
    * once may fill either slot, which is why this walks the chosen cards and
    * tries to seat each one rather than tallying types.
    */
+  if (pending.mode === "ring-bearer") {
+    const bearer = chosen[0];
+    if (bearer) {
+      requirePlayer(state, playerId).ringBearerInstanceId = bearer;
+      log(state, `${cardName(state, bearer)} becomes ${playerId}'s Ring-bearer`);
+    }
+    return;
+  }
+
   if (pending.mode === "keep-one-per-type") {
     const types = pending.keepTypes ?? [];
     const filled = new Set<CardType>();
@@ -2620,13 +2697,16 @@ function scheduleDelayedRemoval(
   sourceInstanceId: string,
   tokens: CardInstance[],
   action: DelayedAction,
+  /** "at end of combat" rather than the next end step - The Ring's third ability. */
+  at: "end-step" | "end-of-combat" = "end-step",
 ): void {
-  const alreadyPastIt = state.phase === "ending";
+  const alreadyPastIt = at === "end-step" && state.phase === "ending";
   state.delayedTriggers.push({
     instanceIds: tokens.map((token) => token.instanceId),
     controllerId,
     sourceInstanceId,
     action,
+    at,
     readyOnTurn: state.turnNumber + (alreadyPastIt ? 1 : 0),
   });
 }

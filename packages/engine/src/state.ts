@@ -40,6 +40,9 @@ export function createPlayer(id: string): Player {
     plusOneCountersPlacedThisTurn: 0,
     // Ascend grants it; nothing ever takes it away.
     hasCitysBlessing: false,
+    // The Ring is an emblem: nobody has it until something tempts them.
+    ringLevel: 0,
+    ringBearerInstanceId: null,
   };
 }
 

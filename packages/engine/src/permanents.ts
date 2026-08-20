@@ -473,6 +473,14 @@ export interface TriggerSubject {
    * wrong answer, because the very trigger this feeds goes on to tap it.
    */
   tapped: boolean;
+  /**
+   * `spell-cast` only: whether the spell was cast without spending mana.
+   *
+   * Captured from the stack object as the event fires, for the same reason
+   * `tapped` is captured: by the time anything reads it the spell may have
+   * resolved and gone.
+   */
+  freeSpell?: boolean;
 }
 
 export function describeSubject(
@@ -740,6 +748,32 @@ export function fireCreaturesDie(state: GameState, dead: TriggerSubject[]): void
   }
 }
 
+/**
+ * "Whenever your Ring-bearer **becomes blocked by a creature**" - fired once per
+ * blocker, which is what "by a creature" says: two blockers on one attacker is
+ * two triggers.
+ *
+ * A *self* event on the attacker, like `becomes-tapped` and
+ * `combat-damage-to-player` - so it needs no `watchFor` at all - and the blocker
+ * rides along as a card target, the way every event's subject does.
+ */
+export function fireBecomesBlocked(state: GameState, attackerInstanceId: string, blockerInstanceId: string): void {
+  const found = findInstance(state, attackerInstanceId);
+  if (!found) return;
+  for (const trigger of effectiveTriggers(state, found.instance)) {
+    if (trigger.event !== "becomes-blocked") continue;
+    pushTrigger(
+      state,
+      attackerInstanceId,
+      found.instance.controllerId,
+      trigger,
+      undefined,
+      undefined,
+      blockerInstanceId,
+    );
+  }
+}
+
 export function fireLibrarySearched(state: GameState, searcherId: string): void {
   for (const player of state.players) {
     for (const watcher of player.battlefield) {
@@ -827,6 +861,12 @@ export function matchesWatchFor(
    * for an arrival is after every enters-tapped rule has had its say.
    */
   if (watchFor.untapped && subject.tapped) return false;
+  /*
+   * "if no mana was spent to cast it" - Boromir. Read off the spell rather than
+   * checked twice as an intervening-if, because a spell's cost cannot change
+   * once it has been cast: the answer is the same either way.
+   */
+  if (watchFor.freeSpell && !subject.freeSpell) return false;
   if (watchFor.nontoken && subject.isToken) return false;
   if (watchFor.controlledBy) {
     if (!watcherControllerId) return false;

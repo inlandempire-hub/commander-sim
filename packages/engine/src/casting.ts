@@ -4,6 +4,7 @@ import { findInstance, log, moveCard, requireDefinition, requirePlayer } from ".
 import {
   applyCommanderTax,
   canPayManaCostFromPool,
+  manaValue,
   commanderCreatureTypes,
   payManaCostFor,
   spendablePool,
@@ -467,6 +468,15 @@ export function castSpell(
   const spell = pushOntoStack(state, instanceId, playerId, effect, targets, isPermanentSpell, uncounterable);
   // Which door was paid for, carried until there is a permanent to hold it.
   if (roomDoor) spell.roomDoor = roomDoor;
+  /*
+   * "if **no mana was spent** to cast it" - Boromir, whose whole job is
+   * punishing the free spells. Recorded here because this is where it is known,
+   * and it never changes afterwards.
+   *
+   * A cost of {0} counts as no mana spent, which is the rule and is what makes
+   * Boromir answer a Chrome Mox as well as a Force of Will.
+   */
+  spell.noManaSpent = manaValue(cost) === 0;
 
   /*
    * "Whenever an opponent casts an instant or sorcery spell" - Arasta of the
@@ -482,7 +492,12 @@ export function castSpell(
    * That is the rule, and it is also what makes these cards worth playing.
    */
   player.spellTypesCastThisTurn.push([...def.types]);
-  fireWatchers(state, "spell-cast", describeSubject(state, instance, def));
+  fireWatchers(state, "spell-cast", {
+    ...describeSubject(state, instance, def),
+    // "if no mana was spent to cast it" - carried on the event, because by the
+    // time a watcher reads it the spell may already have resolved and gone.
+    freeSpell: spell.noManaSpent,
+  });
 
   /*
    * "When that mana is spent to cast a creature spell that shares a creature

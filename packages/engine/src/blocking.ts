@@ -2,6 +2,8 @@ import type { BlockRestriction, CardInstance, Color, GameState, Keyword } from "
 import { requireDefinition } from "./state.js";
 import { hasKeyword } from "./counters.js";
 import { cardColors } from "./conditions.js";
+import { effectivePower } from "./counters.js";
+import { ringBlockRestrictions } from "./ring.js";
 
 /**
  * Who may block this attacker, and nothing else.
@@ -46,11 +48,16 @@ export function blockRestrictionsOn(state: GameState, attacker: CardInstance): B
   const def = requireDefinition(state, attacker.definitionId);
   if (def.blockRestriction) restrictions.push(def.blockRestriction);
   restrictions.push(...attacker.blockRestrictionsThisTurn);
+  // "Your Ring-bearer ... can't be blocked by creatures with greater power."
+  restrictions.push(...ringBlockRestrictions(state, attacker));
   return restrictions;
 }
 
 /** "creatures with flying or reach" - the printed phrase, for a message or a panel. */
 export function describeBlockRestriction(restriction: BlockRestriction): string {
+  if (restriction.kind === "not-greater-power") {
+    return "creatures with power no greater than its own";
+  }
   if (restriction.kind === "not-color") {
     // Worded as the *exclusion* it is - "except by white creatures" would be the
     // opposite of what Skrelv says.
@@ -80,10 +87,18 @@ export function blockRestrictionProblem(
      * have, the other a colour that disqualifies it. Written as one test with a
      * flag, whichever half was added second would silently invert the other.
      */
+    /*
+     * Three shapes, three different tests: an ability the blocker must have, a
+     * colour that disqualifies it, and a comparison between the two creatures.
+     * Written as one test with flags, whichever was added last would silently
+     * invert one of the others.
+     */
     const qualifies =
-      restriction.kind === "not-color"
-        ? !cardColors(requireDefinition(state, blocker.definitionId)).includes(restriction.color)
-        : restriction.keywords.some((keyword: Keyword) => hasKeyword(state, blocker, keyword));
+      restriction.kind === "not-greater-power"
+        ? effectivePower(state, blocker) <= effectivePower(state, attacker)
+        : restriction.kind === "not-color"
+          ? !cardColors(requireDefinition(state, blocker.definitionId)).includes(restriction.color)
+          : restriction.keywords.some((keyword: Keyword) => hasKeyword(state, blocker, keyword));
     if (!qualifies) return `it can only be blocked by ${describeBlockRestriction(restriction)}`;
   }
   return null;

@@ -1185,3 +1185,17 @@ describe("the Room in the panel", () => {
     expect(gallery).toContain("base power and toughness each equal to");
   });
 });
+
+describe("Boromir and The Ring in the panel", () => {
+  it("prints the condition on the counter, and all four Ring abilities", () => {
+    const text = textOf("boromir-warden-of-the-tower");
+    expect(text).toContain("if no mana was spent to cast it");
+    expect(text).toContain("The Ring tempts you");
+    // A player has no other way to learn what The Ring does - it is not a card.
+    expect(text).toContain("Ring-bearer");
+    expect(text).toContain("can't be blocked by creatures with greater power");
+    expect(text).toContain("draw a card, then discard a card");
+    expect(text).toContain("sacrifices it at end of combat");
+    expect(text).toContain("each opponent loses 3 life");
+  });
+});

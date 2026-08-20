@@ -225,7 +225,17 @@ export type BlockRestriction =
    * Neither can be written as the other, which is why this is a union rather
    * than a longer first member.
    */
-  | { kind: "not-color"; color: Color };
+  | { kind: "not-color"; color: Color }
+  /**
+   * "Your Ring-bearer ... **can't be blocked by creatures with greater
+   * power**." - the first level of The Ring.
+   *
+   * The third shape, and a third kind of test: the first names an ability a
+   * blocker must have, the second a colour that disqualifies it, and this
+   * compares the two creatures against each other. None of the three can be
+   * written as either of the others.
+   */
+  | { kind: "not-greater-power" };
 
 /** Generic mana + colored pips. A card with no mana cost (most lands) omits this entirely. */
 /**
@@ -1195,7 +1205,11 @@ export type Effect =
    * did until 2026-08-13 - "each opponent discards a card" rips answers out of
    * a hand whose owner would have pitched a spare land instead.
    */
-  | { kind: "discard"; amount: number; who: "each-opponent" }
+  /**
+   * `"controller"` is The Ring's second ability - "draw a card, then discard a
+   * card" - where the player discarding is the one who drew.
+   */
+  | { kind: "discard"; amount: number; who: "each-opponent" | "controller" }
   /**
    * "Surveil 1" - look at the top card of your library, then choose whether to
    * put it into your graveyard.
@@ -1582,7 +1596,17 @@ export type Effect =
    * also why this is the one effect with no `TargetSelector` that still expects
    * targets.
    */
-  | { kind: "delayedRemoval"; action: DelayedAction }
+  | {
+      kind: "delayedRemoval";
+      action: DelayedAction;
+      /**
+       * `"end-of-combat"` makes this the trigger that *schedules* a removal
+       * rather than the body of one - The Ring's "sacrifices it at end of
+       * combat". Absent, it acts at once, which is what every delayed trigger's
+       * own body does when it fires.
+       */
+      at?: "end-of-combat";
+    }
   /**
    * Grist's +1, which is a loop: "create a token, then mill a card. If an
    * Insect card was milled this way, put a loyalty counter on Grist and repeat
@@ -1787,6 +1811,18 @@ export type Effect =
    * many of them as they actually have.
    */
   | { kind: "eachOpponentKeepsOnePerType"; types: CardType[] }
+  /**
+   * "**The Ring tempts you.**" - Boromir's sacrifice.
+   *
+   * Two things at once, in this order: you get The Ring if you do not have it
+   * and it gains its next ability, and then you choose a Ring-bearer. The
+   * second is a real choice and stops the game; the first never is.
+   *
+   * Capped at four, because there are four abilities and being tempted a fifth
+   * time does nothing but re-choose the bearer - which the card still lets you
+   * do, and which is occasionally the point.
+   */
+  | { kind: "theRingTemptsYou" }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -2094,6 +2130,15 @@ export type TriggerEvent =
    */
   | "creatures-die"
   /**
+   * "Whenever your Ring-bearer **becomes blocked by a creature**" - The Ring's
+   * third ability.
+   *
+   * Fires once per blocker, which is what "by a creature" says: two blockers on
+   * one attacker is two triggers and two sacrifices. The blocker rides along as
+   * a card target, the way every event's subject does.
+   */
+  | "becomes-blocked"
+  /**
    * "Whenever an opponent **searches their library**" - Archivist of Oghma.
    *
    * Fired as the search is set up rather than as it finishes, because that is
@@ -2289,6 +2334,15 @@ export interface TriggeredAbility {
      * arrival is after every enters-tapped rule has been applied.
      */
     untapped?: boolean;
+    /**
+     * "if **no mana was spent** to cast it" - Boromir. `spell-cast` only.
+     *
+     * Read off the spell on the stack, which knows what was paid for it. The
+     * card prints this as an intervening-if and it is answered here instead,
+     * because a spell's cost cannot change once it has been cast: checked once
+     * or twice, the answer is the same.
+     */
+    freeSpell?: boolean;
     /**
      * "Whenever **equipped** creature dies" - Skullclamp. Only the one creature
      * this Equipment is currently attached to, so the watcher has to compare
@@ -3508,6 +3562,14 @@ export type DelayedAction = "sacrifice" | "exile" | "return-to-hand";
  * why the permanents are held here by id rather than looked up from the card.
  */
 export interface DelayedTrigger {
+  /**
+   * When this fires - the next end step by default, or the end of the current
+   * combat for The Ring's third ability ("sacrifices it at end of combat").
+   *
+   * Two moments rather than one because the cards say two, and the difference
+   * is a whole extra combat phase in a deck that makes them.
+   */
+  at?: "end-step" | "end-of-combat";
   /** The permanents this was set up over. Ones that have already left are simply not there any more. */
   instanceIds: string[];
   /** Who controls the ability, and so who the sacrifice is made by. */
@@ -3544,6 +3606,20 @@ export interface StackObject {
    * exists to hold it.
    */
   roomDoor?: "front" | "back";
+  /**
+   * Whether any mana was actually spent casting this spell.
+   *
+   * "Whenever an opponent casts a spell, **if no mana was spent to cast it**,
+   * counter that spell." - Boromir, whose whole job is punishing the free
+   * spells: Deflecting Swat, Force of Will, and a suspended card coming off its
+   * last time counter.
+   *
+   * Recorded as the spell is cast, because that is when it is knowable and it
+   * never changes afterwards - which is also why the trigger reads it as a
+   * narrowing rather than as an intervening-if. A condition that cannot become
+   * false gives the same answer checked once or twice.
+   */
+  noManaSpent?: boolean;
   id: string;
   sourceInstanceId: string;
   controllerId: string;
@@ -3713,7 +3789,9 @@ export interface PendingCardChoice {
      * and every other candidate is sacrificed. The inverse of every other mode
      * here, where the chosen cards are the ones something happens to.
      */
-    | "keep-one-per-type";
+    | "keep-one-per-type"
+    /** `"ring-bearer"` is The Ring: the creature named is the one that bears it. */
+    | "ring-bearer";
   /**
    * The types a "keep-one-per-type" answer may hold at most one of each of -
    * "an artifact, a creature, an enchantment, and a planeswalker".
@@ -4035,6 +4113,25 @@ export interface Player {
    * action beside the life total.
    */
   poisonCounters: number;
+  /**
+   * How many of The Ring's four abilities this player has - 0 while they have
+   * never been tempted.
+   *
+   * On the player because The Ring is an emblem: it is not a permanent, nothing
+   * can remove it, and it survives its bearer dying and every board wipe. The
+   * abilities themselves belong to the *bearer* and are read off this - see
+   * `ringAbilities`.
+   */
+  ringLevel: number;
+  /**
+   * The creature this player has named as their Ring-bearer, or null.
+   *
+   * Named each time they are tempted - and they may keep the one they have,
+   * which is why this is remembered rather than re-chosen from scratch. A
+   * bearer that dies leaves this pointing at nothing, and the abilities simply
+   * stop applying until a new one is named.
+   */
+  ringBearerInstanceId: string | null;
   /**
    * Life gained this turn - Moseo's infusion, and Eccentric Pestfinder's. A
    * tally rather than a comparison against a remembered total, because life

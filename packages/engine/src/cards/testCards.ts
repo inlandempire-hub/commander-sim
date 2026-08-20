@@ -16292,8 +16292,75 @@ export const DOLLMAKERS_SHOP: CardDefinition = {
   tier: "weird",
 };
 
+
+/**
+ * Boromir, Warden of the Tower - {2}{W} 3/3 Legendary Human Soldier.
+ *
+ * "Vigilance.
+ *  Whenever an opponent casts a spell, if no mana was spent to cast it, counter
+ *  that spell.
+ *  Sacrifice Boromir: Creatures you control gain indestructible until end of
+ *  turn. The Ring tempts you."
+ *
+ * The card this pool refused for two batches, on the grounds that "The Ring
+ * tempts you" is a subsystem nothing else touches. It is - an emblem with four
+ * cumulative abilities and a creature that bears them - and the abilities
+ * belong to the *bearer* rather than to the emblem, which is what let them go
+ * through the two functions that already answer what a permanent can do. See
+ * ring.ts.
+ *
+ * The counter clause is written as a `watchFor` narrowing rather than as the
+ * intervening-if it is printed as, because a spell's cost cannot change once it
+ * has been cast: checked once or twice, the answer is the same. A cost of {0}
+ * counts as no mana spent, which is the rule and is what makes him answer a
+ * Chrome Mox as well as a Force of Will.
+ */
+export const BOROMIR_WARDEN_OF_THE_TOWER: CardDefinition = {
+  id: "boromir-warden-of-the-tower",
+  name: "Boromir, Warden of the Tower",
+  scryfallId: "f6bc3720-2892-4dda-8f30-079a1ac8e1e2",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 3,
+  keywords: ["Vigilance"],
+  triggeredAbilities: [
+    {
+      event: "spell-cast",
+      // Everyone's spells, then narrowed to theirs - the pair Esper Sentinel
+      // uses, because `watches` and `controlledBy` ask different questions.
+      watches: "any",
+      watchFor: { controlledBy: "opponent", freeSpell: true },
+      effect: { kind: "counter", target: { kind: "spell" } },
+    },
+  ],
+  activatedAbilities: [
+    {
+      cost: { sacrificeSelf: true },
+      effect: {
+        kind: "sequence",
+        effects: [
+          {
+            kind: "pumpAll",
+            power: 0,
+            toughness: 0,
+            scope: "controller",
+            grants: ["Indestructible"],
+          },
+          { kind: "theRingTemptsYou" },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    BOROMIR_WARDEN_OF_THE_TOWER,
     DOLLMAKERS_SHOP,
     PORCELAIN_GALLERY,
     TOKEN_W_11_TOY,

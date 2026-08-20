@@ -428,9 +428,21 @@ function runAutomaticStepActions(state: GameState): void {
  * sacrifice with it, and the ability does not wait around for another turn.
  */
 function fireDelayedTriggers(state: GameState): void {
-  if (!(state.phase === "ending" && state.step === "end")) return;
+  /*
+   * Two moments, because two cards say two things: the end step for the token
+   * rentals, and the end of *combat* for The Ring's blocker sacrifice. The
+   * second matters in a deck that makes extra combat phases - the blocker has
+   * to be gone before the next one.
+   */
+  const atEndStep = state.phase === "ending" && state.step === "end";
+  const atEndOfCombat = state.phase === "combat" && state.step === "end-combat";
+  if (!atEndStep && !atEndOfCombat) return;
 
-  const due = state.delayedTriggers.filter((trigger) => state.turnNumber >= trigger.readyOnTurn);
+  const due = state.delayedTriggers.filter((trigger) =>
+    (trigger.at ?? "end-step") === "end-of-combat"
+      ? atEndOfCombat
+      : atEndStep && state.turnNumber >= trigger.readyOnTurn,
+  );
   if (due.length === 0) return;
   state.delayedTriggers = state.delayedTriggers.filter((trigger) => !due.includes(trigger));
 

@@ -534,6 +534,12 @@ RULES = [
     # "They may tap that permanent" - Charismatic Conqueror, whose "if they
     # don't" half is a second sentence the ordinary token rule already covers.
     (r"they may tap that permanent", {"theyMay"}),
+    # Boromir. The counter clause is one sentence including its condition,
+    # which the fixture answers as a watchFor narrowing rather than an
+    # intervening-if - a spell's cost cannot change once it is cast.
+    (r"^whenever an opponent casts a spell, if no mana was spent to cast it, counter that spell$",
+     {"counter"}),
+    (r"^the ring tempts you$", {"theRingTemptsYou"}),
     # Rooms. The reminder text is one line and is the same on both halves.
     (r"^\(you may cast either half\.", {"isRoom"}),
     (r"creatures you control have base power and toughness each equal to",

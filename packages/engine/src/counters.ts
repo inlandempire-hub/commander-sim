@@ -21,6 +21,7 @@ import { requireDefinition, requirePlayer } from "./state.js";
  * engine keeps refusing to have.
  */
 import { evaluateAmount } from "./amounts.js";
+import { ringTriggers } from "./ring.js";
 import { meetsBoardCondition } from "./conditions.js";
 
 /**
@@ -392,8 +393,10 @@ export function effectiveTriggers(state: GameState, instance: CardInstance): Tri
     def.isRoom && instance.zone === "battlefield"
       ? unlockedDefinitions(state, instance).flatMap((d) => d.triggeredAbilities ?? [])
       : (def.triggeredAbilities ?? []);
-  if (instance.zone !== "battlefield" || instance.grantedTriggers.length === 0) return printed;
-  return [...printed, ...instance.grantedTriggers];
+  if (instance.zone !== "battlefield") return printed;
+  // The Ring's abilities belong to whoever is bearing it *now*, which is why
+  // they are read here rather than stamped on when the bearer is chosen.
+  return [...printed, ...instance.grantedTriggers, ...ringTriggers(state, instance)];
 }
 
 /**

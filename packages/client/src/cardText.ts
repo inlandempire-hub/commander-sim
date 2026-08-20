@@ -489,6 +489,19 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       const list = effect.types.map((t) => article(t.toLowerCase())).join(", ");
       return `Each opponent chooses ${list} from among the nonland permanents they control, then sacrifices the rest.`;
     }
+    case "theRingTemptsYou":
+      /*
+       * The printed phrase, with the reminder text - The Ring is unlike anything
+       * else in this pool, and the panel is where a player finds out that it is
+       * four cumulative abilities and a creature that carries them.
+       */
+      return (
+        "The Ring tempts you. (Choose a creature you control as your Ring-bearer. " +
+        "The Ring gains its next ability: 1 - your Ring-bearer is legendary and can't be blocked by creatures " +
+        "with greater power; 2 - whenever it attacks, draw a card, then discard a card; " +
+        "3 - whenever it becomes blocked by a creature, that creature's controller sacrifices it at end of combat; " +
+        "4 - whenever it deals combat damage to a player, each opponent loses 3 life.)"
+      );
     case "becomePrepared":
       return "This creature becomes prepared.";
     case "conditional":
@@ -1478,8 +1491,13 @@ function describeTrigger(
     case "spell-cast":
       // The subject is a spell, so `watchedSubject`'s permanent vocabulary is
       // wrong here - "an instant or sorcery spell", not "an instant permanent".
-      return ability.onlyFirstNoncreatureEachTurn
-        ? `Whenever ${castSubject(ability)} casts their first noncreature spell each turn, ${tail}`
+      if (ability.onlyFirstNoncreatureEachTurn) {
+        return `Whenever ${castSubject(ability)} casts their first noncreature spell each turn, ${tail}`;
+      }
+      // "if no mana was spent to cast it" - printed as the card prints it, in
+      // front of the effect, because it is the whole of what Boromir answers.
+      return ability.watchFor?.freeSpell
+        ? `Whenever ${castSubject(ability)} casts ${watchedSpell(ability.watchFor)}, if no mana was spent to cast it, ${tail}`
         : `Whenever ${castSubject(ability)} casts ${watchedSpell(ability.watchFor)}, ${tail}`;
     case "damaged":
       return `Whenever this creature is dealt damage, ${tail}`;
@@ -1533,6 +1551,10 @@ function describeTrigger(
       return `Whenever one or more ${ability.includesSelf ? "" : "other "}${
         ability.watchFor?.subtype ?? "creature"
       }s you control die, ${tail}`;
+    case "becomes-blocked":
+      // "By a creature" - once per blocker, which is what the phrase says and
+      // what the panel has to convey for a card that sacrifices each of them.
+      return `Whenever this creature becomes blocked by a creature, ${tail}`;
     case "library-searched": {
       // Whose search it has to be, read off the same field `spell-cast` uses
       // for whose spell it has to be. Omitted means anybody's, which is what
