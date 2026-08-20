@@ -11267,6 +11267,31 @@ export const PROPAGANDA: CardDefinition = {
   tier: "scripted",
 };
 
+export const FALLAJI_ARCHAEOLOGIST: CardDefinition = {
+  id: "fallaji-archaeologist",
+  name: "Fallaji Archaeologist",
+  scryfallId: "b0eab397-25a6-4377-8e12-e8acef9675cf",
+  types: ["Creature"],
+  subtypes: ["Human", "Scout"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 0,
+  toughness: 3,
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "millThenMayTake",
+        amount: 3,
+        cost: {},
+        excludeTypes: ["Creature", "Land"],
+        ifDeclined: { kind: "addCounter", amount: 1 },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TRAVERSE_THE_ULVENWALD: CardDefinition = {
   id: "traverse-the-ulvenwald",
   name: "Traverse the Ulvenwald",
@@ -14574,5 +14599,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     MISHRAS_BAUBLE,
     ARCANE_DENIAL,
     TRAVERSE_THE_ULVENWALD,
+    FALLAJI_ARCHAEOLOGIST,
   ].map((def) => [def.id, def]),
 );

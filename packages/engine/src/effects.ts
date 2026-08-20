@@ -488,17 +488,30 @@ export function applyEffect(
       if (milled.length > 0) {
         log(state, `${controllerId} mills ${milled.length} card${milled.length === 1 ? "" : "s"}`);
       }
-      if (milled.length === 0) return;
+      // "a noncreature, nonland card from among them" - only milled cards of none
+      // of the excluded types may be taken (Fallaji Archaeologist).
+      const takeable = effect.excludeTypes
+        ? milled.filter((id) => {
+            const types = requireDefinition(state, findInstance(state, id)!.instance.definitionId).types;
+            return !effect.excludeTypes!.some((t) => types.includes(t));
+          })
+        : milled;
+      if (takeable.length === 0) {
+        // Nothing to take - the "if you don't" half happens right away.
+        if (effect.ifDeclined) applyEffect(state, controllerId, sourceInstanceId, effect.ifDeclined, []);
+        return;
+      }
       state.pendingCardChoices.push({
         playerId: controllerId,
         effectControllerId: controllerId,
         sourceInstanceId,
-        candidateInstanceIds: milled,
+        candidateInstanceIds: takeable,
         min: 0,
         max: 1,
         mode: "to-hand",
         cost: effect.cost,
-        prompt: `${cardName(state, sourceInstanceId)}: you may pay to take one of the milled cards`,
+        ifDeclined: effect.ifDeclined,
+        prompt: `${cardName(state, sourceInstanceId)}: you may take one of the milled cards`,
         followUp: pendingFollowUp,
       });
       return;

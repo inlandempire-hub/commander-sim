@@ -918,7 +918,15 @@ export type Effect =
    * One effect rather than a mill beside a choice, because the choice is over
    * *the cards this milled* - a set that exists only inside this resolution.
    */
-  | { kind: "millThenMayTake"; amount: number; cost: { mana?: ManaCost; life?: number } }
+  | {
+      kind: "millThenMayTake";
+      amount: number;
+      cost: { mana?: ManaCost; life?: number };
+      /** Only milled cards of none of these types may be taken - Fallaji's "noncreature, nonland". */
+      excludeTypes?: CardType[];
+      /** "If you don't, put a +1/+1 counter on this creature" - Fallaji Archaeologist. */
+      ifDeclined?: Effect;
+    }
   /**
    * "You may cast a spell with mana value 5 or less from your hand without
    * paying its mana cost." - Rishkar's Expertise.
