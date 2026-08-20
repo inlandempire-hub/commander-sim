@@ -1132,3 +1132,25 @@ describe("Shatterskull Smashing in the panel", () => {
     expect(text).toContain("twice X damage");
   });
 });
+
+describe("the cards that begin the game in play", () => {
+  it("says Gemstone Caverns is for the player going second, and what it costs", () => {
+    const text = textOf("gemstone-caverns");
+    expect(text).toContain("you're not the starting player");
+    expect(text).toContain("luck counter");
+    expect(text).toContain("exile a card from your hand");
+    // Six abilities from one printed line, and the panel says which is which.
+    expect(text).toContain("while it has no counter on it");
+    expect(text).toContain("while it has a counter on it");
+  });
+
+  it("says Quicksilver may start in play, and that his power-up is once only", () => {
+    const text = textOf("quicksilver-brash-blur");
+    expect(text).toContain("begin the game with it on the battlefield");
+    expect(text).not.toContain("starting player"); // he has no such clause
+    expect(text).toContain("double strike counter");
+    // The clause that stops him growing every turn.
+    expect(text).toContain("Activate only once");
+    expect(text).toContain("entered this turn");
+  });
+});

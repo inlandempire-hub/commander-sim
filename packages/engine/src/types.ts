@@ -1749,6 +1749,13 @@ export type Effect =
    * again. Nobody casts this to decline.
    */
   | { kind: "changeTargets"; target: TargetSelector }
+  /**
+   * "Put a +1/+1 counter and a **double strike counter** on Quicksilver."
+   *
+   * A keyword held as a counter rather than granted for the turn, which is the
+   * whole difference: it does not wear off. See `CardInstance.keywordCounters`.
+   */
+  | { kind: "addKeywordCounter"; keyword: Keyword; alsoPlusOne?: number }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -2407,6 +2414,36 @@ export interface ActivatedAbility {
    * opponent's turn would be a materially better Skullclamp.
    */
   sorcerySpeedOnly?: boolean;
+  /**
+   * "{T}: Add {C}. **If this land has a luck counter on it**, instead add one
+   * mana of any color." - Gemstone Caverns, whose one printed line is six
+   * abilities here: the colourless one while it has no counter, and one per
+   * colour while it does.
+   *
+   * Both polarities are needed and that is why it is a boolean rather than a
+   * flag: "instead" means the colourless half stops being available the moment
+   * the counter is there, and an ability that could be used either way would
+   * make the land produce two mana on one tap.
+   */
+  onlyIfSourceHasCounters?: boolean;
+  /**
+   * "**Activate each power-up ability only once.**" - Quicksilver.
+   *
+   * A limit for the whole game rather than the turn, which is the only one of
+   * its kind here: `loyaltyUsedThisTurn` and the cast limits all reset. See
+   * `CardInstance.abilitiesUsedThisGame`.
+   */
+  onlyOncePerGame?: boolean;
+  /**
+   * "**Reduce the cost by his mana cost if he entered this turn.**" -
+   * Quicksilver, whose power-up costs {4}{R} and {3}{R} less on the turn he
+   * arrived, which is to say {3} for a card that costs {R}.
+   *
+   * Read through `abilityManaCost`, the one place that answers what an ability
+   * costs, so the offer, the payment and the auto-tapper cannot disagree about
+   * it.
+   */
+  costReducedByOwnCostWhenFresh?: boolean;
   cost: ActivatedAbilityCost;
   effect: Effect;
   /** Narrows which of an "any colour" ability's five halves are legal right now. */
@@ -2854,6 +2891,30 @@ export interface CardDefinition {
    */
   doesNotUntap?: boolean;
   /**
+   * "**If this card is in your opening hand**, you may begin the game with it
+   * on the battlefield." - Gemstone Caverns and Quicksilver, Brash Blur.
+   *
+   * The only decision in this engine taken before the game starts, and the only
+   * one that is neither a spell, an ability nor a declaration. It is offered
+   * once, as the last thing the mulligan does - which is where the rules put it:
+   * after opening hands are settled and before the first turn begins.
+   *
+   * A permanent that arrives this way was never cast, so nothing that watches
+   * for a spell sees it. It *does* enter the battlefield, so everything that
+   * watches for an arrival does.
+   */
+  beginsOnBattlefield?: {
+    /**
+     * "...**and you're not the starting player**" - Gemstone Caverns, which is
+     * a catch-up card and says so. Quicksilver has no such clause.
+     */
+    notStartingPlayerOnly?: boolean;
+    /** "...with a **luck counter** on it" - held as an `otherCounters` pip. */
+    withCounter?: boolean;
+    /** "If you do, **exile a card from your hand**" - the price, and not optional. */
+    thenExileFromHand?: boolean;
+  };
+  /**
    * "**If this artifact would enter, you may discard a land card instead.** If
    * you do, put this artifact onto the battlefield. If you don't, put it into
    * its owner's graveyard." - Mox Diamond.
@@ -3228,6 +3289,25 @@ export interface CardInstance {
    * turn." - Skrelv. Added to whatever the card prints, and swept in the
    * cleanup step with the rest of the turn's grants.
    */
+  /**
+   * Keywords this permanent carries as **counters** - Quicksilver's "double
+   * strike counter".
+   *
+   * Not the same as a granted keyword, and the difference is that a counter does
+   * not wear off: it is on the permanent for as long as the permanent is there.
+   * Its own list rather than a third entry in `grantedKeywords` for exactly that
+   * reason - the cleanup step sweeps those and must never sweep these.
+   */
+  keywordCounters: Keyword[];
+  /**
+   * Which of this permanent's abilities have been used, for the ones that may
+   * only be used once.
+   *
+   * "Activate each power-up ability **only once**" - Quicksilver. A per-game
+   * limit, which is why it lives on the instance and is not reset anywhere: the
+   * turn machine sweeps what belongs to a turn, and this belongs to the object.
+   */
+  abilitiesUsedThisGame: number[];
   toxicThisTurn: number;
   /**
    * "...and **hexproof from that color** until end of turn." - Skrelv.
@@ -3513,7 +3593,18 @@ export interface PendingCardChoice {
    * permanent that asked arrives. Declining puts *it* in the graveyard instead,
    * which is the half that makes this a replacement rather than an ability.
    */
-  mode: "sacrifice" | "cast-free" | "to-hand" | "exile-imprint" | "discard-to-enter";
+  /**
+   * `"begin-on-battlefield"` and `"exile"` are the two halves of Gemstone
+   * Caverns: the offer, and the price paid for taking it.
+   */
+  mode:
+    | "sacrifice"
+    | "cast-free"
+    | "to-hand"
+    | "exile-imprint"
+    | "discard-to-enter"
+    | "begin-on-battlefield"
+    | "exile";
   /** A price paid only if something is chosen - Ripples of Undeath. */
   cost?: { mana?: ManaCost; life?: number };
   /**

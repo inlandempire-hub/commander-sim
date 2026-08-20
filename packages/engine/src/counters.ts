@@ -159,7 +159,16 @@ function staticBuffFor(state: GameState, instance: CardInstance): { power: numbe
  * which of them a keyword came from.
  */
 function grantedNow(instance: CardInstance): Keyword[] {
-  return [...instance.grantedKeywords, ...instance.grantedKeywordsUntilYourNextTurn];
+  /*
+   * Three lists, one answer, and they are separate because they end at three
+   * different moments: the cleanup step, the controller's untap step, and never
+   * - a keyword counter stays for as long as the permanent does.
+   */
+  return [
+    ...instance.grantedKeywords,
+    ...instance.grantedKeywordsUntilYourNextTurn,
+    ...instance.keywordCounters,
+  ];
 }
 
 /**

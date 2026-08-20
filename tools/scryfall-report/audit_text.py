@@ -146,6 +146,11 @@ def card_features(fx):
     # Mox Diamond's replacement on the way in.
     if fx.get("entersOnlyIfYouDiscard"):
         feat.add("entersOnlyIfYouDiscard")
+    # Gemstone Caverns and Quicksilver, which start the game in play.
+    # `is not None`, not truthiness: Quicksilver's is an empty object - he has
+    # none of the riders Gemstone Caverns has - and an empty dict is falsy.
+    if fx.get("beginsOnBattlefield") is not None:
+        feat.add("beginsOnBattlefield")
     if fx.get("toxic"):
         feat.add("toxic")
     if fx.get("cantBlock"):
@@ -524,6 +529,13 @@ RULES = [
     # "They may tap that permanent" - Charismatic Conqueror, whose "if they
     # don't" half is a second sentence the ordinary token rule already covers.
     (r"they may tap that permanent", {"theyMay"}),
+    # Gemstone Caverns and Quicksilver - the offer, and the price Caverns pays
+    # for taking it.
+    (r"you may begin the game with .* on the battlefield", {"beginsOnBattlefield"}),
+    (r"^if you do, exile a card from your hand$", {"beginsOnBattlefield"}),
+    # Quicksilver's power-up. The ability word is stripped like every other, so
+    # what is matched is the ability itself.
+    (r"put a \+1/\+1 counter and a double strike counter on", {"addKeywordCounter"}),
     # Shatterskull Smashing - one sentence and its kicker, both about the same
     # announced division.
     (r"deals x damage divided as you choose among", {"damage"}),

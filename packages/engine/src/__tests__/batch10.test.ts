@@ -6,10 +6,11 @@ import { resolveTopOfStack, resolveConfirmation } from "../stack.js";
 import { advanceStep } from "../turn.js";
 import { applyEffect, resolveCardChoice, resolveColorChoice } from "../effects.js";
 import { castSpell, playLand } from "../casting.js";
-import { activatableAbilities, activateAbility } from "../abilities.js";
+import { abilityManaCost, activatableAbilities, activateAbility } from "../abilities.js";
 import { blockProblem, dealCombatDamage, declareAttackers, declareBlockers } from "../combat.js";
 import { isValidTarget } from "../targeting.js";
 import { passPriority } from "../priority.js";
+import { createMulliganState, keepHand } from "../mulligan.js";
 import { hasKeyword } from "../counters.js";
 import type { CardInstance, GameState } from "../types.js";
 
@@ -773,5 +774,178 @@ describe("Shatterskull Smashing", () => {
     const card = createCardInstance(state, "shatterskull-smashing", me, "hand");
     playLand(state, me, card.instanceId);
     expect(card.definitionId).toBe("shatterskull-the-hammer-pass");
+  });
+});
+
+/**
+ * Cards that begin the game on the battlefield - the only decision in this
+ * engine taken before the game starts.
+ */
+describe("beginning the game with a permanent in play", () => {
+  function opening(handFor: Record<string, string[]>): GameState {
+    const state = makeTestGame();
+    state.mulligan = createMulliganState(state.players.map((p) => p.id));
+    for (const [playerId, ids] of Object.entries(handFor)) {
+      for (const id of ids) createCardInstance(state, id, playerId, "hand");
+    }
+    return state;
+  }
+
+  function keepEveryHand(state: GameState): void {
+    let guard = 0;
+    while (state.mulligan && guard++ < 10) keepHand(state, state.mulligan.playerId);
+  }
+
+  it("offers Gemstone Caverns to the player who is not going first", () => {
+    const state = opening({});
+    const them = state.players[1]!.id;
+    createCardInstance(state, "gemstone-caverns", them, "hand");
+    keepEveryHand(state);
+
+    const offer = state.pendingCardChoices.find((c) => c.mode === "begin-on-battlefield");
+    expect(offer?.playerId).toBe(them);
+    expect(offer?.min).toBe(0); // "you **may**"
+  });
+
+  it("does not offer it to the starting player", () => {
+    const state = opening({});
+    const me = state.players[0]!.id;
+    createCardInstance(state, "gemstone-caverns", me, "hand");
+    keepEveryHand(state);
+
+    // "and you're not the starting player" - the clause that makes it a
+    // catch-up card rather than a free land.
+    expect(state.pendingCardChoices.filter((c) => c.mode === "begin-on-battlefield")).toHaveLength(0);
+  });
+
+  it("puts it into play with a luck counter and then asks for the price", () => {
+    const state = opening({});
+    const them = state.players[1]!.id;
+    const caverns = createCardInstance(state, "gemstone-caverns", them, "hand");
+    const spare = createCardInstance(state, "mountain", them, "hand");
+    keepEveryHand(state);
+
+    resolveCardChoice(state, them, [caverns.instanceId]);
+    expect(caverns.zone).toBe("battlefield");
+    expect(caverns.otherCounters).toBe(1);
+
+    // "If you do, exile a card from your hand" - the price, and not optional.
+    const price = state.pendingCardChoices[0]!;
+    expect(price.mode).toBe("exile");
+    expect(price.min).toBe(1);
+    resolveCardChoice(state, them, [spare.instanceId]);
+    expect(spare.zone).toBe("exile");
+  });
+
+  it("leaves it in hand when the offer is declined, and asks no price", () => {
+    const state = opening({});
+    const them = state.players[1]!.id;
+    const caverns = createCardInstance(state, "gemstone-caverns", them, "hand");
+    createCardInstance(state, "mountain", them, "hand");
+    keepEveryHand(state);
+
+    resolveCardChoice(state, them, []);
+    expect(caverns.zone).toBe("hand");
+    expect(state.pendingCardChoices).toHaveLength(0);
+  });
+
+  it("taps for one colourless without its counter and any colour with it", () => {
+    const { state, me } = game();
+    const caverns = put(state, "gemstone-caverns", me);
+
+    const colours = () =>
+      activatableAbilities(state, me, caverns.instanceId).map(
+        (i) =>
+          (state.cardDefinitions["gemstone-caverns"]!.activatedAbilities![i]!.effect as { color: string }).color,
+      );
+    // "Add {C}. **If** it has a luck counter, **instead** add one of any color."
+    expect(colours()).toEqual(["C"]);
+
+    caverns.otherCounters = 1;
+    expect(colours()).toEqual(["W", "U", "B", "R", "G"]);
+  });
+
+  it("offers Quicksilver to either player, having no such clause", () => {
+    const state = opening({});
+    const me = state.players[0]!.id;
+    createCardInstance(state, "quicksilver-brash-blur", me, "hand");
+    keepEveryHand(state);
+
+    expect(state.pendingCardChoices[0]?.playerId).toBe(me);
+  });
+
+  it("puts Quicksilver into play with no counter and no price", () => {
+    const state = opening({});
+    const me = state.players[0]!.id;
+    const quicksilver = createCardInstance(state, "quicksilver-brash-blur", me, "hand");
+    keepEveryHand(state);
+
+    resolveCardChoice(state, me, [quicksilver.instanceId]);
+    expect(quicksilver.zone).toBe("battlefield");
+    expect(quicksilver.otherCounters).toBe(0);
+    expect(state.pendingCardChoices).toHaveLength(0);
+  });
+});
+
+/**
+ * Quicksilver's power-up - a per-game limit, a keyword held as a counter, and a
+ * cost that reads the turn he arrived.
+ */
+describe("Quicksilver's power-up", () => {
+  it("costs {4}{R} once he has been around a turn", () => {
+    const { state, me } = game();
+    const q = put(state, "quicksilver-brash-blur", me);
+    q.enteredOnTurn = state.turnNumber - 1;
+    const ability = state.cardDefinitions["quicksilver-brash-blur"]!.activatedAbilities![0]!;
+
+    expect(abilityManaCost(state, me, ability, q)).toEqual({ generic: 4, colors: { R: 1 } });
+  });
+
+  it("costs his own mana cost less on the turn he arrived", () => {
+    const { state, me } = game();
+    const q = put(state, "quicksilver-brash-blur", me);
+    q.enteredOnTurn = state.turnNumber;
+    const ability = state.cardDefinitions["quicksilver-brash-blur"]!.activatedAbilities![0]!;
+
+    // {4}{R} less {R} is {4} - "reduce the cost by his mana cost".
+    expect(abilityManaCost(state, me, ability, q)).toEqual({ generic: 4, colors: { R: 0 } });
+  });
+
+  it("puts on both counters, and the keyword one does not wear off", () => {
+    const { state, me } = game();
+    const q = put(state, "quicksilver-brash-blur", me);
+    q.enteredOnTurn = state.turnNumber - 1;
+    requirePlayer(state, me).manaPool.generic = 4;
+    requirePlayer(state, me).manaPool.R = 1;
+
+    activateAbility(state, me, q.instanceId, 0);
+    settle(state);
+
+    expect(q.plusOneCounters).toBe(1);
+    expect(hasKeyword(state, q, "Double Strike")).toBe(true);
+
+    // Through a cleanup, which sweeps granted keywords. A counter is not a
+    // grant, and this is the whole difference.
+    state.phase = "ending";
+    state.step = "end";
+    advanceStep(state);
+    expect(hasKeyword(state, q, "Double Strike")).toBe(true);
+  });
+
+  it("may only be used once in the whole game", () => {
+    const { state, me } = game();
+    const q = put(state, "quicksilver-brash-blur", me);
+    q.enteredOnTurn = state.turnNumber - 1;
+    const player = requirePlayer(state, me);
+    player.manaPool.generic = 8;
+    player.manaPool.R = 2;
+
+    activateAbility(state, me, q.instanceId, 0);
+    settle(state);
+
+    // Not offered, and refused if asked for anyway - "activate each power-up
+    // ability only once", which is what stops him growing every turn.
+    expect(activatableAbilities(state, me, q.instanceId)).toHaveLength(0);
+    expect(() => activateAbility(state, me, q.instanceId, 0)).toThrow(/already used/);
   });
 });

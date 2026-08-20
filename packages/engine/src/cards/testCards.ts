@@ -15972,8 +15972,103 @@ export const SHATTERSKULL_SMASHING: CardDefinition = {
   tier: "weird",
 };
 
+
+/**
+ * Gemstone Caverns - a Legendary Land.
+ *
+ * "If this card is in your opening hand and you're not the starting player, you
+ * may begin the game with Gemstone Caverns on the battlefield with a luck
+ * counter on it. If you do, exile a card from your hand.
+ * {T}: Add {C}. If Gemstone Caverns has a luck counter on it, instead add one
+ * mana of any color."
+ *
+ * A catch-up card, and the "you're not the starting player" clause is what makes
+ * it one - so it is read off the card rather than applied to every card of this
+ * shape. Quicksilver has no such clause.
+ *
+ * The exile is the price and is not optional: "if you do" means it happens
+ * whenever the offer is taken. It is a second question because which card you
+ * give up is a real decision.
+ *
+ * Its single printed line of mana is six abilities here: colourless while it has
+ * no counter, and one per colour while it does. Both polarities are needed -
+ * "instead" means the colourless half stops being available, and a land that
+ * could use either would make two mana on one tap.
+ */
+export const GEMSTONE_CAVERNS: CardDefinition = {
+  id: "gemstone-caverns",
+  name: "Gemstone Caverns",
+  scryfallId: "7f273641-c5f3-48bc-b89e-3cff52d26a0b",
+  types: ["Land"],
+  supertypes: ["Legendary"],
+  colorIdentity: [],
+  beginsOnBattlefield: {
+    notStartingPlayerOnly: true,
+    withCounter: true,
+    thenExileFromHand: true,
+  },
+  activatedAbilities: [
+    { cost: { tap: true }, onlyIfSourceHasCounters: false, effect: { kind: "addMana", color: "C", amount: 1 } },
+    { cost: { tap: true }, onlyIfSourceHasCounters: true, effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { tap: true }, onlyIfSourceHasCounters: true, effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true }, onlyIfSourceHasCounters: true, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, onlyIfSourceHasCounters: true, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true }, onlyIfSourceHasCounters: true, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "weird",
+};
+
+/**
+ * Quicksilver, Brash Blur - {R} 1/1 Legendary Creature, Mutant Hero.
+ *
+ * "If Quicksilver, Brash Blur is in your opening hand, you may begin the game
+ * with him on the battlefield. Haste."
+ *
+ * "Power-up - {4}{R}: Put a +1/+1 counter and a double strike counter on
+ * Quicksilver. (Activate each power-up ability only once. Reduce the cost by his
+ * mana cost if he entered this turn.)"
+ *
+ * Three things nothing else in the pool needed, and all three are load-bearing.
+ * "Only once" is a limit for the whole game rather than the turn - the only one
+ * of its kind here - and without it he powers up every turn, which is a
+ * materially better card. A double strike *counter* is not a granted keyword: it
+ * does not wear off, which is why it lives in its own list. And the reduction
+ * reads the turn he arrived, through the one function that answers what an
+ * ability costs, so the offer and the payment cannot disagree.
+ */
+export const QUICKSILVER_BRASH_BLUR: CardDefinition = {
+  id: "quicksilver-brash-blur",
+  name: "Quicksilver, Brash Blur",
+  scryfallId: "2d5819ca-165d-4f4c-9500-3ac206994880",
+  types: ["Creature"],
+  subtypes: ["Mutant", "Hero"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 0, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Haste"],
+  // No "not the starting player" clause - unlike Gemstone Caverns, he is free
+  // on turn one either way.
+  beginsOnBattlefield: {},
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 4, colors: { R: 1 } } },
+      // "Activate each power-up ability only once", and "reduce the cost by his
+      // mana cost if he entered this turn" - both printed, both real rules, and
+      // the first is what stops him powering up every turn.
+      onlyOncePerGame: true,
+      costReducedByOwnCostWhenFresh: true,
+      effect: { kind: "addKeywordCounter", keyword: "Double Strike", alsoPlusOne: 1 },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    GEMSTONE_CAVERNS,
+    QUICKSILVER_BRASH_BLUR,
     SHATTERSKULL_SMASHING,
     SHATTERSKULL_THE_HAMMER_PASS,
     MOX_DIAMOND,

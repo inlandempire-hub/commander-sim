@@ -459,6 +459,15 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       );
     case "changeTargets":
       return sentence(`you may choose new targets for ${describeTarget(effect.target)}.`);
+    case "addKeywordCounter": {
+      // Both counters, and the keyword one named as a counter rather than as a
+      // grant - which is the difference between a Quicksilver that keeps double
+      // strike and one that has it until end of turn.
+      const plus = effect.alsoPlusOne ? `a +1/+1 counter and ` : "";
+      return sentence(
+        `put ${plus}a ${effect.keyword.toLowerCase()} counter on this creature.`,
+      );
+    }
     case "becomePrepared":
       return "This creature becomes prepared.";
     case "conditional":
@@ -1633,6 +1642,26 @@ export function describeActivated(
     ? ` Activate only if ${describeCondition(ability.activateOnlyIf)}.`
     : "";
   /*
+   * "If this land has a luck counter on it, instead ..." - Gemstone Caverns,
+   * whose one printed line is six abilities here. Saying which of them is which
+   * is the only thing that stops the panel showing a land that taps for six.
+   */
+  /*
+   * "Activate each power-up ability only once", and "reduce the cost by his mana
+   * cost if he entered this turn" - both printed in Quicksilver's reminder text
+   * and both real rules, so both are said.
+   */
+  const oncePerGame = ability.onlyOncePerGame ? " Activate only once." : "";
+  const fresher = ability.costReducedByOwnCostWhenFresh
+    ? " This ability costs its own mana cost less to activate if this creature entered this turn."
+    : "";
+  const counterGate =
+    ability.onlyIfSourceHasCounters === undefined
+      ? ""
+      : ability.onlyIfSourceHasCounters
+        ? " (while it has a counter on it)"
+        : " (while it has no counter on it)";
+  /*
    * "This ability costs {1} less to activate for each legendary creature you
    * control" - the Channel lands.
    *
@@ -1702,7 +1731,7 @@ export function describeActivated(
   // Last, as the cards print it: "Equip {1}" ends with "Equip only as a
   // sorcery", not the other way round.
   const timing = ability.sorcerySpeedOnly ? " Activate only as a sorcery." : "";
-  return `${cost}: ${describeEffect(ability.effect, definitions)}${from}${pain}${counter}${spend}${mark}${discount}${restriction}${timing}`;
+  return `${cost}: ${describeEffect(ability.effect, definitions)}${from}${pain}${counter}${spend}${mark}${discount}${restriction}${counterGate}${oncePerGame}${fresher}${timing}`;
 }
 
 /**
@@ -1843,6 +1872,21 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
     );
   }
   if (def.cantBlock) lines.push(`This ${selfNoun(def)} can't block.`);
+  if (def.beginsOnBattlefield) {
+    // Both clauses, because the second is what the offer costs - and the
+    // "not the starting player" half is the whole reason Gemstone Caverns is a
+    // catch-up card rather than a free land.
+    const who = def.beginsOnBattlefield.notStartingPlayerOnly
+      ? " and you're not the starting player"
+      : "";
+    const counter = def.beginsOnBattlefield.withCounter ? " with a luck counter on it" : "";
+    const price = def.beginsOnBattlefield.thenExileFromHand
+      ? " If you do, exile a card from your hand."
+      : "";
+    lines.push(
+      `If this card is in your opening hand${who}, you may begin the game with it on the battlefield${counter}.${price}`,
+    );
+  }
   if (def.entersOnlyIfYouDiscard) {
     // Both halves, because the second is the card: a Mox Diamond cast off a
     // landless hand goes straight to the graveyard.

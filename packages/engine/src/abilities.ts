@@ -1,5 +1,5 @@
 import { activateRestrictionProblem } from "./restrictions.js";
-import type { ActivatedAbility, Effect, GameState, ManaCost, StackTarget } from "./types.js";
+import type { ActivatedAbility, CardInstance, Effect, GameState, ManaCost, StackTarget } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import {
   canPayManaCost,
@@ -48,8 +48,32 @@ export function abilityManaCost(
   state: GameState,
   playerId: string,
   ability: ActivatedAbility,
+  /** The permanent whose ability it is - only Quicksilver's reduction needs it. */
+  source?: CardInstance,
 ): ManaCost | undefined {
   const cost = ability.cost.mana;
+  /*
+   * "Reduce the cost by his mana cost if he entered this turn." - Quicksilver.
+   *
+   * Read here, with the other reduction, because this is the one place that
+   * answers what an ability costs: the offer, the payment and the auto-tapper
+   * all ask it, and a discount known to only two of them is an ability the
+   * engine offers and then refuses.
+   */
+  if (cost && ability.costReducedByOwnCostWhenFresh && source) {
+    const own = state.cardDefinitions[source.definitionId]?.manaCost;
+    if (own && source.enteredOnTurn === state.turnNumber) {
+      const reduced: ManaCost = {
+        generic: Math.max(0, cost.generic - own.generic),
+        colors: { ...cost.colors },
+      };
+      for (const color of Object.keys(own.colors) as Array<keyof typeof own.colors>) {
+        const have = reduced.colors[color] ?? 0;
+        reduced.colors[color] = Math.max(0, have - (own.colors[color] ?? 0));
+      }
+      return reduced;
+    }
+  }
   if (!cost || !ability.costReducedPer) return cost;
   const legends = requirePlayer(state, playerId).battlefield.filter((instance) => {
     const def = state.cardDefinitions[instance.definitionId];
@@ -122,7 +146,7 @@ export function activatableAbilities(
      * Forest's "{G}, {T}: You gain 1 life" cannot be paid by tapping the Forest
      * for the {G}, so an ability offered on that basis is one the engine refuses.
      */
-    const manaCost = abilityManaCost(state, playerId, ability);
+    const manaCost = abilityManaCost(state, playerId, ability, instance);
     if (
       manaCost &&
       !couldAfford(state, playerId, manaCost, ability.cost.tap ? instance.instanceId : undefined)
@@ -135,6 +159,9 @@ export function activatableAbilities(
       return;
     }
     if (!colorAllowed(state, playerId, ability, instance)) return;
+    if (!sourceCountersAllow(ability, instance)) return;
+    // "Activate each power-up ability only once." Not offered a second time.
+    if (ability.onlyOncePerGame && instance.abilitiesUsedThisGame.includes(index)) return;
     if (!controllerMeets(state, playerId, ability.activateOnlyIf)) return;
     // An ability that needs a target and has none is not a usable ability - it
     // would only walk the player into a targeting prompt with nothing to click.
@@ -241,6 +268,20 @@ export function abilityModeEffects(ability: ActivatedAbility): Effect[] {
   return ability.effect.kind === "modal" ? ability.effect.modes.map((m) => m.effect) : [ability.effect];
 }
 
+/**
+ * "{T}: Add {C}. **If this land has a luck counter on it**, instead add one mana
+ * of any color." - Gemstone Caverns.
+ *
+ * Both polarities, because "instead" means the colourless half stops being
+ * available the moment the counter arrives. An ability usable either way would
+ * let the land make two mana on one tap.
+ */
+function sourceCountersAllow(ability: ActivatedAbility, instance: CardInstance): boolean {
+  if (ability.onlyIfSourceHasCounters === undefined) return true;
+  const has = instance.plusOneCounters + instance.otherCounters > 0;
+  return has === ability.onlyIfSourceHasCounters;
+}
+
 export function activateAbility(
   state: GameState,
   playerId: string,
@@ -289,12 +330,23 @@ export function activateAbility(
       throw new Error(`${def.name} has summoning sickness`);
     }
   }
-  const manaCost = abilityManaCost(state, playerId, ability);
+  /*
+   * "Activate each power-up ability only once." Checked before the cost,
+   * because an ability that may not be activated is not one you are asked to
+   * pay for - the same ordering the activation restrictions above take.
+   */
+  if (ability.onlyOncePerGame && instance.abilitiesUsedThisGame.includes(abilityIndex)) {
+    throw new Error(`${def.name} has already used that ability`);
+  }
+  const manaCost = abilityManaCost(state, playerId, ability, instance);
   if (manaCost && !canPayManaCost(player, manaCost)) {
     throw new Error(`${playerId} cannot pay the activation cost of ${def.name}`);
   }
   if (!colorAllowed(state, playerId, ability, instance)) {
     throw new Error(`${def.name} cannot make that colour in this deck`);
+  }
+  if (!sourceCountersAllow(ability, instance)) {
+    throw new Error(`${def.name} cannot use that ability right now`);
   }
   // "Activate only if you control a Swamp." Checked before anything is paid,
   // and re-checked on every activation rather than remembered - the board this
@@ -330,6 +382,10 @@ export function activateAbility(
    * answer zero. This is the rules' own last-known-information, substituted
    * here rather than understood downstream. See `AmountContext.sourceCounters`.
    */
+  // "Only once" - recorded as the cost is paid, so an ability that fizzles for
+  // want of a target has still been used. That is the rule and it is also the
+  // safe direction.
+  if (ability.onlyOncePerGame) instance.abilitiesUsedThisGame.push(abilityIndex);
   const sourceCounters = instance.plusOneCounters + instance.otherCounters;
   if (ability.cost.sacrificeSelf) sacrificePermanent(state, instanceId);
   /*

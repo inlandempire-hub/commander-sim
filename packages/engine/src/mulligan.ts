@@ -150,6 +150,47 @@ export function putOnBottom(state: GameState, playerId: string, instanceIds: str
 }
 
 /**
+ * "If this card is in your opening hand, you may begin the game with it on the
+ * battlefield." - Gemstone Caverns and Quicksilver.
+ *
+ * Offered once, here, because this is the moment the rules describe: opening
+ * hands are settled and the first turn has not begun. Every player is asked in
+ * turn order, and the questions queue - `pendingCardChoices` is already a queue
+ * for exactly this reason, and nothing can happen until they are all answered.
+ *
+ * Written as a card choice over a single card rather than a yes/no, because that
+ * is what it is: the picker already exists, and a player with two such cards is
+ * asked about each.
+ */
+function offerOpeningPermanents(state: GameState): void {
+  const starter = state.players[state.activePlayerIndex]?.id;
+  for (const player of state.players) {
+    for (const card of player.hand) {
+      const rule = state.cardDefinitions[card.definitionId]?.beginsOnBattlefield;
+      if (!rule) continue;
+      /*
+       * "...and you're not the starting player" - Gemstone Caverns is a catch-up
+       * card and says so. Quicksilver has no such clause, which is why this is
+       * read off the card rather than applied to both.
+       */
+      if (rule.notStartingPlayerOnly && player.id === starter) continue;
+      state.pendingCardChoices.push({
+        playerId: player.id,
+        sourceInstanceId: card.instanceId,
+        prompt: `Begin the game with ${
+          state.cardDefinitions[card.definitionId]?.name ?? "it"
+        } on the battlefield?`,
+        candidateInstanceIds: [card.instanceId],
+        min: 0,
+        max: 1,
+        mode: "begin-on-battlefield",
+        effectControllerId: player.id,
+      });
+    }
+  }
+}
+
+/**
  * Hands over to the next player, or starts the game once everyone has kept.
  *
  * Nothing else in the engine needs to know the mulligan happened: clearing the
@@ -164,6 +205,7 @@ function advance(state: GameState): void {
   const next = mulligan.order[mulligan.order.indexOf(mulligan.playerId) + 1];
   if (next === undefined) {
     state.mulligan = null;
+    offerOpeningPermanents(state);
     return;
   }
   mulligan.playerId = next;

@@ -898,6 +898,30 @@ export function applyEffect(
       });
       return;
     }
+    case "addKeywordCounter": {
+      /*
+       * "Put a +1/+1 counter **and a double strike counter** on Quicksilver."
+       *
+       * A counter, not a grant: it does not wear off in the cleanup step, which
+       * is why it lives in its own list on the instance. Both counters in one
+       * effect because the card puts them on together.
+       */
+      const found = findInstance(state, sourceInstanceId);
+      if (!found || found.instance.zone !== "battlefield") return;
+      if (!found.instance.keywordCounters.includes(effect.keyword)) {
+        found.instance.keywordCounters.push(effect.keyword);
+      }
+      if (effect.alsoPlusOne) {
+        // Through `countersPlaced`, like every other counter here, so a doubler
+        // reaches it - the +1/+1 half of this really is an ordinary counter.
+        found.instance.plusOneCounters += countersPlaced(state, found.instance, effect.alsoPlusOne);
+      }
+      log(
+        state,
+        `${cardName(state, sourceInstanceId)} gets a ${effect.keyword.toLowerCase()} counter`,
+      );
+      return;
+    }
     case "becomePrepared": {
       const source = findInstance(state, sourceInstanceId);
       if (!source || source.instance.zone !== "battlefield") return;
@@ -2145,6 +2169,46 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
    * happens when *nothing* was chosen - which is where every other mode simply
    * does nothing.
    */
+  /*
+   * "You may begin the game with it on the battlefield. If you do, exile a card
+   * from your hand." - taken before the game starts, so nothing was cast and
+   * nothing is on any stack. It still *enters the battlefield*, so everything
+   * watching for an arrival sees it.
+   */
+  if (pending.mode === "begin-on-battlefield") {
+    const taken = chosen[0];
+    if (taken) {
+      const rule = state.cardDefinitions[findInstance(state, taken)?.instance.definitionId ?? ""]
+        ?.beginsOnBattlefield;
+      const arrived = putOntoBattlefield(state, taken);
+      // "...with a luck counter on it". Held as an ordinary other-counter pip,
+      // which is what the mana ability below reads.
+      if (rule?.withCounter) arrived.otherCounters += 1;
+      log(state, `${playerId} begins the game with ${cardName(state, taken)} on the battlefield`);
+      /*
+       * "If you do, exile a card from your hand." Not optional and not part of
+       * the offer: it is the price, and it is asked as its own question because
+       * which card you give up is a real decision.
+       */
+      if (rule?.thenExileFromHand) {
+        const hand = requirePlayer(state, playerId).hand;
+        if (hand.length > 0) {
+          state.pendingCardChoices.push({
+            playerId,
+            sourceInstanceId: taken,
+            prompt: `${cardName(state, taken)}: exile a card from your hand`,
+            candidateInstanceIds: hand.map((c) => c.instanceId),
+            min: 1,
+            max: 1,
+            mode: "exile",
+            effectControllerId: playerId,
+          });
+        }
+      }
+    }
+    return;
+  }
+
   if (pending.mode === "discard-to-enter") {
     const taken = chosen[0];
     if (taken) {
@@ -2163,6 +2227,9 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
     else if (pending.mode === "to-hand") {
       moveCard(state, id, "hand");
       log(state, `${playerId} takes ${cardName(state, id)}`);
+    } else if (pending.mode === "exile") {
+      log(state, `${playerId} exiles ${cardName(state, id)}`);
+      moveCard(state, id, "exile");
     } else if (pending.mode === "exile-imprint") {
       /*
        * The card is exiled *and* remembered, and the second half is the whole
