@@ -50,6 +50,8 @@ export function isValidTarget(
       if (selector.subtypes?.length && !selector.subtypes.some((s) => def.subtypes?.includes(s))) {
         return false;
       }
+      // "target creature that was dealt damage this turn" - You Are Already Dead.
+      if (selector.damagedThisTurn && !found.instance.damagedThisTurn) return false;
       return !isProtectedByHexproof(state, target.instanceId, controllerId);
     }
     case "permanent": {

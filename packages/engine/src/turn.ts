@@ -276,6 +276,7 @@ function runAutomaticStepActions(state: GameState): void {
       for (const player of state.players) {
         for (const instance of player.battlefield) {
           instance.damageMarked = 0;
+          instance.damagedThisTurn = false;
           instance.deathtouchDamage = false;
           instance.grantedKeywords = []; // Heroic Intervention's hexproof wears off with everything else
           instance.grantedTriggers = []; // as does Root Manipulation's granted ability

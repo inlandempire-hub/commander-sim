@@ -115,6 +115,7 @@ export function damageCreature(
     instance.minusOneCounters += result.dealt;
   } else {
     instance.damageMarked += result.dealt;
+    if (result.dealt > 0) instance.damagedThisTurn = true;
   }
   if (options.deathtouch && result.dealt > 0) instance.deathtouchDamage = true;
   if (result.prevented > 0) {

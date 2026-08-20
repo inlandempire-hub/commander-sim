@@ -11165,6 +11165,23 @@ export const DISPEL: CardDefinition = {
   tier: "scripted",
 };
 
+export const YOU_ARE_ALREADY_DEAD: CardDefinition = {
+  id: "you-are-already-dead",
+  name: "You Are Already Dead",
+  scryfallId: "768727ce-4f84-4527-8d69-3c9b7877b748",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "destroy", target: { kind: "creature", damagedThisTurn: true } },
+      { kind: "draw", amount: 1 },
+    ],
+  },
+  tier: "scripted",
+};
+
 export const CULTIVATE: CardDefinition = {
   id: "cultivate",
   name: "Cultivate",
@@ -14430,5 +14447,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     ZEPHYR_BOOTS,
     CULTIVATE,
     FELIX_FIVE_BOOTS,
+    YOU_ARE_ALREADY_DEAD,
   ].map((def) => [def.id, def]),
 );

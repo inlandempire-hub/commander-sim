@@ -223,7 +223,7 @@ export type TargetSelector =
    * "Target creature", or - with `subtypes` - "target Insect, Rat, Spider, or
    * Squirrel" (Swarmyard). Any one of the listed subtypes qualifies.
    */
-  | { kind: "creature"; subtypes?: string[] }
+  | { kind: "creature"; subtypes?: string[]; damagedThisTurn?: boolean }
   | { kind: "player"; count?: TargetCount }
   | { kind: "opponent-of-controller" }
   /**
@@ -1773,6 +1773,8 @@ export interface CardInstance {
   zone: ZoneId;
   tapped: boolean;
   damageMarked: number;
+  /** "was dealt damage this turn" - set whenever damage lands, cleared in cleanup. For You Are Already Dead. */
+  damagedThisTurn?: boolean;
   /** True if any damage currently marked on this creature came from a Deathtouch source - makes it lethal regardless of amount. */
   deathtouchDamage: boolean;
   /** +1/+1 counters currently on this permanent. Reset to 0 on any zone change (a "new object" per the real rules). */
