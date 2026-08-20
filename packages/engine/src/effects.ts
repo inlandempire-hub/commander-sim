@@ -1291,6 +1291,7 @@ function matchesSearch(
   if (!definition) return false;
   if (effect.basicLandOnly && !definition.supertypes?.includes("Basic")) return false;
   if (effect.cardType && !definition.types.includes(effect.cardType)) return false;
+  if (effect.cardTypes?.length && !effect.cardTypes.some((t) => definition.types.includes(t))) return false;
   // "A Swamp or Mountain card" - any one of them is enough, and a nonbasic with
   // the type counts. Bayou is a legal find for a fetchland asking for a Swamp.
   if (effect.subtypes?.length && !effect.subtypes.some((s) => definition.subtypes?.includes(s))) {

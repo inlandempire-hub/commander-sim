@@ -69,6 +69,13 @@ export function meetsBoardCondition(
       }
       return creatures >= condition.count;
     }
+    case "card-types-in-graveyard": {
+      const types = new Set<string>();
+      for (const card of player?.graveyard ?? []) {
+        for (const t of state.cardDefinitions[card.definitionId]?.types ?? []) types.add(t);
+      }
+      return types.size >= condition.count;
+    }
     case "controls-subtype": {
       // "a Swamp or a Forest" - any one of them will do, and a dual counts for
       // both at once because this reads the type line rather than card names.

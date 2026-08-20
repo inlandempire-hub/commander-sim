@@ -809,6 +809,8 @@ export type Effect =
       kind: "searchLibrary";
       /** Restricts what may be found. Omitted means any card. */
       cardType?: CardType;
+      /** "a creature or land card" - any one of these types qualifies (Traverse the Ulvenwald). */
+      cardTypes?: CardType[];
       /** Narrows further to basic lands only, for the ramp spells. */
       basicLandOnly?: boolean;
       /**
@@ -1009,6 +1011,8 @@ export type BoardCondition =
   | { kind: "opponents"; count: number }
   /** "if there are thirteen or more creatures on the battlefield" - Blasphemous Edict. Counts every player's. */
   | { kind: "creatures-on-battlefield"; count: number }
+  /** Delirium: "four or more card types among cards in your graveyard" - Traverse the Ulvenwald. Distinct types. */
+  | { kind: "card-types-in-graveyard"; count: number }
   /**
    * "you control a Swamp or a Forest" - Woodland Cemetery, Wastewood Verge.
    * `count` defaults to 1, and any one of the listed subtypes qualifies.

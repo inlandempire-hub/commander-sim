@@ -11267,6 +11267,23 @@ export const PROPAGANDA: CardDefinition = {
   tier: "scripted",
 };
 
+export const TRAVERSE_THE_ULVENWALD: CardDefinition = {
+  id: "traverse-the-ulvenwald",
+  name: "Traverse the Ulvenwald",
+  scryfallId: "77b459cb-994c-430d-b0a6-59a8dd20adbd",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  // Delirium switches the search from a basic land to any creature or land.
+  castEffect: {
+    kind: "conditional",
+    condition: { kind: "card-types-in-graveyard", count: 4 },
+    then: { kind: "searchLibrary", cardTypes: ["Creature", "Land"], destination: "hand" },
+    otherwise: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" },
+  },
+  tier: "scripted",
+};
+
 export const YOU_ARE_ALREADY_DEAD: CardDefinition = {
   id: "you-are-already-dead",
   name: "You Are Already Dead",
@@ -14556,5 +14573,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     BLASPHEMOUS_EDICT,
     MISHRAS_BAUBLE,
     ARCANE_DENIAL,
+    TRAVERSE_THE_ULVENWALD,
   ].map((def) => [def.id, def]),
 );
