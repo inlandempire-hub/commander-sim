@@ -76,6 +76,20 @@ def load_scryfall():
     return by_name
 
 
+def _normalize_mana(s):
+    """Sort the single-colour pips into WUBRG so cosmetic colour order never
+    reads as a mismatch. {X} and generic keep their leading position; hybrid
+    pips keep theirs after the colours."""
+    import re
+
+    tokens = re.findall(r"\{[^}]+\}", s or "")
+    order = {"{W}": 0, "{U}": 1, "{B}": 2, "{R}": 3, "{G}": 4}
+    lead = [t for t in tokens if t == "{X}" or re.fullmatch(r"\{\d+\}", t)]
+    colors = sorted([t for t in tokens if t in order], key=lambda t: order[t])
+    rest = [t for t in tokens if t not in order and t != "{X}" and not re.fullmatch(r"\{\d+\}", t)]
+    return "".join(lead + colors + rest)
+
+
 def mana_cost_to_string(cost):
     """Render the engine's {generic, colors} mana cost the way Scryfall does."""
     if cost is None:
@@ -130,7 +144,12 @@ def audit(fixtures, by_name):
         if not fixture.get("types", []) == [] and "Land" not in fixture.get("types", []):
             expected = card.get("mana_cost") or ""
             actual = mana_cost_to_string(fixture.get("manaCost"))
-            if expected != actual:
+            # Colour order within a cost is cosmetic - Scryfall keeps each card's
+            # printed order (a Sultai card prints {B}{G}{U}) while the fixture
+            # renders WUBRG - and the engine pays mana order-independently. Sort
+            # the single-colour pips on both sides before comparing so only a
+            # genuinely different cost is flagged.
+            if _normalize_mana(expected) != _normalize_mana(actual):
                 issues.append("mana cost: fixture %s, Scryfall %s" % (actual or "(none)", expected or "(none)"))
 
         if card.get("power") is not None:

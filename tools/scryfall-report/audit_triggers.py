@@ -36,7 +36,7 @@ DATA = Path(__file__).parent / "data" / "oracle-cards.jsonl.gz"
 MODELLED = {
     "enters-battlefield", "attacks", "dies", "landfall", "permanent-enters", "gain-life",
     "permanent-dies", "permanent-sacrificed", "permanent-attacks", "leaves-battlefield",
-    "spell-cast", "damaged", "upkeep", "first-main", "begin-combat", "end-step",
+    "spell-cast", "damaged", "combat-damage-to-player", "upkeep", "first-main", "begin-combat", "end-step",
 }
 
 
@@ -191,7 +191,7 @@ def classify(clause, card_name):
     if re.search(r"is dealt damage", c):
         return None, "watches something else being dealt damage - not modelled"
     if re.search(r"deals combat damage to a player", c):
-        return None, "combat damage to a player - not modelled"
+        return "combat-damage-to-player", None
     if re.search(r"deals damage", c):
         return None, "damage-dealt trigger - not modelled"
 
