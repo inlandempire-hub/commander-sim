@@ -655,7 +655,16 @@ export type Effect =
        * stop pointing them at anything. With a rider set the printed `amount` is
        * a floor of 0 and the real figure is settled elsewhere.
        */
-      amountFrom?: "source-power" | "x";
+      /**
+       * Where the number comes from when it is not the one printed beside it.
+       *
+       * `"source-power"` is Eomer, `"x"` is Shatterskull Smashing, and a counted
+       * amount is Ajani's "damage equal to the number of creatures you control".
+       * One field because it is one question, and `amount` stays a plain number
+       * so the bot's removal evaluation still has a figure it can compare - with
+       * a rider set, the printed number is a floor of 0.
+       */
+      amountFrom?: "source-power" | "x" | { kind: "count"; of: Countable };
       target: TargetSelector;
       /**
        * "X damage **divided as you choose** among up to two target creatures
@@ -1756,6 +1765,28 @@ export type Effect =
    * whole difference: it does not wear off. See `CardInstance.keywordCounters`.
    */
   | { kind: "addKeywordCounter"; keyword: Keyword; alsoPlusOne?: number }
+  /**
+   * "You may **exile Ajani, then return him to the battlefield transformed**
+   * under his owner's control."
+   *
+   * Two zone changes and a new object, which is what the card says and is also
+   * why this is simpler than an in-place transform: the permanent leaves, its
+   * face is turned over while it is away, and what comes back is a fresh
+   * permanent with summoning sickness and no counters. Every "when this enters"
+   * on the far side fires, because it really is entering.
+   */
+  | { kind: "exileAndReturnTransformed" }
+  /**
+   * "Each opponent chooses an artifact, a creature, an enchantment, and a
+   * planeswalker from among the nonland permanents they control, **then
+   * sacrifices the rest**." - Ajani's -4.
+   *
+   * One question per opponent, asked in turn, which is what `pendingCardChoices`
+   * has been a queue for since "each opponent discards a card". What is new is
+   * only the shape of a legal answer: at most one of each named type, and as
+   * many of them as they actually have.
+   */
+  | { kind: "eachOpponentKeepsOnePerType"; types: CardType[] }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -2049,6 +2080,19 @@ export type TriggerEvent =
    * whole declaration rather than one subject at a time.
    */
   | "creatures-attack"
+  /**
+   * "Whenever **one or more** other Cats you control die" - Ajani.
+   *
+   * Fires **once** for a batch of simultaneous deaths, which is the same "one or
+   * more" shape `creatures-attack` and `creatures-dealt-combat-damage` already
+   * have, and the same reason: a board wipe that took three Cats is one event,
+   * not three, and three prompts to transform one Ajani is not the card.
+   *
+   * State-based actions kill one creature at a time and loop, so the sweep
+   * collects what died and fires this at the end of it - see
+   * `checkStateBasedActions`.
+   */
+  | "creatures-die"
   /**
    * "Whenever an opponent **searches their library**" - Archivist of Oghma.
    *
@@ -2811,6 +2855,18 @@ export interface CardDefinition {
    * characteristics, and only one of them applies at a time.
    */
   backFaceId?: string;
+  /**
+   * The face this permanent turns into - Ajani, Nacatl Avenger on the back of
+   * Ajani, Nacatl Pariah.
+   *
+   * **Deliberately not `backFaceId`**, which they superficially resemble. A
+   * modal double-faced card is a choice made as you play it and the back face is
+   * one of two things it could have been; a transforming one is a permanent that
+   * *changes form* on the battlefield, and you never choose which side to cast.
+   * Written as `backFaceId` the client would open its face picker every time you
+   * cast Ajani and offer you a planeswalker for {1}{W}.
+   */
+  transformsInto?: string;
   /**
    * "Equip {1}" - the cost of attaching this Equipment to a creature you
    * control, at sorcery speed.
@@ -3604,7 +3660,21 @@ export interface PendingCardChoice {
     | "exile-imprint"
     | "discard-to-enter"
     | "begin-on-battlefield"
-    | "exile";
+    | "exile"
+    /**
+     * `"keep-one-per-type"` is Ajani's -4: the cards chosen are the ones kept,
+     * and every other candidate is sacrificed. The inverse of every other mode
+     * here, where the chosen cards are the ones something happens to.
+     */
+    | "keep-one-per-type";
+  /**
+   * The types a "keep-one-per-type" answer may hold at most one of each of -
+   * "an artifact, a creature, an enchantment, and a planeswalker".
+   *
+   * Carried on the question because it is what makes an answer legal, and the
+   * player answering has to be told the rule as well as bound by it.
+   */
+  keepTypes?: CardType[];
   /** A price paid only if something is chosen - Ripples of Undeath. */
   cost?: { mana?: ManaCost; life?: number };
   /**

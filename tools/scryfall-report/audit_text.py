@@ -529,6 +529,15 @@ RULES = [
     # "They may tap that permanent" - Charismatic Conqueror, whose "if they
     # don't" half is a second sentence the ordinary token rule already covers.
     (r"they may tap that permanent", {"theyMay"}),
+    # Ajani. The transform is one clause of the death trigger, and the reflexive
+    # "when you do" is the second half of the 0 - written as a sequence, which is
+    # the documented simplification this engine has taken since Riveteers Overlook.
+    (r"you may exile .*, then return (him|her|it) to the battlefield transformed",
+     {"exileAndReturnTransformed"}),
+    (r"^when you do, if you control a red permanent other than \w+, (he|she|it) deals damage equal to the number of creatures you control to any target$",
+     {"damage"}),
+    (r"each opponent chooses an artifact, a creature, an enchantment, and a planeswalker",
+     {"eachOpponentKeepsOnePerType"}),
     # Gemstone Caverns and Quicksilver - the offer, and the price Caverns pays
     # for taking it.
     (r"you may begin the game with .* on the battlefield", {"beginsOnBattlefield"}),

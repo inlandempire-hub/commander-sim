@@ -1,6 +1,7 @@
 import type {
   CardDefinition,
   CardInstance,
+  CardType,
   DelayedAction,
   Effect,
   GameState,
@@ -81,9 +82,18 @@ export function applyEffect(
        * whose ability this is, so a pumped Eomer hits for more; every other card
        * prints a number and takes this branch not at all.
        */
-      const amount = effect.amountFrom === "source-power"
-        ? evaluateAmount(state, controllerId, { kind: "source-power" }, "damage amount", sourceInstanceId)
-        : effect.amount;
+      /*
+       * Where the number comes from when it is not the one printed beside it -
+       * Eomer's own power, or Ajani's "the number of creatures you control".
+       * Read at resolution in both cases, which is the rule and is visible:
+       * kill a creature in response to Ajani's 0 and the damage really is lower.
+       */
+      const amount =
+        effect.amountFrom === "source-power"
+          ? evaluateAmount(state, controllerId, { kind: "source-power" }, "damage amount", sourceInstanceId)
+          : typeof effect.amountFrom === "object"
+            ? evaluateAmount(state, controllerId, effect.amountFrom, "damage amount", sourceInstanceId)
+            : effect.amount;
       let totalDealt = 0;
       for (const [index, target] of targets.entries()) {
         /*
@@ -920,6 +930,71 @@ export function applyEffect(
         state,
         `${cardName(state, sourceInstanceId)} gets a ${effect.keyword.toLowerCase()} counter`,
       );
+      return;
+    }
+    case "exileAndReturnTransformed": {
+      /*
+       * "Exile Ajani, then return him to the battlefield transformed under his
+       * owner's control."
+       *
+       * Two zone changes, in that order, and the face is turned over while the
+       * card is away - which is what makes this simpler than an in-place
+       * transform. `moveCard` turns a back face over on the way *out* of the
+       * battlefield, so the id is set after the exile and before the return, and
+       * the return is to the battlefield, which that rule deliberately skips.
+       *
+       * What comes back is a new object: summoning sick, no counters, and every
+       * "when this enters" on the far side fires, because it really is entering.
+       */
+      const found = findInstance(state, sourceInstanceId);
+      if (!found || found.instance.zone !== "battlefield") return;
+      const back = requireDefinition(state, found.instance.definitionId).transformsInto;
+      if (!back) return;
+      const name = cardName(state, sourceInstanceId);
+      moveCard(state, sourceInstanceId, "exile");
+      found.instance.definitionId = back;
+      // A planeswalker arrives with its printed loyalty, and `enteredBattlefield`
+      // only sets it when there is none - the front face had none to leave behind.
+      found.instance.loyalty = 0;
+      putOntoBattlefield(state, sourceInstanceId);
+      log(state, `${name} is exiled and returns transformed as ${cardName(state, sourceInstanceId)}`);
+      return;
+    }
+    case "eachOpponentKeepsOnePerType": {
+      /*
+       * "Each opponent chooses an artifact, a creature, an enchantment, and a
+       * planeswalker from among the nonland permanents they control, then
+       * sacrifices the rest."
+       *
+       * One question per opponent, queued - which is what `pendingCardChoices`
+       * has been since "each opponent discards a card". The chosen cards are the
+       * ones **kept**, which is the inverse of every other mode here, and the
+       * whole reason this needed a mode of its own rather than a count.
+       *
+       * A player with nothing to lose is not asked: an empty question is a form
+       * to fill in rather than a decision.
+       */
+      for (const player of state.players) {
+        if (player.id === controllerId) continue;
+        const candidates = player.battlefield.filter((permanent) => {
+          const def = state.cardDefinitions[permanent.definitionId];
+          return def !== undefined && !def.types.includes("Land");
+        });
+        if (candidates.length === 0) continue;
+        state.pendingCardChoices.push({
+          playerId: player.id,
+          sourceInstanceId,
+          prompt: `${cardName(state, sourceInstanceId)}: keep one of each of ${effect.types
+            .map((t) => t.toLowerCase())
+            .join(", ")} - the rest are sacrificed`,
+          candidateInstanceIds: candidates.map((c) => c.instanceId),
+          min: 0,
+          max: effect.types.length,
+          mode: "keep-one-per-type",
+          keepTypes: effect.types,
+          effectControllerId: controllerId,
+        });
+      }
       return;
     }
     case "becomePrepared": {
@@ -2175,6 +2250,36 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
    * nothing is on any stack. It still *enters the battlefield*, so everything
    * watching for an arrival sees it.
    */
+  /*
+   * Ajani's -4. The chosen cards are the ones kept and everything else the
+   * player was offered is sacrificed - so this is settled here rather than in
+   * the loop below, which is written the other way round.
+   *
+   * The answer is checked as well as counted: at most one of each named type,
+   * because "an artifact, a creature, an enchantment, and a planeswalker" is
+   * four slots and not four cards. A permanent that is two of those types at
+   * once may fill either slot, which is why this walks the chosen cards and
+   * tries to seat each one rather than tallying types.
+   */
+  if (pending.mode === "keep-one-per-type") {
+    const types = pending.keepTypes ?? [];
+    const filled = new Set<CardType>();
+    for (const id of chosen) {
+      const def = state.cardDefinitions[findInstance(state, id)?.instance.definitionId ?? ""];
+      const seat = types.find((type) => def?.types.includes(type) && !filled.has(type));
+      if (!seat) throw new Error("Only one permanent of each named type may be kept");
+      filled.add(seat);
+    }
+    const kept = new Set(chosen);
+    for (const id of pending.candidateInstanceIds) {
+      if (kept.has(id)) continue;
+      const found = findInstance(state, id);
+      // Something may have left the battlefield while the question sat open.
+      if (found?.instance.zone === "battlefield") sacrificePermanent(state, id);
+    }
+    return;
+  }
+
   if (pending.mode === "begin-on-battlefield") {
     const taken = chosen[0];
     if (taken) {

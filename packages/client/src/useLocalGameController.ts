@@ -107,8 +107,8 @@ export function useLocalGameController({
     resolveEnterChoice: (playerId, answer) => act((s) => resolveEnterChoice(s, playerId, answer)),
     suspendCard: (playerId, instanceId) => act((s) => suspendCard(s, playerId, instanceId)),
     castPreparedSpell: (playerId, instanceId) => act((s) => castPreparedSpell(s, playerId, instanceId)),
-    activateLoyaltyAbility: (playerId, instanceId, abilityIndex) =>
-      act((s) => activateLoyaltyAbility(s, playerId, instanceId, abilityIndex)),
+    activateLoyaltyAbility: (playerId, instanceId, abilityIndex, targets = []) =>
+      act((s) => activateLoyaltyAbility(s, playerId, instanceId, abilityIndex, targets)),
     takeMulligan: (playerId) => act((s) => takeMulligan(s, playerId)),
     keepHand: (playerId) => act((s) => keepHand(s, playerId)),
     putOnBottom: (playerId, instanceIds) => act((s) => putOnBottom(s, playerId, instanceIds)),

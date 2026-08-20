@@ -1,6 +1,7 @@
 import type { GameState } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition } from "./state.js";
-import { describeSubject, fireWatchers, pushTrigger } from "./permanents.js";
+import type { TriggerSubject } from "./permanents.js";
+import { describeSubject, fireCreaturesDie, fireWatchers, pushTrigger } from "./permanents.js";
 import { effectiveToughness, effectiveTriggers, hasKeyword, typesOf } from "./counters.js";
 import { useRegenerationShield } from "./regeneration.js";
 
@@ -12,7 +13,17 @@ const COMMANDER_DAMAGE_THRESHOLD = 21;
  * Phase 1 always takes this replacement (the real rule makes it optional for
  * the owner - a "may" choice UI hook is future work once a client exists).
  */
-function moveDyingCreatureToItsZone(state: GameState, instanceId: string, isCommander: boolean): void {
+function moveDyingCreatureToItsZone(
+  state: GameState,
+  instanceId: string,
+  isCommander: boolean,
+  /**
+   * Where to collect this death, when the caller is a sweep that may cause
+   * several at once. Given one, the "one or more creatures die" event is left
+   * for the sweep to fire; without one, this death is its own batch.
+   */
+  batch?: TriggerSubject[],
+): void {
   const found = findInstance(state, instanceId);
   const diedFromBattlefield = found?.instance.zone === "battlefield";
   const controllerId = found?.instance.controllerId;
@@ -56,6 +67,13 @@ function moveDyingCreatureToItsZone(state: GameState, instanceId: string, isComm
   // some cards of this family ("this creature or another creature dies") watch
   // their own.
   if (subject && dyingInstance) {
+    /*
+     * "One or more ... die" - collected rather than fired, when the caller is a
+     * sweep that may kill several at once. A board wipe that took three Cats is
+     * one event as far as Ajani is concerned, not three.
+     */
+    if (batch) batch.push(subject);
+    else fireCreaturesDie(state, [subject]);
     fireWatchers(state, "permanent-dies", subject, dyingInstance);
     // A death is also a departure. The Ozolith catches the counters here and,
     // by way of `leaveBattlefield` below, on every other way out too.
@@ -138,6 +156,16 @@ export function sacrificePermanent(state: GameState, instanceId: string): void {
 export function checkStateBasedActions(state: GameState): void {
   grantAscend(state);
 
+  /*
+   * Everything that dies during this whole sweep, so "one or more creatures
+   * die" fires once for it.
+   *
+   * The loop below kills one creature at a time and starts again, because a
+   * death can make the next one lethal. That is right for the rules and wrong
+   * for a batch event, so the deaths are gathered here and fired at the end.
+   */
+  const died: TriggerSubject[] = [];
+
   let changed = true;
   while (changed) {
     changed = false;
@@ -163,7 +191,7 @@ export function checkStateBasedActions(state: GameState): void {
          * protection from a board wipe it does nothing against.
          */
         if (toughness <= 0) {
-          moveDyingCreatureToItsZone(state, instance.instanceId, instance.isCommander);
+          moveDyingCreatureToItsZone(state, instance.instanceId, instance.isCommander, died);
           changed = true;
           continue;
         }
@@ -172,7 +200,7 @@ export function checkStateBasedActions(state: GameState): void {
             changed = true;
             continue;
           }
-          moveDyingCreatureToItsZone(state, instance.instanceId, instance.isCommander);
+          moveDyingCreatureToItsZone(state, instance.instanceId, instance.isCommander, died);
           changed = true;
         }
       }
@@ -208,7 +236,7 @@ export function checkStateBasedActions(state: GameState): void {
         const def = requireDefinition(state, instance.definitionId);
         if (def.loyalty === undefined) continue;
         if (instance.loyalty > 0) continue;
-        moveDyingCreatureToItsZone(state, instance.instanceId, instance.isCommander);
+        moveDyingCreatureToItsZone(state, instance.instanceId, instance.isCommander, died);
         changed = true;
       }
     }
@@ -229,7 +257,7 @@ export function checkStateBasedActions(state: GameState): void {
         void keep;
         for (const id of rest) {
           const instance = player.battlefield.find((c) => c.instanceId === id);
-          moveDyingCreatureToItsZone(state, id, instance?.isCommander ?? false);
+          moveDyingCreatureToItsZone(state, id, instance?.isCommander ?? false, died);
           changed = true;
         }
       }
@@ -265,6 +293,14 @@ export function checkStateBasedActions(state: GameState): void {
       }
     }
   }
+
+  /*
+   * "Whenever one or more creatures die" - once for the whole sweep, however
+   * many it took. Fired after the loop rather than inside it, because a
+   * trigger going on the stack mid-sweep would see a board still being
+   * settled.
+   */
+  fireCreaturesDie(state, died);
 }
 
 /**

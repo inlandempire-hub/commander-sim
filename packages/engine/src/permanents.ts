@@ -699,6 +699,39 @@ export function fireCreaturesAttack(
  * Deliberately not fired by Winota's "look at the top six": looking is not
  * searching, which is why one of them can be answered without a shuffle.
  */
+/**
+ * "Whenever **one or more** other Cats you control die" - fired once for a batch
+ * of simultaneous deaths, however many there were.
+ *
+ * The third event of this shape, after `creatures-attack` and
+ * `creatures-dealt-combat-damage`, and it decides membership over the whole list
+ * for the same reason they do: "did any of these qualify" is a different
+ * question from "does this one qualify", and only the first can fire once.
+ *
+ * `includesSelf` reads naturally here: Ajani says "**other** Cats", and a
+ * watcher that died in the same batch is excluded unless the card says it counts
+ * itself.
+ */
+export function fireCreaturesDie(state: GameState, dead: TriggerSubject[]): void {
+  if (dead.length === 0) return;
+  for (const player of state.players) {
+    for (const watcher of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "creatures-die") continue;
+        const qualifies = dead.some((subject) => {
+          if (subject.instanceId === watcher.instanceId && !trigger.includesSelf) return false;
+          if ((trigger.watches ?? "controller") === "controller" && watcher.controllerId !== subject.controllerId) {
+            return false;
+          }
+          return matchesWatchFor(trigger.watchFor, subject, watcher.controllerId);
+        });
+        if (!qualifies) continue;
+        pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger);
+      }
+    }
+  }
+}
+
 export function fireLibrarySearched(state: GameState, searcherId: string): void {
   for (const player of state.players) {
     for (const watcher of player.battlefield) {

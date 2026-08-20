@@ -39,7 +39,7 @@ MODELLED = {
     "spell-cast", "damaged", "upkeep", "first-main", "begin-combat", "end-step",
     "land-played", "becomes-tapped",
     "combat-damage-to-player", "creatures-dealt-combat-damage",
-    "creatures-attack", "library-searched", "draw-step",
+    "creatures-attack", "library-searched", "draw-step", "creatures-die",
 }
 
 
@@ -278,6 +278,12 @@ def classify(clause, card_name):
         return None, "combat damage to a player by something else - not modelled"
     if re.search(r"deals damage", c):
         return None, "damage-dealt trigger - not modelled"
+
+    # "Whenever one or more other Cats you control die" - Ajani, and the third
+    # event of that shape. Checked before the `dies` branch below, because the
+    # plural is the whole difference: one event for a batch, not one per death.
+    if re.search(r"^when(ever)? one or more .* die,", c):
+        return "creatures-die", None
 
     # "Whenever you attack with one or more non-Gnome creatures" (Anim Pakal),
     # "whenever you attack with this creature and/or your commander" (Ainok

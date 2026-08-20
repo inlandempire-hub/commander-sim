@@ -1154,3 +1154,22 @@ describe("the cards that begin the game in play", () => {
     expect(text).toContain("entered this turn");
   });
 });
+
+describe("Ajani in the panel", () => {
+  it("says what turns him over and that it is a choice", () => {
+    const text = textOf("ajani-nacatl-pariah");
+    expect(text).toContain("one or more other Cats you control die");
+    expect(text).toContain("transformed");
+    expect(text).toContain("you may");
+  });
+
+  it("prints all three loyalty abilities, including what the -4 keeps", () => {
+    const text = textOf("ajani-nacatl-avenger");
+    expect(text).toContain("+1/+1 counter on each Cat");
+    // The number is a phrase, not the printed floor of 0.
+    expect(text).toContain("damage equal to");
+    // Four slots, and the panel names which four.
+    expect(text).toContain("an artifact, a creature, an enchantment, and a planeswalker");
+    expect(text).toContain("sacrifices the rest");
+  });
+});

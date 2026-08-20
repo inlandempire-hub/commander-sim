@@ -86,7 +86,12 @@ export interface GameController {
   /** Casts a copy of a prepared permanent's other face. */
   castPreparedSpell(playerId: string, instanceId: string): void;
   /** Activates a planeswalker's loyalty ability. */
-  activateLoyaltyAbility(playerId: string, instanceId: string, abilityIndex: number): void;
+  activateLoyaltyAbility(
+    playerId: string,
+    instanceId: string,
+    abilityIndex: number,
+    targets?: StackTarget[],
+  ): void;
   /** Opening hands, before the game starts. See the engine's mulligan.ts. */
   takeMulligan(playerId: string): void;
   keepHand(playerId: string): void;

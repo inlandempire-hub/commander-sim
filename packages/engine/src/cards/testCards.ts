@@ -16065,8 +16065,156 @@ export const QUICKSILVER_BRASH_BLUR: CardDefinition = {
   tier: "weird",
 };
 
+
+/** "a 2/1 white Cat Warrior creature token" - both halves of Ajani make them. */
+export const TOKEN_W_21_CAT_WARRIOR: CardDefinition = {
+  id: "token-w-21-cat-warrior",
+  name: "Cat Warrior",
+  types: ["Creature"],
+  subtypes: ["Cat", "Warrior"],
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+/**
+ * Ajani, Nacatl Avenger - the planeswalker on the back of Ajani, Nacatl Pariah.
+ *
+ * "+2: Put a +1/+1 counter on each Cat you control.
+ *  0: Create a 2/1 white Cat Warrior creature token. When you do, if you control
+ *     a red permanent other than Ajani, he deals damage equal to the number of
+ *     creatures you control to any target.
+ *  -4: Each opponent chooses an artifact, a creature, an enchantment, and a
+ *     planeswalker from among the nonland permanents they control, then
+ *     sacrifices the rest."
+ *
+ * "Other than Ajani" needs nothing: a back face has no mana cost, and colour
+ * comes from the mana cost - so this Ajani is a colourless permanent and could
+ * never have satisfied its own condition. See `cardColors`.
+ *
+ * The reflexive "when you do" is written as a sequence, which is the documented
+ * simplification this engine has taken since Riveteers Overlook: a real
+ * reflexive trigger uses the stack, so in paper an opponent could respond
+ * between the token and the damage. Here there is nothing worth responding to
+ * that was not already respondable before the ability resolved.
+ */
+export const AJANI_NACATL_AVENGER: CardDefinition = {
+  id: "ajani-nacatl-avenger",
+  name: "Ajani, Nacatl Avenger",
+  scryfallId: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
+  types: ["Planeswalker"],
+  subtypes: ["Ajani"],
+  supertypes: ["Legendary"],
+  colorIdentity: ["R", "W"],
+  loyalty: 3,
+  isBackFace: true,
+  loyaltyAbilities: [
+    {
+      cost: 2,
+      label: "Put a +1/+1 counter on each Cat you control",
+      // "each Cat **you control**", with no "other" - and Ajani is a
+      // planeswalker, so counting himself was never possible anyway.
+      effect: { kind: "addCounterToEachOther", amount: 1, subtypes: ["Cat"] },
+    },
+    {
+      cost: 0,
+      // The printed wording, whole - the panel prints the label instead of
+      // describing the effect, so a summary here would be a card that reads
+      // better than it is. Same convention Grist's labels follow.
+      label:
+        "Create a 2/1 white Cat Warrior creature token. When you do, if you control a red permanent other than Ajani, he deals damage equal to the number of creatures you control to any target.",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "createToken", count: 1, tokenDefinitionId: "token-w-21-cat-warrior" },
+          {
+            kind: "conditional",
+            condition: { kind: "controls-color", color: "R", count: 1 },
+            then: {
+              kind: "damage",
+              // The printed figure is a floor - see `amountFrom`. The real one is
+              // counted at resolution, so a creature killed in response to this
+              // really does make it smaller.
+              amount: 0,
+              amountFrom: { kind: "count", of: { what: "creatures" } },
+              target: { kind: "any-target" },
+            },
+          },
+        ],
+      },
+    },
+    {
+      cost: -4,
+      label:
+        "Each opponent chooses an artifact, a creature, an enchantment, and a planeswalker from among the nonland permanents they control, then sacrifices the rest.",
+      effect: {
+        kind: "eachOpponentKeepsOnePerType",
+        types: ["Artifact", "Creature", "Enchantment", "Planeswalker"],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/**
+ * Ajani, Nacatl Pariah - {1}{W} 1/2 Legendary Creature, Cat Warrior.
+ *
+ * "When Ajani enters, create a 2/1 white Cat Warrior creature token.
+ *  Whenever one or more other Cats you control die, you may exile Ajani, then
+ *  return him to the battlefield transformed under his owner's control."
+ *
+ * The card this pool put off twice. Its -4 was specified rather than built for
+ * two batches on the grounds that a four-category multi-select aimed at each
+ * opponent was a new question reaching a dozen places - and it turned out not to
+ * be a new question at all: `pendingCardChoices` has asked a named player to pick
+ * from a computed list since Braids, and it is a queue, which is exactly what
+ * "each opponent chooses" needs.
+ *
+ * "One or more other Cats" is the third event of that shape and fires once for a
+ * batch of simultaneous deaths: a wipe that took three Cats is one event, and
+ * three prompts to transform one Ajani is not the card.
+ *
+ * `transformsInto` rather than `backFaceId`, and the difference is not cosmetic
+ * - written as an MDFC the client would open its face picker every time you cast
+ * him and offer you a planeswalker for {1}{W}.
+ */
+export const AJANI_NACATL_PARIAH: CardDefinition = {
+  id: "ajani-nacatl-pariah",
+  name: "Ajani, Nacatl Pariah",
+  scryfallId: "0d16e8e0-31b2-4389-afd6-783c501f6fa0",
+  types: ["Creature"],
+  subtypes: ["Cat", "Warrior"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["R", "W"],
+  power: 1,
+  toughness: 2,
+  transformsInto: "ajani-nacatl-avenger",
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-w-21-cat-warrior" },
+    },
+    {
+      event: "creatures-die",
+      watches: "controller",
+      // "**other** Cats you control" - `includesSelf` is off by default, which is
+      // exactly that word: Ajani dying in the same wipe does not turn him over.
+      watchFor: { subtype: "Cat", controlledBy: "you" },
+      optional: true,
+      effect: { kind: "exileAndReturnTransformed" },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    AJANI_NACATL_PARIAH,
+    AJANI_NACATL_AVENGER,
+    TOKEN_W_21_CAT_WARRIOR,
     GEMSTONE_CAVERNS,
     QUICKSILVER_BRASH_BLUR,
     SHATTERSKULL_SMASHING,

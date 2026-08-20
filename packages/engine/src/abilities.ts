@@ -202,6 +202,15 @@ export function activateLoyaltyAbility(
   playerId: string,
   instanceId: string,
   abilityIndex: number,
+  /**
+   * What the ability points at. Empty for every loyalty ability in the pool
+   * until Ajani's 0, whose damage rider names "any target".
+   *
+   * Checked here rather than trusted, exactly as an activated ability's targets
+   * are - the pickers only ever offer what `legalTargetsFor` returns, so an
+   * illegal target can only come from a client that has gone wrong.
+   */
+  targets: StackTarget[] = [],
 ): void {
   if (state.players[state.priorityPlayerIndex]?.id !== playerId) {
     throw new Error(`${playerId} does not have priority`);
@@ -237,7 +246,15 @@ export function activateLoyaltyAbility(
     state,
     `${playerId} activates ${def.name}'s ${ability.cost >= 0 ? "+" : ""}${ability.cost} ability`,
   );
-  pushOntoStack(state, instanceId, playerId, ability.effect, [], false);
+  const selector = targetSelectorOf(ability.effect);
+  if (selector) {
+    for (const target of targets) {
+      if (!isValidTarget(state, selector, target, playerId, instanceId)) {
+        throw new Error(`That is not a legal target for ${def.name}`);
+      }
+    }
+  }
+  pushOntoStack(state, instanceId, playerId, ability.effect, targets, false);
   state.passesInSuccession = 0;
 }
 

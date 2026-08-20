@@ -133,7 +133,7 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       castPreparedSpell(state, playerId, message.instanceId);
       break;
     case "activateLoyaltyAbility":
-      activateLoyaltyAbility(state, playerId, message.instanceId, message.abilityIndex);
+      activateLoyaltyAbility(state, playerId, message.instanceId, message.abilityIndex, message.targets ?? []);
       return;
     case "passPriority":
       passPriority(state, playerId);

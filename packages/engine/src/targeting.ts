@@ -384,6 +384,27 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
       }
       return targeted[0];
     }
+    /*
+     * "...if you control a red permanent other than Ajani, he deals damage ...
+     * to **any target**." - Ajani's 0, whose target is inside the condition.
+     *
+     * Looked through for the same reason a sequence is: the ability targets, and
+     * an ability whose selector cannot be found is one the game never asks a
+     * target for and which then does nothing at all. The target is chosen when
+     * the ability goes on the stack even if the condition later turns out to be
+     * false - which is the rule for a spell, and the documented simplification
+     * this engine takes for the reflexive triggers it writes as sequences.
+     */
+    case "conditional": {
+      const branches = [effect.then, effect.otherwise]
+        .filter((branch): branch is Effect => branch !== undefined)
+        .map(targetSelectorOf)
+        .filter((s) => s !== undefined);
+      if (branches.length > 1) {
+        throw new Error("A conditional with more than one targeted branch is not supported");
+      }
+      return branches[0];
+    }
     default:
       return undefined;
   }

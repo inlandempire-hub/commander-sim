@@ -314,6 +314,17 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
             : "";
         return `Deal X damage divided as you choose among ${describeTarget(effect.target)}.${kicker}`;
       }
+      /*
+       * "Damage equal to the number of creatures you control" - a phrase rather
+       * than the printed floor of 0, which is what `amountFrom` means and what
+       * a panel showing "Deal 0 damage" would get wrong.
+       */
+      if (typeof effect.amountFrom === "object") {
+        return `Deal damage equal to ${describeCount(effect.amountFrom.of)} to ${describeTarget(effect.target)}.`;
+      }
+      if (effect.amountFrom === "source-power") {
+        return `Deal damage equal to its power to ${describeTarget(effect.target)}.`;
+      }
       return `Deal ${effect.amount} damage to ${describeTarget(effect.target)}.`;
     }
     case "draw": {
@@ -467,6 +478,16 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return sentence(
         `put ${plus}a ${effect.keyword.toLowerCase()} counter on this creature.`,
       );
+    }
+    case "exileAndReturnTransformed":
+      // The card's own words. "Transformed" is the whole of it - what he becomes
+      // is on the other face, which the panel shows separately.
+      return sentence("you may exile it, then return it to the battlefield transformed under its owner's control.");
+    case "eachOpponentKeepsOnePerType": {
+      // Four slots, not four cards, and the sentence has to say which four -
+      // "keeps four permanents" would describe a materially different card.
+      const list = effect.types.map((t) => article(t.toLowerCase())).join(", ");
+      return `Each opponent chooses ${list} from among the nonland permanents they control, then sacrifices the rest.`;
     }
     case "becomePrepared":
       return "This creature becomes prepared.";
@@ -1503,6 +1524,15 @@ function describeTrigger(
                 } creatures`
               : "creatures"
           }, ${tail}`;
+    case "creatures-die":
+      /*
+       * "One or more" is the printed phrase and the rule at once - it fires once
+       * however many died - which is why it reads differently from
+       * `permanent-dies` above despite watching the same moment.
+       */
+      return `Whenever one or more ${ability.includesSelf ? "" : "other "}${
+        ability.watchFor?.subtype ?? "creature"
+      }s you control die, ${tail}`;
     case "library-searched": {
       // Whose search it has to be, read off the same field `spell-cast` uses
       // for whose spell it has to be. Omitted means anybody's, which is what
