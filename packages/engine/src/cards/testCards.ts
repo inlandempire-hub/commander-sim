@@ -11218,6 +11218,38 @@ export const LABORATORY_MANIAC: CardDefinition = {
   tier: "scripted",
 };
 
+export const ZEPHYR_BOOTS: CardDefinition = {
+  id: "zephyr-boots",
+  name: "Zephyr Boots",
+  scryfallId: "4d0566fd-3775-48f1-ba22-6e659558c3d3",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 2, colors: {} },
+  staticBuff: { power: 0, toughness: 0, grants: ["Flying"] },
+  // "Whenever equipped creature deals combat damage to a player, draw a card,
+  // then discard a card." The Equipment watches the creature it is attached to.
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      watchFor: { attachedToThis: true },
+      effect: {
+        kind: "sequence",
+        effects: [{ kind: "draw", amount: 1 }, { kind: "discard", amount: 1, who: "self" }],
+      },
+    },
+  ],
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 2, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const LAVASPUR_BOOTS: CardDefinition = {
   id: "lavaspur-boots",
   name: "Lavaspur Boots",
@@ -14357,5 +14389,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     TRAILBLAZERS_BOOTS,
     LAVASPUR_BOOTS,
     WINGED_BOOTS,
+    ZEPHYR_BOOTS,
   ].map((def) => [def.id, def]),
 );

@@ -716,7 +716,7 @@ export type Effect =
    * did until 2026-08-13 - "each opponent discards a card" rips answers out of
    * a hand whose owner would have pitched a spare land instead.
    */
-  | { kind: "discard"; amount: number; who: "each-opponent" }
+  | { kind: "discard"; amount: number; who: "each-opponent" | "self" }
   /**
    * "Surveil 1" - look at the top card of your library, then choose whether to
    * put it into your graveyard.

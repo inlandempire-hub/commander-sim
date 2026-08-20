@@ -880,6 +880,21 @@ export function applyEffect(
        * A player with an empty hand is not queued at all: there is nothing to
        * choose, and asking would stop the game on a question with no answers.
        */
+      if (effect.who === "self") {
+        // "then discard a card" - the controller loots. Same picker, aimed at
+        // the controller rather than the opponents.
+        if (controller.hand.length === 0) return;
+        state.pendingDiscards.push({
+          playerId: controllerId,
+          sourceInstanceId,
+          remaining: effect.amount,
+          prompt:
+            effect.amount === 1
+              ? `${cardName(state, sourceInstanceId)}: discard a card`
+              : `${cardName(state, sourceInstanceId)}: discard ${effect.amount} cards`,
+        });
+        return;
+      }
       for (const player of state.players) {
         if (player.id === controllerId) continue; // "each opponent"
         if (player.hasLost || player.hand.length === 0) continue;

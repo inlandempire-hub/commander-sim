@@ -336,11 +336,18 @@ export function fireCombatDamageToPlayer(
     for (const watcher of player.battlefield) {
       for (const trigger of effectiveTriggers(state, watcher)) {
         if (trigger.event !== "combat-damage-to-player") continue;
-        // No `watches` means "this creature" (self, like the `attacks` event);
-        // "controller" means "a creature you control"; "any" watches everyone's.
-        const scope = trigger.watches;
-        if (scope === undefined && watcher.instanceId !== damagerInstanceId) continue;
-        if (scope === "controller" && watcher.controllerId !== damagerControllerId) continue;
+        if (trigger.watchFor?.attachedToThis) {
+          // "Whenever equipped creature deals combat damage" - Zephyr Boots. The
+          // watcher is the Equipment; it fires when the creature it is on is the
+          // one that connected.
+          if (watcher.attachedTo !== damagerInstanceId) continue;
+        } else {
+          // No `watches` means "this creature" (self, like the `attacks` event);
+          // "controller" means "a creature you control"; "any" watches everyone's.
+          const scope = trigger.watches;
+          if (scope === undefined && watcher.instanceId !== damagerInstanceId) continue;
+          if (scope === "controller" && watcher.controllerId !== damagerControllerId) continue;
+        }
         pushTrigger(state, damagerInstanceId, watcher.controllerId, trigger, amount);
       }
     }
