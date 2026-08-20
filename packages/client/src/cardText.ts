@@ -298,8 +298,24 @@ const EXERT_REMINDER = " (An exerted creature won't untap during your next untap
 
 export function describeEffect(effect: Effect, definitions: Definitions = {}): string {
   switch (effect.kind) {
-    case "damage":
+    case "damage": {
+      /*
+       * "X damage **divided as you choose** among up to two targets" -
+       * Shatterskull Smashing, whose amount is X and whose kicker doubles it.
+       *
+       * Printed as the phrase rather than as a number, for the same reason the
+       * Meathook Massacre's -X/-X is: the panel is read *before* X is announced,
+       * so a figure there would be a decision the player has not made.
+       */
+      if (effect.dividedAmongTargets) {
+        const kicker =
+          effect.doubleWhenAmountAtLeast !== undefined
+            ? ` If X is ${effect.doubleWhenAmountAtLeast} or more, it deals twice X damage divided as you choose among them instead.`
+            : "";
+        return `Deal X damage divided as you choose among ${describeTarget(effect.target)}.${kicker}`;
+      }
       return `Deal ${effect.amount} damage to ${describeTarget(effect.target)}.`;
+    }
     case "draw": {
       // "Draw a card for each creature you control with a +1/+1 counter on it",
       // and the plain numeric printings. The dynamic form reads as a phrase

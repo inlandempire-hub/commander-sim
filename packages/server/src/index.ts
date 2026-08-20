@@ -69,6 +69,7 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
         // one and the message left it behind.
         chosenMode: message.chosenMode,
         chosenX: message.chosenX,
+        damageSplit: message.damageSplit,
         sacrificeInstanceId: message.sacrificeInstanceId,
         useAlternativeCost: message.useAlternativeCost,
       });

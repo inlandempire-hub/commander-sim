@@ -15914,8 +15914,68 @@ export const MOX_DIAMOND: CardDefinition = {
   tier: "weird",
 };
 
+
+/** The land half of Shatterskull Smashing - a Mountain that costs 3 life to come in untapped. */
+export const SHATTERSKULL_THE_HAMMER_PASS: CardDefinition = {
+  id: "shatterskull-the-hammer-pass",
+  name: "Shatterskull, the Hammer Pass",
+  scryfallId: "bc7239ea-f8aa-4a6f-87bd-c35359635673",
+  types: ["Land"],
+  colorIdentity: ["R"],
+  entersTappedUnlessPayLife: 3,
+  isBackFace: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } }],
+  tier: "scripted",
+};
+
+/**
+ * Shatterskull Smashing - {X}{R}{R} Sorcery // a land.
+ *
+ * "Shatterskull Smashing deals X damage divided as you choose among up to two
+ * target creatures and/or planeswalkers. If X is 6 or more, Shatterskull
+ * Smashing deals twice X damage divided as you choose among them instead."
+ *
+ * The division is announced as the spell is cast, not worked out as it resolves,
+ * and that is not a technicality: kill one of the two in response and the damage
+ * assigned to it is lost. Divided at resolution you would move it to the
+ * survivor, which is a materially better card.
+ *
+ * "Twice X" is a threshold on the same sentence rather than a second effect -
+ * the targets and the split are announced once and only the total changes.
+ *
+ * The planeswalker half of the selector is unreachable today, exactly as Fell
+ * the Profane's is, and is written down because it is what the card says.
+ */
+export const SHATTERSKULL_SMASHING: CardDefinition = {
+  id: "shatterskull-smashing",
+  name: "Shatterskull Smashing",
+  scryfallId: "bc7239ea-f8aa-4a6f-87bd-c35359635673",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { R: 2 }, x: 1 },
+  colorIdentity: ["R"],
+  backFaceId: "shatterskull-the-hammer-pass",
+  castEffect: {
+    kind: "damage",
+    // The printed amount is X, so the number here is a floor - see `amountFrom`.
+    amount: 0,
+    amountFrom: "x",
+    dividedAmongTargets: true,
+    doubleWhenAmountAtLeast: 6,
+    target: {
+      kind: "permanent",
+      cardTypes: ["Creature", "Planeswalker"],
+      // "**up to** two" - naming one is a perfectly good announcement, and
+      // naming none is what you do when there is nothing worth shooting.
+      count: { min: 0, max: 2 },
+    },
+  },
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    SHATTERSKULL_SMASHING,
+    SHATTERSKULL_THE_HAMMER_PASS,
     MOX_DIAMOND,
     DEFLECTING_SWAT,
     SKRELV_DEFECTOR_MITE,

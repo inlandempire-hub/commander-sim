@@ -49,6 +49,18 @@ export interface CastOptions {
    */
   chosenX?: number;
   /**
+   * "X damage divided as you choose among up to two targets" - how much goes to
+   * each, in the order the targets were named.
+   *
+   * Announced with the spell rather than settled on resolution, which is the
+   * rule and is visible in play: kill one of the two in response and the damage
+   * assigned to it is lost. Divided at resolution you would move it to the
+   * survivor, which is a materially better card.
+   *
+   * Absent with one target, where there is nothing to divide.
+   */
+  damageSplit?: number[];
+  /**
    * "You may cast this spell for its **dash** cost." - Ragavan.
    *
    * A decision made as the spell is cast and never afterwards, which is why it
@@ -313,6 +325,39 @@ export function castSpell(
   // The sacrificed creature's power rides along: it is settled at exactly the
   // same moment and for exactly the same reason.
   effect = resolveAmounts(effect, { x: chosenX, sacrificedPower });
+
+  /*
+   * "X damage divided as you choose among up to two targets", and its kicker:
+   * "if X is 6 or more, twice X divided among them instead."
+   *
+   * Settled here, with X and the mode, because that is when it is announced -
+   * and the difference from settling it at resolution is real: kill one of the
+   * two in response and the damage assigned to it is lost rather than moved.
+   *
+   * Validated rather than trusted. A split that does not add up, or that gives a
+   * named target nothing, is not a legal announcement, and letting one through
+   * would be a burn spell that deals more damage than it says.
+   */
+  if (effect.kind === "damage" && effect.dividedAmongTargets) {
+    // The amount is X on the only card of this shape, announced a moment ago.
+    const base = effect.amountFrom === "x" ? chosenX : effect.amount;
+    const threshold = effect.doubleWhenAmountAtLeast;
+    const total = threshold !== undefined && base >= threshold ? base * 2 : base;
+    const split = options.damageSplit ?? (targets.length === 1 ? [total] : undefined);
+    if (!split) throw new Error(`${def.name} divides its damage - say how much each target takes`);
+    if (split.length !== targets.length) {
+      throw new Error(`${def.name} was given ${split.length} amounts for ${targets.length} targets`);
+    }
+    if (split.some((n) => !Number.isInteger(n) || n < 1)) {
+      // "Divided as you choose" assigns at least 1 to each target named - a
+      // target given nothing was never a legal target to name.
+      throw new Error(`Each target of ${def.name} must be assigned at least 1 damage`);
+    }
+    if (split.reduce((sum, n) => sum + n, 0) !== total) {
+      throw new Error(`${def.name} deals ${total} damage - the division must add up to it`);
+    }
+    effect = { ...effect, amount: total, splitAmounts: split };
+  }
 
   // Validated before anything is paid or moved. Every throw below this point
   // would otherwise leave the game half-cast - mana spent and the card sitting

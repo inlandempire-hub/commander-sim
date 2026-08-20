@@ -645,18 +645,46 @@ export type Effect =
       kind: "damage";
       amount: number;
       /**
-       * "Eomer deals damage **equal to its power**" - the amount is read off the
-       * board instead of the number beside it.
+       * Where the number comes from when it is not the one printed beside it.
        *
-       * A rider rather than widening `amount` to an `Amount`, because every other
-       * reader of this effect - the bot's removal evaluation most of all - wants a
-       * number it can compare, and a bot that could not tell how much damage a
-       * burn spell deals would stop pointing them at anything. With the rider set
-       * the printed `amount` is a floor of 0 and the real figure is read at
-       * resolution.
+       * `"source-power"` is Eomer; `"x"` is Shatterskull Smashing, whose whole
+       * amount is the X announced as it was cast. A rider rather than widening
+       * `amount` to an `Amount`, because every other reader of this effect - the
+       * bot's removal evaluation most of all - wants a number it can compare,
+       * and a bot that could not tell how much damage a burn spell deals would
+       * stop pointing them at anything. With a rider set the printed `amount` is
+       * a floor of 0 and the real figure is settled elsewhere.
        */
-      amountFrom?: "source-power";
+      amountFrom?: "source-power" | "x";
       target: TargetSelector;
+      /**
+       * "X damage **divided as you choose** among up to two target creatures
+       * and/or planeswalkers." - Shatterskull Smashing.
+       *
+       * The split is announced as the spell is cast, not worked out as it
+       * resolves - see `CastOptions.damageSplit`. With one target there is
+       * nothing to divide and the whole amount lands on it, which is why this is
+       * a flag on the effect rather than a required list.
+       */
+      dividedAmongTargets?: boolean;
+      /**
+       * "**If X is 6 or more**, it deals twice X damage divided as you choose
+       * among them instead." - the kicker half of the same sentence.
+       *
+       * A threshold and a multiplier rather than a second effect, because it is
+       * one sentence and one division: the targets and the split are announced
+       * once and only the total changes.
+       */
+      doubleWhenAmountAtLeast?: number;
+      /**
+       * How much each target takes, in the order they were named.
+       *
+       * Written by `castSpell` from the announced split and never by a fixture -
+       * the same posture X takes, so that by the time anything downstream sees
+       * this effect the division is settled and nothing has to know it was ever
+       * a choice.
+       */
+      splitAmounts?: number[];
     }
   /**
    * "Draw a card", and the ones that draw a number nobody knows until they

@@ -23,6 +23,12 @@ export type BotAction =
        * without it - which is why this is decided here rather than left out.
        */
       chosenX?: number;
+      /**
+       * "X damage divided as you choose among up to two targets" - how much each
+       * target takes, in the order they were named. Announced with the spell,
+       * like X and the mode beside it.
+       */
+      damageSplit?: number[];
       /** The creature given up for "as an additional cost, sacrifice a creature". */
       sacrificeInstanceId?: string;
       /** "You may cast this spell without paying its mana cost." */
@@ -79,11 +85,13 @@ export const PASS: BotAction = { kind: "passPriority" };
 export function castOptionsFor(action: Extract<BotAction, { kind: "castSpell" }>): {
   fromCommandZone?: boolean;
   chosenX?: number;
+  damageSplit?: number[];
   sacrificeInstanceId?: string;
   useAlternativeCost?: boolean;
 } {
   return {
     fromCommandZone: action.fromCommandZone,
+    damageSplit: action.damageSplit,
     chosenX: action.chosenX,
     sacrificeInstanceId: action.sacrificeInstanceId,
     useAlternativeCost: action.useAlternativeCost,

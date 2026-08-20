@@ -658,3 +658,120 @@ describe("Mox Diamond", () => {
     expect(() => passPriority(state, me)).toThrow(/card choice/);
   });
 });
+
+/**
+ * Shatterskull Smashing - a division announced with the spell rather than
+ * settled on resolution.
+ */
+describe("Shatterskull Smashing", () => {
+  function caster(state: GameState, playerId: string, x: number): CardInstance {
+    const card = createCardInstance(state, "shatterskull-smashing", playerId, "hand");
+    const player = requirePlayer(state, playerId);
+    player.manaPool.R = 2;
+    player.manaPool.generic = x;
+    return card;
+  }
+
+  it("puts all of X on a single target", () => {
+    const { state, me, them } = game();
+    const bear = put(state, "grizzly-bears", them);
+    const card = caster(state, me, 3);
+
+    castSpell(state, me, card.instanceId, [{ kind: "card", instanceId: bear.instanceId }], { chosenX: 3 });
+    settle(state);
+
+    expect(bear.damageMarked).toBe(3);
+  });
+
+  it("splits X between two of them as announced", () => {
+    const { state, me, them } = game();
+    const a = put(state, "capital-guard", them);
+    const b = put(state, "savannah-lions", them);
+    const card = caster(state, me, 4);
+
+    castSpell(
+      state,
+      me,
+      card.instanceId,
+      [
+        { kind: "card", instanceId: a.instanceId },
+        { kind: "card", instanceId: b.instanceId },
+      ],
+      { chosenX: 4, damageSplit: [3, 1] },
+    );
+    settle(state);
+
+    expect(a.damageMarked).toBe(3);
+    expect(b.damageMarked).toBe(1);
+  });
+
+  it("doubles the total at X of 6, and the split adds up to the doubled figure", () => {
+    const { state, me, them } = game();
+    const a = put(state, "capital-guard", them);
+    const b = put(state, "savannah-lions", them);
+    const card = caster(state, me, 6);
+
+    castSpell(
+      state,
+      me,
+      card.instanceId,
+      [
+        { kind: "card", instanceId: a.instanceId },
+        { kind: "card", instanceId: b.instanceId },
+      ],
+      { chosenX: 6, damageSplit: [10, 2] },
+    );
+    settle(state);
+
+    // "If X is 6 or more, twice X" - twelve, not six.
+    expect(a.damageMarked).toBe(10);
+    expect(b.damageMarked).toBe(2);
+  });
+
+  it("refuses a split that does not add up", () => {
+    const { state, me, them } = game();
+    const a = put(state, "capital-guard", them);
+    const b = put(state, "savannah-lions", them);
+    const card = caster(state, me, 4);
+
+    expect(() =>
+      castSpell(
+        state,
+        me,
+        card.instanceId,
+        [
+          { kind: "card", instanceId: a.instanceId },
+          { kind: "card", instanceId: b.instanceId },
+        ],
+        { chosenX: 4, damageSplit: [3, 3] },
+      ),
+    ).toThrow(/must add up/);
+  });
+
+  it("refuses to name a target and assign it nothing", () => {
+    const { state, me, them } = game();
+    const a = put(state, "capital-guard", them);
+    const b = put(state, "savannah-lions", them);
+    const card = caster(state, me, 4);
+
+    expect(() =>
+      castSpell(
+        state,
+        me,
+        card.instanceId,
+        [
+          { kind: "card", instanceId: a.instanceId },
+          { kind: "card", instanceId: b.instanceId },
+        ],
+        { chosenX: 4, damageSplit: [4, 0] },
+      ),
+    ).toThrow(/at least 1 damage/);
+  });
+
+  it("has a land on the back", () => {
+    const { state, me } = game();
+    const card = createCardInstance(state, "shatterskull-smashing", me, "hand");
+    playLand(state, me, card.instanceId);
+    expect(card.definitionId).toBe("shatterskull-the-hammer-pass");
+  });
+});

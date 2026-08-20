@@ -1123,3 +1123,12 @@ describe("Mox Diamond in the panel", () => {
     expect(text).toContain("put it into its owner's graveyard");
   });
 });
+
+describe("Shatterskull Smashing in the panel", () => {
+  it("prints the division as a phrase, not as a number nobody has chosen yet", () => {
+    const text = textOf("shatterskull-smashing");
+    expect(text).toContain("X damage divided as you choose");
+    expect(text).toContain("If X is 6 or more");
+    expect(text).toContain("twice X damage");
+  });
+});

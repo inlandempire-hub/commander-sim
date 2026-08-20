@@ -25,6 +25,12 @@ export type ClientMessage =
       chosenMode?: number;
       chosenX?: number;
       /**
+       * "X damage divided as you choose among up to two targets" - how much each
+       * target takes, in the order they were named. Announced with the spell,
+       * like X and the mode beside it.
+       */
+      damageSplit?: number[];
+      /**
        * The creature given up for "as an additional cost, sacrifice a
        * creature", and whether the card's alternative cost is being taken.
        * Both are announced with the spell for the same reason the two above

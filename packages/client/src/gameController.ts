@@ -25,6 +25,12 @@ export interface GameController {
       fromCommandZone?: boolean;
       chosenMode?: number;
       chosenX?: number;
+      /**
+       * "X damage divided as you choose among up to two targets" - how much each
+       * target takes, in the order they were named. Announced with the spell,
+       * like X and the mode beside it.
+       */
+      damageSplit?: number[];
       /** The creature given up for "as an additional cost, sacrifice a creature". */
       sacrificeInstanceId?: string;
       /** "You may cast this spell without paying its mana cost." */

@@ -524,6 +524,11 @@ RULES = [
     # "They may tap that permanent" - Charismatic Conqueror, whose "if they
     # don't" half is a second sentence the ordinary token rule already covers.
     (r"they may tap that permanent", {"theyMay"}),
+    # Shatterskull Smashing - one sentence and its kicker, both about the same
+    # announced division.
+    (r"deals x damage divided as you choose among", {"damage"}),
+    (r"^if x is \d+ or more, .* deals twice x damage divided as you choose among them instead$",
+     {"damage"}),
     # Mox Diamond - three sentences of one replacement, and the third is the
     # half that makes the card a gamble rather than a free Mox.
     (r"^if this \w+ would enter, you may discard a \w+ card instead$", {"entersOnlyIfYouDiscard"}),

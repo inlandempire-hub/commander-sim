@@ -85,16 +85,22 @@ export function applyEffect(
         ? evaluateAmount(state, controllerId, { kind: "source-power" }, "damage amount", sourceInstanceId)
         : effect.amount;
       let totalDealt = 0;
-      for (const target of targets) {
+      for (const [index, target] of targets.entries()) {
+        /*
+         * "Divided as you choose" - each target takes the share announced for
+         * it. Everything else in the pool deals its whole amount to each of its
+         * targets, which is what the fallback is.
+         */
+        const share = effect.splitAmounts?.[index] ?? amount;
         if (target.kind === "player") {
           const player = requirePlayer(state, target.playerId);
-          totalDealt += damagePlayer(state, player, amount, { infect: hasInfect, sourceInstanceId }).dealt;
+          totalDealt += damagePlayer(state, player, share, { infect: hasInfect, sourceInstanceId }).dealt;
         } else if (target.kind === "card") {
           const found = findInstance(state, target.instanceId);
           if (found) {
             // Counted after prevention, so a shielded target denies lifelink
             // the life it would otherwise have gained.
-            totalDealt += damageCreature(state, found.instance, amount, {
+            totalDealt += damageCreature(state, found.instance, share, {
               sourceInstanceId,
               deathtouch: hasDeathtouch,
               infect: hasInfect,

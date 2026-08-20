@@ -70,6 +70,7 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
         fromCommandZone: options?.fromCommandZone,
         chosenMode: options?.chosenMode,
         chosenX: options?.chosenX,
+        damageSplit: options?.damageSplit,
         sacrificeInstanceId: options?.sacrificeInstanceId,
         useAlternativeCost: options?.useAlternativeCost,
       }),
