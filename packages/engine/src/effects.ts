@@ -2133,6 +2133,25 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
 
   state.pendingCardChoices.shift();
 
+  /*
+   * Mox Diamond, whose answer decides whether the permanent that asked ever
+   * arrives. Handled before the loop because the interesting half is what
+   * happens when *nothing* was chosen - which is where every other mode simply
+   * does nothing.
+   */
+  if (pending.mode === "discard-to-enter") {
+    const taken = chosen[0];
+    if (taken) {
+      log(state, `${playerId} discards ${cardName(state, taken)} for ${cardName(state, pending.sourceInstanceId)}`);
+      moveCard(state, taken, "graveyard");
+      putOntoBattlefield(state, pending.sourceInstanceId, { replacementSettled: true });
+    } else {
+      log(state, `${cardName(state, pending.sourceInstanceId)} is put into its owner's graveyard`);
+      moveCard(state, pending.sourceInstanceId, "graveyard");
+    }
+    return;
+  }
+
   for (const id of chosen) {
     if (pending.mode === "sacrifice") sacrificePermanent(state, id);
     else if (pending.mode === "to-hand") {

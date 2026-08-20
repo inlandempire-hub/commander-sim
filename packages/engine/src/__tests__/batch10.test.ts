@@ -9,6 +9,7 @@ import { castSpell, playLand } from "../casting.js";
 import { activatableAbilities, activateAbility } from "../abilities.js";
 import { blockProblem, dealCombatDamage, declareAttackers, declareBlockers } from "../combat.js";
 import { isValidTarget } from "../targeting.js";
+import { passPriority } from "../priority.js";
 import { hasKeyword } from "../counters.js";
 import type { CardInstance, GameState } from "../types.js";
 
@@ -580,5 +581,80 @@ describe("Deflecting Swat", () => {
     // counterspell cannot be pointed at a trigger.
     const bolt = state.cardDefinitions["red-elemental-blast"]!.castEffect!;
     expect(JSON.stringify(bolt)).not.toContain("includeAbilities");
+  });
+});
+
+/**
+ * Mox Diamond - the only replacement in the pool that can stop a permanent
+ * arriving at all, and the only one that stops the game before it exists.
+ */
+describe("Mox Diamond", () => {
+  it("asks before it arrives, not after", () => {
+    const { state, me } = game();
+    createCardInstance(state, "mountain", me, "hand");
+    const mox = createCardInstance(state, "mox-diamond", me, "hand");
+    putOntoBattlefield(state, mox.instanceId);
+
+    // Still where it was: a Mox that touched the battlefield first would set
+    // off every "whenever an artifact enters" for a permanent that never
+    // entered.
+    expect(mox.zone).not.toBe("battlefield");
+    expect(state.pendingCardChoices[0]?.mode).toBe("discard-to-enter");
+  });
+
+  it("arrives when a land is discarded for it", () => {
+    const { state, me } = game();
+    const land = createCardInstance(state, "mountain", me, "hand");
+    const mox = createCardInstance(state, "mox-diamond", me, "hand");
+    putOntoBattlefield(state, mox.instanceId);
+    resolveCardChoice(state, me, [land.instanceId]);
+
+    expect(land.zone).toBe("graveyard");
+    expect(mox.zone).toBe("battlefield");
+  });
+
+  it("goes to the graveyard when the offer is declined", () => {
+    const { state, me } = game();
+    createCardInstance(state, "mountain", me, "hand");
+    const mox = createCardInstance(state, "mox-diamond", me, "hand");
+    putOntoBattlefield(state, mox.instanceId);
+    resolveCardChoice(state, me, []);
+
+    // "If you don't, put it into its owner's graveyard" - not a drawback to be
+    // skipped, and the reason the card only goes in decks that can pay it.
+    expect(mox.zone).toBe("graveyard");
+  });
+
+  it("goes to the graveyard with no land in hand, without asking", () => {
+    const { state, me } = game();
+    createCardInstance(state, "lightning-bolt", me, "hand");
+    const mox = createCardInstance(state, "mox-diamond", me, "hand");
+    putOntoBattlefield(state, mox.instanceId);
+
+    expect(state.pendingCardChoices).toHaveLength(0);
+    expect(mox.zone).toBe("graveyard");
+  });
+
+  it("does not ask a second time for the arrival it just permitted", () => {
+    const { state, me } = game();
+    const land = createCardInstance(state, "mountain", me, "hand");
+    createCardInstance(state, "plains", me, "hand");
+    const mox = createCardInstance(state, "mox-diamond", me, "hand");
+    putOntoBattlefield(state, mox.instanceId);
+    resolveCardChoice(state, me, [land.instanceId]);
+
+    expect(state.pendingCardChoices).toHaveLength(0);
+    expect(mox.zone).toBe("battlefield");
+  });
+
+  it("holds the game up while the question is open", () => {
+    const { state, me } = game();
+    createCardInstance(state, "mountain", me, "hand");
+    const mox = createCardInstance(state, "mox-diamond", me, "hand");
+    putOntoBattlefield(state, mox.instanceId);
+
+    // Which is what stops the card being left on the stack: nothing at all can
+    // happen until it is answered.
+    expect(() => passPriority(state, me)).toThrow(/card choice/);
   });
 });

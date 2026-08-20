@@ -143,6 +143,9 @@ def card_features(fx):
         feat.add("othersMustAttack")
     # "Toxic 1" and "Skrelv can't block" - printed properties of the card, like
     # `entersTapped`, rather than anything it does.
+    # Mox Diamond's replacement on the way in.
+    if fx.get("entersOnlyIfYouDiscard"):
+        feat.add("entersOnlyIfYouDiscard")
     if fx.get("toxic"):
         feat.add("toxic")
     if fx.get("cantBlock"):
@@ -521,6 +524,11 @@ RULES = [
     # "They may tap that permanent" - Charismatic Conqueror, whose "if they
     # don't" half is a second sentence the ordinary token rule already covers.
     (r"they may tap that permanent", {"theyMay"}),
+    # Mox Diamond - three sentences of one replacement, and the third is the
+    # half that makes the card a gamble rather than a free Mox.
+    (r"^if this \w+ would enter, you may discard a \w+ card instead$", {"entersOnlyIfYouDiscard"}),
+    (r"^if you do, put this \w+ onto the battlefield$", {"entersOnlyIfYouDiscard"}),
+    (r"^if you don't, put it into its owner's graveyard$", {"entersOnlyIfYouDiscard"}),
     # Deflecting Swat. Its free-cast line is already covered by the alternative
     # cost rule; this is the half that does something.
     (r"^you may choose new targets for target spell or ability$", {"changeTargets"}),

@@ -1114,3 +1114,12 @@ describe("Deflecting Swat in the panel", () => {
     expect(text).toContain("target spell or ability");
   });
 });
+
+describe("Mox Diamond in the panel", () => {
+  it("prints both halves of the replacement", () => {
+    const text = textOf("mox-diamond");
+    expect(text).toContain("you may discard a land card instead");
+    // The half that makes it a gamble rather than a free Mox.
+    expect(text).toContain("put it into its owner's graveyard");
+  });
+});

@@ -80,8 +80,52 @@ export function pushOntoStack(
 export function putOntoBattlefield(
   state: GameState,
   instanceId: string,
-  options: { tapped?: boolean; attackingPlayerId?: string } = {},
+  options: {
+    tapped?: boolean;
+    attackingPlayerId?: string;
+    /**
+     * Set on the second pass, once Mox Diamond's question has been answered.
+     *
+     * Without it the replacement would apply again to the very arrival it just
+     * permitted, and the card would ask for a land forever.
+     */
+    replacementSettled?: boolean;
+  } = {},
 ): CardInstance {
+  const found = findInstance(state, instanceId);
+  const def = found ? state.cardDefinitions[found.instance.definitionId] : undefined;
+  const discard = def?.entersOnlyIfYouDiscard;
+  if (found && discard && !options.replacementSettled) {
+    /*
+     * "If this artifact **would enter**, you may discard a land card instead."
+     *
+     * Asked before it moves anywhere. The card stays where it is - on the stack,
+     * mid-resolution - and `resolveCardChoice` finishes the job either way. The
+     * game cannot proceed past an open card choice, so it is never left there.
+     */
+    const owner = requirePlayer(state, found.instance.ownerId);
+    const candidates = owner.hand.filter((card) =>
+      state.cardDefinitions[card.definitionId]?.types.includes(discard.cardType),
+    );
+    if (candidates.length === 0) {
+      // Nothing to discard is the same as declining, and the card says where it
+      // goes: its owner's graveyard, never the battlefield.
+      log(state, `${def?.name} has no ${discard.cardType.toLowerCase()} to discard and is put into the graveyard`);
+      return moveCard(state, instanceId, "graveyard");
+    }
+    state.pendingCardChoices.push({
+      playerId: found.instance.ownerId,
+      sourceInstanceId: instanceId,
+      prompt: `${def?.name}: discard a ${discard.cardType.toLowerCase()} card to put it onto the battlefield?`,
+      candidateInstanceIds: candidates.map((c) => c.instanceId),
+      min: 0,
+      max: 1,
+      mode: "discard-to-enter",
+      effectControllerId: found.instance.ownerId,
+    });
+    return found.instance;
+  }
+
   const instance = moveCard(state, instanceId, "battlefield");
   enteredBattlefield(state, instance, options);
   return instance;

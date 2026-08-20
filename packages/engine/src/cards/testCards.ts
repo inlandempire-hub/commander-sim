@@ -15877,8 +15877,46 @@ export const DEFLECTING_SWAT: CardDefinition = {
   tier: "weird",
 };
 
+
+/**
+ * Mox Diamond - {0} Artifact.
+ *
+ * "If this artifact would enter, you may discard a land card instead. If you do,
+ * put this artifact onto the battlefield. If you don't, put it into its owner's
+ * graveyard. {T}: Add one mana of any color."
+ *
+ * The only card in the pool whose replacement can stop a permanent arriving at
+ * all, and the only one that stops the game *before* the permanent exists. Every
+ * other replacement here rewrites a number as it happens.
+ *
+ * "If you don't" is not a drawback to be skipped: a Mox Diamond cast off a
+ * landless hand goes straight to the graveyard, and it is why the card is played
+ * in decks that can afford the land and nowhere else.
+ *
+ * Its mana ability is a free choice of colour, so it is written out one per
+ * colour like every other - see Command Tower.
+ */
+export const MOX_DIAMOND: CardDefinition = {
+  id: "mox-diamond",
+  name: "Mox Diamond",
+  scryfallId: "bf9fecfd-d122-422f-bd0a-5bf69b434dfe",
+  types: ["Artifact"],
+  manaCost: { generic: 0, colors: {} },
+  colorIdentity: [],
+  entersOnlyIfYouDiscard: { cardType: "Land" },
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    MOX_DIAMOND,
     DEFLECTING_SWAT,
     SKRELV_DEFECTOR_MITE,
     CHROME_MOX,

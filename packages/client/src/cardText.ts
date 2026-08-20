@@ -1827,6 +1827,15 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
     );
   }
   if (def.cantBlock) lines.push(`This ${selfNoun(def)} can't block.`);
+  if (def.entersOnlyIfYouDiscard) {
+    // Both halves, because the second is the card: a Mox Diamond cast off a
+    // landless hand goes straight to the graveyard.
+    const what = def.entersOnlyIfYouDiscard.cardType.toLowerCase();
+    lines.push(
+      `If this ${selfNoun(def)} would enter, you may discard a ${what} card instead. ` +
+        `If you do, put it onto the battlefield. If you don't, put it into its owner's graveyard.`,
+    );
+  }
   if (def.doesNotUntap) {
     lines.push(`This ${selfNoun(def)} doesn't untap during your untap step.`);
   }

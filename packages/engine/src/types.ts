@@ -2826,6 +2826,21 @@ export interface CardDefinition {
    */
   doesNotUntap?: boolean;
   /**
+   * "**If this artifact would enter, you may discard a land card instead.** If
+   * you do, put this artifact onto the battlefield. If you don't, put it into
+   * its owner's graveyard." - Mox Diamond.
+   *
+   * A replacement on the way in, and the only one in the pool that can stop a
+   * permanent arriving at all. It applies however the card would arrive, not
+   * only when it is cast, which is what "would enter" means.
+   *
+   * The card waits on the stack while the question is open rather than arriving
+   * and being taken back: a Mox that touched the battlefield first would set off
+   * every "whenever an artifact enters" on the table for a permanent that never
+   * entered.
+   */
+  entersOnlyIfYouDiscard?: { cardType: CardType };
+  /**
    * "**Toxic 1**" - Skrelv. A player dealt combat damage by this creature also
    * gets that many poison counters.
    *
@@ -3465,7 +3480,12 @@ export interface PendingCardChoice {
    * the permanent that asked, which is what makes imprint different from any
    * other exile - the card goes on doing something from over there.
    */
-  mode: "sacrifice" | "cast-free" | "to-hand" | "exile-imprint";
+  /**
+   * `"discard-to-enter"` is Mox Diamond: the chosen card is discarded and the
+   * permanent that asked arrives. Declining puts *it* in the graveyard instead,
+   * which is the half that makes this a replacement rather than an ability.
+   */
+  mode: "sacrifice" | "cast-free" | "to-hand" | "exile-imprint" | "discard-to-enter";
   /** A price paid only if something is chosen - Ripples of Undeath. */
   cost?: { mana?: ManaCost; life?: number };
   /**
