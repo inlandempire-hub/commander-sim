@@ -22,7 +22,7 @@ export function resolveTopOfStack(state: GameState): void {
 
   if (obj.isPermanentSpell) {
     log(state, `${obj.controllerId} resolves ${cardName(state, obj.sourceInstanceId)}`);
-    putOntoBattlefield(state, obj.sourceInstanceId);
+    putOntoBattlefield(state, obj.sourceInstanceId, { roomDoor: obj.roomDoor });
     return;
   }
 

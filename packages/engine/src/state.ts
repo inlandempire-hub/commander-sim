@@ -130,6 +130,8 @@ export function createCardInstance(
     grantedKeywordsUntilYourNextTurn: [],
     // A counter is not a grant: it stays for as long as the permanent does.
     keywordCounters: [],
+    // A Room's doors. Empty on everything else, and on a Room until it arrives.
+    unlockedDoors: [],
     abilitiesUsedThisGame: [],
     // Skrelv's two grants, both until end of turn.
     toxicThisTurn: 0,
@@ -269,6 +271,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.mustAttackThisCombat = false; // and Legion Warboss's token is not compelled anywhere but the battlefield
   instance.grantedKeywordsUntilYourNextTurn = []; // a shield belongs to the object that had it, not to the card
   instance.keywordCounters = []; // counters fall off a card that changes zones, like every other counter
+  instance.unlockedDoors = []; // and a Room that leaves play is a card again, with both doors shut
   instance.abilitiesUsedThisGame = []; // and a new object has used nothing
   instance.toxicThisTurn = 0; // likewise Skrelv's grants, which belonged to the creature that left
   instance.hexproofFrom = [];

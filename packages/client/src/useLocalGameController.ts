@@ -11,6 +11,7 @@ import {
   chooseTriggerTargets,
   resolveDiscard,
   activateLoyaltyAbility,
+  unlockDoor,
   castPreparedSpell,
   resolveAmountChoice,
   resolveColorChoice,
@@ -109,6 +110,7 @@ export function useLocalGameController({
     castPreparedSpell: (playerId, instanceId) => act((s) => castPreparedSpell(s, playerId, instanceId)),
     activateLoyaltyAbility: (playerId, instanceId, abilityIndex, targets = []) =>
       act((s) => activateLoyaltyAbility(s, playerId, instanceId, abilityIndex, targets)),
+    unlockDoor: (playerId, instanceId, door) => act((s) => unlockDoor(s, playerId, instanceId, door)),
     takeMulligan: (playerId) => act((s) => takeMulligan(s, playerId)),
     keepHand: (playerId) => act((s) => keepHand(s, playerId)),
     putOnBottom: (playerId, instanceIds) => act((s) => putOnBottom(s, playerId, instanceIds)),

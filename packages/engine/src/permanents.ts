@@ -90,6 +90,8 @@ export function putOntoBattlefield(
      * permitted, and the card would ask for a land forever.
      */
     replacementSettled?: boolean;
+    /** Which half of a Room was paid for - the door it arrives with unlocked. */
+    roomDoor?: "front" | "back";
   } = {},
 ): CardInstance {
   const found = findInstance(state, instanceId);
@@ -127,6 +129,12 @@ export function putOntoBattlefield(
   }
 
   const instance = moveCard(state, instanceId, "battlefield");
+  /*
+   * A Room arrives with the door you paid for open and the other shut. Set
+   * before `enteredBattlefield`, because that is what fires its triggers - and
+   * a trigger on a locked door must not be one of them.
+   */
+  if (options.roomDoor) instance.unlockedDoors = [options.roomDoor];
   enteredBattlefield(state, instance, options);
   return instance;
 }

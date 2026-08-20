@@ -12,6 +12,7 @@ import {
   chooseTriggerTargets,
   resolveDiscard,
   activateLoyaltyAbility,
+  unlockDoor,
   castPreparedSpell,
   resolveAmountChoice,
   resolveColorChoice,
@@ -134,6 +135,9 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       break;
     case "activateLoyaltyAbility":
       activateLoyaltyAbility(state, playerId, message.instanceId, message.abilityIndex, message.targets ?? []);
+      break;
+    case "unlockDoor":
+      unlockDoor(state, playerId, message.instanceId, message.door);
       return;
     case "passPriority":
       passPriority(state, playerId);

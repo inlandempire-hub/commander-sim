@@ -1173,3 +1173,15 @@ describe("Ajani in the panel", () => {
     expect(text).toContain("sacrifices the rest");
   });
 });
+
+describe("the Room in the panel", () => {
+  it("says both halves are castable and the other stays buyable", () => {
+    const shop = textOf("dollmakers-shop");
+    expect(shop).toContain("You may cast either half");
+    expect(shop).toContain("pay the mana cost of a locked door to unlock it");
+
+    const gallery = textOf("porcelain-gallery");
+    // "base" is the word that separates a setting from an anthem.
+    expect(gallery).toContain("base power and toughness each equal to");
+  });
+});

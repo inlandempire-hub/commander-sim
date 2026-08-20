@@ -2868,6 +2868,35 @@ export interface CardDefinition {
    */
   transformsInto?: string;
   /**
+   * True on both halves of a Room - Dollmaker's Shop // Porcelain Gallery.
+   *
+   * A Room is two doors on one permanent, each castable on its own and each
+   * unlockable later by paying its cost as a sorcery. It shares `backFaceId`
+   * with the modal double-faced cards, because the question asked as you play it
+   * is the same one - "which half?" - and the client's face picker is already
+   * the right prompt.
+   *
+   * What is *not* shared is what happens next. An MDFC becomes the face you
+   * chose and only that face is ever live; a Room keeps both halves and the one
+   * you paid for is merely the one that starts unlocked. See
+   * `CardInstance.unlockedDoors`.
+   */
+  isRoom?: boolean;
+  /**
+   * "Creatures you control have **base power and toughness each equal to** the
+   * number of creatures you control." - Porcelain Gallery.
+   *
+   * A *setting* rather than an adjustment, which is the whole reason it cannot
+   * be a `StaticBuff`: those add to whatever a creature already has, and this
+   * replaces it. Read before counters and anthems - layer 7b, ahead of 7c and
+   * 7d - so a Gallery creature with a +1/+1 counter is one bigger than the
+   * count rather than the count itself.
+   *
+   * Invisible until something has a counter on it, which is exactly the sort of
+   * ordering bug that ships.
+   */
+  setsBasePowerToughness?: Amount;
+  /**
    * "Equip {1}" - the cost of attaching this Equipment to a creature you
    * control, at sorcery speed.
    *
@@ -3356,6 +3385,14 @@ export interface CardInstance {
    */
   keywordCounters: Keyword[];
   /**
+   * Which of a Room's doors are unlocked - "front", "back", or both.
+   *
+   * Empty on every other permanent in the game, and read only for a Room: the
+   * front definition is the card's identity, and each unlocked door contributes
+   * its own definition's abilities. See `unlockedDefinitions`.
+   */
+  unlockedDoors: Array<"front" | "back">;
+  /**
    * Which of this permanent's abilities have been used, for the ones that may
    * only be used once.
    *
@@ -3497,6 +3534,16 @@ export type StackTarget =
   | { kind: "spell"; stackObjectId: string };
 
 export interface StackObject {
+  /**
+   * Which half of a Room was cast - the door that will be unlocked when it
+   * arrives.
+   *
+   * On the stack object rather than on the card, because the card passes through
+   * `moveCard` on its way here and that clears the instance's own door list. The
+   * choice is settled at cast time, like a mode, and carried until the permanent
+   * exists to hold it.
+   */
+  roomDoor?: "front" | "back";
   id: string;
   sourceInstanceId: string;
   controllerId: string;

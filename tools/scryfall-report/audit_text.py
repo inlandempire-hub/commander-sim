@@ -149,6 +149,11 @@ def card_features(fx):
     # Gemstone Caverns and Quicksilver, which start the game in play.
     # `is not None`, not truthiness: Quicksilver's is an empty object - he has
     # none of the riders Gemstone Caverns has - and an empty dict is falsy.
+    # A Room, and the layer 7b effect on its other half.
+    if fx.get("isRoom"):
+        feat.add("isRoom")
+    if fx.get("setsBasePowerToughness") is not None:
+        feat.add("setsBasePowerToughness")
     if fx.get("beginsOnBattlefield") is not None:
         feat.add("beginsOnBattlefield")
     if fx.get("toxic"):
@@ -529,6 +534,10 @@ RULES = [
     # "They may tap that permanent" - Charismatic Conqueror, whose "if they
     # don't" half is a second sentence the ordinary token rule already covers.
     (r"they may tap that permanent", {"theyMay"}),
+    # Rooms. The reminder text is one line and is the same on both halves.
+    (r"^\(you may cast either half\.", {"isRoom"}),
+    (r"creatures you control have base power and toughness each equal to",
+     {"setsBasePowerToughness"}),
     # Ajani. The transform is one clause of the death trigger, and the reflexive
     # "when you do" is the second half of the 0 - written as a sequence, which is
     # the documented simplification this engine has taken since Riveteers Overlook.

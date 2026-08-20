@@ -736,7 +736,18 @@ def main():
         if card is None:
             buckets["UNKNOWN"].append((count, name))
             continue
-        if name.lower() in implemented or card["name"].lower() in implemented:
+        """
+        A multi-faced card is implemented when *any* of its faces is a fixture.
+
+        The engine holds each face as its own definition and names the card by
+        its front, so a decklist entry of "Dollmaker's Shop // Porcelain Gallery"
+        never matched a fixture called "Dollmaker's Shop" - and the report went
+        on calling a finished card blocked, which is the failure mode this whole
+        tool exists to avoid.
+        """
+        faces = [name.lower(), card["name"].lower()]
+        faces += [face["name"].lower() for face in card.get("card_faces") or []]
+        if any(face in implemented for face in faces):
             buckets["IMPLEMENTED"].append((count, card["name"]))
             continue
         verdict, reasons = classify(card)

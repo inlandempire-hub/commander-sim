@@ -1902,6 +1902,24 @@ export function describeCard(def: CardDefinition, definitions: Definitions = {})
     );
   }
   if (def.cantBlock) lines.push(`This ${selfNoun(def)} can't block.`);
+  if (def.setsBasePowerToughness !== undefined) {
+    // A setting, not a bonus - the panel has to say "base", or it reads as an
+    // anthem that stacks with counters rather than one that replaces them.
+    lines.push(
+      `Creatures you control have base power and toughness each equal to ${describeCount(
+        typeof def.setsBasePowerToughness === "object" && def.setsBasePowerToughness.kind === "count"
+          ? def.setsBasePowerToughness.of
+          : { what: "creatures" },
+      )}.`,
+    );
+  }
+  if (def.isRoom) {
+    // The reminder text, because a Room is unlike anything else here and the
+    // panel is where a player finds out that the other half is still buyable.
+    lines.push(
+      "(You may cast either half. That door unlocks on the battlefield. As a sorcery, you may pay the mana cost of a locked door to unlock it.)",
+    );
+  }
   if (def.beginsOnBattlefield) {
     // Both clauses, because the second is what the offer costs - and the
     // "not the starting player" half is the whole reason Gemstone Caverns is a

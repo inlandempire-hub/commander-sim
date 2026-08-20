@@ -74,6 +74,8 @@ export type ClientMessage =
   | { type: "castPreparedSpell"; instanceId: string }
   /** Activating a planeswalker's loyalty ability, whose cost is loyalty. */
   | { type: "activateLoyaltyAbility"; instanceId: string; abilityIndex: number; targets?: StackTarget[] }
+  /** A Room's other half, bought later - see `unlockDoor`. */
+  | { type: "unlockDoor"; instanceId: string; door: "front" | "back" }
   | { type: "takeMulligan" }
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }

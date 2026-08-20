@@ -12,6 +12,15 @@ import type {
 } from "./types.js";
 import { staticBuffsOf } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
+/*
+ * A cycle on paper: amounts.ts reads `effectivePower` from here. It is safe
+ * because neither module touches the other at load time - both uses are inside
+ * function bodies, so by the time either runs both are initialised. Porcelain
+ * Gallery's base power is an `Amount` like any other, and counting creatures a
+ * second time here rather than asking would be exactly the duplicate answer this
+ * engine keeps refusing to have.
+ */
+import { evaluateAmount } from "./amounts.js";
 import { meetsBoardCondition } from "./conditions.js";
 
 /**
@@ -105,7 +114,8 @@ function buffsReaching(state: GameState, instance: CardInstance): ReachingBuff[]
   const found: ReachingBuff[] = [];
   for (const other of controller.battlefield) {
     // A card may print more than one continuous effect - Greymond prints two.
-    for (const buff of staticBuffsOf(state.cardDefinitions[other.definitionId])) {
+    // Both of a Room's doors, when both are open - see `unlockedDefinitions`.
+    for (const buff of unlockedDefinitions(state, other).flatMap((d) => staticBuffsOf(d))) {
       if (!buffApplies(state, other, buff, instance, def)) continue;
       found.push({ buff, source: other });
     }
@@ -181,6 +191,27 @@ function grantedNow(instance: CardInstance): Keyword[] {
 export function effectiveToxic(state: GameState, instance: CardInstance): number {
   const def = requireDefinition(state, instance.definitionId);
   return (def.toxic ?? 0) + instance.toxicThisTurn;
+}
+
+/**
+ * Every definition whose abilities this permanent currently has.
+ *
+ * One for everything in the game except a Room, whose unlocked doors each
+ * contribute their own. The front definition is the card's identity either way -
+ * a Room is named, countered and recurred as its front face - so this is about
+ * abilities and nothing else.
+ *
+ * The single place that answers it, which is what keeps `effectiveTriggers` and
+ * `buffsReaching` from disagreeing about whether a door is open.
+ */
+export function unlockedDefinitions(state: GameState, instance: CardInstance): CardDefinition[] {
+  const def = requireDefinition(state, instance.definitionId);
+  if (!def.isRoom) return [def];
+  const back = def.backFaceId ? state.cardDefinitions[def.backFaceId] : undefined;
+  const doors: CardDefinition[] = [];
+  if (instance.unlockedDoors.includes("front")) doors.push(def);
+  if (instance.unlockedDoors.includes("back") && back) doors.push(back);
+  return doors;
 }
 
 export function effectiveKeywords(state: GameState, instance: CardInstance): Keyword[] {
@@ -348,9 +379,47 @@ export function hasKeyword(state: GameState, instance: CardInstance, keyword: Ke
  * card in hand or graveyard behaving as it always did.
  */
 export function effectiveTriggers(state: GameState, instance: CardInstance): TriggeredAbility[] {
-  const printed = requireDefinition(state, instance.definitionId).triggeredAbilities ?? [];
+  const def = requireDefinition(state, instance.definitionId);
+  /*
+   * A Room contributes only the doors that are open, and only while it is on the
+   * battlefield - a Room in a hand or a graveyard is one card with both doors
+   * shut, which is what `unlockedDoors` being empty off the battlefield means.
+   *
+   * Everything else in the game is its own single definition, which is what
+   * `unlockedDefinitions` answers for it.
+   */
+  const printed =
+    def.isRoom && instance.zone === "battlefield"
+      ? unlockedDefinitions(state, instance).flatMap((d) => d.triggeredAbilities ?? [])
+      : (def.triggeredAbilities ?? []);
   if (instance.zone !== "battlefield" || instance.grantedTriggers.length === 0) return printed;
   return [...printed, ...instance.grantedTriggers];
+}
+
+/**
+ * "Creatures you control have **base power and toughness each equal to** the
+ * number of creatures you control." - Porcelain Gallery.
+ *
+ * Layer 7b: it *sets* the base figures, so it is read before counters and
+ * anthems rather than added alongside them. Returns undefined when nothing on
+ * the board is doing this, which is every board but one.
+ *
+ * The last such effect to apply wins, which is the rule for two of them at once
+ * and is what iterating in board order gives.
+ */
+function baseStatsFor(state: GameState, instance: CardInstance): number | undefined {
+  if (instance.zone !== "battlefield") return undefined;
+  const controller = state.players.find((p) => p.id === instance.controllerId);
+  if (!controller) return undefined;
+  if (!typesOf(state, instance).includes("Creature")) return undefined;
+  let base: number | undefined;
+  for (const other of controller.battlefield) {
+    for (const door of unlockedDefinitions(state, other)) {
+      if (door.setsBasePowerToughness === undefined) continue;
+      base = evaluateAmount(state, instance.controllerId, door.setsBasePowerToughness, "base power/toughness");
+    }
+  }
+  return base;
 }
 
 /** A creature's power including +1/+1 counters, any until-end-of-turn bonus, and any anthem effects - use this instead of reading `CardDefinition.power` directly wherever combat or state-based actions care about a creature's current stats. */
@@ -359,7 +428,9 @@ export function effectivePower(state: GameState, instance: CardInstance): number
   return (
     // An animated land's printed power is nothing at all; the animation is where
     // its 1/1 comes from.
-    (instance.animation?.power ?? def.power ?? 0) +
+    // Layer 7b before 7c and 7d: a base-setting effect replaces the printed
+    // figure, and counters and anthems then apply on top of the new one.
+    (baseStatsFor(state, instance) ?? instance.animation?.power ?? def.power ?? 0) +
     instance.plusOneCounters -
     instance.minusOneCounters +
     instance.temporaryPowerBonus +
@@ -378,7 +449,7 @@ export function effectivePower(state: GameState, instance: CardInstance): number
 export function effectiveToughness(state: GameState, instance: CardInstance): number {
   const def = requireDefinition(state, instance.definitionId);
   return (
-    (instance.animation?.toughness ?? def.toughness ?? 0) +
+    (baseStatsFor(state, instance) ?? instance.animation?.toughness ?? def.toughness ?? 0) +
     instance.plusOneCounters -
     instance.minusOneCounters +
     instance.temporaryToughnessBonus +

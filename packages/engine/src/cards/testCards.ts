@@ -16210,8 +16210,93 @@ export const AJANI_NACATL_PARIAH: CardDefinition = {
   tier: "weird",
 };
 
+
+/** "a 1/1 white Toy artifact creature token" - Dollmaker's Shop. */
+export const TOKEN_W_11_TOY: CardDefinition = {
+  id: "token-w-11-toy",
+  name: "Toy",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Toy"],
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+/**
+ * Porcelain Gallery - the {4}{W}{W} half of the Room.
+ *
+ * "Creatures you control have base power and toughness each equal to the number
+ * of creatures you control."
+ *
+ * A *setting* of the base figures, which is why it cannot be a `staticBuff`:
+ * those add to what a creature already has and this replaces it. Layer 7b, read
+ * before counters and anthems - a Gallery creature with a +1/+1 counter is one
+ * bigger than the count, not the count itself.
+ */
+export const PORCELAIN_GALLERY: CardDefinition = {
+  id: "porcelain-gallery",
+  name: "Porcelain Gallery",
+  scryfallId: "c5ee6651-9946-4bae-b21e-6cf28fa77b13",
+  types: ["Enchantment"],
+  subtypes: ["Room"],
+  manaCost: { generic: 4, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  isRoom: true,
+  isBackFace: true,
+  setsBasePowerToughness: { kind: "count", of: { what: "creatures" } },
+  tier: "weird",
+};
+
+/**
+ * Dollmaker's Shop // Porcelain Gallery - {1}{W} // {4}{W}{W} Enchantment Room.
+ *
+ * "Whenever one or more non-Toy creatures you control attack a player, create a
+ * 1/1 white Toy artifact creature token."
+ *
+ * The first Room in the pool. Two halves of one permanent, each castable on its
+ * own and each unlockable later by paying its cost as a sorcery - which is *not*
+ * the modal double-faced pattern beside it, even though the question asked as
+ * you play it ("which half?") is the same. An MDFC becomes the face you chose
+ * and only that face is ever live; a Room keeps both, and the half you paid for
+ * is merely the one that starts open.
+ *
+ * So the card stays two definitions - each half's abilities are readable without
+ * either knowing that doors exist - and the instance remembers which are open.
+ * `unlockedDefinitions` is the one place that answers it, which is what keeps
+ * the trigger reader and the buff reader from disagreeing.
+ *
+ * Its attack trigger is the `creatures-attack` event batch 9 built for Anim
+ * Pakal, narrowed to non-Toys: "one or more" is one Toy per attack, and a
+ * per-attacker reading would make a Toy for every creature in the swing.
+ */
+export const DOLLMAKERS_SHOP: CardDefinition = {
+  id: "dollmakers-shop",
+  name: "Dollmaker's Shop",
+  scryfallId: "c5ee6651-9946-4bae-b21e-6cf28fa77b13",
+  types: ["Enchantment"],
+  subtypes: ["Room"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  isRoom: true,
+  backFaceId: "porcelain-gallery",
+  triggeredAbilities: [
+    {
+      event: "creatures-attack",
+      watches: "controller",
+      watchFor: { excludeSubtype: "Toy" },
+      effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-w-11-toy" },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    DOLLMAKERS_SHOP,
+    PORCELAIN_GALLERY,
+    TOKEN_W_11_TOY,
     AJANI_NACATL_PARIAH,
     AJANI_NACATL_AVENGER,
     TOKEN_W_21_CAT_WARRIOR,

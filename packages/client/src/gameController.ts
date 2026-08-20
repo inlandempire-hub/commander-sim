@@ -92,6 +92,8 @@ export interface GameController {
     abilityIndex: number,
     targets?: StackTarget[],
   ): void;
+  /** A Room's other half, bought later at sorcery speed. */
+  unlockDoor(playerId: string, instanceId: string, door: "front" | "back"): void;
   /** Opening hands, before the game starts. See the engine's mulligan.ts. */
   takeMulligan(playerId: string): void;
   keepHand(playerId: string): void;

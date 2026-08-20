@@ -294,6 +294,11 @@ def classify(clause, card_name):
     # the whole declaration, and "a creature attacks" is one per creature.
     if re.search(r"^when(ever)? you attack with ", c):
         return "creatures-attack", None
+    # "Whenever one or more non-Toy creatures you control attack a player" -
+    # Dollmaker's Shop. The same event said the other way round, and the plural
+    # verb is still the tell: one Toy for the swing, not one per attacker.
+    if re.search(r"^when(ever)? one or more .* attack ", c):
+        return "creatures-attack", None
 
     # "Whenever an opponent searches their library" - Archivist of Oghma.
     if re.search(r"^when(ever)? (a player|an opponent|you) searche?s? ", c):

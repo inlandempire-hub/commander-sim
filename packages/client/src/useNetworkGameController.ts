@@ -99,6 +99,7 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
     castPreparedSpell: (_playerId, instanceId) => send({ type: "castPreparedSpell", instanceId }),
     activateLoyaltyAbility: (_playerId, instanceId, abilityIndex, targets) =>
       send({ type: "activateLoyaltyAbility", instanceId, abilityIndex, targets: targets ?? [] }),
+    unlockDoor: (_playerId, instanceId, door) => send({ type: "unlockDoor", instanceId, door }),
     takeMulligan: () => send({ type: "takeMulligan" }),
     keepHand: () => send({ type: "keepHand" }),
     putOnBottom: (_playerId, instanceIds) => send({ type: "putOnBottom", instanceIds }),

@@ -49,6 +49,15 @@ export interface CastOptions {
    */
   chosenX?: number;
   /**
+   * Which half of a **Room** is being cast - "you may cast either half".
+   *
+   * Shares the face question with the modal double-faced cards and means
+   * something different by the answer: an MDFC *becomes* the face you chose,
+   * while a Room keeps both halves and merely starts with the one you paid for
+   * unlocked.
+   */
+  face?: "front" | "back";
+  /**
    * "X damage divided as you choose among up to two targets" - how much goes to
    * each, in the order the targets were named.
    *
@@ -271,6 +280,17 @@ export function castSpell(
   // "You may cast this spell for its dash cost" - a price, not a discount, and
   // the two riders that come with it are applied as the permanent arrives.
   if (options.useDashCost && !def.dashCost) throw new Error(`${def.name} has no dash cost`);
+  /*
+   * "You may cast either half." - a Room, whose two doors have two costs.
+   *
+   * The card that arrives is still the front definition either way - that is its
+   * identity, and what it is countered or recurred as - so only the price
+   * changes here. Which door ends up open is carried on the stack object.
+   */
+  const roomDoor = def.isRoom ? (options.face ?? "front") : undefined;
+  const roomBack = roomDoor === "back" && def.backFaceId ? state.cardDefinitions[def.backFaceId] : undefined;
+  const printedCost = roomBack?.manaCost ?? def.manaCost ?? { generic: 0, colors: {} };
+
   const free = alternative !== undefined || options.free === true;
   let cost: ManaCost = free
     ? { generic: 0, colors: {} }
@@ -278,7 +298,7 @@ export function castSpell(
       ? def.dashCost!
       : options.bestowOnto
         ? def.bestowCost!
-        : costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
+        : costWithX(printedCost, chosenX);
   if (options.fromCommandZone && !free) {
     const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
     cost = applyCommanderTax(cost, timesCast);
@@ -444,7 +464,9 @@ export function castSpell(
     return;
   }
 
-  pushOntoStack(state, instanceId, playerId, effect, targets, isPermanentSpell, uncounterable);
+  const spell = pushOntoStack(state, instanceId, playerId, effect, targets, isPermanentSpell, uncounterable);
+  // Which door was paid for, carried until there is a permanent to hold it.
+  if (roomDoor) spell.roomDoor = roomDoor;
 
   /*
    * "Whenever an opponent casts an instant or sorcery spell" - Arasta of the
@@ -738,5 +760,46 @@ export function playLand(
    */
   fireLandPlayed(state, instance);
 
+  state.passesInSuccession = 0;
+}
+
+/**
+ * "As a sorcery, you may **pay the mana cost of a locked door to unlock it**."
+ *
+ * A Room's other half, bought later. Not a spell and not an activated ability -
+ * nothing goes on the stack, which is why this is its own action rather than
+ * either of those: there is no window to respond in, and a door that could be
+ * countered would be a different card.
+ *
+ * The permanent is already there; all this changes is which of its halves are
+ * live. See `unlockedDefinitions`, which is the one place that answers that.
+ */
+export function unlockDoor(
+  state: GameState,
+  playerId: string,
+  instanceId: string,
+  door: "front" | "back",
+): void {
+  if (state.players[state.priorityPlayerIndex]?.id !== playerId) {
+    throw new Error(`${playerId} does not have priority`);
+  }
+  const player = requirePlayer(state, playerId);
+  const instance = player.battlefield.find((c) => c.instanceId === instanceId);
+  if (!instance) throw new Error(`${instanceId} is not on ${playerId}'s battlefield`);
+  const front = requireDefinition(state, instance.definitionId);
+  if (!front.isRoom) throw new Error(`${front.name} is not a Room`);
+  if (instance.unlockedDoors.includes(door)) throw new Error(`That door is already unlocked`);
+  // "**As a sorcery**" - the same timing a Room's own halves are cast at.
+  if (!canCastAtSorcerySpeed(state, playerId)) {
+    throw new Error("A door can only be unlocked at sorcery speed");
+  }
+  const side = door === "back" && front.backFaceId ? requireDefinition(state, front.backFaceId) : front;
+  const cost = side.manaCost ?? { generic: 0, colors: {} };
+  if (!canPayManaCostFromPool(spendablePool(player, side), cost)) {
+    throw new Error(`${playerId} cannot afford to unlock ${side.name}`);
+  }
+  payManaCostFor(player, cost, side);
+  instance.unlockedDoors.push(door);
+  log(state, `${playerId} unlocks ${side.name}`);
   state.passesInSuccession = 0;
 }
