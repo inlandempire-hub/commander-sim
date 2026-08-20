@@ -285,6 +285,31 @@ export function applyEffect(
       if (effect.thenDraw && destroyed > 0) drawCard(state, controllerId, destroyed);
       return;
     }
+    case "eachSacrifices": {
+      const affected =
+        effect.who === "each-opponent"
+          ? state.players.filter((p) => p.id !== controllerId)
+          : state.players;
+      const wantedTypes = effect.types ?? ["Creature"];
+      for (const p of affected) {
+        if (p.hasLost) continue;
+        const eligible = p.battlefield.filter((c) =>
+          wantedTypes.some((t) => requireDefinition(state, c.definitionId).types.includes(t)),
+        );
+        const mv = (c: (typeof eligible)[number]) =>
+          manaValue(requireDefinition(state, c.definitionId).manaCost ?? { generic: 0, colors: {} });
+        let victims: typeof eligible;
+        if (effect.greatestManaValue) {
+          if (eligible.length === 0) continue;
+          const top = Math.max(...eligible.map(mv));
+          victims = eligible.filter((c) => mv(c) === top).slice(0, 1);
+        } else {
+          victims = [...eligible].sort((a, b) => mv(a) - mv(b)).slice(0, effect.count ?? 1);
+        }
+        for (const c of victims) sacrificePermanent(state, c.instanceId);
+      }
+      return;
+    }
     case "untap": {
       // "Untap target Forest." Just clears the tapped flag on the chosen
       // permanent; the target legality is enforced when the ability is aimed.

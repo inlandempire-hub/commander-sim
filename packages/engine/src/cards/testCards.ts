@@ -11165,6 +11165,27 @@ export const DISPEL: CardDefinition = {
   tier: "scripted",
 };
 
+export const FLARE_OF_MALICE: CardDefinition = {
+  id: "flare-of-malice",
+  name: "Flare of Malice",
+  scryfallId: "19efb9ce-62eb-4cbf-b01e-979f3fd09ba6",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  alternativeCost: {
+    condition: { kind: "controls-color", color: "B", count: 1 },
+    label: "Sacrifice a nontoken black creature rather than pay this spell's mana cost",
+    sacrifice: { color: "B", nontoken: true },
+  },
+  castEffect: {
+    kind: "eachSacrifices",
+    who: "each-opponent",
+    greatestManaValue: true,
+    types: ["Creature", "Planeswalker"],
+  },
+  tier: "scripted",
+};
+
 export const FLARE_OF_DENIAL: CardDefinition = {
   id: "flare-of-denial",
   name: "Flare of Denial",
@@ -14477,5 +14498,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     YOU_ARE_ALREADY_DEAD,
     PROPAGANDA,
     FLARE_OF_DENIAL,
+    FLARE_OF_MALICE,
   ].map((def) => [def.id, def]),
 );

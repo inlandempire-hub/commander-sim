@@ -859,6 +859,20 @@ export type Effect =
    */
   | { kind: "sacrifice"; what: "self" }
   /**
+   * An edict: "Each opponent sacrifices a creature ..." (Flare of Malice) or
+   * "Each player sacrifices N creatures". `greatestManaValue` forces the highest
+   * mana value among the qualifying permanents (Flare of Malice); otherwise the
+   * lowest `count` are given up. The choice is resolved by the engine rather
+   * than asked, which is a simplification where more than one option is legal.
+   */
+  | {
+      kind: "eachSacrifices";
+      who: "each-player" | "each-opponent";
+      count?: number;
+      types?: CardType[];
+      greatestManaValue?: boolean;
+    }
+  /**
    * Several effects, in order, as one resolution - "sacrifice it, then search
    * your library ... and you gain 1 life".
    *
