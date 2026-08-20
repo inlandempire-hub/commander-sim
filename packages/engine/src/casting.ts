@@ -229,11 +229,15 @@ export function castSpell(
 
   if (options.bestowOnto && !def.bestowCost) throw new Error(`${def.name} has no bestow cost`);
   const free = alternative !== undefined || options.free === true;
-  let cost: ManaCost = free
-    ? { generic: 0, colors: {} }
-    : options.bestowOnto
-      ? def.bestowCost!
-      : costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
+  let cost: ManaCost = alternative
+    ? // Blasphemous Edict pays a reduced {B}; every other alternative is free of
+      // mana (paid by a sacrifice, or by nothing).
+      (alternative.manaCost ?? { generic: 0, colors: {} })
+    : options.free === true
+      ? { generic: 0, colors: {} }
+      : options.bestowOnto
+        ? def.bestowCost!
+        : costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
   if (options.fromCommandZone && !free) {
     const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
     cost = applyCommanderTax(cost, timesCast);

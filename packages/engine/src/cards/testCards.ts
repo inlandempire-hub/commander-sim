@@ -11165,6 +11165,22 @@ export const DISPEL: CardDefinition = {
   tier: "scripted",
 };
 
+export const BLASPHEMOUS_EDICT: CardDefinition = {
+  id: "blasphemous-edict",
+  name: "Blasphemous Edict",
+  scryfallId: "11040ecd-3153-4029-b42b-1441bc51ec34",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  alternativeCost: {
+    condition: { kind: "creatures-on-battlefield", count: 13 },
+    label: "Pay {B} rather than pay this spell's mana cost",
+    manaCost: { generic: 0, colors: { B: 1 } },
+  },
+  castEffect: { kind: "eachSacrifices", who: "each-player", count: 13, types: ["Creature"] },
+  tier: "scripted",
+};
+
 export const FLARE_OF_MALICE: CardDefinition = {
   id: "flare-of-malice",
   name: "Flare of Malice",
@@ -14499,5 +14515,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     PROPAGANDA,
     FLARE_OF_DENIAL,
     FLARE_OF_MALICE,
+    BLASPHEMOUS_EDICT,
   ].map((def) => [def.id, def]),
 );

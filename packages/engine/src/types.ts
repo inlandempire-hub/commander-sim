@@ -1000,6 +1000,8 @@ export type BoardCondition =
   | { kind: "controls-other-lands"; count: number }
   /** "you have two or more opponents" - Undergrowth Stadium. */
   | { kind: "opponents"; count: number }
+  /** "if there are thirteen or more creatures on the battlefield" - Blasphemous Edict. Counts every player's. */
+  | { kind: "creatures-on-battlefield"; count: number }
   /**
    * "you control a Swamp or a Forest" - Woodland Cemetery, Wastewood Verge.
    * `count` defaults to 1, and any one of the listed subtypes qualifies.
@@ -1471,6 +1473,12 @@ export interface AlternativeCost {
    * named creature (via `options.sacrificeInstanceId`) rather than being free.
    */
   sacrifice?: { color?: Color; nontoken?: boolean };
+  /**
+   * "You may pay {B} rather than pay this spell's mana cost ..." - Blasphemous
+   * Edict. The reduced cost paid when the alternative is chosen; omitted means
+   * the alternative is free (paid only by `sacrifice`, or by nothing).
+   */
+  manaCost?: ManaCost;
 }
 
 /**
