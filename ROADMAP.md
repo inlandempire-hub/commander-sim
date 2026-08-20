@@ -4732,3 +4732,55 @@ two long-known gaps.
 - The client has no UI for **unlocking a Room's second door** - the action
   exists, is wired through the controller and the protocol, and has no button.
 - Incinerate and Winding Constrictor remain the two known text-audit gaps.
+
+## Batch 12: a slot on the deck list, and a seed that meant nothing
+
+**Winota replaces Warband (mono-red) as a built-in deck.** The same trade Blech
+made for mono-green three days earlier: a real list in place of a generated
+colour pile. Five built-in decks now, two of them somebody's actual deck. The
+red cards are all still in the pool and still buildable in the deck builder;
+what they are no longer is a pre-built deck, and `RED_NONLANDS` went with it.
+
+### The seeded test was not seeded
+
+`winotaGame.test.ts` builds each library from a seed, prints that seed when it
+fails, and its comment says "a different shuffle each run, deterministically".
+It was none of those things: `createGameFromDecks` shuffled every library it was
+given with `Math.random`, so the seeded order was thrown away on the way in.
+
+That is worse than it sounds. The test was **passing and failing at random** -
+it was green when the deck was declared finished and red on the next run of the
+same commit, and neither result could be reproduced from the seed it named.
+`GameOptions` now takes `shuffle: false` for a caller that has already ordered
+its own library, and a test that says "seed 3" gets seed 3.
+
+**Two more bugs surfaced the moment the seeds meant something**, both the same
+shape as the five before them - the offer and the action disagreeing:
+
+1. **`abilityAvailable` had never heard of Clarion Conqueror.** The hate pieces
+   were taught to `activateAbility`, which throws, and to nothing else - so the
+   auto-tapper went on offering a mana rock as a source under a Conqueror, spent
+   it towards a spell, and the engine refused the ability that was paying for
+   it. This is precisely the drift `abilityAvailable` exists to prevent, and it
+   happened anyway, because the restriction went in beside a *throw* rather than
+   beside the shared question.
+
+2. **`planManaPayment` answered the pool's question rather than the player's.**
+   A {W/P} the pool cannot cover is not unpayable - it is payable in life - and
+   `canPayManaCostFromPool` has no life total to check that against. So at two
+   life Skrelv, Defector Mite's ability stayed lit, the bot activated it, and
+   the engine refused it. The planner now ends on `canPayFromPoolWithLife`,
+   which is the same function `canPayManaCost` is now written in terms of.
+
+**The rule that keeps being relearned:** a new reason an action is illegal has
+to go in beside the shared question, not beside the throw. The throw is the
+second place it is needed, never the first.
+
+### Known and left alone
+
+The payment planner **never taps for a Phyrexian symbol** - `chooseSource` stops
+as soon as the cost is coverable, and a {W/P} is always coverable in life, so
+Skrelv's ability costs 2 life even with a Plains untapped. Floating white mana
+is still spent first. That is a defensible choice rather than a wrong one, and
+it is a choice a real player makes both ways, so it stays until something in the
+pool makes it hurt.

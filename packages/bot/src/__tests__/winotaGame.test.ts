@@ -44,10 +44,15 @@ function playOut(seed: number, maxActions = 40000): {
   };
 
   // The Winota list on both sides, through the same door archetype matchups use.
-  const state = createGameFromDecks([
-    { id: DEADLY_DONNY, deck: { ...WINOTA_DECK, libraryIds: shuffled(WINOTA_DECK.libraryIds, 1) } },
-    { id: SALTY_MIKE, deck: { ...WINOTA_DECK, libraryIds: shuffled(WINOTA_DECK.libraryIds, 2) } },
-  ]);
+  const state = createGameFromDecks(
+    [
+      { id: DEADLY_DONNY, deck: { ...WINOTA_DECK, libraryIds: shuffled(WINOTA_DECK.libraryIds, 1) } },
+      { id: SALTY_MIKE, deck: { ...WINOTA_DECK, libraryIds: shuffled(WINOTA_DECK.libraryIds, 2) } },
+    ],
+    // The seed above is the whole shuffle; shuffling again here would be a
+    // different game every run and a seed that named nothing.
+    { shuffle: false },
+  );
 
   const errors: string[] = [];
   let actions = 0;

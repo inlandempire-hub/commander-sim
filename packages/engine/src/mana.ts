@@ -15,6 +15,7 @@ import type {
 } from "./types.js";
 import { ALL_COLORS } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
+import { activateRestrictionProblem } from "./restrictions.js";
 import { cardColors, controllerMeets } from "./conditions.js";
 import { typesOf } from "./counters.js";
 
@@ -110,16 +111,26 @@ export function canPayManaCostFromPool(pool: ManaPool, cost: ManaCost): boolean 
   return leftover >= cost.generic;
 }
 
-export function canPayManaCost(player: Player, cost: ManaCost): boolean {
-  if (!canPayManaCostFromPool(player.manaPool, cost)) return false;
-  /*
-   * The life half of a Phyrexian symbol the pool could not cover. Checked
-   * against the player rather than the pool because that is where life is - and
-   * `>` rather than `>=`, since a cost that would take you to exactly 0 is one
-   * you may not pay. (Paying *down* to 0 is legal; paying *past* it is not.)
-   */
-  const life = phyrexianLifeCost(player.manaPool, cost);
+/**
+ * Whether `cost` is payable out of `pool`, life included.
+ *
+ * The pool is a parameter rather than the player's own because the planner asks
+ * this about a pool that does not exist yet - the one it would have after
+ * tapping. `canPayManaCostFromPool` alone cannot answer it: a Phyrexian symbol
+ * the pool cannot cover is not unpayable, it is payable *in life*, and whether
+ * that is true is a question about the player.
+ *
+ * `>` rather than `>=`, since a cost that would take you to exactly 0 is one you
+ * may not pay. (Paying *down* to 0 is legal; paying *past* it is not.)
+ */
+export function canPayFromPoolWithLife(player: Player, pool: ManaPool, cost: ManaCost): boolean {
+  if (!canPayManaCostFromPool(pool, cost)) return false;
+  const life = phyrexianLifeCost(pool, cost);
   return life === 0 || player.life > life;
+}
+
+export function canPayManaCost(player: Player, cost: ManaCost): boolean {
+  return canPayFromPoolWithLife(player, player.manaPool, cost);
 }
 
 /** Deducts a mana cost from the player's mana pool. Throws if they can't pay - callers must check canPayManaCost first. */
@@ -547,6 +558,21 @@ export function abilityAvailable(
   /** The permanent asking - only Chrome Mox's colour source needs it. */
   source?: CardInstance,
 ): boolean {
+  /*
+   * Clarion Conqueror and Grand Abolisher, first, because "can't be activated"
+   * is not one reason among others - there is no ability left to ask further
+   * questions about.
+   *
+   * Taught to `activateAbility` alone when the hate pieces went in, which is
+   * exactly the drift this function exists to prevent: the auto-tapper went on
+   * offering an artifact as a mana source under a Conqueror, spent it towards a
+   * spell, and the engine then refused the very ability that was paying for it.
+   * In a bot game that ends the game rather than costing a turn.
+   */
+  if (source) {
+    const def = state.cardDefinitions[source.definitionId];
+    if (def && activateRestrictionProblem(state, playerId, def)) return false;
+  }
   if (!colorAllowed(state, playerId, ability, source)) return false;
   /*
    * "If this land has a luck counter on it, instead ..." - Gemstone Caverns,
@@ -893,7 +919,16 @@ export function planManaPayment(
     });
   }
 
-  const paid = canPayManaCostFromPool(pool, cost);
+  /*
+   * The *player's* question, not the pool's - Skrelv, Defector Mite.
+   *
+   * `canPayManaCostFromPool` calls a {W/P} it cannot cover payable, because it
+   * is: in life. It has no life total to check that against, so at two life the
+   * planner went on calling Skrelv's ability affordable, the bot offered it, and
+   * the engine refused it - a dead game rather than a misplay. Whatever the
+   * taps below could not cover has to come off a life total that can survive it.
+   */
+  const paid = canPayFromPoolWithLife(player, pool, cost);
   // Nothing is tapped for a cost that cannot be met, so an unaffordable spell
   // must not light up half your board as if it were about to be paid.
   return paid ? { paid, taps } : { paid: false, taps: [] };

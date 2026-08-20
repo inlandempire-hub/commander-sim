@@ -7,7 +7,7 @@ import { WINOTA_DECK } from "./winotaDeck.js";
  * humans to play against (see ROADMAP.md Phase 4).
  *
  * Every card is a real Magic card the engine represents *exactly* - the
- * mono-black and mono-red pools were generated straight from Scryfall by
+ * remaining colour pools were generated straight from Scryfall by
  * `tools/scryfall-report/gen_fixtures.py`, which refuses any card carrying
  * rules text the effect DSL can't express rather than approximating it.
  * `tools/scryfall-report/audit_fixtures.py` re-checks all of them on demand.
@@ -182,75 +182,6 @@ const BLACK_NONLANDS = [
   "languish",
   "infest",];
 
-/** Mono-red aggro: cheap, fast, and happy to trade - the deck most likely to just kill you. */
-const RED_NONLANDS = [
-  "crimson-kobolds",
-  "kobolds-of-kher-keep",
-  "mountain-bandit",
-  "capital-guard",
-  "goblin-trailblazer",
-  "roc-hunter",
-  // Red's share of first strike, replacing four vanilla bodies.
-  "goblin-striker",
-  "sabretooth-tiger",
-  "lightning-hounds",
-  "viashino-spearhunter",
-  "halberdier",
-  "anaba-bodyguard",
-  "goblin-berserker",
-  "twinscroll-shaman",
-  "balduvian-barbarians",
-  "boggart-brute",
-  "fearless-halberdier",
-  "frenzied-raptor",
-  "goblin-hero",
-  // Red land destruction, plus burn that a counterspell cannot answer.
-  "stone-rain",
-  "volcanic-upheaval",
-  "shatter",
-  "inescapable-blaze",
-  "hulking-bugbear",
-  "nimble-birdsticker",
-  "pyromantic-pilgrim",
-  "raging-cougar",
-  "wall-of-granite",
-  "wild-colos",
-  "barbarian-horde",
-  "cobblebrute",
-  "dragon-moose",
-  "hulking-devil",
-  "komodo-rhino",
-  "lightning-elemental",
-  "monster-mashup",
-  "ogre-warrior",
-  "raging-minotaur",
-  "shatterskull-giant",
-  "talruum-minotaur",
-  "vulshok-berserker",
-  "charging-monstrosaur",
-  "fire-elemental",
-  "gerrards-irregulars",
-  "obsidian-giant",
-  "quaketusk-boar",
-  "renegade-troops",
-  "shatterskull-recruit",
-  "flameborn-viron",
-  "volcanic-dragon",
-  // Burn: reach to finish a game the creatures couldn't, and removal that
-  // doubles as damage to the face.
-  "lightning-bolt",
-  "shock",
-  "tarfire",
-  "searing-spear",
-  "lightning-strike",
-  "volcanic-hammer",
-  "open-fire",
-  "flame-lash",
-  "lightning-blast",
-  "explosive-impact",
-  "brute-force",
-  "infuriate",];
-
 /**
  * Mono-blue control: the first deck here that does not intend to win a fight.
  *
@@ -349,6 +280,11 @@ export const ARCHETYPES: Archetype[] = [
      * card in it was implemented *because the list wanted it*, over eleven
      * batches, rather than the list being assembled from what the engine already
      * had. See ROADMAP.md's "The Winota list".
+     *
+     * It replaced Warband (mono-red) on 2026-08-20, the same trade Blech made
+     * for mono-green three days earlier: a real list in place of a colour pile.
+     * The red cards are all still in the pool and still buildable in the deck
+     * builder; what they are no longer is a pre-built deck.
      */
     name: "Winota, Joiner of Forces (Boros hatebears)",
     plan: "Tax and deny with cheap hate pieces, then attack with non-Humans so Winota drags free Humans off the top of the library.",
@@ -363,9 +299,9 @@ export const ARCHETYPES: Archetype[] = [
     /*
      * The first archetype here that is a real deck rather than a colour.
      *
-     * The other five are generated - a commander, a pile of cards the DSL can
-     * express, and basics to fill - so they have no mana base and no plan beyond
-     * their colour. This one is somebody's actual list, transcribed card for
+     * The three colour piles beside it are generated - a commander, a pile of
+     * cards the DSL can express, and basics to fill - so they have no mana base
+     * and no plan beyond their colour. This one is somebody's actual list, transcribed card for
      * card, and it lives in cardLab.ts because the lab has walked it since it
      * was built. Named after its commander because that is what people call it.
      *
@@ -381,11 +317,6 @@ export const ARCHETYPES: Archetype[] = [
     name: "Gravebound (mono-black)",
     plan: "Answer anything that matters with unconditional removal, then win with deathtouch and lifelink attrition.",
     deck: build("grendel-spawn-of-knull", BLACK_NONLANDS, "swamp"),
-  },
-  {
-    name: "Warband (mono-red)",
-    plan: "Cheap aggressive creatures backed by burn, closing behind a hasty Rorix Bladewing.",
-    deck: build("rorix-bladewing", RED_NONLANDS, "mountain"),
   },
   {
     name: "Tidewall (mono-blue)",

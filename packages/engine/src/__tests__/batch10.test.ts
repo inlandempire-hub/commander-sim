@@ -466,6 +466,35 @@ describe("Skrelv, Defector Mite", () => {
     expect(player.life).toBe(life - 2);
   });
 
+  it("is not offered at two life, because two life will not pay two life", () => {
+    const { state, me } = game();
+    const skrelv = put(state, "skrelv-defector-mite", me);
+    put(state, "grizzly-bears", me);
+    const player = requirePlayer(state, me);
+
+    // Three, and the ability is there: paying down to 1 is legal.
+    player.life = 3;
+    expect(activatableAbilities(state, me, skrelv.instanceId)).toContain(0);
+
+    /*
+     * Two, and it is gone. A {W/P} the pool cannot cover is payable *in life*,
+     * and the planner used to answer that question without a life total to
+     * answer it against - so the ability stayed lit, the bot activated it, and
+     * the engine refused the very cost it had just called affordable.
+     */
+    player.life = 2;
+    expect(activatableAbilities(state, me, skrelv.instanceId)).not.toContain(0);
+    expect(() =>
+      activateAbility(state, me, skrelv.instanceId, 0, [
+        { kind: "card", instanceId: player.battlefield.find((c) => c.definitionId === "grizzly-bears")!.instanceId },
+      ]),
+    ).toThrow(/cannot pay/i);
+
+    // A white mana pays it instead, at any life total.
+    player.manaPool.W = 1;
+    expect(activatableAbilities(state, me, skrelv.instanceId)).toContain(0);
+  });
+
   it("hands over toxic, hexproof from a colour, and unblockability by it", () => {
     const { state, me } = game();
     const skrelv = put(state, "skrelv-defector-mite", me);

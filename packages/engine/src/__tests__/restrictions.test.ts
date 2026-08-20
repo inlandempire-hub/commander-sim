@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { makeTestGame } from "../testHelpers.js";
 import { createCardInstance, drawCard } from "../state.js";
 import { castSpell } from "../casting.js";
-import { activateAbility } from "../abilities.js";
+import { activatableAbilities, activateAbility } from "../abilities.js";
+import { couldAfford, manaSources } from "../mana.js";
 import { canPlayCardNow } from "../autoPass.js";
 import { advanceStep } from "../turn.js";
 import { resolveTopOfStack } from "../stack.js";
@@ -151,6 +152,30 @@ describe("action restrictions", () => {
     // untouched - which is what keeps the card playable in its own deck.
     const mountain = createCardInstance(state, "mountain", alice.id, "battlefield");
     expect(() => activateAbility(state, alice.id, mountain.instanceId, 0)).not.toThrow();
+  });
+
+  it("Clarion Conqueror takes a mana rock away from the auto-tapper too", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!;
+    openMainPhase(state);
+    const solRing = createCardInstance(state, "sol-ring", alice.id, "battlefield");
+    solRing.summoningSickness = false;
+
+    // Without the Conqueror the Ring is a source and pays for a two-drop.
+    const twoGeneric = { generic: 2, colors: {} };
+    expect(manaSources(state, alice).some((s) => s.instance.instanceId === solRing.instanceId)).toBe(true);
+    expect(couldAfford(state, alice.id, twoGeneric)).toBe(true);
+
+    /*
+     * With it, the Ring is not a source at all. Taught only to `activateAbility`
+     * when the hate pieces went in, this is the shape the gap took: the tapper
+     * went on spending the Ring towards a spell and the engine then refused the
+     * ability that was paying for it - which in a bot game ends the game.
+     */
+    createCardInstance(state, "clarion-conqueror", alice.id, "battlefield");
+    expect(manaSources(state, alice).some((s) => s.instance.instanceId === solRing.instanceId)).toBe(false);
+    expect(couldAfford(state, alice.id, twoGeneric)).toBe(false);
+    expect(activatableAbilities(state, alice.id, solRing.instanceId)).toEqual([]);
   });
 
   it("Spirit of the Labyrinth stops the second draw and does not look like decking", () => {

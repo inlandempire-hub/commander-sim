@@ -139,6 +139,17 @@ export const MIKE_DECK: DeckList = BLECH_DECK;
  */
 export interface GameOptions {
   mulligan?: boolean;
+  /**
+   * Whether each library is shuffled on the way in. On by default - a game of
+   * Magic starts with a shuffle, and every caller but one wants it.
+   *
+   * Off for a caller that has already ordered the library itself. The seeded
+   * shuffles in the bot's deck tests named a seed, built an order from it, and
+   * then had that order thrown away here by a `Math.random` shuffle - so the
+   * tests were not reproducible, and a failure could not be re-run from the
+   * seed it printed. A test that says "seed 3" must get seed 3.
+   */
+  shuffle?: boolean;
 }
 
 function dealOpeningHands(state: GameState, playerIds: string[], options: GameOptions): void {
@@ -160,7 +171,8 @@ export function createGameFromDecks(
     TEST_CARD_DEFINITIONS,
   );
   for (const { id, deck } of players) {
-    setUpCommanderDeck(state, id, { ...deck, libraryIds: shuffled(deck.libraryIds) });
+    const libraryIds = options.shuffle === false ? [...deck.libraryIds] : shuffled(deck.libraryIds);
+    setUpCommanderDeck(state, id, { ...deck, libraryIds });
   }
   dealOpeningHands(
     state,
