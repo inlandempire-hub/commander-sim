@@ -348,7 +348,22 @@ export function fireCombatDamageToPlayer(
           if (scope === undefined && watcher.instanceId !== damagerInstanceId) continue;
           if (scope === "controller" && watcher.controllerId !== damagerControllerId) continue;
         }
-        pushTrigger(state, damagerInstanceId, watcher.controllerId, trigger, amount);
+        // Felix Five-Boots: when the creature dealing the damage and the
+        // triggering permanent share a controller ("a creature you control ...
+        // a permanent you control"), each Felix that player controls makes the
+        // ability trigger one additional time.
+        let times = 1;
+        if (watcher.controllerId === damagerControllerId) {
+          const owner = state.players.find((p) => p.id === watcher.controllerId);
+          if (owner) {
+            times += owner.battlefield.filter(
+              (c) => requireDefinition(state, c.definitionId).staticRules?.extraCombatDamageToPlayerTrigger,
+            ).length;
+          }
+        }
+        for (let i = 0; i < times; i++) {
+          pushTrigger(state, damagerInstanceId, watcher.controllerId, trigger, amount);
+        }
       }
     }
   }

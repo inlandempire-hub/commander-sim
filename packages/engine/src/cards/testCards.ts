@@ -11331,6 +11331,23 @@ export const TRAILBLAZERS_BOOTS: CardDefinition = {
   tier: "scripted",
 };
 
+export const FELIX_FIVE_BOOTS: CardDefinition = {
+  id: "felix-five-boots",
+  name: "Felix Five-Boots",
+  scryfallId: "6800e935-d327-464c-ab88-7c0193827da3",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Ooze", "Rogue"],
+  manaCost: { generic: 2, colors: { B: 1, G: 1, U: 1 } },
+  colorIdentity: ["B", "G", "U"],
+  power: 5,
+  toughness: 4,
+  keywords: ["Menace", "Ward"],
+  wardCost: { generic: 2, colors: {} },
+  staticRules: { extraCombatDamageToPlayerTrigger: true },
+  tier: "scripted",
+};
+
 export const SHADOWMAGE_INFILTRATOR: CardDefinition = {
   id: "shadowmage-infiltrator",
   name: "Shadowmage Infiltrator",
@@ -14412,5 +14429,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WINGED_BOOTS,
     ZEPHYR_BOOTS,
     CULTIVATE,
+    FELIX_FIVE_BOOTS,
   ].map((def) => [def.id, def]),
 );

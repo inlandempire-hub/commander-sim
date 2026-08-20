@@ -1509,6 +1509,13 @@ export interface StaticRules {
    * empty-library loss already lives.
    */
   winInsteadOfEmptyDraw?: boolean;
+  /**
+   * Felix Five-Boots: "If a creature you control dealing combat damage to a
+   * player causes a triggered ability of a permanent you control to trigger,
+   * that ability triggers an additional time." Read in `fireCombatDamageToPlayer`
+   * - each permanent you control with this flag adds one extra firing.
+   */
+  extraCombatDamageToPlayerTrigger?: boolean;
 }
 
 /**
