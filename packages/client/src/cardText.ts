@@ -63,7 +63,9 @@ export function describeTarget(selector: TargetSelector): string {
     case "opponent-of-controller":
       return "target opponent";
     case "spell":
-      return "target spell";
+      // "target spell **or ability**" - Deflecting Swat, the only card in the
+      // pool that may point at a trigger sitting on the stack.
+      return selector.includeAbilities ? "target spell or ability" : "target spell";
     case "permanent": {
       // "target noncreature artifact or noncreature enchantment" - the
       // qualifier goes on each noun, which is how the card prints it.
@@ -439,6 +441,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
           .map((t) => `non${t.toLowerCase()}`)
           .join(", ")} card from your hand.`,
       );
+    case "changeTargets":
+      return sentence(`you may choose new targets for ${describeTarget(effect.target)}.`);
     case "becomePrepared":
       return "This creature becomes prepared.";
     case "conditional":

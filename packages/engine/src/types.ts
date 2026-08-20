@@ -494,6 +494,16 @@ export type TargetSelector =
   | {
       kind: "spell";
       /**
+       * "target spell **or ability**" - Deflecting Swat.
+       *
+       * Both live on the stack and a `StackTarget` of kind "spell" already means
+       * "a thing on the stack", so this only relaxes which of them qualify.
+       * Left off - every counterspell in the pool - it means spells only, which
+       * is what "counter target spell" says and why a counterspell cannot be
+       * pointed at a trigger.
+       */
+      includeAbilities?: boolean;
+      /**
        * "Counter target **blue** spell" - Red Elemental Blast.
        *
        * A restriction on what may be *pointed at*, which is the whole difference
@@ -1697,6 +1707,20 @@ export type Effect =
    * with `min: 0` because "you may" here really does include declining.
    */
   | { kind: "imprintFromHand"; excludeTypes: CardType[] }
+  /**
+   * "**You may choose new targets for target spell or ability.**" - Deflecting
+   * Swat.
+   *
+   * The only effect in the pool that reaches back into something already on the
+   * stack and edits it. The new targets have to be legal for *that* spell, so
+   * they are worked out from its own selector and its own controller - hexproof
+   * asks who is casting, and that is still them, not you.
+   *
+   * "May" is a simplification here: the engine always re-points, and the current
+   * target is among the choices - so leaving it where it is means picking it
+   * again. Nobody casts this to decline.
+   */
+  | { kind: "changeTargets"; target: TargetSelector }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -3561,6 +3585,15 @@ export interface PendingTargetChoice {
    * the stack is independent of its source.
    */
   object: StackObject;
+  /**
+   * True when the object is **already on the stack** and only its targets are
+   * being replaced - Deflecting Swat.
+   *
+   * Every other pending choice holds an ability that has not been put on the
+   * stack yet and is pushed once answered. Pushing this one would put the same
+   * spell on the stack twice.
+   */
+  retarget?: boolean;
 }
 
 /**

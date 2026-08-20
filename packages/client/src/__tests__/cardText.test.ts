@@ -1105,3 +1105,12 @@ describe("Skrelv in the panel", () => {
     expect(text).toContain("can't be blocked by creatures of that color this turn");
   });
 });
+
+describe("Deflecting Swat in the panel", () => {
+  it("prints the free cast and what it re-points", () => {
+    const text = textOf("deflecting-swat");
+    expect(text).toContain("without paying its mana cost");
+    // "or ability" is the half that separates it from a counterspell.
+    expect(text).toContain("target spell or ability");
+  });
+});

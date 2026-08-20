@@ -45,7 +45,7 @@ import { cardColors, meetsBoardCondition } from "./conditions.js";
 import { hasCreatureType } from "./counters.js";
 import { resolveAmounts } from "./x.js";
 import { castSpell } from "./casting.js";
-import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
+import { legalTargetsFor, targetCountOf, targetSelectorOf } from "./targeting.js";
 
 /**
  * Applies a resolved (non-permanent) effect: spell/ability damage, draw,
@@ -856,6 +856,39 @@ export function applyEffect(
         max: 1,
         mode: "exile-imprint",
         effectControllerId: controllerId,
+      });
+      return;
+    }
+    case "changeTargets": {
+      /*
+       * "You may choose new targets for target spell or ability."
+       *
+       * The legality of the new targets is judged for the *spell being
+       * re-pointed*, not for the player doing the re-pointing: hexproof asks who
+       * is casting, and that is still its own controller. What Deflecting Swat
+       * changes is who does the choosing.
+       */
+      const onStack = targets.find((t): t is Extract<StackTarget, { kind: "spell" }> => t.kind === "spell");
+      const obj = onStack ? state.stack.find((o) => o.id === onStack.stackObjectId) : undefined;
+      // Countered, resolved or otherwise gone in response - there is nothing
+      // left to re-point, and the Swat simply does nothing.
+      if (!obj) return;
+      const selector = targetSelectorOf(obj.effect);
+      // A spell with no targets at all cannot have new ones chosen for it.
+      if (!selector) return;
+      const candidates = legalTargetsFor(state, selector, obj.controllerId, obj.sourceInstanceId);
+      if (candidates.length === 0) return;
+      const { min, max } = targetCountOf(selector, 0);
+      state.pendingTargetChoices.push({
+        playerId: controllerId,
+        sourceInstanceId,
+        candidates,
+        prompt: `${cardName(state, sourceInstanceId)}: choose new targets for ${cardName(state, obj.sourceInstanceId)}`,
+        min,
+        max,
+        object: obj,
+        // Already on the stack: only its targets change.
+        retarget: true,
       });
       return;
     }

@@ -15840,8 +15840,46 @@ export const SKRELV_DEFECTOR_MITE: CardDefinition = {
   tier: "weird",
 };
 
+
+/**
+ * Deflecting Swat - {2}{R} Instant.
+ *
+ * "If you control a commander, you may cast this spell without paying its mana
+ * cost. You may choose new targets for target spell or ability."
+ *
+ * The free cast needed nothing new - `AlternativeCost` has taken a board
+ * condition since the free-spell cycle, and "you control a commander" is one of
+ * them. Re-pointing something already on the stack is the whole of the work,
+ * and it is the only effect in the pool that reaches back into the stack and
+ * edits an object rather than adding one.
+ *
+ * The new targets are judged legal for the *spell being re-pointed*: hexproof
+ * asks who is casting it, and that is still its own controller. What this card
+ * changes is who does the choosing.
+ */
+export const DEFLECTING_SWAT: CardDefinition = {
+  id: "deflecting-swat",
+  name: "Deflecting Swat",
+  scryfallId: "b4b36435-55b3-4615-8812-af41d4fc64d9",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  alternativeCost: {
+    condition: { kind: "controls-commander" },
+    label: "cast without paying its mana cost",
+  },
+  castEffect: {
+    kind: "changeTargets",
+    // "target spell **or ability**" - the only card in the pool that may point
+    // at something on the stack that is not a spell.
+    target: { kind: "spell", includeAbilities: true },
+  },
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    DEFLECTING_SWAT,
     SKRELV_DEFECTOR_MITE,
     CHROME_MOX,
     GOBLIN_CRATERMAKER,

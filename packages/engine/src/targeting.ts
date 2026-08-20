@@ -200,7 +200,10 @@ export function isValidTarget(
     case "spell": {
       if (target.kind !== "spell") return false;
       const obj = findStackObject(state, target.stackObjectId);
-      if (obj === undefined || !isSpellOnStack(state, obj)) return false;
+      // "target spell **or ability**" - Deflecting Swat is the only card in the
+      // pool that may point at something that is not a spell.
+      if (obj === undefined) return false;
+      if (!selector.includeAbilities && !isSpellOnStack(state, obj)) return false;
       // "target **blue** spell" - the colour of the card on the stack.
       if (selector.color) {
         const card = state.stackCards.find((c) => c.instanceId === obj.sourceInstanceId);
@@ -332,6 +335,11 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
      * Scheming Symmetry, the one tutor whose searchers are targeted rather
      * than implied. Every other printing names them and carries no selector.
      */
+    /*
+     * "You may choose new targets for **target spell or ability**." - Deflecting
+     * Swat, whose own target is the thing it re-points.
+     */
+    case "changeTargets":
     case "searchLibrary":
     case "pump":
     case "addCounter":

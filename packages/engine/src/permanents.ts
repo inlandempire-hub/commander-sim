@@ -982,7 +982,12 @@ export function chooseTriggerTargets(state: GameState, playerId: string, targets
 
   state.pendingTargetChoices.shift();
   pending.object.targets = chosen;
-  state.stack.push(pending.object);
+  /*
+   * Deflecting Swat's object is already on the stack and is being edited in
+   * place; every other pending choice holds an ability that has not been put
+   * there yet. Pushing the first kind would put one spell on the stack twice.
+   */
+  if (!pending.retarget) state.stack.push(pending.object);
 }
 
 function sameTarget(a: StackTarget, b: StackTarget): boolean {

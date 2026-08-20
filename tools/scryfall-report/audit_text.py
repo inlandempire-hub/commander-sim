@@ -521,6 +521,9 @@ RULES = [
     # "They may tap that permanent" - Charismatic Conqueror, whose "if they
     # don't" half is a second sentence the ordinary token rule already covers.
     (r"they may tap that permanent", {"theyMay"}),
+    # Deflecting Swat. Its free-cast line is already covered by the alternative
+    # cost rule; this is the half that does something.
+    (r"^you may choose new targets for target spell or ability$", {"changeTargets"}),
     # Skrelv. Its ability is one sentence per clause on the printed card, and all
     # of them are keyed to the colour `grantProtection` asks for.
     (r"^toxic \d+$", {"toxic"}),

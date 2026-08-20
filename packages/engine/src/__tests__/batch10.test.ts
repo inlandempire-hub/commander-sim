@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { makeTestGame } from "../testHelpers.js";
 import { createCardInstance, moveCard, requirePlayer } from "../state.js";
-import { enteredBattlefield, putOntoBattlefield } from "../permanents.js";
+import { chooseTriggerTargets, enteredBattlefield, putOntoBattlefield } from "../permanents.js";
 import { resolveTopOfStack, resolveConfirmation } from "../stack.js";
 import { advanceStep } from "../turn.js";
 import { applyEffect, resolveCardChoice, resolveColorChoice } from "../effects.js";
-import { playLand } from "../casting.js";
+import { castSpell, playLand } from "../casting.js";
 import { activatableAbilities, activateAbility } from "../abilities.js";
 import { blockProblem, dealCombatDamage, declareAttackers, declareBlockers } from "../combat.js";
 import { isValidTarget } from "../targeting.js";
@@ -514,5 +514,71 @@ describe("Skrelv, Defector Mite", () => {
     expect(isValidTarget(state, { kind: "creature" }, target, them, swords.instanceId)).toBe(true);
     // And it never stops its own controller.
     expect(isValidTarget(state, { kind: "any-target" }, target, me, bolt.instanceId)).toBe(true);
+  });
+});
+
+/**
+ * Deflecting Swat - the only effect in the pool that reaches back into the stack
+ * and edits something already on it.
+ */
+describe("Deflecting Swat", () => {
+  it("is free while you control a commander", () => {
+    const { state } = game();
+    const swat = state.cardDefinitions["deflecting-swat"]!;
+    expect(swat.alternativeCost?.condition).toEqual({ kind: "controls-commander" });
+  });
+
+  it("re-points a burn spell away from your creature", () => {
+    const { state, me, them } = game();
+    const mine = put(state, "grizzly-bears", me);
+    const theirs = put(state, "savannah-lions", them);
+
+    // Their Bolt, aimed at my Bears.
+    const bolt = createCardInstance(state, "lightning-bolt", them, "hand");
+    requirePlayer(state, them).manaPool.R = 1;
+    state.activePlayerIndex = 1;
+    state.priorityPlayerIndex = 1;
+    castSpell(state, them, bolt.instanceId, [{ kind: "card", instanceId: mine.instanceId }]);
+    const onStack = state.stack[state.stack.length - 1]!;
+    expect(onStack.targets).toEqual([{ kind: "card", instanceId: mine.instanceId }]);
+
+    // My Swat, aimed at their Bolt.
+    applyEffect(state, me, "swat", state.cardDefinitions["deflecting-swat"]!.castEffect!, [
+      { kind: "spell", stackObjectId: onStack.id },
+    ]);
+
+    const pending = state.pendingTargetChoices[0]!;
+    expect(pending.playerId).toBe(me); // I choose, though it is still their spell
+    expect(pending.retarget).toBe(true);
+    chooseTriggerTargets(state, me, [{ kind: "card", instanceId: theirs.instanceId }]);
+
+    // Edited in place, not launched again: one Bolt on the stack, pointed the
+    // other way.
+    expect(state.stack).toHaveLength(1);
+    expect(state.stack[0]!.targets).toEqual([{ kind: "card", instanceId: theirs.instanceId }]);
+
+    resolveTopOfStack(state);
+    expect(theirs.damageMarked).toBe(3);
+    expect(mine.damageMarked).toBe(0);
+  });
+
+  it("does nothing when its target has already left the stack", () => {
+    const { state, me } = game();
+    applyEffect(state, me, "swat", state.cardDefinitions["deflecting-swat"]!.castEffect!, [
+      { kind: "spell", stackObjectId: "gone" },
+    ]);
+    expect(state.pendingTargetChoices).toHaveLength(0);
+  });
+
+  it("may point at an ability, which a counterspell may not", () => {
+    const { state } = game();
+    const swat = state.cardDefinitions["deflecting-swat"]!.castEffect!;
+    expect(swat.kind).toBe("changeTargets");
+    if (swat.kind !== "changeTargets") return;
+    expect(swat.target).toEqual({ kind: "spell", includeAbilities: true });
+    // For contrast: "counter target spell" means spells, which is why a
+    // counterspell cannot be pointed at a trigger.
+    const bolt = state.cardDefinitions["red-elemental-blast"]!.castEffect!;
+    expect(JSON.stringify(bolt)).not.toContain("includeAbilities");
   });
 });
