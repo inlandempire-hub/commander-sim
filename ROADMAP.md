@@ -4522,3 +4522,124 @@ the three cards that begin the game on the battlefield, plus Chrome Mox's
 imprint, Deflecting Swat, Skrelv, Charismatic Conqueror, Goblin Cratermaker and
 Dollmaker's Shop. The last three each want a question aimed at a player, or a
 mode chosen on an activated ability - neither of which exists yet.
+
+## Batch 10: eleven of the last twelve (2026-08-20)
+
+**The list is at 97 of 100. The pool is at 1,046 fixtures.** Eleven cards, in
+five commits, and between them the answer to a question the deck report had been
+answering wrongly for weeks.
+
+### The report was stale, and in the expensive direction
+
+`deck_report.py` had listed "multi-faced cards (split, transform, adventure)" as
+a blocker since it was written, and it had been wrong since Bala Ged Recovery: an
+MDFC is two `CardDefinition`s and a swapped id, and **both halves of Emeria's
+Call and Shatterskull Smashing worked the day their fixtures existed**. Three
+cards were sitting behind a heading rather than behind any real gap.
+
+What genuinely did not work was a land on *both* faces. Every modal double-faced
+card here has a spell on the front, so `playLand` could tell which face it was
+being asked for by looking at the card. Needleverge Pathway is a Mountain on one
+side and a Plains on the other, and which one you want is the entire card - so a
+land drop grew a face argument that reaches the controller, the protocol, the
+server, the bot and the picker the client already had.
+
+The lesson is the one already written into
+[[mtg-sim-deck-led-pool-growth]]: trust IMPLEMENTED and ADDABLE, and read every
+BLOCKED heading against the engine before believing it.
+
+### The distinctions that were the card
+
+- **"Until your next turn" is not "until end of turn"** (Emeria's Call). Seven
+  mana of Angels only survives if the wipe on the way back cannot answer them. A
+  second list of granted keywords on the instance, separated from the first by
+  exactly one thing - the moment it is cleared: the cleanup step, versus the
+  controller's untap step.
+- **Toxic is not infect** (Skrelv). Infect *changes* what damage is; toxic adds
+  poison on top of it. A Skrelv written as infect would never reduce anybody's
+  life total again, and would look right doing it.
+- **Hexproof from a colour is not protection from one** (Skrelv again). Which is
+  why the card spells out "can't be blocked by creatures of that color" as a
+  separate clause - and why `BlockRestriction` needed a second shape, naming a
+  quality that *disqualifies* a blocker rather than one it must have.
+- **A division is announced, not settled** (Shatterskull Smashing). Kill one of
+  the two targets in response and the damage assigned to it is lost. Divided at
+  resolution you would move it to the survivor.
+- **A counter is not a grant** (Quicksilver). A double strike counter does not
+  wear off, so it lives in a third list of keywords - three now, ending at three
+  different moments, joined by the one function that answers what a permanent
+  has.
+
+### Firsts
+
+- **A "you may" aimed at an opponent** (Charismatic Conqueror). It needed no new
+  machinery - `pendingConfirmation` has always kept the asked player and the
+  effect's controller in separate fields - but the two halves genuinely belong to
+  two players, and getting that backwards hands the Vampire to the wrong side.
+- **A mode chosen when an ability is activated** (Goblin Cratermaker), which is
+  the second place a `modal` may be unwrapped and still the only two.
+- **An effect that edits the stack instead of adding to it** (Deflecting Swat).
+- **A replacement that stops the game before the permanent exists** (Mox
+  Diamond). Checked at the top of `putOntoBattlefield`, so "would enter" means
+  however it would have got there - and the card waits on the stack rather than
+  arriving and being taken back, which would set off every arrival watcher on the
+  table for a permanent that never entered.
+- **A decision taken before the game starts** (Gemstone Caverns, Quicksilver).
+- **A permanent whose mana ability is about itself** (Chrome Mox), which is why
+  the colour question had to learn which permanent was asking: two of them can
+  imprint different cards and nothing about their controller tells them apart.
+
+### What the tests caught that inspection did not
+
+- Carrying the entered permanent on an arrival trigger broke **Soul Warden**,
+  silently and everywhere: "no targets means the controller" had to become "no
+  *player* target means the controller" the moment a trigger could carry a
+  permanent along.
+- `audit_fixtures` reported Pillarverge Pathway as a colourless non-land that is
+  not Commander legal. It was reading an **art-series** card - printed art whose
+  faces carry the real card's name with a type line of "Card" - which sorts ahead
+  of the genuine face and shadowed it. All three audits now skip that layout.
+- The panel test found six renderer gaps across the batch, including `{W/P}`
+  rendering as `{0}` - hiding the half of the cost that is life.
+- **`audit_text` is why Quicksilver's power-up exists.** It was going to be left
+  out; the audit reported the line as unaccounted for, which was correct, and a
+  Quicksilver whose power-up did nothing is the card docs/ADDING-CARDS.md
+  forbids. Three subsystems later it is the card.
+- The bot's own test found that only two of `chooseAttackers`' three exits had
+  been taught about compelled attackers (batch 9's rule).
+
+### One honest gap, and it is not any card's
+
+The client's cast flow sends **exactly one target**. Shatterskull Smashing's
+two-target split is fully implemented and enforced in the engine and reachable
+over the protocol; what is missing is a multi-target picker, which is client work
+Shatterskull shares with Pest Infestation and did not introduce. Cast at one
+target the card is complete and correct - "up to two" makes that a legal
+announcement.
+
+## Not built: Dollmaker's Shop // Porcelain Gallery
+
+The twelfth card, and specified rather than attempted for the same reason Ajani
+was. It wants two things at once:
+
+1. **Rooms.** Two halves on one permanent, each separately castable, and the
+   locked one unlockable later by paying its cost as a sorcery. This is *not* the
+   MDFC pattern - that swaps one definition for another, and here both halves are
+   live at the same time. It needs a door label on each ability, a filter in the
+   two functions that read them (`effectiveTriggers` and `staticBuffsOf` - the
+   same two doors granted keywords already go through), an `unlockedDoors` list on
+   the instance, and a new player action that reaches the controller, the
+   protocol, the server, the bot and the client.
+2. **"Creatures you control have base power and toughness each equal to the
+   number of creatures you control."** A layer 7b effect - it *sets* the base
+   figures rather than adjusting them, so it has to be read before counters and
+   anthems rather than alongside them. `effectivePower` and `effectiveToughness`
+   are the two places, and getting the order wrong is invisible until something
+   has a counter on it.
+
+Its attack trigger is the `creatures-attack` event batch 9 already built, and the
+Toy token is ordinary. It is the two above that make it a session rather than an
+afternoon.
+
+**1,046 fixtures. 1,480 tests, typecheck clean**, all three audits clean bar the
+two long-known gaps, three consecutive green runs.
