@@ -15,9 +15,25 @@ import {
 describe("lab progress", () => {
   it("round-trips through a store", () => {
     const store = memoryStore();
-    const progress = setVerdict(toggleCheck({}, "sol-ring", 1), "sol-ring", "works");
+    const key = "winota/sol-ring";
+    const progress = setVerdict(toggleCheck({}, key, 1), key, "works");
     saveProgress(store, progress);
-    expect(loadProgress(store)["sol-ring"]).toMatchObject({ verdict: "works", ticked: [1] });
+    expect(loadProgress(store)[key]).toMatchObject({ verdict: "works", ticked: [1] });
+  });
+
+  it("files ticks saved before the second deck under the deck that had them", () => {
+    /*
+     * Every bare key in a saved blob is a Blech board, because Blech was the
+     * only deck the lab had. Migrated on read: this is somebody's browser, and
+     * there is no moment to run a one-off pass in.
+     */
+    const saved = JSON.stringify({ "sol-ring": { verdict: "broken", ticked: [0], updatedAt: 1 } });
+    const loaded = loadProgress(memoryStore({ [LAB_STORAGE_KEY]: saved }));
+    expect(loaded["blech/sol-ring"]).toMatchObject({ verdict: "broken" });
+    expect(loaded["sol-ring"]).toBeUndefined();
+    // And a key that is already scoped is left exactly as it is.
+    const scoped = JSON.stringify({ "winota/sol-ring": { verdict: "works", ticked: [], updatedAt: 1 } });
+    expect(loadProgress(memoryStore({ [LAB_STORAGE_KEY]: scoped }))["winota/sol-ring"]).toBeDefined();
   });
 
   it("starts empty and survives a corrupt blob", () => {
@@ -64,16 +80,16 @@ describe("lab progress", () => {
     progress = setNote(progress, "skullclamp", "equip did nothing");
     progress = setVerdict(progress, "the-ozolith", "partly");
     const report = reportFaults(progress, [
-      { cardId: "sol-ring", name: "Sol Ring" },
-      { cardId: "skullclamp", name: "Skullclamp" },
-      { cardId: "the-ozolith", name: "The Ozolith" },
+      { key: "sol-ring", name: "Sol Ring" },
+      { key: "skullclamp", name: "Skullclamp" },
+      { key: "the-ozolith", name: "The Ozolith" },
     ]);
     expect(report).toBe("Skullclamp - BROKEN\n  equip did nothing\nThe Ozolith - PARTLY WORKING");
     expect(report).not.toContain("Sol Ring");
   });
 
   it("says so when there is nothing wrong", () => {
-    expect(reportFaults({}, [{ cardId: "sol-ring", name: "Sol Ring" }])).toBe(
+    expect(reportFaults({}, [{ key: "sol-ring", name: "Sol Ring" }])).toBe(
       "Nothing marked broken or partly working.",
     );
   });

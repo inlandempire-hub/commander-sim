@@ -297,3 +297,30 @@
   opacity: 0.4;
   pointer-events: none;
 }
+
+/* --- picking a deck ------------------------------------------------------- */
+
+.lab-decks {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  max-width: 62ch;
+}
+
+.lab-decks__row {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.lab-decks__name {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.lab-decks__blurb {
+  color: var(--text-dim);
+  margin: 4px 0 10px;
+}

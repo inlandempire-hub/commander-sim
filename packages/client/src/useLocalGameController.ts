@@ -28,6 +28,7 @@ import {
   playLand,
   type DeckList,
   type GameState,
+  type LabDeck,
   type LabScenario,
 } from "@mtg-commander-sim/engine";
 import type { GameController } from "./gameController.js";
@@ -53,17 +54,25 @@ export interface LocalGameOptions {
    * Wins over `decks`, because a scenario names its own board entirely.
    */
   scenario?: LabScenario;
+  /**
+   * Which lab deck the scenario belongs to. Required alongside `scenario`: a
+   * board is built behind its deck's commander, out of its deck's basics, over
+   * its deck's library - and every one of those is wrong rather than merely
+   * unhelpful when it comes from the other deck.
+   */
+  labDeck?: LabDeck;
 }
 
 export function useLocalGameController({
   decks,
   mulligan = true,
   scenario,
+  labDeck,
 }: LocalGameOptions = {}): GameController {
   const stateRef = useRef<GameState>();
   if (!stateRef.current) {
-    stateRef.current = scenario
-      ? createLabGame(scenario)
+    stateRef.current = scenario && labDeck
+      ? createLabGame(scenario, labDeck)
       : decks
         ? createGameFromDecks(decks, { mulligan })
         : createDemoGame({ mulligan });

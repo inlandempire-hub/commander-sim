@@ -163,11 +163,18 @@ See [ADDING-CARDS.md](ADDING-CARDS.md) before changing the card pool itself.
 http://localhost:5180/?mode=lab
 ```
 
-93 boards, one per card in the Blech, Loafing Pest deck. Each one puts that card
-in your hand with exactly the board its text needs around it - a creature with
+**193 boards across two decks** - 93 for Blech, Loafing Pest and 100 for Winota,
+Joiner of Forces, one per card in each. `?mode=lab` picks a deck;
+`?mode=lab&deck=winota&card=<id>` opens one board. Each one puts that card in
+your hand with exactly the board its text needs around it - a creature with
 counters to move, a graveyard to exile, an artifact to destroy, an opponent with
 something worth sacrificing - and a checklist down the side saying what to try
 and what should happen.
+
+A deck owns three things the lab used to hardcode: the commander every board is
+built behind, the basics its derived land base is made of, and the pile under
+every library that its tutors search. Each of those is *wrong* rather than
+merely unhelpful when it comes from the other deck.
 
 **It exists because the engine suite cannot answer the question it answers.** A
 test proves an effect handler works when called, on a board the test placed
@@ -181,7 +188,7 @@ Three things about it are deliberate:
 
 - **You drive both seats.** Salty Mike is not a bot, and every hand is face up
   (see `revealAllHands` in App.tsx - the one caller that turns them over). Half
-  this deck's text can only be exercised from the other side of the table:
+  of either deck's text can only be exercised from the other side of the table:
   "whenever an opponent casts", "each opponent may sacrifice", anything that
   wants somebody to be attacking you.
 - **Reset is part of the method.** Several cards have two branches that cannot
@@ -191,17 +198,27 @@ Three things about it are deliberate:
 - **Nothing is random.** No shuffle, no mulligan, the same board every time you
   open the same card. A lab you cannot reproduce is not a lab.
 
-Verdicts and notes are kept in localStorage, so you can stop and come back. The
-index's **Show everything broken** button prints just the faults and their
-notes - that list is the point of the whole exercise, and it is what to hand
-over to get things fixed.
+Verdicts and notes are kept in localStorage, keyed `deckSlug/cardId`, so you can
+stop and come back and so the four cards that are in both lists keep a separate
+verdict on each board. Ticks saved before the second deck existed are migrated
+to `blech/` when they are read. The index's **Show everything broken** button
+prints just that deck's faults and their notes - that list is the point of the
+whole exercise, and it is what to hand over to get things fixed.
 
-The scenarios live in `packages/engine/src/cardLabScenarios.ts` and the board
-builder in `cardLab.ts`. `cardLab.test.ts` is what keeps them honest: it builds
-every scenario, checks every card id it names exists, and asserts the card under
-test is genuinely playable from the board it was handed - a land base written
-before a fixture's cost was corrected would otherwise leave the card uncastable
-and make the *engine* look broken.
+The boards live in `packages/engine/src/cardLabScenarios.ts` (Blech) and
+`winotaLabScenarios.ts` (Winota), the decks that hold them in `cardLabDecks.ts`,
+and the board builder in `cardLab.ts`. `cardLab.test.ts` is what keeps them
+honest: it builds every board in every deck, checks every card id it names
+exists, and asserts the card under test is genuinely playable from the board it
+was handed - a land base written before a fixture's cost was corrected would
+otherwise leave the card uncastable and make the *engine* look broken.
+
+Three cards cannot keep that last promise and are not broken: Deflecting Swat,
+Pyroblast and Red Elemental Blast all need a target that is on the stack, and a
+board never opens with something half-resolved on it. Each sets
+`uncastableOnOpen` - a sentence, not a boolean, because having to write down why
+is the only thing that stops the exception becoming a way to switch the check
+off.
 
 ## What good looks like before you call something done
 

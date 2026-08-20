@@ -4784,3 +4784,50 @@ Skrelv's ability costs 2 life even with a Plains untapped. Floating white mana
 is still spent first. That is a defensible choice rather than a wrong one, and
 it is a choice a real player makes both ways, so it stays until something in the
 pool makes it hurt.
+
+## The card lab holds two decks
+
+The lab was built around one deck because the project had one real deck. It has
+two now - `?mode=lab` picks between them, `&deck=<slug>&card=<id>` opens a board -
+and the Winota list has **100 boards of its own**, one per card, in decklist
+order.
+
+### Three things turned out to belong to a deck rather than to the lab
+
+Each of them was hardcoded to Blech, and each is *wrong* rather than merely
+unhelpful when it comes from the other deck:
+
+- **The commander every board is built behind.** `LAB_COMMANDER` was a constant.
+- **The basics a derived land base is made of.** `landsForCost` returned Forests
+  and Swamps and could not have paid for a single Boros card. It takes the
+  deck's colours now, which is also the only thing that can say what pays for a
+  card - like Sol Ring - that names no colour at all.
+- **What a tutor finds.** The pile under every library was stocked for Blech's
+  searches. An Enlightened Tutor that can only find Golgari artifacts is
+  indistinguishable, from the chair, from an Enlightened Tutor that is broken.
+
+So there is a `LabDeck` now, and `createLabGame` takes one.
+
+### Ticks are filed per deck, and the old ones were migrated
+
+Four cards are in both lists - Command Tower, Sol Ring, Marsh Flats, Windswept
+Heath - walked on two different boards, so they are two different verdicts. Keys
+went from `cardId` to `deckSlug/cardId`, and bare keys are migrated to `blech/`
+**on read**, because this is somebody's browser and there is no moment to run a
+one-off pass in.
+
+### One promise the lab could not keep, said out loud
+
+The headless test enforces that the card under test is playable from its own
+board. Three cards cannot keep that: Deflecting Swat and the two Blasts all need
+a target that is *on the stack*, and a board is not allowed to open with
+something half-resolved on it. `uncastableOnOpen` is a **sentence, not a
+boolean** - the only thing stopping an escape hatch becoming a way to silence
+the check is having to write down why, and the test asserts the sentence is
+really there.
+
+**1,647 tests.** The Winota boards are covered the same three ways the Blech
+boards are: one scenario per card and nothing else, every board stands up and is
+castable from where it is handed to you, and a full walkthrough driven through
+the functions the client actually calls - cast Winota from the command zone off
+Boros basics, attack with a non-Human, be offered the Humans from the top six.

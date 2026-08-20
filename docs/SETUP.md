@@ -70,7 +70,7 @@ the URL:
 | `?delay=1500` | Slows the bot down (default 800ms between its actions). |
 | `?mode=deck` | The deck builder. |
 | `?mode=fonts` | The font lab - choose the type on the buttons and the combat banner. |
-| `?mode=lab` | The card lab - every card in the Blech deck on a board built for it, with a checklist. See TESTING.md. |
+| `?mode=lab` | The card lab - every card in the Blech and Winota decks on a board built for it, with a checklist. Add `&deck=<slug>&card=<id>` for one board. See TESTING.md. |
 | `?mode=network&seat=donny` | Join a networked game as Deadly Donny. |
 
 Deck names are matched loosely, so `deck=white` and `deck=Radiant` both work.

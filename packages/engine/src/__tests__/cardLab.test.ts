@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { BLECH_DECK, LAB_OPPONENT, LAB_YOU, createLabGame, landsForCost, type LabScenario } from "../cardLab.js";
-import { LAB_SCENARIOS, labScenarioFor } from "../cardLabScenarios.js";
+import { LAB_OPPONENT, LAB_YOU, createLabGame, landsForCost, type LabDeck, type LabScenario } from "../cardLab.js";
+import { LAB_DECKS } from "../cardLabDecks.js";
 import { TEST_CARD_DEFINITIONS } from "../cards/testCards.js";
 import { canPlayCardNow } from "../autoPass.js";
 import { castSpellWithAutoTap } from "../autoTap.js";
 import { playLand } from "../casting.js";
 import { chooseTriggerTarget } from "../permanents.js";
+import { declareAttackers } from "../combat.js";
 import { resolveTopOfStack } from "../stack.js";
 import { validateCommanderDeck } from "../commander.js";
 import type { CardType } from "../types.js";
@@ -39,31 +40,58 @@ function allReferencedIds(scenario: LabScenario): string[] {
   ];
 }
 
-describe("the card lab covers the deck", () => {
-  it("has one scenario for every distinct card in the Blech deck, and nothing else", () => {
-    const deck = new Set([BLECH_DECK.commanderId, ...BLECH_DECK.libraryIds]);
-    const covered = new Set(LAB_SCENARIOS.map((s) => s.cardId));
-    expect([...deck].filter((id) => !covered.has(id))).toEqual([]);
-    expect([...covered].filter((id) => !deck.has(id))).toEqual([]);
+/** Every board in every deck, flattened, so a failure names both. */
+const ALL_BOARDS: Array<[string, LabDeck, LabScenario]> = LAB_DECKS.flatMap((deck) =>
+  deck.scenarios.map((scenario) => [`${deck.slug}/${scenario.cardId}`, deck, scenario] as [string, LabDeck, LabScenario]),
+);
+
+describe.each(LAB_DECKS.map((d) => [d.slug, d] as const))("the card lab covers %s", (_slug, deck) => {
+  it("has one scenario for every distinct card in the list, and nothing else", () => {
+    const list = new Set([deck.deck.commanderId, ...deck.deck.libraryIds]);
+    const covered = new Set(deck.scenarios.map((s) => s.cardId));
+    expect([...list].filter((id) => !covered.has(id)), "cards with no board").toEqual([]);
+    expect([...covered].filter((id) => !list.has(id)), "boards for cards not in the list").toEqual([]);
   });
 
   it("names each card once", () => {
-    const ids = LAB_SCENARIOS.map((s) => s.cardId);
+    const ids = deck.scenarios.map((s) => s.cardId);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("is a legal Commander deck", () => {
     // Not strictly the lab's business, but it is the cheapest possible check
     // that 100 fixtures agree with each other on singleton and colour identity.
-    expect(BLECH_DECK.libraryIds).toHaveLength(99);
-    const result = validateCommanderDeck(BLECH_DECK, TEST_CARD_DEFINITIONS);
+    expect(deck.deck.libraryIds).toHaveLength(99);
+    const result = validateCommanderDeck(deck.deck, TEST_CARD_DEFINITIONS);
     expect(result.errors).toEqual([]);
     expect(result.legal).toBe(true);
+  });
+
+  it("walks the list in decklist order, commander first", () => {
+    // So that "start at the top" and "next" walk the deck rather than a pile
+    // in whatever order the boards happened to be written.
+    expect(deck.scenarios[0]!.cardId).toBe(deck.deck.commanderId);
+  });
+});
+
+describe("the lab's decks", () => {
+  it("give each deck its own slug", () => {
+    const slugs = LAB_DECKS.map((d) => d.slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it("stock a library tail out of cards that exist", () => {
+    for (const deck of LAB_DECKS) {
+      for (const id of deck.libraryTail) {
+        expect(TEST_CARD_DEFINITIONS[id], `${deck.slug} library tail: unknown "${id}"`).toBeDefined();
+      }
+      expect(deck.libraryTail.length, `${deck.slug} needs a tail deep enough to draw from`).toBeGreaterThan(20);
+    }
   });
 });
 
 describe("every scenario stands up", () => {
-  it.each(LAB_SCENARIOS.map((s) => [s.cardId, s] as const))("%s", (_cardId, scenario) => {
+  it.each(ALL_BOARDS)("%s", (_name, deck, scenario) => {
     for (const id of allReferencedIds(scenario)) {
       expect(TEST_CARD_DEFINITIONS[id], `unknown definition "${id}"`).toBeDefined();
     }
@@ -84,7 +112,7 @@ describe("every scenario stands up", () => {
     expect(scenario.setup.length, "every scenario says what its board is for").toBeGreaterThan(20);
     expect(scenario.checks.length, "every scenario has something to check").toBeGreaterThan(0);
 
-    const state = createLabGame(scenario);
+    const state = createLabGame(scenario, deck);
     expect(state.phase).toBe("precombat-main");
     expect(state.players[state.priorityPlayerIndex]!.id).toBe(LAB_YOU);
     // Nothing half-resolved: the board opens with the game waiting on you, not
@@ -109,6 +137,13 @@ describe("every scenario stands up", () => {
       ? you.command.find((c) => c.definitionId === scenario.cardId)
       : you.hand.find((c) => c.definitionId === scenario.cardId);
     expect(underTest, "the card under test is where the lab said it would be").toBeDefined();
+    if (scenario.uncastableOnOpen) {
+      // A board is allowed to hand you a card it cannot cast yet, but only with
+      // a reason written down - see `uncastableOnOpen`. Checked so that the
+      // escape hatch cannot quietly become a way to switch the promise off.
+      expect(scenario.uncastableOnOpen.length, "say why in a sentence").toBeGreaterThan(20);
+      return;
+    }
     expect(
       canPlayCardNow(state, LAB_YOU, underTest!.instanceId),
       `${scenario.cardId} cannot be played from its own scenario`,
@@ -133,13 +168,21 @@ describe("a scenario is a board you can actually play from", () => {
     while (state.stack.length > 0 && guard-- > 0) resolveTopOfStack(state);
   }
 
+  const BLECH = LAB_DECKS.find((d) => d.slug === "blech")!;
+
+  /** One Blech board, by the card it is for. */
+  function blechBoard(cardId: string) {
+    const scenario = BLECH.scenarios.find((s) => s.cardId === cardId)!;
+    return createLabGame(scenario, BLECH);
+  }
+
   function handCard(state: ReturnType<typeof createLabGame>, definitionId: string) {
     const you = state.players.find((p) => p.id === LAB_YOU)!;
     return you.hand.find((c) => c.definitionId === definitionId)!;
   }
 
   it("Blech: cast from the command zone, gain life, and count the counters", () => {
-    const state = createLabGame(labScenarioFor("blech-loafing-pest")!);
+    const state = blechBoard("blech-loafing-pest");
     const you = state.players.find((p) => p.id === LAB_YOU)!;
 
     const blech = you.command[0]!;
@@ -166,7 +209,7 @@ describe("a scenario is a board you can actually play from", () => {
   });
 
   it("Blood Artist: the supporting board really does give it something to kill", () => {
-    const state = createLabGame(labScenarioFor("blood-artist")!);
+    const state = blechBoard("blood-artist");
     const you = state.players.find((p) => p.id === LAB_YOU)!;
     const them = state.players.find((p) => p.id === LAB_OPPONENT)!;
 
@@ -190,7 +233,7 @@ describe("a scenario is a board you can actually play from", () => {
   });
 
   it("Scute Swarm: the land base is the point, and the fifth land takes the small branch", () => {
-    const state = createLabGame(labScenarioFor("scute-swarm")!);
+    const state = blechBoard("scute-swarm");
     const you = state.players.find((p) => p.id === LAB_YOU)!;
 
     castSpellWithAutoTap(state, LAB_YOU, handCard(state, "scute-swarm").instanceId);
@@ -207,22 +250,108 @@ describe("a scenario is a board you can actually play from", () => {
   });
 });
 
+describe("a Winota board is a board you can actually play from", () => {
+  /*
+   * The same covering as the three Blech walkthroughs above, for the deck that
+   * arrived second. Worth its own: everything the second deck touches - the
+   * commander a board is built behind, the basics its lands are made of, the
+   * pile under its library - is exactly what used to be hardcoded to Blech, so
+   * "the boards are well formed" is a much weaker claim here than it looks.
+   */
+  const WINOTA = LAB_DECKS.find((d) => d.slug === "winota")!;
+
+  function winotaBoard(cardId: string) {
+    const scenario = WINOTA.scenarios.find((s) => s.cardId === cardId)!;
+    return createLabGame(scenario, WINOTA);
+  }
+
+  function resolveEverything(state: ReturnType<typeof createLabGame>): void {
+    let guard = 40;
+    while (state.stack.length > 0 && guard-- > 0) resolveTopOfStack(state);
+  }
+
+  it("Winota: cast her off Boros basics, attack with a non-Human, and be offered the Humans", () => {
+    const state = winotaBoard("winota-joiner-of-forces");
+    const you = state.players.find((p) => p.id === LAB_YOU)!;
+
+    // Boros basics, from a deck-derived land base. The old Golgari-only version
+    // could not have paid for her at all.
+    const lands = you.battlefield.filter((c) => TEST_CARD_DEFINITIONS[c.definitionId]!.types.includes("Land"));
+    expect(lands.map((c) => c.definitionId).sort()).toEqual(["mountain", "mountain", "plains", "plains"]);
+
+    castSpellWithAutoTap(state, LAB_YOU, you.command[0]!.instanceId, [], { fromCommandZone: true });
+    resolveEverything(state);
+    expect(you.battlefield.some((c) => c.definitionId === "winota-joiner-of-forces")).toBe(true);
+
+    // The supporting board really is what her trigger wants to find: a
+    // non-Human that can attack the turn the board opens.
+    const ragavan = you.battlefield.find((c) => c.definitionId === "ragavan-nimble-pilferer")!;
+    state.phase = "combat";
+    state.step = "declare-attackers";
+    declareAttackers(state, LAB_YOU, [
+      { attackerInstanceId: ragavan.instanceId, defendingPlayerId: LAB_OPPONENT },
+    ]);
+    resolveEverything(state);
+
+    // The three Humans the scenario stacked on top, and nothing else from the
+    // six she looked at.
+    expect(state.pendingSearch).not.toBeNull();
+    const offered = state.pendingSearch!.candidateInstanceIds.map(
+      (id) => you.library.find((c) => c.instanceId === id)?.definitionId,
+    );
+    expect(offered).toContain("myrel-shield-of-argive");
+    expect(offered).toContain("boromir-warden-of-the-tower");
+    expect(offered).not.toContain("mountain");
+  });
+
+  it("Sol Ring: the same card on two decks gets two boards, and both stand up", () => {
+    // Four cards are in both lists. They are two different verdicts because
+    // they are two different boards - see `labProgressKey`.
+    const onWinota = winotaBoard("sol-ring");
+    const winotaLands = onWinota.players
+      .find((p) => p.id === LAB_YOU)!
+      .battlefield.filter((c) => TEST_CARD_DEFINITIONS[c.definitionId]!.types.includes("Land"));
+    expect(winotaLands.every((c) => c.definitionId === "mountain" || c.definitionId === "plains")).toBe(true);
+    expect(onWinota.players.find((p) => p.id === LAB_YOU)!.command[0]!.definitionId).toBe(
+      "winota-joiner-of-forces",
+    );
+
+    const blech = LAB_DECKS.find((d) => d.slug === "blech")!;
+    const onBlech = createLabGame(blech.scenarios.find((s) => s.cardId === "sol-ring")!, blech);
+    expect(onBlech.players.find((p) => p.id === LAB_YOU)!.command[0]!.definitionId).toBe("blech-loafing-pest");
+  });
+});
+
 describe("the derived land base", () => {
   it("covers coloured pips, hybrid pips and generic", () => {
     // Hornet Queen, {4}{G}{G}{G}: three green sources plus four more lands.
     expect(landsForCost({ generic: 4, colors: { G: 3 } })).toHaveLength(7);
-    // Braids, {1}{B}{B}: a Swamp for each black pip.
-    expect(landsForCost({ generic: 1, colors: { B: 2 } }).filter((l) => l === "swamp")).toHaveLength(2);
-    // Revitalizing Repast, a lone {B/G}: a Forest, which pays either half.
+    // Braids, {1}{B}{B}: a Swamp for each black pip, and the generic one is
+    // spread over the deck's colours rather than piled onto either.
+    expect(landsForCost({ generic: 1, colors: { B: 2 } }).filter((l) => l === "swamp")).toHaveLength(3);
+    // Revitalizing Repast, a lone {B/G}: one land, not two, and a Forest -
+    // either half pays it, and this is the half the Blech boards were built on.
     expect(landsForCost({ generic: 0, colors: {}, hybrid: [["B", "G"]] })).toEqual(["forest"]);
     // A land under test costs nothing, and asking for ability mana still works.
     expect(landsForCost(undefined)).toEqual([]);
     expect(landsForCost(undefined, { g: 1 })).toEqual(["forest"]);
   });
 
+  it("is built from the deck's colours, not the lab's", () => {
+    // The same colourless cost on the two decks' boards. Sol Ring names no
+    // colour at all, so nothing but the deck can say what pays for it.
+    expect(landsForCost({ generic: 1, colors: {} }, {}, ["B", "G"])).toEqual(["swamp"]);
+    expect(landsForCost({ generic: 1, colors: {} }, {}, ["R", "W"])).toEqual(["mountain"]);
+    // And a Boros pip gets a Boros basic, which the old Golgari-only version
+    // could not produce at all.
+    expect(landsForCost({ generic: 0, colors: { R: 1, W: 1 } }, {}, ["R", "W"])).toEqual(["plains", "mountain"]);
+    expect(landsForCost(undefined, { w: 2 }, ["R", "W"])).toEqual(["plains", "plains"]);
+  });
+
   it("is what a scenario gets unless it names its own", () => {
-    const scute = labScenarioFor("scute-swarm")!;
-    const state = createLabGame(scute);
+    const blech = LAB_DECKS.find((d) => d.slug === "blech")!;
+    const scute = blech.scenarios.find((s) => s.cardId === "scute-swarm")!;
+    const state = createLabGame(scute, blech);
     const you = state.players.find((p) => p.id === LAB_YOU)!;
     // Four lands, deliberately: the fifth takes the Insect branch and the sixth
     // takes the copy branch, which is the whole card.

@@ -35,3 +35,5 @@ export * from "./winotaDeck.js";
 // whole text can be put to work. See cardLab.ts for why it exists.
 export * from "./cardLab.js";
 export * from "./cardLabScenarios.js";
+export * from "./winotaLabScenarios.js";
+export * from "./cardLabDecks.js";

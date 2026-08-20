@@ -1,6 +1,7 @@
 import { createCardInstance, createGameState, requireDefinition, requirePlayer } from "./state.js";
 import { TEST_CARD_DEFINITIONS } from "./cards/testCards.js";
 import type { CardInstance, Color, GameState, ManaCost } from "./types.js";
+import { ALL_COLORS } from "./types.js";
 
 /**
  * The card lab: one board per card, stood up so that card's whole text can be
@@ -48,7 +49,10 @@ export interface LabPermanent {
 /** Mana wanted beyond the card's own printed cost, for its abilities. */
 export interface LabMana {
   generic?: number;
+  w?: number;
+  u?: number;
   b?: number;
+  r?: number;
   g?: number;
 }
 
@@ -68,6 +72,20 @@ export interface LabScenario {
    * every time somebody walks the list.
    */
   gaps?: string[];
+  /**
+   * Why the card under test cannot be cast the moment its board opens, if it
+   * cannot be - and every board that sets this has to say why in a sentence.
+   *
+   * The lab's one mechanical promise is that the card is playable from here, and
+   * the headless test enforces it. A handful of cards cannot keep that promise
+   * and are not broken: Deflecting Swat and the two Blasts all need a target
+   * that is *on the stack*, and a board is not allowed to open with something
+   * half-resolved on it. Their checklists start by putting a spell there.
+   *
+   * Deliberately a sentence rather than a boolean, because the only thing that
+   * stops this becoming a way to silence the check is having to write down why.
+   */
+  uncastableOnOpen?: string;
   /** Mana for the card's abilities, on top of its printed cost. */
   extraMana?: LabMana;
   /**
@@ -225,37 +243,16 @@ export const BLECH_DECK: { commanderId: string; libraryIds: string[] } = {
   ],
 };
 
-/**
- * What sits under the top of every library.
- *
- * One fixed pile rather than a shuffled deck, and chosen so that every kind of
- * search in the deck finds something: a basic of all five types for the
- * fetchlands, creatures for Sylvan Tutor, artifacts for Pest Infestation's
- * targets, and enough cards that milling and drawing cannot empty it.
- */
-const LAB_LIBRARY_TAIL: string[] = [
-  "forest",
-  "swamp",
-  "plains",
-  "island",
-  "mountain",
-  "pest-mascot",
-  "blood-artist",
-  "hornet-queen",
-  "sol-ring",
-  "bayou",
-  "skullclamp",
-  "essence-warden",
-  "sakura-tribe-elder",
-  "haywire-mite",
-  "shopkeepers-bane",
-  "birds-of-paradise",
-  ...Array.from({ length: 12 }, (_, i) => (i % 2 === 0 ? "forest" : "swamp")),
-];
+/** The basic that makes each colour, for a land base derived from a cost. */
+const BASIC_FOR: Record<Color, string> = {
+  W: "plains",
+  U: "island",
+  B: "swamp",
+  R: "mountain",
+  G: "forest",
+};
 
-function countHybrid(cost: ManaCost, color: Color): number {
-  return (cost.hybrid ?? []).filter((options) => options.includes(color)).length;
-}
+const EXTRA_KEY: Record<Color, keyof LabMana> = { W: "w", U: "u", B: "b", R: "r", G: "g" };
 
 /**
  * The land base a card needs to be cast, worked out from its own printed cost.
@@ -265,20 +262,46 @@ function countHybrid(cost: ManaCost, color: Color): number {
  * moment a fixture's cost is corrected, and it goes stale silently - the card
  * simply stops being castable and the lab looks broken.
  *
- * Hybrid pips count as green, since a Forest pays {B/G} as happily as a Swamp
- * and Twilight Mire needs a green source to filter. Generic is split between
- * the two colours so there is always some of each to reach for.
+ * A hybrid pip counts as one land, of whichever half the deck can actually make
+ * - and where it can make both, the later of the two in WUBRG order. That is
+ * arbitrary between two right answers (a Forest pays {B/G} as happily as a
+ * Swamp), and it is the answer the Blech boards were built against: picking the
+ * other half would quietly restock ninety boards somebody has already walked.
+ *
+ * `identity` is the deck's colours, and it decides two things a cost cannot:
+ * which basics pay the generic part, and what a colourless card gets handed. It
+ * is why this takes a deck at all - the Blech boards want Forests and Swamps and
+ * the Winota boards want Plains and Mountains, and a card like Sol Ring names
+ * neither.
  */
-export function landsForCost(cost: ManaCost | undefined, extra: LabMana = {}): string[] {
-  const green = (cost?.colors.G ?? 0) + countHybrid(cost ?? { generic: 0, colors: {} }, "G") + (extra.g ?? 0);
-  const black = (cost?.colors.B ?? 0) + (extra.b ?? 0);
-  const generic = (cost?.generic ?? 0) + (extra.generic ?? 0);
-  const forests = green + Math.ceil(generic / 2);
-  const swamps = black + Math.floor(generic / 2);
-  return [
-    ...Array.from({ length: forests }, () => "forest"),
-    ...Array.from({ length: swamps }, () => "swamp"),
-  ];
+export function landsForCost(
+  cost: ManaCost | undefined,
+  extra: LabMana = {},
+  identity: Color[] = ["B", "G"],
+): string[] {
+  const actual = cost ?? { generic: 0, colors: {} };
+  const colored: Color[] = [];
+  for (const color of ALL_COLORS) {
+    const pips = (actual.colors[color] ?? 0) + (extra[EXTRA_KEY[color]] ?? 0);
+    for (let i = 0; i < pips; i++) colored.push(color);
+  }
+  for (const symbol of actual.hybrid ?? []) {
+    const usable = symbol.filter((color) => identity.includes(color));
+    const options = usable.length > 0 ? usable : symbol;
+    colored.push(options[options.length - 1]!);
+  }
+
+  /*
+   * The generic part is spread round-robin over the deck's colours rather than
+   * piled onto one, so a two-colour board always has some of each to reach for -
+   * which is what a scenario wants when the card under test is not the only
+   * thing you are asked to pay for on the board.
+   */
+  const spread = identity.length > 0 ? identity : ["G" as Color];
+  const generic = (actual.generic ?? 0) + (extra.generic ?? 0);
+  const filler: Color[] = Array.from({ length: generic }, (_, i) => spread[i % spread.length]!);
+
+  return [...colored, ...filler].map((color) => BASIC_FOR[color]);
 }
 
 function placePermanent(state: GameState, ownerId: string, spec: LabPermanent, placed: CardInstance[]): void {
@@ -310,8 +333,35 @@ function placePermanent(state: GameState, ownerId: string, spec: LabPermanent, p
   placed.push(instance);
 }
 
-function stockLibrary(state: GameState, playerId: string, top: string[]): void {
-  for (const id of [...top, ...LAB_LIBRARY_TAIL]) createCardInstance(state, id, playerId, "library");
+function stockLibrary(state: GameState, playerId: string, top: string[], tail: string[]): void {
+  for (const id of [...top, ...tail]) createCardInstance(state, id, playerId, "library");
+}
+
+/**
+ * One deck the lab can walk: its list, its boards, and the pile under every
+ * library while you walk them.
+ *
+ * The lab was one deck's for as long as there was one real deck. A second means
+ * three things stop being global - the commander every board is built behind,
+ * the basics a derived land base is made of, and what a tutor finds - and each
+ * of them is wrong rather than merely unhelpful when it comes from the other
+ * deck. So a board is opened *in a deck*, and `?deck=` names which.
+ */
+export interface LabDeck {
+  /** URL slug, and the prefix your ticks are filed under. Never change one. */
+  slug: string;
+  /** What it is called on the index page. */
+  name: string;
+  /** One line on what the deck is doing, for the index. */
+  blurb: string;
+  /** The list itself - the same object the deck picker offers. */
+  deck: { commanderId: string; libraryIds: string[] };
+  /** The colours a derived land base is built from. See `landsForCost`. */
+  identity: Color[];
+  /** What sits under the top of every library on this deck's boards. */
+  libraryTail: string[];
+  /** One board per distinct card in the list, in decklist order. */
+  scenarios: LabScenario[];
 }
 
 /**
@@ -327,12 +377,14 @@ function stockLibrary(state: GameState, playerId: string, top: string[]): void {
  * The game opens in your precombat main phase with priority, on turn 1, with no
  * land played yet - so a land is always still available, and so is a sorcery.
  */
-export function createLabGame(scenario: LabScenario): GameState {
+export function createLabGame(scenario: LabScenario, deck: LabDeck): GameState {
   const state = createGameState([LAB_YOU, LAB_OPPONENT], TEST_CARD_DEFINITIONS);
   const you = requirePlayer(state, LAB_YOU);
   const them = requirePlayer(state, LAB_OPPONENT);
 
-  const commander = createCardInstance(state, LAB_COMMANDER, LAB_YOU, "command", { isCommander: true });
+  const commander = createCardInstance(state, deck.deck.commanderId, LAB_YOU, "command", {
+    isCommander: true,
+  });
   if (scenario.commanderInPlay) {
     you.command.pop();
     commander.zone = "battlefield";
@@ -343,7 +395,7 @@ export function createLabGame(scenario: LabScenario): GameState {
   const def = TEST_CARD_DEFINITIONS[scenario.cardId];
   if (!def) throw new Error(`Unknown card under test: ${scenario.cardId}`);
 
-  const lands = scenario.lands ?? landsForCost(def.manaCost, scenario.extraMana);
+  const lands = scenario.lands ?? landsForCost(def.manaCost, scenario.extraMana, deck.identity);
   for (const id of lands) {
     const land = createCardInstance(state, id, LAB_YOU, "battlefield");
     land.summoningSickness = false;
@@ -363,8 +415,8 @@ export function createLabGame(scenario: LabScenario): GameState {
   for (const id of scenario.yourGraveyard ?? []) createCardInstance(state, id, LAB_YOU, "graveyard");
   for (const id of scenario.theirGraveyard ?? []) createCardInstance(state, id, LAB_OPPONENT, "graveyard");
 
-  stockLibrary(state, LAB_YOU, scenario.yourLibraryTop ?? []);
-  stockLibrary(state, LAB_OPPONENT, scenario.theirLibraryTop ?? []);
+  stockLibrary(state, LAB_YOU, scenario.yourLibraryTop ?? [], deck.libraryTail);
+  stockLibrary(state, LAB_OPPONENT, scenario.theirLibraryTop ?? [], deck.libraryTail);
 
   if (scenario.yourLife !== undefined) you.life = scenario.yourLife;
   if (scenario.theirLife !== undefined) them.life = scenario.theirLife;
