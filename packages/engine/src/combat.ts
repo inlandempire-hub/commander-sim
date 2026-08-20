@@ -3,6 +3,7 @@ import { log, requireDefinition, requirePlayer } from "./state.js";
 import { gainLife } from "./life.js";
 import { effectivePower, effectiveToughness, effectiveTriggers, hasKeyword } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
+import { canPayManaCost, payManaCost } from "./mana.js";
 import { describeSubject, fireCombatDamageToPlayer, fireWatchers, pushTrigger } from "./permanents.js";
 
 /**
@@ -135,6 +136,24 @@ export function declareAttackers(state: GameState, playerId: string, declaration
     throw new Error(`${playerId} is not the active player`);
   }
   const player = requirePlayer(state, playerId);
+
+  // Propaganda tax: {2} for each attacker aimed at a defender who controls it,
+  // paid up front. An attacking player who cannot pay simply cannot make that
+  // declaration.
+  let attackTax = 0;
+  for (const { defendingPlayerId } of declarations) {
+    const defender = requirePlayer(state, defendingPlayerId);
+    for (const permanent of defender.battlefield) {
+      attackTax += requireDefinition(state, permanent.definitionId).attackTax ?? 0;
+    }
+  }
+  if (attackTax > 0) {
+    const cost = { generic: attackTax, colors: {} };
+    if (!canPayManaCost(player, cost)) {
+      throw new Error(`${playerId} cannot pay the attack tax of ${attackTax}`);
+    }
+    payManaCost(player, cost);
+  }
 
   for (const { attackerInstanceId, defendingPlayerId } of declarations) {
     const problem = attackProblem(state, playerId, attackerInstanceId);

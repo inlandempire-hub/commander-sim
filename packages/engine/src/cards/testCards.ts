@@ -11165,6 +11165,17 @@ export const DISPEL: CardDefinition = {
   tier: "scripted",
 };
 
+export const PROPAGANDA: CardDefinition = {
+  id: "propaganda",
+  name: "Propaganda",
+  scryfallId: "ac943e31-26bc-4b54-b73f-460e6e402d86",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  attackTax: 2,
+  tier: "scripted",
+};
+
 export const YOU_ARE_ALREADY_DEAD: CardDefinition = {
   id: "you-are-already-dead",
   name: "You Are Already Dead",
@@ -14448,5 +14459,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     CULTIVATE,
     FELIX_FIVE_BOOTS,
     YOU_ARE_ALREADY_DEAD,
+    PROPAGANDA,
   ].map((def) => [def.id, def]),
 );

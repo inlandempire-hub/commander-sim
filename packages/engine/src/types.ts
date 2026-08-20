@@ -1755,6 +1755,13 @@ export interface CardDefinition {
    * does nothing when it resolves. See the `counter` effect in effects.ts.
    */
   cantBeCountered?: boolean;
+  /**
+   * Propaganda: "Creatures can't attack you unless their controller pays {2}
+   * for each creature they control that's attacking you." The generic mana an
+   * attacking player owes per attacker aimed at this permanent's controller;
+   * charged in `declareAttackers`.
+   */
+  attackTax?: number;
   /** Whether this card can legally be someone's commander (legendary creature, or explicitly says so). */
   canBeCommander?: boolean;
   tier: "vanilla" | "scripted" | "weird";
