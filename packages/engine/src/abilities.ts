@@ -4,6 +4,7 @@ import { findInstance, log, moveCard, requireDefinition, requirePlayer } from ".
 import {
   canPayManaCost,
   canPayManaCostFromPool,
+  abilityAvailable,
   colorAllowed,
   payManaCost,
   potentialAvailableMana,
@@ -158,8 +159,14 @@ export function activatableAbilities(
     if (ability.cost.sacrificeSubtype && !sacrificeCandidate(state, playerId, ability.cost.sacrificeSubtype)) {
       return;
     }
-    if (!colorAllowed(state, playerId, ability, instance)) return;
-    if (!sourceCountersAllow(ability, instance)) return;
+    /*
+     * Every reason this ability is unusable that is not about paying for it -
+     * its colour source, its "activate only if", Gemstone Caverns' counter gate.
+     * One function, so the offer, the activation and the auto-tapper cannot come
+     * to three different views.
+     */
+    if (!abilityAvailable(state, playerId, ability, instance)) return;
+
     // "Activate each power-up ability only once." Not offered a second time.
     if (ability.onlyOncePerGame && instance.abilitiesUsedThisGame.includes(index)) return;
     if (!controllerMeets(state, playerId, ability.activateOnlyIf)) return;
@@ -285,20 +292,6 @@ export function abilityModeEffects(ability: ActivatedAbility): Effect[] {
   return ability.effect.kind === "modal" ? ability.effect.modes.map((m) => m.effect) : [ability.effect];
 }
 
-/**
- * "{T}: Add {C}. **If this land has a luck counter on it**, instead add one mana
- * of any color." - Gemstone Caverns.
- *
- * Both polarities, because "instead" means the colourless half stops being
- * available the moment the counter arrives. An ability usable either way would
- * let the land make two mana on one tap.
- */
-function sourceCountersAllow(ability: ActivatedAbility, instance: CardInstance): boolean {
-  if (ability.onlyIfSourceHasCounters === undefined) return true;
-  const has = instance.plusOneCounters + instance.otherCounters > 0;
-  return has === ability.onlyIfSourceHasCounters;
-}
-
 export function activateAbility(
   state: GameState,
   playerId: string,
@@ -359,11 +352,28 @@ export function activateAbility(
   if (manaCost && !canPayManaCost(player, manaCost)) {
     throw new Error(`${playerId} cannot pay the activation cost of ${def.name}`);
   }
+  /*
+   * The same reasons `abilityAvailable` gathers for the offer, asked separately
+   * here so that each one can say *which* it is.
+   *
+   * A single "cannot use that ability right now" would be the same refusal with
+   * the reason taken out, and a rule the player cannot see is indistinguishable
+   * from a bug - which is the whole posture `attackProblem` and `blockProblem`
+   * take. The offer and the auto-tapper only need a yes or no and use the
+   * gathered form; this needs the sentence.
+   */
   if (!colorAllowed(state, playerId, ability, instance)) {
     throw new Error(`${def.name} cannot make that colour in this deck`);
   }
-  if (!sourceCountersAllow(ability, instance)) {
-    throw new Error(`${def.name} cannot use that ability right now`);
+  if (ability.onlyIfSourceHasCounters !== undefined) {
+    const has = instance.plusOneCounters + instance.otherCounters > 0;
+    if (has !== ability.onlyIfSourceHasCounters) {
+      throw new Error(
+        `${def.name} can only use that ability while it has ${
+          ability.onlyIfSourceHasCounters ? "a counter" : "no counter"
+        } on it`,
+      );
+    }
   }
   // "Activate only if you control a Swamp." Checked before anything is paid,
   // and re-checked on every activation rather than remembered - the board this

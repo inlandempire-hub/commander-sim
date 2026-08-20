@@ -1,5 +1,6 @@
 import type { DeckList } from "./commander.js";
 import { BLECH_DECK } from "./cardLab.js";
+import { WINOTA_DECK } from "./winotaDeck.js";
 
 /**
  * Pre-built archetype decks, one per colour, for the bot to pilot and for
@@ -342,6 +343,17 @@ function build(commanderId: string, nonlands: string[], basicLandId: string): De
 }
 
 export const ARCHETYPES: Archetype[] = [
+  {
+    /*
+     * The second real deck here, and the first built the other way round: every
+     * card in it was implemented *because the list wanted it*, over eleven
+     * batches, rather than the list being assembled from what the engine already
+     * had. See ROADMAP.md's "The Winota list".
+     */
+    name: "Winota, Joiner of Forces (Boros hatebears)",
+    plan: "Tax and deny with cheap hate pieces, then attack with non-Humans so Winota drags free Humans off the top of the library.",
+    deck: WINOTA_DECK,
+  },
   {
     name: "Radiant Ranks (mono-white)",
     plan: "Flood the board with small creatures and tokens, then pump the whole team with Glorious Anthem.",

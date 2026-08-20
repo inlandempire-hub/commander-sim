@@ -168,6 +168,30 @@ export function blockProblem(
   blockerInstanceId: string,
   attackerInstanceId: string,
 ): string | null {
+  // The one check that is about this *declaration* rather than about the two
+  // creatures - see `blockWouldBeIllegal`, which is the rest of it.
+  if (!(attackerInstanceId in state.attackers)) return "That creature is not attacking";
+  return blockWouldBeIllegal(state, playerId, blockerInstanceId, attackerInstanceId);
+}
+
+/**
+ * Why this creature could never block that one, or null if it could.
+ *
+ * The same question `blockProblem` answers, minus the one part of it that is
+ * about the current combat: whether the attacker has actually been declared.
+ *
+ * That distinction is the whole reason this exists. The bot asks "could this be
+ * blocked?" while deciding what to *attack with* - before anything is declared -
+ * and asking `blockProblem` there says "that creature is not attacking" about
+ * every creature on the table, which reads as "nothing can block" and turns the
+ * bot into one that attacks into anything.
+ */
+export function blockWouldBeIllegal(
+  state: GameState,
+  playerId: string,
+  blockerInstanceId: string,
+  attackerInstanceId: string,
+): string | null {
   const player = requirePlayer(state, playerId);
   const blocker = player.battlefield.find((c) => c.instanceId === blockerInstanceId);
   if (!blocker) return "That creature is not on your battlefield";
@@ -177,7 +201,6 @@ export function blockProblem(
   // of Defender, which is the same restriction pointed the other way.
   if (blockerDef.cantBlock) return `${blockerDef.name} can't block`;
   if (blocker.tapped) return `${blockerDef.name} is tapped and cannot block`;
-  if (!(attackerInstanceId in state.attackers)) return "That creature is not attacking";
 
   /*
    * "...can't be blocked by creatures with that quality." Protection on the

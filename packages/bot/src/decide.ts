@@ -3,6 +3,7 @@ import { activateRestrictionProblem, qualitiesOf, staticBuffsOf } from "@mtg-com
 import type { ProtectionQuality } from "@mtg-commander-sim/engine";
 import {
   abilityAvailable,
+  activatableAbilities,
   isValidTarget,
   legalTargetsFor,
   targetCountOf,
@@ -645,7 +646,23 @@ function useValueAbility(state: GameState, me: Player): BotAction | null {
     if (!def) continue;
     if (def.types.includes("Creature") && instance.summoningSickness) continue;
 
-    const abilityIndex = def.activatedAbilities?.findIndex((ability) => {
+    /*
+     * Which of this permanent's abilities the *engine* would allow right now.
+     *
+     * Asked rather than re-derived, and that is the whole of this fix: the bot
+     * used to check a subset of the engine's conditions by hand, so an ability
+     * whose cost it did not know about - "Sacrifice a Treasure" with no Treasure
+     * out - was proposed and refused, which in a bot game is a dead game rather
+     * than a misplay.
+     *
+     * The preferences below are still the bot's own: what it *may* do and what
+     * it *wants* to do are different questions, and only the first belongs to
+     * the engine.
+     */
+    const allowed = new Set(activatableAbilities(state, me.id, instance.instanceId));
+
+    const abilityIndex = def.activatedAbilities?.findIndex((ability, index) => {
+      if (!allowed.has(index)) return false;
       // Mana is tapped for on demand, not speculatively - either shape of it.
       if (ability.effect.kind === "addMana") return false;
       if (ability.effect.kind === "addManaCombination") return false;

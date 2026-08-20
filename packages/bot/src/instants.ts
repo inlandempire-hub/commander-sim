@@ -77,7 +77,9 @@ function diesInFight(
 }
 
 function counterspellsInHand(state: GameState, me: Player): Castable[] {
-  return castableFromHand(state, me, (def) => def.castEffect?.kind === "counter").sort(
+  // Not `nowOnly`: a reserve is mana held for a spell that cannot be cast yet,
+  // which is the whole point of reserving it.
+  return castableFromHand(state, me, (def) => def.castEffect?.kind === "counter", NO_COST, false).sort(
     (a, b) => manaValue(a.cost) - manaValue(b.cost),
   );
 }

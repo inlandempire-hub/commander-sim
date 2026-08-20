@@ -8,8 +8,8 @@ import {
   nextSourceToTap,
 } from "./mana.js";
 import { activateAbility } from "./abilities.js";
-import { castSpell, type CastOptions } from "./casting.js";
 import { costWithX } from "./x.js";
+import { canCastAtSorcerySpeed, castSpell, type CastOptions } from "./casting.js";
 
 /**
  * Tapping lands to pay for a spell.
@@ -134,14 +134,30 @@ function withAutoTap(
   state: GameState,
   playerId: string,
   cost: ManaCost,
-  action: () => void,
+  action: (tappingBrokeTheWindow: boolean) => void,
   excludeInstanceId?: string,
 ): void {
   const player = requirePlayer(state, playerId);
   const poolBefore = { ...player.manaPool };
+  /*
+   * Whether this was a sorcery-speed window **before** any mana was made.
+   *
+   * Tapping for mana can put something on the stack: City of Brass and Mana
+   * Confluence both hurt you when they become tapped, and a trigger on the stack
+   * is not an empty one - so paying for a creature spell with a painland made
+   * the very spell it was paying for illegal, and the engine refused a cast it
+   * had just taken the mana for.
+   *
+   * The real rules have no such problem: mana abilities are activated *during*
+   * casting, after the spell is announced, and the trigger goes on the stack
+   * above it. This engine taps first, so the window is measured first and handed
+   * to the action - which is the same answer the rules give.
+   */
+  const sorcerySpeedBefore = canCastAtSorcerySpeed(state, playerId);
+  const stackBefore = state.stack.length;
   const { tappedInstanceIds } = tapSourcesFor(state, playerId, cost, excludeInstanceId);
   try {
-    action();
+    action(sorcerySpeedBefore && state.stack.length > stackBefore);
   } catch (err) {
     for (const instanceId of tappedInstanceIds) {
       const found = findInstance(state, instanceId);
@@ -168,7 +184,14 @@ export function castSpellWithAutoTap(
   options: CastOptions = {},
 ): void {
   const cost = castingCostOf(state, playerId, instanceId, options.fromCommandZone, options.chosenX ?? 0);
-  withAutoTap(state, playerId, cost, () => castSpell(state, playerId, instanceId, targets, options));
+  withAutoTap(state, playerId, cost, (tappingBrokeTheWindow) =>
+    castSpell(state, playerId, instanceId, targets, {
+      ...options,
+      // Only when the *tapping itself* closed the window that was open a moment
+      // ago - never a blanket exemption.
+      ignoreTiming: options.ignoreTiming || tappingBrokeTheWindow,
+    }),
+  );
 }
 
 /** The same convenience for an activated ability that costs mana (not just a tap). */
@@ -185,7 +208,7 @@ export function activateAbilityWithAutoTap(
   const ability = found
     ? requireDefinition(state, found.instance.definitionId).activatedAbilities?.[abilityIndex]
     : undefined;
-  const run = () => activateAbility(state, playerId, instanceId, abilityIndex, targets, chosenMode);
+  const run = (): void => activateAbility(state, playerId, instanceId, abilityIndex, targets, chosenMode);
   if (!ability?.cost.mana) {
     run();
     return;

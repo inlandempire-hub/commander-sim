@@ -1,4 +1,4 @@
-import { castRestrictionProblem } from "@mtg-commander-sim/engine";
+import { canPlayCardNow, castRestrictionProblem } from "@mtg-commander-sim/engine";
 import {
   affordableXValues,
   applyCommanderTax,
@@ -43,6 +43,15 @@ export function castableFromHand(
   filter: (def: CardDefinition) => boolean,
   /** Mana that must still be payable afterwards - see reserveForCounterspell. */
   reserve: ManaCost = NO_COST,
+  /**
+   * Whether the card has to be castable *right now*.
+   *
+   * True for every caller that is about to cast something. False for
+   * `reserveForCounterspell`, which is the opposite question: how much mana to
+   * hold back for a spell it explicitly cannot cast yet. Filtering that by "can
+   * I cast it this instant" reserved nothing, ever.
+   */
+  nowOnly = true,
 ): Castable[] {
   return me.hand
     .map((instance) => ({ instance, definition: definitionOf(state, instance) }))
@@ -69,6 +78,17 @@ export function castableFromHand(
      * reason: it is a question about whether the spell can be cast at all.
      */
     .filter((c) => castRestrictionProblem(state, me.id, c.definition, "hand") === undefined)
+    /*
+     * **Timing.** A creature cannot be cast in a combat step, and the engine
+     * throws rather than declining - so a bot that did not ask would propose an
+     * illegal action every time it held an instant window open with a creature
+     * in hand.
+     *
+     * `canPlayCardNow` is the engine's own answer, and the same one the client
+     * lights cards up with, so the bot cannot come to a different view of what
+     * is playable than the game will accept.
+     */
+    .filter((c) => !nowOnly || canPlayCardNow(state, me.id, c.instance.instanceId))
     .filter(
       (c) =>
         // A free alternative cost is affordable whatever the pool holds.
@@ -93,6 +113,12 @@ export function castableCommander(state: GameState, me: Player, reserve: ManaCos
   // most of what the card does - and the commander is exactly the spell a bot
   // reaches for first.
   if (castRestrictionProblem(state, me.id, definition, "command") !== undefined) return null;
+  /*
+   * And the timing, which the command zone needs as much as the hand does: a
+   * commander is a creature spell in this format and cannot be cast in a combat
+   * step. Same question, same answer, same function.
+   */
+  if (!canPlayCardNow(state, me.id, commander.instanceId)) return null;
   return { instance: commander, definition, cost, fromCommandZone: true };
 }
 

@@ -16,6 +16,7 @@ import type {
 import { ALL_COLORS } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
 import { cardColors, controllerMeets } from "./conditions.js";
+import { typesOf } from "./counters.js";
 
 export function manaValue(cost: ManaCost): number {
   const pips = ALL_COLORS.reduce((sum, c) => sum + (cost.colors[c] ?? 0), 0);
@@ -547,6 +548,21 @@ export function abilityAvailable(
   source?: CardInstance,
 ): boolean {
   if (!colorAllowed(state, playerId, ability, source)) return false;
+  /*
+   * "If this land has a luck counter on it, instead ..." - Gemstone Caverns,
+   * whose one printed line is six abilities, and only some of them are usable at
+   * any moment.
+   *
+   * Here rather than only in `activatableAbilities`, because this is the
+   * function whose whole job is "every reason an ability might not be
+   * activatable that has nothing to do with paying for it" - and the auto-tapper
+   * asks it too. Taught to one caller and not the others, the bot tapped a
+   * Gemstone Caverns for a colour it could not make and the engine refused.
+   */
+  if (source && ability.onlyIfSourceHasCounters !== undefined) {
+    const has = source.plusOneCounters + source.otherCounters > 0;
+    if (has !== ability.onlyIfSourceHasCounters) return false;
+  }
   return controllerMeets(state, playerId, ability.activateOnlyIf);
 }
 
@@ -633,8 +649,15 @@ export function manaSources(
     if (instance.instanceId === excludeInstanceId) continue;
     const def = state.cardDefinitions[instance.definitionId];
     if (!def) continue;
-    // Summoning-sick creatures can't use tap abilities, but lands always can.
-    if (def.types.includes("Creature") && instance.summoningSickness) continue;
+    /*
+     * Summoning-sick creatures can't use tap abilities, but lands always can.
+     *
+     * `typesOf`, not `def.types` - an animated Inkmoth Nexus *is* a creature
+     * this turn and its printed type line says only "Land". Read off the card,
+     * this offered a sick Nexus as a mana source and the engine then refused it,
+     * which in a bot game is a dead game rather than a misplay.
+     */
+    if (typesOf(state, instance).includes("Creature") && instance.summoningSickness) continue;
     def.activatedAbilities?.forEach((ability, abilityIndex) => {
       // Anything with a further cost - mana, life, sacrificing itself - is
       // not a source auto-tap may spend on your behalf. Tapping a fetchland to

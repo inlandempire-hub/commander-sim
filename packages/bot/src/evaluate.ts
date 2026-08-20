@@ -6,6 +6,8 @@ import {
   type Amount,
   type CardDefinition,
   type Effect,
+  attackProblem,
+  blockWouldBeIllegal,
   type CardInstance,
   type GameState,
   type Player,
@@ -139,20 +141,30 @@ export function wouldDie(
 
 /** Whether `blocker` is legally able to block `attacker` - the Flying/Reach rule. Menace needs two blockers and is handled where blocks are grouped, not here. */
 export function canBlock(state: GameState, blocker: CardInstance, attacker: CardInstance): boolean {
-  if (blocker.tapped) return false;
-  if (!isCreature(state, blocker)) return false;
-  if (!hasKeyword(state, attacker, "Flying")) return true;
-  return hasKeyword(state, blocker, "Flying") || hasKeyword(state, blocker, "Reach");
+  /*
+   * Asked of the engine rather than re-derived.
+   *
+   * This used to check flying and nothing else, which was true of every evasive
+   * creature in the demo decks and quietly wrong about the six that arrived
+   * since: protection, Signal Pest's printed restriction, Gingerbrute's granted
+   * one, Skrelv's colour restriction, "this creature can't block", and The Ring
+   * naming a power. A bot that thinks a block is legal and gets refused is a
+   * dead game rather than a misplay, and only a real deck ever finds it.
+   *
+   * `blockWouldBeIllegal` rather than `blockProblem`, because the bot asks this
+   * while deciding what to *attack with* - before anything is declared - and
+   * the second would answer "that creature is not attacking" about the whole
+   * table. Menace is in neither: it is a restriction on the whole declaration
+   * rather than on any one pairing.
+   */
+  return blockWouldBeIllegal(state, blocker.controllerId, blocker.instanceId, attacker.instanceId) === null;
 }
 
 /** Creatures that could legally be declared as attackers right now. */
 export function eligibleAttackers(state: GameState, player: Player): CardInstance[] {
-  return creaturesOf(state, player).filter((c) => {
-    if (c.tapped) return false;
-    if (hasKeyword(state, c, "Defender")) return false;
-    if (c.summoningSickness && !hasKeyword(state, c, "Haste")) return false;
-    return true;
-  });
+  // Likewise the engine's own answer - `attackProblem` is the function the
+  // client's highlight and the engine's refusal both already use.
+  return player.battlefield.filter((c) => attackProblem(state, player.id, c.instanceId) === null);
 }
 
 export function untappedCreatures(state: GameState, player: Player): CardInstance[] {
