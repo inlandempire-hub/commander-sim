@@ -33,7 +33,7 @@ export type ClientMessage =
       sacrificeInstanceId?: string;
       useAlternativeCost?: boolean;
     }
-  | { type: "activateAbility"; instanceId: string; abilityIndex: number; targets?: StackTarget[] }
+  | { type: "activateAbility"; instanceId: string; abilityIndex: number; targets?: StackTarget[]; chosenMode?: number }
   | { type: "declareAttackers"; declarations: AttackerDeclaration[] }
   | { type: "declareBlockers"; declarations: BlockerDeclaration[] }
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */

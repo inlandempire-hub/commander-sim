@@ -91,8 +91,8 @@ export function useLocalGameController({
     // turns out to be illegal. Clicking a card you can afford just plays it.
     castSpell: (playerId, instanceId, targets = [], options = {}) =>
       act((s) => castSpellWithAutoTap(s, playerId, instanceId, targets, options)),
-    activateAbility: (playerId, instanceId, abilityIndex, targets = []) =>
-      act((s) => activateAbilityWithAutoTap(s, playerId, instanceId, abilityIndex, targets)),
+    activateAbility: (playerId, instanceId, abilityIndex, targets = [], chosenMode) =>
+      act((s) => activateAbilityWithAutoTap(s, playerId, instanceId, abilityIndex, targets, chosenMode)),
     declareAttackers: (playerId, declarations) => act((s) => declareAttackers(s, playerId, declarations)),
     declareBlockers: (playerId, declarations) => act((s) => declareBlockers(s, playerId, declarations)),
     resolveSearch: (playerId, instanceId) => act((s) => resolveSearch(s, playerId, instanceId)),

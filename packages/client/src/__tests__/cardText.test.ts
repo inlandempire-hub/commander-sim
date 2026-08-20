@@ -1070,3 +1070,19 @@ describe("batch 10", () => {
     expect(text).toContain("Vampire");
   });
 });
+
+describe("batch 10, tranche two", () => {
+  it("says what Chrome Mox may imprint and what it then taps for", () => {
+    const text = textOf("chrome-mox");
+    expect(text).toContain("nonartifact, nonland card from your hand");
+    expect(text).toContain("exiled card's colours");
+  });
+
+  it("prints both of Goblin Cratermaker's bullets", () => {
+    const text = textOf("goblin-cratermaker");
+    expect(text).toContain("2 damage to target creature");
+    // Both conditions, because neither implies the other.
+    expect(text).toContain("colorless");
+    expect(text).toContain("nonland");
+  });
+});

@@ -178,12 +178,14 @@ export function activateAbilityWithAutoTap(
   instanceId: string,
   abilityIndex: number,
   targets: StackTarget[] = [],
+  /** "Choose one -" on an ability, carried through untouched. */
+  chosenMode?: number,
 ): void {
   const found = findInstance(state, instanceId);
   const ability = found
     ? requireDefinition(state, found.instance.definitionId).activatedAbilities?.[abilityIndex]
     : undefined;
-  const run = () => activateAbility(state, playerId, instanceId, abilityIndex, targets);
+  const run = () => activateAbility(state, playerId, instanceId, abilityIndex, targets, chosenMode);
   if (!ability?.cost.mana) {
     run();
     return;

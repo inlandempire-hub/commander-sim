@@ -190,8 +190,16 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
   const [selectedBlockerSourceId, setSelectedBlockerSourceId] = useState<string | null>(null);
   const [blockerAssignments, setBlockerAssignments] = useState<Record<string, string>>({});
   const [hovered, setHovered] = useState<HoveredCard | null>(null);
-  /** A modal spell waiting on you to choose which mode you're casting. */
-  const [pendingMode, setPendingMode] = useState<{ ownerId: string; instanceId: string } | null>(null);
+  /**
+   * A modal spell - or a modal *ability* - waiting on you to choose which half.
+   *
+   * `abilityIndex` is what tells the two apart: absent means a card in hand
+   * being cast, present means a permanent's ability being activated. One picker
+   * rather than two, because it is one question.
+   */
+  const [pendingMode, setPendingMode] = useState<
+    { ownerId: string; instanceId: string; abilityIndex?: number } | null
+  >(null);
   /** A spell with {X} in its cost, waiting on a value. Asked before targets, like a mode. */
   const [pendingX, setPendingX] = useState<{ ownerId: string; instanceId: string } | null>(null);
   /**
@@ -588,12 +596,22 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
 
   const modeCardDefinition = pendingMode
     ? state.cardDefinitions[
-        state.players
-          .find((p) => p.id === pendingMode.ownerId)
-          ?.hand.find((c) => c.instanceId === pendingMode.instanceId)?.definitionId ?? ""
+        (() => {
+          const owner = state.players.find((p) => p.id === pendingMode.ownerId);
+          // A modal ability is on a permanent, not in a hand - so both zones are
+          // searched, in the order the two cases arise.
+          const held = owner?.hand.find((c) => c.instanceId === pendingMode.instanceId);
+          const inPlay = owner?.battlefield.find((c) => c.instanceId === pendingMode.instanceId);
+          return (held ?? inPlay)?.definitionId ?? "";
+        })()
       ]
     : undefined;
-  const modeOptions = modeCardDefinition ? modesOf(modeCardDefinition) : undefined;
+  const modeOptions = (() => {
+    if (!modeCardDefinition) return undefined;
+    if (pendingMode?.abilityIndex === undefined) return modesOf(modeCardDefinition);
+    const ability = modeCardDefinition.activatedAbilities?.[pendingMode.abilityIndex];
+    return ability?.effect.kind === "modal" ? ability.effect.modes : undefined;
+  })();
   const modeCardName = modeCardDefinition?.name ?? "";
 
   const xCardDefinition = pendingX
@@ -848,7 +866,13 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     if (pendingTarget) {
       const { ownerId: casterId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
       if (kind === "ability") {
-        controller.activateAbility(casterId, sourceInstanceId, abilityIndex ?? 0, [{ kind: "card", instanceId }]);
+        controller.activateAbility(
+          casterId,
+          sourceInstanceId,
+          abilityIndex ?? 0,
+          [{ kind: "card", instanceId }],
+          pendingTarget.chosenMode,
+        );
       } else {
         finishCast(casterId, sourceInstanceId, [{ kind: "card", instanceId }], {
           chosenMode: pendingTarget.chosenMode,
@@ -973,6 +997,15 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     const ability = def?.activatedAbilities?.[abilityIndex];
     if (!ability || !def) return;
 
+    /*
+     * "Choose one -" comes before the target, exactly as it does for a spell:
+     * the legal targets are different under each bullet, so asking the other way
+     * round would offer targets the chosen half cannot use.
+     */
+    if (ability.effect.kind === "modal") {
+      setPendingMode({ ownerId, instanceId, abilityIndex });
+      return;
+    }
     const abilitySelector = targetSelectorOf(ability.effect);
     if (abilitySelector) {
       const forced = soleLegalTarget(state!, abilitySelector, ownerId);
@@ -1017,7 +1050,7 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     const { ownerId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
     const target = { kind: "card" as const, instanceId };
     if (kind === "ability") {
-      controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target]);
+      controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target], pendingTarget.chosenMode);
     } else {
       finishCast(ownerId, sourceInstanceId, [target], {
         chosenMode: pendingTarget.chosenMode,
@@ -1033,7 +1066,7 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     const { ownerId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
     const target = { kind: "spell" as const, stackObjectId };
     if (kind === "ability") {
-      controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target]);
+      controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [target], pendingTarget.chosenMode);
     } else {
       finishCast(ownerId, sourceInstanceId, [target], {
         chosenMode: pendingTarget.chosenMode,
@@ -1051,7 +1084,13 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     if (!pendingTarget) return;
     const { ownerId, sourceInstanceId, kind, abilityIndex } = pendingTarget;
     if (kind === "ability") {
-      controller.activateAbility(ownerId, sourceInstanceId, abilityIndex ?? 0, [{ kind: "player", playerId }]);
+      controller.activateAbility(
+        ownerId,
+        sourceInstanceId,
+        abilityIndex ?? 0,
+        [{ kind: "player", playerId }],
+        pendingTarget.chosenMode,
+      );
     } else {
       finishCast(ownerId, sourceInstanceId, [{ kind: "player", playerId }], {
         chosenMode: pendingTarget.chosenMode,
@@ -1118,14 +1157,41 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
 
   function handleModeChosen(index: number) {
     if (!pendingMode) return;
-    const { ownerId, instanceId } = pendingMode;
+    const { ownerId, instanceId, abilityIndex } = pendingMode;
     const owner = state!.players.find((p) => p.id === ownerId)!;
-    const instance = owner.hand.find((c) => c.instanceId === instanceId);
+    const instance =
+      owner.hand.find((c) => c.instanceId === instanceId) ??
+      owner.battlefield.find((c) => c.instanceId === instanceId);
     const def = instance ? state!.cardDefinitions[instance.definitionId] : undefined;
-    const modes = def ? modesOf(def) : undefined;
+    const abilityEffect =
+      abilityIndex !== undefined ? def?.activatedAbilities?.[abilityIndex]?.effect : undefined;
+    const modes =
+      abilityEffect?.kind === "modal" ? abilityEffect.modes : def ? modesOf(def) : undefined;
     const mode = modes?.[index];
     setPendingMode(null);
     if (!def || !mode) return;
+
+    /*
+     * An ability's chosen half, which activates rather than casts - and carries
+     * the mode alongside the targets, because the engine settles it before
+     * anything is paid for.
+     */
+    if (abilityIndex !== undefined) {
+      if (targetSelectorOf(mode.effect)) {
+        setPendingTarget({
+          ownerId,
+          sourceInstanceId: instanceId,
+          cardName: def.name,
+          effect: mode.effect,
+          kind: "ability",
+          abilityIndex,
+          chosenMode: index,
+        });
+        return;
+      }
+      controller.activateAbility(ownerId, instanceId, abilityIndex, [], index);
+      return;
+    }
 
     if (targetSelectorOf(mode.effect)) {
       setPendingTarget({

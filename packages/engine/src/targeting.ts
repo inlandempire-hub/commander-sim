@@ -129,6 +129,16 @@ export function isValidTarget(
       // of a remembered list, so a creature taken out of combat stops being one.
       // "Destroy target **blue** permanent" - Red Elemental Blast.
       if (selector.color && !cardColors(def).includes(selector.color)) return false;
+      /*
+       * "target **colorless nonland** permanent" - Goblin Cratermaker.
+       *
+       * Colour off the mana cost, like everything else here: a Sol Ring is
+       * colourless because it costs {1}, and a Forest is colourless for the same
+       * reason - which is exactly why the card says nonland too. Two conditions
+       * rather than one, because neither implies the other.
+       */
+      if (selector.colorless && cardColors(def).length > 0) return false;
+      if (selector.nonland && def.types.includes("Land")) return false;
       if (selector.attacking && state.attackers[found.instance.instanceId] === undefined) return false;
       // "attacking **or blocking**" - Eiganjo. Either map will do.
       if (

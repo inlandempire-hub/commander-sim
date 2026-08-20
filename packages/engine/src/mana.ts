@@ -14,7 +14,7 @@ import type {
   RestrictedMana,
 } from "./types.js";
 import { ALL_COLORS } from "./types.js";
-import { requireDefinition, requirePlayer } from "./state.js";
+import { findInstance, requireDefinition, requirePlayer } from "./state.js";
 import { cardColors, controllerMeets } from "./conditions.js";
 
 export function manaValue(cost: ManaCost): number {
@@ -432,10 +432,37 @@ export function yourLegendaryPermanentColors(state: GameState, playerId: string)
  * Whether this ability may be activated at all right now, as far as the colour
  * it makes is concerned. Only the "any colour, but..." family is ever narrowed.
  */
+/**
+ * "...of any of **the exiled card's** colors." - Chrome Mox.
+ *
+ * The colours of the card this particular permanent imprinted, read off the
+ * card in exile every time rather than copied onto the Mox. A Mox that
+ * imprinted nothing produces nothing, which is not an edge case: it is what
+ * happens whenever the card is played off a hand with nothing spare, and it is
+ * why the card is a gamble rather than a Sol Ring.
+ */
+function imprintedCardColors(state: GameState, source: CardInstance | undefined): Color[] {
+  const imprinted = source?.imprintedInstanceId;
+  if (!imprinted) return [];
+  const found = findInstance(state, imprinted);
+  if (!found) return [];
+  return cardColors(requireDefinition(state, found.instance.definitionId));
+}
+
 export function colorAllowed(
   state: GameState,
   playerId: string,
   ability: ActivatedAbility,
+  /**
+   * The permanent whose ability this is.
+   *
+   * Every other colour source is a question about the board or about the deck,
+   * and needs no such thing. Chrome Mox's is a question about *this* Mox, and
+   * two of them side by side can tap for different colours - so an answer given
+   * without the permanent would have to be the same for both, and would be
+   * wrong for at least one.
+   */
+  source?: CardInstance,
 ): boolean {
   if (!ability.colorFrom) return true;
   if (ability.effect.kind !== "addMana") return true;
@@ -446,7 +473,9 @@ export function colorAllowed(
       ? commanderColorIdentity(state, playerId)
       : ability.colorFrom === "your-legendary-permanents"
         ? yourLegendaryPermanentColors(state, playerId)
-        : opponentLandColors(state, playerId);
+        : ability.colorFrom === "imprinted-card"
+          ? imprintedCardColors(state, source)
+          : opponentLandColors(state, playerId);
   return available.includes(color);
 }
 
@@ -466,8 +495,10 @@ export function abilityAvailable(
   state: GameState,
   playerId: string,
   ability: ActivatedAbility,
+  /** The permanent asking - only Chrome Mox's colour source needs it. */
+  source?: CardInstance,
 ): boolean {
-  if (!colorAllowed(state, playerId, ability)) return false;
+  if (!colorAllowed(state, playerId, ability, source)) return false;
   return controllerMeets(state, playerId, ability.activateOnlyIf);
 }
 
@@ -505,7 +536,7 @@ export function potentialAvailableMana(state: GameState, playerId: string): Mana
     if (def.types.includes("Creature") && instance.summoningSickness) continue;
     for (const ability of def.activatedAbilities ?? []) {
       if (!isFreeManaAbility(ability)) continue;
-      if (!abilityAvailable(state, playerId, ability)) continue;
+      if (!abilityAvailable(state, playerId, ability, instance)) continue;
       addMana(pool, ability.effect.color, ability.effect.amount);
     }
   }
@@ -565,7 +596,7 @@ export function manaSources(
       // allow are real sources. Tapping it for white in a Golgari deck is not
       // the card. Same gate covers "activate only if you control a Swamp" -
       // Tainted Wood makes no coloured mana at all until a Swamp is out.
-      if (!abilityAvailable(state, player.id, ability)) return;
+      if (!abilityAvailable(state, player.id, ability, instance)) return;
       sources.push({
         instance,
         abilityIndex,

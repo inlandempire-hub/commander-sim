@@ -4,8 +4,9 @@ import { createCardInstance, moveCard, requirePlayer } from "../state.js";
 import { enteredBattlefield, putOntoBattlefield } from "../permanents.js";
 import { resolveTopOfStack, resolveConfirmation } from "../stack.js";
 import { advanceStep } from "../turn.js";
-import { applyEffect } from "../effects.js";
+import { applyEffect, resolveCardChoice } from "../effects.js";
 import { playLand } from "../casting.js";
+import { activatableAbilities, activateAbility } from "../abilities.js";
 import { hasKeyword } from "../counters.js";
 import type { CardInstance, GameState } from "../types.js";
 
@@ -231,5 +232,167 @@ describe("Charismatic Conqueror", () => {
     settle(state);
 
     expect(state.pendingConfirmation).toBeNull();
+  });
+});
+
+/**
+ * Chrome Mox - and the reason the colour question had to learn which permanent
+ * was asking: two of them can imprint different cards.
+ */
+describe("Chrome Mox", () => {
+  it("offers the cards it may imprint, and not the ones it may not", () => {
+    const { state, me } = game();
+    createCardInstance(state, "lightning-bolt", me, "hand");
+    createCardInstance(state, "sol-ring", me, "hand"); // artifact
+    createCardInstance(state, "mountain", me, "hand"); // land
+    const mox = createCardInstance(state, "chrome-mox", me, "hand");
+    putOntoBattlefield(state, mox.instanceId);
+    settle(state);
+
+    const pending = state.pendingCardChoices[0]!;
+    expect(pending.min).toBe(0); // "you **may**"
+    const offered = pending.candidateInstanceIds.map(
+      (id) => state.cardDefinitions[requirePlayer(state, me).hand.find((c) => c.instanceId === id)!.definitionId]!.name,
+    );
+    expect(offered).toEqual(["Lightning Bolt"]);
+  });
+
+  it("taps for the imprinted card's colour and nothing else", () => {
+    const { state, me } = game();
+    const bolt = createCardInstance(state, "lightning-bolt", me, "hand");
+    const mox = createCardInstance(state, "chrome-mox", me, "hand");
+    putOntoBattlefield(state, mox.instanceId);
+    settle(state);
+    resolveCardChoice(state, me, [bolt.instanceId]);
+
+    expect(bolt.zone).toBe("exile");
+    expect(mox.imprintedInstanceId).toBe(bolt.instanceId);
+    // Red, because Lightning Bolt is red - and nothing else.
+    const abilities = activatableAbilities(state, me, mox.instanceId);
+    const colours = abilities.map(
+      (i) => (state.cardDefinitions["chrome-mox"]!.activatedAbilities![i]!.effect as { color: string }).color,
+    );
+    expect(colours).toEqual(["R"]);
+  });
+
+  it("taps for nothing at all when it imprinted nothing", () => {
+    const { state, me } = game();
+    createCardInstance(state, "lightning-bolt", me, "hand");
+    const mox = createCardInstance(state, "chrome-mox", me, "hand");
+    putOntoBattlefield(state, mox.instanceId);
+    settle(state);
+    // Declining is a real answer, and it is what makes the card a gamble.
+    resolveCardChoice(state, me, []);
+
+    expect(mox.imprintedInstanceId).toBeUndefined();
+    expect(activatableAbilities(state, me, mox.instanceId)).toHaveLength(0);
+  });
+
+  it("does not ask at all with nothing eligible in hand", () => {
+    const { state, me } = game();
+    createCardInstance(state, "mountain", me, "hand");
+    const mox = createCardInstance(state, "chrome-mox", me, "hand");
+    putOntoBattlefield(state, mox.instanceId);
+    settle(state);
+
+    expect(state.pendingCardChoices).toHaveLength(0);
+  });
+
+  it("two of them can tap for two different colours", () => {
+    const { state, me } = game();
+    const bolt = createCardInstance(state, "lightning-bolt", me, "hand");
+    const swords = createCardInstance(state, "swords-to-plowshares", me, "hand");
+    const first = createCardInstance(state, "chrome-mox", me, "hand");
+    putOntoBattlefield(state, first.instanceId);
+    settle(state);
+    resolveCardChoice(state, me, [bolt.instanceId]);
+
+    const second = createCardInstance(state, "chrome-mox", me, "hand");
+    putOntoBattlefield(state, second.instanceId);
+    settle(state);
+    resolveCardChoice(state, me, [swords.instanceId]);
+
+    const colourOf = (mox: CardInstance): string[] =>
+      activatableAbilities(state, me, mox.instanceId).map(
+        (i) => (state.cardDefinitions["chrome-mox"]!.activatedAbilities![i]!.effect as { color: string }).color,
+      );
+    // The whole reason `colorAllowed` had to take the permanent: nothing about
+    // their controller tells these two apart.
+    expect(colourOf(first)).toEqual(["R"]);
+    expect(colourOf(second)).toEqual(["W"]);
+  });
+});
+
+/**
+ * Goblin Cratermaker - the first activated ability in the pool with bullets.
+ */
+describe("Goblin Cratermaker", () => {
+  it("refuses to be activated without a mode", () => {
+    const { state, me, them } = game();
+    const maker = put(state, "goblin-cratermaker", me);
+    put(state, "grizzly-bears", them);
+    requirePlayer(state, me).manaPool.generic = 1;
+
+    expect(() => activateAbility(state, me, maker.instanceId, 0, [])).toThrow(/mode/);
+  });
+
+  it("shoots a creature for 2 on its first mode", () => {
+    const { state, me, them } = game();
+    const maker = put(state, "goblin-cratermaker", me);
+    const bear = put(state, "grizzly-bears", them);
+    requirePlayer(state, me).manaPool.generic = 1;
+
+    activateAbility(state, me, maker.instanceId, 0, [{ kind: "card", instanceId: bear.instanceId }], 0);
+    settle(state);
+
+    // The Cratermaker is already in the graveyard - the sacrifice is a cost -
+    // and the damage happens anyway.
+    expect(maker.zone).toBe("graveyard");
+    expect(bear.damageMarked).toBe(2);
+  });
+
+  it("destroys a colourless nonland permanent on its second", () => {
+    const { state, me, them } = game();
+    const maker = put(state, "goblin-cratermaker", me);
+    const ring = put(state, "sol-ring", them);
+    requirePlayer(state, me).manaPool.generic = 1;
+
+    activateAbility(state, me, maker.instanceId, 0, [{ kind: "card", instanceId: ring.instanceId }], 1);
+    settle(state);
+
+    expect(ring.zone).toBe("graveyard");
+  });
+
+  it("cannot point its second mode at a coloured permanent", () => {
+    const { state, me, them } = game();
+    const maker = put(state, "goblin-cratermaker", me);
+    const bear = put(state, "grizzly-bears", them); // {1}{G}, so green
+    requirePlayer(state, me).manaPool.generic = 1;
+
+    expect(() =>
+      activateAbility(state, me, maker.instanceId, 0, [{ kind: "card", instanceId: bear.instanceId }], 1),
+    ).toThrow();
+  });
+
+  it("cannot point its second mode at a land, colourless though it is", () => {
+    const { state, me, them } = game();
+    const maker = put(state, "goblin-cratermaker", me);
+    const mountain = put(state, "mountain", them);
+    requirePlayer(state, me).manaPool.generic = 1;
+
+    // "colorless **nonland**" - two conditions, and neither implies the other.
+    expect(() =>
+      activateAbility(state, me, maker.instanceId, 0, [{ kind: "card", instanceId: mountain.instanceId }], 1),
+    ).toThrow();
+  });
+
+  it("is offered while either half has a target", () => {
+    const { state, me, them } = game();
+    const maker = put(state, "goblin-cratermaker", me);
+    // A creature to shoot, but nothing colourless to destroy.
+    put(state, "grizzly-bears", them);
+    requirePlayer(state, me).manaPool.generic = 1;
+
+    expect(activatableAbilities(state, me, maker.instanceId)).toEqual([0]);
   });
 });

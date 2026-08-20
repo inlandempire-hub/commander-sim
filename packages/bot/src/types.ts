@@ -28,7 +28,7 @@ export type BotAction =
       /** "You may cast this spell without paying its mana cost." */
       useAlternativeCost?: boolean;
     }
-  | { kind: "activateAbility"; instanceId: string; abilityIndex: number; targets: StackTarget[] }
+  | { kind: "activateAbility"; instanceId: string; abilityIndex: number; targets: StackTarget[]; chosenMode?: number }
   | { kind: "declareAttackers"; declarations: AttackerDeclaration[] }
   | { kind: "declareBlockers"; declarations: BlockerDeclaration[] }
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */

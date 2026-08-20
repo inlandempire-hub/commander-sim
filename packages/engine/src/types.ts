@@ -543,6 +543,16 @@ export type TargetSelector =
       /** "Destroy target **blue** permanent" - Red Elemental Blast. */
       color?: Color;
       /**
+       * "Destroy target **colorless nonland** permanent." - Goblin Cratermaker,
+       * whose second mode is the artifact answer this deck otherwise lacks.
+       *
+       * Colour, not colour identity: a Sol Ring is colourless and a Forest is
+       * too, which is exactly why the card says nonland as well. Both halves are
+       * needed and neither implies the other.
+       */
+      colorless?: boolean;
+      nonland?: boolean;
+      /**
        * "target attacking creature **with lesser power**" - mentor, on Legion
        * Warboss.
        *
@@ -1633,6 +1643,20 @@ export type Effect =
    * therefore run for the asked player and `otherwise` for the controller.
    */
   | { kind: "theyMay"; prompt: string; then: Effect; otherwise: Effect }
+  /**
+   * "**Imprint** - When this artifact enters, you may exile a nonartifact,
+   * nonland card from your hand." - Chrome Mox.
+   *
+   * The exiled card is remembered on the Mox itself (`imprintedInstanceId`),
+   * because everything the card does afterwards is about it: the mana ability
+   * reads its colours, and a Mox that imprinted nothing taps for nothing at all.
+   * That last part is the card and not an edge case - a turn-one Chrome Mox off
+   * a hand with no spare colour is a blank artifact for the rest of the game.
+   *
+   * Rides on `pendingCardChoice`, the machinery that already asks which card,
+   * with `min: 0` because "you may" here really does include declining.
+   */
+  | { kind: "imprintFromHand"; excludeTypes: CardType[] }
   | { kind: "becomePrepared" }
   | { kind: "sequence"; effects: Effect[] };
 
@@ -2222,7 +2246,17 @@ export type ManaColorSource =
    * colours come from the permanents themselves rather than from a deck-wide
    * identity, so it changes every time a legend arrives or dies.
    */
-  | "your-legendary-permanents";
+  | "your-legendary-permanents"
+  /**
+   * "...of any of **the exiled card's** colors." - Chrome Mox.
+   *
+   * The only source in this list that is about one particular permanent rather
+   * than about the board, which is why `colorAllowed` had to learn to take the
+   * permanent being activated: two Chrome Moxen can imprint different cards and
+   * tap for different colours, and nothing about their controller distinguishes
+   * them.
+   */
+  | "imprinted-card";
 
 /**
  * "Spend this mana only to cast a legendary spell, and that spell can't be
@@ -3061,6 +3095,16 @@ export interface CardInstance {
    */
   grantedKeywordsUntilYourNextTurn: Keyword[];
   /**
+   * The card this permanent has imprinted - Chrome Mox's exiled spell.
+   *
+   * An instance rather than a set of colours, because the card is a real object
+   * in the exile zone that a player can look at, and reading its colours when
+   * they are wanted keeps one answer rather than a copy that could go stale.
+   * Absent means nothing was imprinted, which for Chrome Mox means a permanent
+   * that produces no mana ever.
+   */
+  imprintedInstanceId?: string;
+  /**
    * "**You may play that card this turn**" - Professional Face-Breaker, and
    * Ragavan's "until end of turn, you may cast that card".
    *
@@ -3314,7 +3358,12 @@ export interface PendingCardChoice {
   min: number;
   max: number;
   /** What happens to the chosen cards. */
-  mode: "sacrifice" | "cast-free" | "to-hand";
+  /**
+   * `"exile-imprint"` is Chrome Mox: the chosen card is exiled and remembered on
+   * the permanent that asked, which is what makes imprint different from any
+   * other exile - the card goes on doing something from over there.
+   */
+  mode: "sacrifice" | "cast-free" | "to-hand" | "exile-imprint";
   /** A price paid only if something is chosen - Ripples of Undeath. */
   cost?: { mana?: ManaCost; life?: number };
   /**

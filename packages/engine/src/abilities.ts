@@ -1,5 +1,5 @@
 import { activateRestrictionProblem } from "./restrictions.js";
-import type { ActivatedAbility, GameState, ManaCost, StackTarget } from "./types.js";
+import type { ActivatedAbility, Effect, GameState, ManaCost, StackTarget } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import {
   canPayManaCost,
@@ -15,7 +15,7 @@ import { damagePlayer } from "./damage.js";
 import { applyEffect } from "./effects.js";
 import { pushOntoStack, tapPermanent } from "./permanents.js";
 import { sacrificePermanent } from "./sba.js";
-import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
+import { isValidTarget, legalTargetsFor, targetSelectorOf } from "./targeting.js";
 import { canCastAtSorcerySpeed } from "./casting.js";
 import { attemptWardPayments } from "./ward.js";
 import { resolveAmounts } from "./x.js";
@@ -134,12 +134,22 @@ export function activatableAbilities(
     if (ability.cost.sacrificeSubtype && !sacrificeCandidate(state, playerId, ability.cost.sacrificeSubtype)) {
       return;
     }
-    if (!colorAllowed(state, playerId, ability)) return;
+    if (!colorAllowed(state, playerId, ability, instance)) return;
     if (!controllerMeets(state, playerId, ability.activateOnlyIf)) return;
     // An ability that needs a target and has none is not a usable ability - it
     // would only walk the player into a targeting prompt with nothing to click.
-    const selector = targetSelectorOf(ability.effect);
-    if (selector && legalTargetsFor(state, selector, playerId, instance.instanceId).length === 0) return;
+    /*
+     * "Choose one -" makes this a question about *any* mode: Goblin Cratermaker
+     * is worth offering while there is a creature to shoot even if there is no
+     * colourless permanent to destroy, and refusing it because one bullet has no
+     * target would hide half the card.
+     */
+    const anyModeHasTargets = abilityModeEffects(ability).some((modeEffect) => {
+      const selector = targetSelectorOf(modeEffect);
+      if (!selector) return true;
+      return legalTargetsFor(state, selector, playerId, instance.instanceId).length > 0;
+    });
+    if (!anyModeHasTargets) return;
     usable.push(index);
   });
 
@@ -204,12 +214,47 @@ export function activateLoyaltyAbility(
   state.passesInSuccession = 0;
 }
 
+/**
+ * The effect an activated ability actually has, once its mode is settled.
+ *
+ * "Choose one -" on an ability is the same question it is on a spell, asked at
+ * the same moment: as the ability is activated, before targets, because the
+ * legal targets depend on which half was picked. `applyEffect` still throws on
+ * a `modal` it is handed, which is what keeps a mode from being forgotten
+ * somewhere new - it can only ever be unwrapped here or in `castSpell`.
+ */
+export function abilityEffect(
+  ability: ActivatedAbility,
+  chosenMode?: number,
+): Effect {
+  if (ability.effect.kind !== "modal") return ability.effect;
+  const mode = chosenMode === undefined ? undefined : ability.effect.modes[chosenMode];
+  if (!mode) throw new Error("That ability needs a mode chosen");
+  return mode.effect;
+}
+
+/**
+ * Every effect a modal ability could have - used where the question is "is
+ * there anything this could do", such as whether to offer it at all.
+ */
+export function abilityModeEffects(ability: ActivatedAbility): Effect[] {
+  return ability.effect.kind === "modal" ? ability.effect.modes.map((m) => m.effect) : [ability.effect];
+}
+
 export function activateAbility(
   state: GameState,
   playerId: string,
   instanceId: string,
   abilityIndex: number,
   targets: StackTarget[] = [],
+  /**
+   * Which bullet was chosen, for an ability that prints more than one.
+   *
+   * Carried alongside the targets rather than inside them because it is settled
+   * first: "choose one" comes before "choose a target", and the second question
+   * has different answers depending on the first.
+   */
+  chosenMode?: number,
 ): void {
   const found = findInstance(state, instanceId);
   if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
@@ -248,7 +293,7 @@ export function activateAbility(
   if (manaCost && !canPayManaCost(player, manaCost)) {
     throw new Error(`${playerId} cannot pay the activation cost of ${def.name}`);
   }
-  if (!colorAllowed(state, playerId, ability)) {
+  if (!colorAllowed(state, playerId, ability, instance)) {
     throw new Error(`${def.name} cannot make that colour in this deck`);
   }
   // "Activate only if you control a Swamp." Checked before anything is paid,
@@ -308,8 +353,30 @@ export function activateAbility(
     moveCard(state, instanceId, ability.cost.fromHand === "exile" ? "exile" : "graveyard");
   }
 
-  const isManaAbility =
-    ability.effect.kind === "addMana" || ability.effect.kind === "addManaCombination";
+  /*
+   * The targets are checked against the *chosen mode's* selector, before
+   * anything is paid.
+   *
+   * An activated ability's targets went unchecked until now, which was invisible
+   * while the pickers were the only callers: they only ever offer what
+   * `legalTargetsFor` returns. Goblin Cratermaker is where it stops being
+   * invisible, because its two bullets point at different things - "target
+   * creature" and "target colorless nonland permanent" - and the mode is chosen
+   * separately from the target. Nothing else in the engine lets an illegal
+   * target through, and this is the same refusal in the same shape.
+   */
+  // Settled before anything is paid, so an ability activated with no mode is
+  // refused rather than half-paid for.
+  const effect = abilityEffect(ability, chosenMode);
+  const chosenSelector = targetSelectorOf(effect);
+  if (chosenSelector) {
+    for (const target of targets) {
+      if (!isValidTarget(state, chosenSelector, target, playerId, instanceId)) {
+        throw new Error(`That is not a legal target for ${def.name}`);
+      }
+    }
+  }
+  const isManaAbility = effect.kind === "addMana" || effect.kind === "addManaCombination";
   if (isManaAbility) {
     if (ability.producesRestrictedMana && ability.effect.kind === "addMana") {
       /*
@@ -376,7 +443,7 @@ export function activateAbility(
       state.passesInSuccession = 0;
       return;
     }
-    pushOntoStack(state, instanceId, playerId, resolveAmounts(ability.effect, { x: 0, sourceCounters }), targets, false);
+    pushOntoStack(state, instanceId, playerId, resolveAmounts(effect, { x: 0, sourceCounters }), targets, false);
     state.passesInSuccession = 0;
   }
 }

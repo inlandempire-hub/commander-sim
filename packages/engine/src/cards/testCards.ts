@@ -15690,8 +15690,109 @@ export const CHARISMATIC_CONQUEROR: CardDefinition = {
   tier: "weird",
 };
 
+
+/**
+ * Chrome Mox - {0} Artifact.
+ *
+ * "Imprint - When this artifact enters, you may exile a nonartifact, nonland
+ * card from your hand. {T}: Add one mana of any of the exiled card's colors."
+ *
+ * The card it exiled is remembered on the Mox itself and its colours are read
+ * from over there every time, so two Chrome Moxen can tap for different things -
+ * which is why the colour question had to learn which permanent was asking.
+ *
+ * A Mox that imprinted nothing taps for nothing at all, and that is not an edge
+ * case: it is what happens off a hand with nothing spare, and it is the whole
+ * reason the card is a gamble rather than a Sol Ring. The five halves are
+ * written out one per colour, exactly as Command Tower and Mox Amber are.
+ */
+export const CHROME_MOX: CardDefinition = {
+  id: "chrome-mox",
+  name: "Chrome Mox",
+  scryfallId: "f340cbf7-5bbe-45b9-a4bf-d1caa500ff93",
+  types: ["Artifact"],
+  manaCost: { generic: 0, colors: {} },
+  colorIdentity: [],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      /*
+       * Deliberately not `optional`. The "you may" lives on the card choice
+       * itself, as `min: 0` - one question with a decline in it, rather than a
+       * yes/no followed by a picker that can also be refused.
+       */
+      effect: { kind: "imprintFromHand", excludeTypes: ["Artifact", "Land"] },
+    },
+  ],
+  activatedAbilities: [
+    { cost: { tap: true }, colorFrom: "imprinted-card", effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { tap: true }, colorFrom: "imprinted-card", effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true }, colorFrom: "imprinted-card", effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, colorFrom: "imprinted-card", effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true }, colorFrom: "imprinted-card", effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "weird",
+};
+
+/**
+ * Goblin Cratermaker - {1}{R} 2/2 Goblin Warrior.
+ *
+ * "{1}, Sacrifice this creature: Choose one -
+ *  - This creature deals 2 damage to target creature.
+ *  - Destroy target colorless nonland permanent."
+ *
+ * The first activated ability in the pool with bullets, which is what made a
+ * mode something chosen on activation rather than only on casting. It is asked
+ * before the target for the same reason it is when casting: the two halves
+ * point at different things.
+ *
+ * "Colorless nonland" is two conditions and neither implies the other - a Sol
+ * Ring is colourless because it costs {1}, and so is a Forest.
+ *
+ * Note the damage is dealt by a creature that is already in the graveyard: the
+ * sacrifice is a cost, so it is paid before the ability resolves. That is the
+ * rule, and it is why this kills a 2-toughness blocker rather than trading.
+ */
+export const GOBLIN_CRATERMAKER: CardDefinition = {
+  id: "goblin-cratermaker",
+  name: "Goblin Cratermaker",
+  scryfallId: "e37ae38f-ef93-4861-9a3a-49378a4d50b4",
+  types: ["Creature"],
+  subtypes: ["Goblin", "Warrior"],
+  manaCost: { generic: 1, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: {} }, sacrificeSelf: true },
+      effect: {
+        kind: "modal",
+        modes: [
+          {
+            // The printed wording, which is what the panel shows - see the note
+            // on the other modal fixtures.
+            label: "This creature deals 2 damage to target creature",
+            effect: { kind: "damage", amount: 2, target: { kind: "creature" } },
+          },
+          {
+            label: "Destroy target colorless nonland permanent",
+            effect: {
+              kind: "destroy",
+              target: { kind: "permanent", colorless: true, nonland: true },
+            },
+          },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    CHROME_MOX,
+    GOBLIN_CRATERMAKER,
     EMERIAS_CALL,
     EMERIA_SHATTERED_SKYCLAVE,
     NEEDLEVERGE_PATHWAY,

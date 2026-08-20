@@ -515,6 +515,11 @@ RULES = [
     # "They may tap that permanent" - Charismatic Conqueror, whose "if they
     # don't" half is a second sentence the ordinary token rule already covers.
     (r"they may tap that permanent", {"theyMay"}),
+    # Imprint - Chrome Mox. The ability word is part of the printed line, and the
+    # mana ability underneath it is the *only* thing the imprinted card is for.
+    (r"^imprint [-—] when this artifact enters, you may exile a .* card from your hand$",
+     {"imprintFromHand"}),
+    (r"^\{t\}: add one mana of any of the exiled card's colors$", {"imprintFromHand"}),
     (r"^mentor$", {"trigger:attacks"}),
     (r"^mobilize \d+$", {"trigger:attacks"}),
     # Goblin Rabblemaster's static, and Mana Vault's three clauses.

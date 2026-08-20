@@ -74,7 +74,14 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       });
       return;
     case "activateAbility":
-      activateAbilityWithAutoTap(state, playerId, message.instanceId, message.abilityIndex, message.targets ?? []);
+      activateAbilityWithAutoTap(
+        state,
+        playerId,
+        message.instanceId,
+        message.abilityIndex,
+        message.targets ?? [],
+        message.chosenMode,
+      );
       return;
     case "declareAttackers":
       declareAttackers(state, playerId, message.declarations);

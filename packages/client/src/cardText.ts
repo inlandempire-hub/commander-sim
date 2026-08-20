@@ -427,6 +427,18 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         : "";
       return `You may pay ${price}. If you do, ${yes}${no}`;
     }
+    case "imprintFromHand":
+      /*
+       * The exclusions are the whole restriction on what may go under the Mox,
+       * so they are spelled out. "Imprint -" itself is an ability word and pure
+       * flavour, and a trigger sentence has nowhere to put one - the same
+       * posture Loyal Apprentice's "Lieutenant" already takes.
+       */
+      return sentence(
+        `you may exile a ${effect.excludeTypes
+          .map((t) => `non${t.toLowerCase()}`)
+          .join(", ")} card from your hand.`,
+      );
     case "becomePrepared":
       return "This creature becomes prepared.";
     case "conditional":
@@ -1603,6 +1615,8 @@ export function describeActivated(
     "commander-identity": " (any colour in your commander's colour identity)",
     "opponent-lands": " (any colour a land an opponent controls could produce)",
     "your-legendary-permanents": " (any colour among legendary creatures and planeswalkers you control)",
+    // Chrome Mox: the colours of whatever it exiled as it entered.
+    "imprinted-card": " (any of the exiled card's colours)",
   };
   const from = ability.colorFrom ? COLOR_SOURCE_WORDING[ability.colorFrom] : "";
   /*

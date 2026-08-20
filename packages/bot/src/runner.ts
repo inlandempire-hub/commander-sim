@@ -56,6 +56,7 @@ function toClientMessage(action: BotAction): ClientMessage | null {
         instanceId: action.instanceId,
         abilityIndex: action.abilityIndex,
         targets: action.targets,
+        chosenMode: action.chosenMode,
       };
     case "declareAttackers":
       return { type: "declareAttackers", declarations: action.declarations };

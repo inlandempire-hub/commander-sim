@@ -668,7 +668,7 @@ function useValueAbility(state: GameState, me: Player): BotAction | null {
         if (!(instance.instanceId in state.attackers)) return false;
         if (state.blockersDeclared) return false;
       }
-      if (!abilityAvailable(state, me.id, ability)) return false;
+      if (!abilityAvailable(state, me.id, ability, instance)) return false;
       return true;
     });
     if (abilityIndex === undefined || abilityIndex < 0) continue;
@@ -681,6 +681,17 @@ function useValueAbility(state: GameState, me: Player): BotAction | null {
     // table, its controller's included. Asked before the cost, because a
     // forbidden ability is not activated at any price.
     if (activateRestrictionProblem(state, me.id, def) !== undefined) continue;
+
+    /*
+     * "Choose one -" on an ability is two decisions the bot has no way to weigh
+     * against each other: which bullet, and then a target chosen under that
+     * bullet's rules. Goblin Cratermaker is the only one in the pool, and it
+     * sacrifices itself - so getting it wrong costs a creature.
+     *
+     * Left alone deliberately, and documented as such, the same way the bot has
+     * never channelled a land or exiled the Ape.
+     */
+    if (ability.effect.kind === "modal") continue;
 
     if (ability.effect.kind === "addCounterToEachOther") {
       const subtype = ability.effect.subtypes?.[0];

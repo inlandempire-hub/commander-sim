@@ -46,7 +46,14 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
       castSpellWithAutoTap(state, playerId, action.instanceId, action.targets, castOptionsFor(action));
       return;
     case "activateAbility":
-      activateAbilityWithAutoTap(state, playerId, action.instanceId, action.abilityIndex, action.targets);
+      activateAbilityWithAutoTap(
+        state,
+        playerId,
+        action.instanceId,
+        action.abilityIndex,
+        action.targets,
+        action.chosenMode,
+      );
       return;
     case "declareAttackers":
       declareAttackers(state, playerId, action.declarations);

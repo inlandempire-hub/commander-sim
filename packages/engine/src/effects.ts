@@ -820,6 +820,34 @@ export function applyEffect(
       drawCard(state, controllerId, 1);
       return;
     }
+    case "imprintFromHand": {
+      /*
+       * "You may exile a nonartifact, nonland card from your hand."
+       *
+       * `min: 0` because the "may" is real: a Chrome Mox with nothing worth
+       * pitching is a Mox that taps for nothing, and the card is happy to be
+       * that. Offered from the hand of the ability's controller, which for an
+       * enters-the-battlefield trigger is always the player who cast it.
+       */
+      const player = requirePlayer(state, controllerId);
+      const candidates = player.hand.filter((card) => {
+        const def = state.cardDefinitions[card.definitionId];
+        if (!def) return false;
+        return !effect.excludeTypes.some((type) => def.types.includes(type));
+      });
+      if (candidates.length === 0) return;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        sourceInstanceId,
+        prompt: `${cardName(state, sourceInstanceId)}: exile a card from your hand to imprint?`,
+        candidateInstanceIds: candidates.map((c) => c.instanceId),
+        min: 0,
+        max: 1,
+        mode: "exile-imprint",
+        effectControllerId: controllerId,
+      });
+      return;
+    }
     case "becomePrepared": {
       const source = findInstance(state, sourceInstanceId);
       if (!source || source.instance.zone !== "battlefield") return;
@@ -2066,6 +2094,21 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
     else if (pending.mode === "to-hand") {
       moveCard(state, id, "hand");
       log(state, `${playerId} takes ${cardName(state, id)}`);
+    } else if (pending.mode === "exile-imprint") {
+      /*
+       * The card is exiled *and* remembered, and the second half is the whole
+       * of imprint: an ordinary exile is a card that has left, and this one goes
+       * on lending its colours to the permanent that exiled it.
+       *
+       * Written on the source rather than kept as a list of colours, so two
+       * Chrome Moxen can never be confused for one another and the card in
+       * exile stays the single answer to what this Mox taps for.
+       */
+      const name = cardName(state, id);
+      moveCard(state, id, "exile");
+      const source = findInstance(state, pending.sourceInstanceId);
+      if (source) source.instance.imprintedInstanceId = id;
+      log(state, `${playerId} imprints ${name} on ${cardName(state, pending.sourceInstanceId)}`);
     }
     // "cast-free" is handled below: it needs the caster, not the chooser, and
     // casting is not a zone move this function should be doing by hand.
