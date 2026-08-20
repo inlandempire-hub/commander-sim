@@ -62,217 +62,156 @@ BLOCKERS = [
     # --- keyword mechanics and whole-card shapes, first: these override
     # anything else on the card, because a card with Suspend on it is not
     # addable however ordinary the rest of its text is.
-    (r"^(Suspend|Devour|Bestow|Cascade|Convoke|Delve|Escape|Evoke|Kicker|Madness|Flashback|Dredge|Buyback|Embalm|Eternalize|Unearth|Cycling|Morph|Disturb|Adapt|Mutate)\b|\bgains? infect\b|\binfect\b",
+    #
+    # Bestow and Infect came off this list on 2026-08-21: `bestowCost` has
+    # existed since Springheart Nantuko and Inkmoth Nexus animates into a
+    # creature with infect. Leaving them here is how a heading starts lying.
+    (r"^(Suspend|Devour|Cascade|Convoke|Delve|Escape|Evoke|Kicker|Madness|Flashback|Dredge|Buyback|Embalm|Eternalize|Unearth|Cycling|Morph|Disturb|Adapt|Mutate)\b",
      "Keyword mechanics the engine does not implement",
-     "each is its own rules system - Suspend, Devour, Bestow, Infect and friends"),
-    # Narrowed 2026-08-10. Two events can be replaced now - counters going onto
-    # a permanent, and tokens being created - because those are the only two any
-    # card in this pool replaces. Anything else still has nowhere to hook, so
-    # this names the events rather than the mechanism.
-    (r"would be put into (your|a) graveyard.*instead|would draw.*instead|would deal.*instead"
-     r"|would gain.*life.*instead|would lose.*instead|would be dealt.*instead",
+     "each is its own rules system - Suspend, Devour, Cycling and friends"),
+    # Narrowed 2026-08-21. Four events can be replaced (see replacements.ts):
+    # counters being placed, tokens being created, damage you deal being
+    # doubled, and a card that would hit a graveyard being exiled instead.
+    # What is left has nowhere to hook.
+    (r"would draw.*instead|would gain.*life.*instead|would lose.*instead"
+     r"|would be dealt.*instead|if .* would die",
      "Replacement effects on an event the engine cannot intercept",
-     "counters being placed and tokens being created can be replaced (see replacements.ts); "
-     "damage, draws, life changes and zone changes cannot"),
-    (r"^Skip your |maximum hand size|^You may play an additional land|play lands from your graveyard|^You may play ",
-     "Static rules changes",
-     "cards that edit the rules of the turn itself have nowhere to live"),
-    (r"without paying its mana cost|for its (mana )?cost|As an additional cost",
-     "Alternative and additional casting costs",
-     "casting.ts pays the printed cost and nothing else"),
+     "counters, tokens, damage doubling and graveyard-to-exile can be replaced; "
+     "draws, life changes and the rest of the zone changes cannot"),
 
     # Plain "{T}: Add {G}", "{T}: Add {C}{C}" and "{T}: Add {B} or {G}" are all
-    # supported as of 2026-08-07 and are filtered out before diagnosis - see
+    # supported and are filtered out before diagnosis - see
     # `supported_permanent_line`. What is left here is the shapes that are not.
-    # "Add one mana of any color" on its own has worked since Birds of Paradise
-    # - five abilities, one per colour - and so has "in your commander's color
-    # identity" (Command Tower) and "that a land an opponent controls could
-    # produce" (Exotic Orchard). This heading used to swallow all of those and
-    # claimed to be what blocked three cards; none of them was blocked by it.
-    # What is left is any-colour narrowed by something nothing can evaluate.
     (r"Add one mana of any type|Add one mana of any color(?!\.| in your commander's color identity\.|"
      r" that a land an opponent controls could produce\.| \. Spend this mana only to cast a legendary spell)",
      "Mana of any colour, narrowed by something the engine cannot ask",
-     "colorFrom covers the commander's identity and an opponent's lands; any other qualifier does not exist"),
+     "colorFrom covers the commander's identity, an opponent's lands, your legendary "
+     "permanents and an imprinted card; any other qualifier does not exist"),
     (r"\{T\}: Add [^.]*\. (?!This (?:land|creature|permanent|artifact) deals \d+ damage to you\.|Activate only if )",
-     "Mana abilities with a rider the generator cannot read",
-     "the painland rider and 'activate only if you control ...' both generate; anything else on the end of a mana ability does not"),
+     "Generator gap - a mana ability with a rider it cannot read",
+     "the painland rider and 'activate only if you control ...' both generate; "
+     "anything else on the end of a mana ability does not. The engine is not the limit here"),
     (r"^\{T\}:|^\{\d+\}, \{T\}:",
-     "Tap abilities that are not mana abilities",
-     "activatedAbilities support a tap cost, but only the pump, mana, regenerate and gain-life shapes are generated"),
-    (r"^At the beginning of",
-     "Turn-based triggers (upkeep, end step, each combat)",
-     "trigger events are only enters-battlefield, attacks, dies, landfall, permanent-enters"),
-    (r"Whenever (you|an opponent|a player) cast|Whenever .* is cast",
-     "Cast triggers",
-     "nothing fires when a spell is put on the stack"),
-    (r"^Destroy all|^Exile all|^Each player sacrifices|^Destroy each",
-     "Mass removal (wrath effects)",
-     "there is no destroy-all effect of any kind"),
-    # Narrowed 2026-08-10: "target permanent an opponent controls" shipped with
-    # Assassin's Trophy, so only the selectors that still cannot be narrowed
-    # belong here. Left as it was, this heading would have gone on claiming a
-    # card needed work that already existed - the same way four trigger events
-    # did before it.
-    (r"target creature an opponent controls|target opponent controls|you don't control",
-     "Targets restricted by who controls them",
-     "the *permanent* selector takes controlledBy: opponent; the creature selector does not, "
-     "and nothing expresses \"you don't control\""),
+     "Generator gap - a tap ability that is not one of the templated shapes",
+     "activatedAbilities carry tap costs, mana costs, life, sacrifice, discard-from-hand "
+     "and once-per-game, and reach most of the effect list; gen_fixtures only templates "
+     "the pump, mana, regenerate and gain-life shapes. Hand-writing these is card work"),
+
+    # Removed 2026-08-21: "Turn-based triggers (upkeep, end step, each combat)",
+    # which claimed the only events were enters-battlefield, attacks, dies,
+    # landfall and permanent-enters. There are twenty-four in use, upkeep,
+    # draw-step, first-main, begin-combat, end-step and land-played among them.
+    # It was the single most-quoted heading in the Winter report and it was
+    # wrong about every card it was quoted against.
+    #
+    # Removed the same day: "Cast triggers" (spell-cast has existed since Esper
+    # Sentinel and Boromir), "Planeswalkers" (Ajani, Nacatl Avenger),
+    # "Granting keywords" (StaticBuff.grants), "Statics that are conditional or
+    # restricted" (StaticBuff.condition and .restriction), "Alternative and
+    # additional casting costs" (alternativeCost, dashCost, AdditionalCost),
+    # "Sacrificing something other than the card itself" (sacrificeSubtype,
+    # sacrificeChosen, offerSacrificeToOpponents), "Attach - Equipment and
+    # Auras" (the attach effect and CardInstance.attachedTo), "Counters placed
+    # on a chosen target" (addCounter takes a TargetSelector - Legion Warboss),
+    # "Counters other than +1/+1" (minusOne, other, keyword and loyalty
+    # counters), "Dynamic amounts" (Amount and amountFrom are everywhere),
+    # "Targets restricted by who controls them" (controlledBy on both
+    # selectors), "Effects aimed at a player other than damage and life" (draw,
+    # discard, mill, surveil, monarch, drawUnlessTheyPay), "Playing cards from
+    # exile" (exileTopAndMayPlay), "Blanket damage prevention"
+    # (preventCombatDamage - Arachnogenesis), "Ward variants beyond a flat mana
+    # cost" (wardLifeCost - Hexing Squelcher), "A permanent that does not untap
+    # on its own" (doesNotUntap - Mana Vault), "Regenerating more than one
+    # creature at once" (regenerateAll), "A choice made as a permanent enters"
+    # (enterChoice, in five shapes), "Static rules changes" (extraLandDrops,
+    # playLandsFromGraveyard, skipDrawStep and maxHandSize are all fields), and
+    # "Evasion beyond flying and menace" (BlockRestriction is a three-member
+    # union plus restrictBlockersThisTurn).
+    #
+    # That is nineteen headings in one pass. Every one of them named a
+    # capability the engine had already grown, and between them they were the
+    # stated reason for most of a hundred-card list being called blocked. The
+    # lesson is in ROADMAP.md and it is worth repeating here: **this table is
+    # the part of the tool that rots**, because the classification is computed
+    # and the reasons are written down.
+
+    (r"^Destroy all|^Exile all|^Destroy each|^Exile each",
+     "Destroying or exiling every permanent at once",
+     "pumpAll with scope 'all' is a real -N/-N sweeper (Toxic Deluge, Languish, "
+     "Infest), so a wrath by toughness works; there is no destroy-all or exile-all"),
     (r"for up to (a|one|two|three|\d+) |put one onto the battlefield and the rest",
      "Searching for more than one card at a time",
      "searchLibrary finds exactly one card and sends it to one destination"),
-    # Removed 2026-08-10: `searchLibrary` grew a "library-top" destination for
-    # Sylvan Tutor, and it shuffles before it places, which is the ordering the
-    # cards print. A top-of-library tutor the generator still refuses is being
-    # refused for something else on the card, and that something else is what
-    # the report should name.
-    # The dash is load-bearing: real modal templating is "Choose one —" followed
+    # The dash is load-bearing: real modal templating is "Choose one -" followed
     # by bullets. Scheming Symmetry opens "Choose two target players." with no
-    # dash and is not modal at all - it was being filed under modal, which would
-    # have had somebody build modal spells expecting to get it.
-    (r"^Choose (one|two|three)\s*[-—]",
-     "Modal spells written as a bullet list",
-     "the DSL has a modal effect; gen_fixtures has no pattern for the 'Choose one -' template"),
-    (r"counters? on target|put a \+1/\+1 counter on target",
-     "Counters placed on a chosen target",
-     "addCounter always applies to the card the ability is printed on"),
-    # Removed 2026-08-15: { kind: "mill"; amount: Amount } is in types.ts. A
-    # card mentioning mill is blocked by whatever else is printed on it.
-    (r"Activate only as a sorcery|Activate only (?:during|before|after|any time)|Cast this spell only",
-     "Timing restrictions on activating or casting",
-     "activateOnlyIf asks about the board; nothing asks what step it is or whether the stack is empty"),
-    # Narrowed 2026-08-15. A flat "Pay N life" has been an
-    # ActivatedAbilityCost (`payLife`) and an AdditionalCost (`pay-life`) for
-    # weeks, and a land's "you may pay N life or it enters tapped" is
-    # `entersTappedUnlessPayLife`. This heading still claimed all three, which
-    # put Mana Confluence, Prismatic Vista, Sacred Foundry and Sunbaked Canyon
-    # in the engine queue when every one of them was a fixture somebody could
-    # have written that afternoon. What is left is a payment whose *amount* is
-    # not a printed number.
+    # dash and is not modal at all.
+    (r"^Choose (one|two|three)\s*[-\u2014]",
+     "Generator gap - modal spells written as a bullet list",
+     "the DSL's modal effect is used by Goblin Cratermaker, Pyroblast and Ajani; "
+     "gen_fixtures has no pattern for the 'Choose one -' template. Card work, not engine work"),
+    # Narrowed 2026-08-21: `sorcerySpeedOnly` covers "Activate only as a
+    # sorcery" (every Equip, every Room door). What is left is the timings that
+    # ask what step it is or what is on the stack.
+    (r"Activate only (?:during|before|after|any time)|Cast this spell only",
+     "Timing restrictions the engine cannot ask about",
+     "sorcerySpeedOnly covers 'only as a sorcery'; nothing asks which step it is, "
+     "or whether the stack is empty"),
     (r"\bpay (any amount of|X) life\b",
      "Paying an unfixed amount of life",
      "payLife and the pay-life additional cost both take a literal; nothing "
      "announces X life as it is paid"),
-    (r"^Attacking .* get |you control with .* (have|has|get)|creatures you control get .* and (have|gain)",
-     "Statics that are conditional or restricted",
-     "staticBuff is an unconditional +N/+N, optionally narrowed by subtype"),
-    # The lookahead is the whole entry. Oracle text has the card's own name
-    # replaced with "~" before it reaches here, so "Sacrifice this creature"
-    # and "Sacrifice ~" are the two ways a card gives *itself* up - which
-    # `ActivatedAbilityCost.sacrificeSelf` has done since the fetchlands
-    # landed in step 2. Without this, the heading charged Lotus Petal,
-    # Prismatic Vista, Strip Mine, Gingerbrute, Hope of Ghirapur and seven
-    # more for a capability none of them needs, and twice claimed to be the
-    # last thing standing between the pool and an already-writable card.
-    (r"\bSacrifice (?!this\b|~)|\bsacrifices\b|\bsacrificed\b",
-     "Sacrificing something other than the card itself",
-     "sacrificing *this* permanent works both as a cost (every fetchland) "
-     "and as an effect (Riveteers Overlook); choosing which of your "
-     "permanents to give up, and watching an opponent sacrifice one, do not"),
-    (r"^Equip|^Enchant |^Enchanted |\battach\b|\bAttached\b|\bequipped\b",
-     "Attach - Equipment and Auras",
-     "no attachment relationship between permanents exists"),
-    # Narrowed 2026-08-15. { kind: "discard"; who: "each-opponent" } exists
-    # and the discarding player chooses, which was the hard half. What is left
-    # is discarding as a *cost* (Channel, cycling) and the caster picking the
-    # card out of a revealed hand (Thoughtseize).
-    (r"Discard this card|discards? a card at random|You choose a .* card from it",
-     "Discard the caster chooses, or discard as a cost",
-     "the discard effect is the opponent's own choice made on resolution; "
-     "nothing pays a cost out of a hand, and nothing picks for somebody else"),
-    (r"\bequal to\b|\bfor each\b|\btimes\b|-X/-X|\+X/\+X|\bX (creature|1/1|target)"
-     r"|\bwhere X is\b|\bX \d+/\d+",
-     "Dynamic amounts",
-     "every number in the DSL is a literal, so 'equal to its power' cannot be written"),
-    # Arachnogenesis. `preventDamage` is one target and a fixed number; this is
-    # every creature that does not share a subtype, for the rest of the turn.
-    # Without this the report credited token creation with finishing the card.
-    (r"[Pp]revent all (?:combat )?damage",
-     "Blanket damage prevention",
-     "preventDamage shields one target for a fixed amount; nothing prevents damage "
-     "from a whole class of creatures for a turn"),
-    (r"\bgains? (flying|trample|haste|vigilance|lifelink|deathtouch|first strike|double strike|indestructible|hexproof|menace|reach)|\b(have|has) (flying|trample|haste|vigilance|lifelink|deathtouch|indestructible|hexproof)",
-     "Granting keywords",
-     "staticBuff only adjusts power and toughness"),
-    (r"costs? \{|costs? \d+ less|costs? \d+ more",
-     "Cost modification",
-     "casting costs are fixed at the card"),
-    (r'token that\'s a copy|creature tokens? with "|token with "',
-     "Tokens that carry their own rules text, or copy something",
-     "the generator mints a token definition from the printed phrase, but only a "
-     "vanilla body with keywords - a token with a quoted ability, or a copy of a "
-     "permanent, is refused rather than silently flattened"),
-    # Plain "This land enters tapped." is supported. What survives to here is
-    # the conditional forms, which are a different problem entirely: a condition
-    # on the permanent's own arrival.
-    # Split 2026-08-15, and the split is the point. "As this ... enters" was
-    # filed here as a conditional tapland; on the Winota list it matched five
-    # cards and not one of them was a land - Cavern of Souls choosing a
-    # creature type, Sanctum Prelate a number, Greymond two abilities,
-    # Windcrag Siege a mode, Multiversal Passage a basic land type. The
-    # misfire hid a real capability behind a solved one.
-    (r"^As (this|~)[^.]*enters, choose",
-     "A choice made as a permanent enters, and remembered",
-     "nothing records a decision on a CardInstance, so a permanent cannot "
-     "read back what was chosen for it"),
+    # Narrowed 2026-08-21. `fromHand: "discard"` is an ActivatedAbilityCost -
+    # it is how Channel works on Eiganjo and Sokenzan - and
+    # entersOnlyIfYouDiscard is how Mox Diamond works. What is left is one
+    # player reaching into another player's hand and choosing.
+    (r"You choose a .* card from it|reveals? their hand.*[Yy]ou choose",
+     "The caster choosing a card out of somebody else's hand",
+     "discard is the discarding player's own choice made on resolution; nothing picks for them"),
+    # Narrowed 2026-08-21. `costReducedPer` exists but is a closed list with one
+    # member - "legendary-creature-you-control", from the two Channel lands.
+    # Another counted reduction is a new member, not a new mechanism.
+    (r"costs? \{\d+\} less to cast for each|costs? \{\d+\} more",
+     "Cost modification other than the one counted reduction",
+     "costReducedPer counts legendary creatures you control and nothing else; "
+     "a cost that goes *up* has no mechanism at all"),
+    (r'token that\'s a copy of|creature tokens? with "|token with "',
+     "Tokens that carry their own rules text",
+     "createCopyToken copies a permanent (Kiki-Jiki, Rionya); what the generator "
+     "will not do is mint a token with a quoted ability on it"),
     # The shockland arrival ("As this land enters, you may pay N life") is
     # entersTappedUnlessPayLife, and is deliberately not matched here.
     (r"enters tapped unless|enters the battlefield tapped unless",
-     "Permanents that enter tapped under a condition the engine cannot ask",
-     "entersTappedUnless takes a BoardCondition - other lands, opponents, a "
-     "subtype, a colour, a commander. A condition about the turn number, or "
-     "one reading 'two or fewer' rather than 'two or more', has no member"),
-    (r"\bproliferate\b|\b(charge|loyalty|\-1/\-1|time|oil) counter",
-     "Counters other than +1/+1",
-     "counters.ts models plusOneCounters only"),
-    (r"\bloyalty\b|^\+\d+:|^\-\d+:",
-     "Planeswalkers",
-     "not a supported card type"),
-    (r"\{X\}",
-     "X in a cost",
-     "supported since 2026-08-10; this heading is kept only for the report's history"),
+     "Permanents that enter tapped under a condition BoardCondition has no member for",
+     "entersTappedUnless takes a BoardCondition - other lands, a land count, a subtype, "
+     "a colour, a commander, your first three turns. 'Two or more *basic* lands' is one "
+     "word outside it; 'two or fewer' is the wrong way round"),
     # Narrowed 2026-08-15. scry 1, surveil 1 and a `library-top` search
-    # destination all exist; this heading claimed the library was untouchable,
-    # which stopped being true three batches ago. What is left is the sizes
-    # the engine refuses out loud, and the move it has no shape for.
+    # destination all exist. What is left is the sizes the engine refuses out
+    # loud, and the move it has no shape for.
     (r"\bscry [2-9]\b|\bsurveil [2-9]\b|from your hand on top of your library",
      "Sorting more than one card between library and hand",
-     "scry and surveil are capped at 1 deliberately - sorting several cards "
+     "scry and surveil are typed `amount: 1` deliberately - sorting several cards "
      "between two zones is a different interaction, not this one repeated - "
      "and nothing moves a card from a hand to the top of a library"),
-    (r"\bcan't be blocked\b|\bmenace\b.*\bcan't\b|\bunblockable\b",
-     "Evasion beyond flying and menace",
-     "declareBlockers only knows flying, reach and menace"),
-    # Narrowed 2026-08-16. `untap` and `untapAll` shipped with Combat Celebrant,
-    # so untapping a creature is no longer a blocker. What is left is the
-    # permanent that refuses to untap on its own - Mana Vault - which is a
-    # property of the card rather than an effect anything applies.
-    (r"doesn't untap during (your|its controller's) untap step",
-     "A permanent that does not untap on its own",
-     "the untap step untaps everything the active player controls bar an "
-     "exerted creature; nothing else can opt out"),
-    (r"\bexile\b.*\byou may (cast|play)\b|from among them",
-     "Playing cards from exile",
-     "returnFromExile moves cards but nothing can be cast from there"),
-    (r"target opponent|each opponent|target player (discards|loses|sacrifices)",
-     "Effects aimed at a player other than damage and life",
-     "the player selector reaches life totals only"),
-    (r"\bcopy\b|\bcopies\b",
-     "Copying spells and permanents",
-     "not modelled"),
-    (r"\bward\b",
-     "Ward variants beyond a flat mana cost",
-     "wardCost is a mana cost only"),
+    # Narrowed 2026-08-21: transform, modal double-faced cards and Rooms all
+    # work (Ajani, Shatterskull Smashing, Dollmaker's Shop). Adventure and the
+    # old split cards are the two shapes with no representation.
+    (r"^Adventure\b|\bAdventure\b \(|// .*\bSorcery\b.*// .*\bInstant\b",
+     "Adventure and split cards",
+     "backFaceId covers transform, MDFC and Rooms; a card with two castable halves "
+     "that is one permanent afterwards has no shape"),
+    (r"\bcopy of (target|that) spell|[Cc]opy target (instant|sorcery|spell)",
+     "Copying a spell on the stack",
+     "createCopyToken copies a permanent; nothing copies a spell"),
     (r"\bfight\b",
      "Fight",
      "no effect makes two creatures deal damage to each other"),
-    (r"[Rr]egenerate (?:each|all|any number|up to)",
-     "Regenerating more than one creature at once",
-     "the regenerate effect takes one target; nothing sweeps the battlefield with it"),
-    (r"\bshroud\b|\bprotection from\b",
-     "Shroud and protection",
-     "neither is implemented - regenerate now is, for a single target"),
+    (r"\bshroud\b",
+     "Shroud",
+     "protection, hexproof and hexproof-from all exist (Mother of Runes, Giver of "
+     "Runes, Skrelv); shroud does not"),
 ]
+
 
 UNRECOGNISED = ("Unrecognised - needs reading by hand",
                 "this line matched none of the known gaps; look at it before assuming anything")
@@ -345,11 +284,12 @@ TRIGGER_WRAPPERS = [
 # When an event ships, delete its line. A trigger clause the engine can fire is
 # not a blocker - whatever the trigger *does* may still be one, and that is
 # what `effect_reasons` is for.
+# Gutted 2026-08-21. Three of the four entries here named events that exist:
+# `damaged` (Hornet Nest), `leaves-battlefield`, and `permanent-attacks` -
+# which is Winota's own trigger, so the list was calling the commander of a
+# finished deck unsupported. `spell-cast` took the casting half of the fourth.
 UNSUPPORTED_TRIGGERS = [
-    (r"^When(?:ever)? .* is dealt damage,", "a permanent is dealt damage"),
-    (r"^When(?:ever)? .* leaves the battlefield", "a permanent leaves the battlefield"),
-    (r"^When(?:ever)? (a|an) .* you control attacks,", "a permanent other than this one attacks"),
-    (r"^When(?:ever)? a player (sacrifices|casts|discards)", "a player does something to their own cards"),
+    (r"^When(?:ever)? a player discards", "a player discarding a card"),
 ]
 # Deliberately no catch-all here. An over-broad "whenever anything happens"
 # entry swallowed Arasta of the Endless Web, whose trigger is an opponent
@@ -477,18 +417,31 @@ def analyse_line(raw_line):
         if not match:
             continue
         reasons = [("Trigger event the engine does not have: %s" % event,
-                    "triggeredAbilities know five events; this is a sixth")]
+                    "twenty-four events are in use; this is not one of them")]
         reasons.extend(effect_reasons(line[match.end():].strip(" ,")))
         return reasons
 
-    # Upkeep, end step, first main and beginning of combat all became real
-    # events on 2026-08-10 and are handled as wrappers above. What is left here
-    # is the steps that still have none - the draw step, and anything scoped to
-    # a particular opponent's turn.
+    # Upkeep, end step, first main and beginning of combat became real events
+    # on 2026-08-10 and are handled as wrappers above; the draw step joined them
+    # with Mana Vault on the Winota list. What is left here is scoping - a
+    # trigger that fires on somebody *else's* turn, or on each player's.
     if re.match(r"^At the beginning of", line, re.I):
-        reasons = [("Turn-based triggers the engine has no event for",
-                    "upkeep, end step, first main phase and beginning of combat exist; "
-                    "the draw step and per-opponent scoping do not")]
+        # Whose turn it is, is the whole question. "At the beginning of your
+        # upkeep" is an event the engine has; "each player's upkeep" is not,
+        # and lumping the two together put Oversold Cemetery and Twilight
+        # Prophet - both of which fire on your own turn - in the engine queue
+        # behind a gap neither of them has.
+        yours = re.match(r"^At the beginning of (your|each of your|combat on your turn)", line, re.I)
+        if yours:
+            rest = re.sub(r"^At the beginning of [^,]+,\s*", "", line, flags=re.I)
+            return effect_reasons(rest) or [
+                ("Generator gap - a turn-based trigger the DSL already has",
+                 "upkeep, draw step, first main, beginning of combat and end step are all "
+                 "events; gen_fixtures only emits ETB, attack and death triggers")]
+        reasons = [("Turn-based triggers scoped to a turn that is not yours",
+                    "upkeep, draw step, first main phase, beginning of combat and end step "
+                    "all exist as events, but only on your own turn; 'at the beginning of "
+                    "each opponent's upkeep' and friends have no representation")]
         rest = re.sub(r"^At the beginning of [^,]+,\s*", "", line, flags=re.I)
         reasons.extend(effect_reasons(rest))
         return reasons
@@ -517,9 +470,12 @@ def _analyse_single(line):
         core = re.sub(r"^you may\s+", "", effect, flags=re.I)
         if effect_is_expressible(core):
             if optional:
-                return [("Optional triggers (\"you may\")",
-                         "triggered abilities always resolve; making one mandatory would change "
-                         "the card, so these are refused rather than approximated")]
+                # `TriggeredAbility.optional` has existed since Chrome Mox, and
+                # Ajani's transform and Ranger-Captain's search both use it.
+                # This used to say the engine refused them outright.
+                return [("Generator gap - an optional trigger the DSL already has",
+                         "TriggeredAbility.optional puts a yes/no in front of the effect; "
+                         "gen_fixtures has no pattern that emits one")]
             return [("Generator gap - %s triggers whose effect the DSL already has" % event,
                      "the engine can do this today; gen_fixtures only has patterns for ETB "
                      "gain-life and ETB draw, so everything else is skipped")]
@@ -552,7 +508,18 @@ def _analyse_single(line):
 NON_CARD_LAYOUTS = {
     "art_series", "token", "double_faced_token", "emblem",
     "scheme", "planar", "vanguard", "augment", "host", "reversible_card",
+    # Oversized memorabilia. Added 2026-08-21: the "front_card" printing of
+    # Savage Lands is named Savage Lands, has the type line "Card" and no rules
+    # text at all, and it was answering for the real Jund tri-land - which came
+    # out of the report as "the generator does not emit the card type Card".
+    # Exactly the art-series failure, in a layout nobody had seen yet.
+    "front_card",
 }
+
+
+def _legal(card):
+    """Whether this printing is Commander-legal, for choosing between rows."""
+    return card.get("legalities", {}).get("commander") == "legal"
 
 
 def load_oracle():
@@ -576,7 +543,15 @@ def load_oracle():
             # this tool to be wrong.
             if card["name"].startswith("A-"):
                 continue
-            full.setdefault(card["name"].lower(), card)
+            # A legal printing always wins over an illegal one of the same
+            # name. `setdefault` alone gives the answer to whichever row the
+            # file happens to list first, which is how a piece of memorabilia
+            # came to stand in for a Commander staple.
+            name = card["name"].lower()
+            if name not in full or (
+                _legal(card) and not _legal(full[name])
+            ):
+                full[name] = card
             # "Fire // Ice" is listed under its full name; people type either
             # half. Kept in a second index so a half-name can never shadow a
             # card that genuinely has that name on its own - which is exactly
@@ -644,24 +619,36 @@ def classify(card):
     """('addable', None) or ('blocked', [(line, title, why), ...])."""
     type_line = card.get("type_line", "")
 
-    # Multi-faced cards. Being two-faced is one blocker; each face then has its
-    # own text, and reporting only the first made this the top line of the
-    # report claiming six completions when five of the six also want sacrifice,
-    # or dynamic amounts, or a mechanic that does not exist. Only Bala Ged
-    # Recovery is otherwise ready.
+    # Multi-faced cards. Each face has its own text, and reporting only the
+    # first made this the top line of the report claiming six completions when
+    # five of the six also want something else entirely.
+    #
+    # Retitled 2026-08-21. This used to say "a CardDefinition is one face",
+    # which stopped being true across the Winota list: `backFaceId` covers
+    # modal double-faced cards (Shatterskull Smashing), `transformsInto` covers
+    # transform (Ajani), and `isRoom` covers a card whose two halves are both
+    # live at once (Dollmaker's Shop). What is still true is that the
+    # *generator* writes one face and stops, so these are hand-written card
+    # work - which is what BLOCKED has to mean here if ADDABLE is to keep its
+    # promise that the generator will really emit it.
     if card.get("card_faces") and "//" in card.get("name", ""):
-        reasons = [(type_line, "Multi-faced cards (split, transform, adventure)",
-                    "a CardDefinition is one face")]
+        reasons = [(type_line, "Generator gap - a two-faced card is written by hand",
+                    "the engine has backFaceId, transformsInto and isRoom; gen_fixtures "
+                    "emits one face and stops")]
         for face in card["card_faces"]:
             reasons.extend(face_reasons(face))
         return "blocked", reasons
     if "Planeswalker" in type_line:
-        return "blocked", [(type_line, "Planeswalkers", "not a supported card type")]
+        # Was "not a supported card type" until Ajani, Nacatl Avenger.
+        return "blocked", [(type_line, "Generator gap - planeswalkers are written by hand",
+                            "loyalty, loyaltyAbilities and activateLoyaltyAbility all exist; "
+                            "gen_fixtures has no template for a loyalty ability")]
 
     if gen.parse_mana_cost(card.get("mana_cost")) is None and "Land" not in type_line:
-        return "blocked", [(card.get("mana_cost") or "", "Phyrexian or monocoloured hybrid mana in the cost",
-                            "ManaCost carries two-colour hybrid ({R/W}) since 2026-08-10. Phyrexian "
-                            "({W/P}) and monocoloured hybrid ({2/W}) still have no representation")]
+        return "blocked", [(card.get("mana_cost") or "", "Generator gap - phyrexian or monocoloured hybrid in the cost",
+                            "ManaCost carries two-colour hybrid ({R/W}) and, since Skrelv, phyrexian "
+                            "({W/P}); gen_fixtures.parse_mana_cost emits neither phyrexian nor "
+                            "monocoloured hybrid ({2/W}), and {2/W} has no engine representation either")]
 
     # ADDABLE has to mean "the generator will emit this", so each type goes to
     # the function that actually decides it. Routing everything through

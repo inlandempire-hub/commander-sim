@@ -88,3 +88,14 @@ Python pattern between them.
 Every diagnosis prints the oracle line that caused it, so the call can be
 checked rather than trusted, and anything it cannot place is reported as
 unrecognised rather than guessed at.
+
+## Decklists
+
+`decks/` holds the raw lists the deck-led loop is working through, so
+`deck_report.py` can be re-run against them as the engine grows rather than
+having the list re-typed each time. Card names only - no rules text, no images.
+
+```bash
+py -X utf8 deck_report.py decks/winter-chaos.txt
+py -X utf8 pool_report.py                          # the same question, whole pool
+```

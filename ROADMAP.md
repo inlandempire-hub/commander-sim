@@ -4831,3 +4831,151 @@ boards are: one scenario per card and nothing else, every board stands up and is
 castable from where it is handed to you, and a full walkthrough driven through
 the functions the client actually calls - cast Winota from the command zone off
 Boros basics, attack with a non-Human, be offered the Humans from the top six.
+
+## The Winter list: the roadmap (2026-08-21)
+
+The third decklist through the deck-led loop, on branch `deck/winter-chaos`.
+Nothing is built yet; this section is the plan, written before any code so the
+shape of the work is arguable while it is still cheap.
+
+Winter, Misanthropic Guide - Jund, `{B}{R}{G}`. A chaos deck: symmetrical draw,
+group-sacrifice, graveyard recursion, and several cards that hand an opponent a
+choice and make them make it.
+
+### The list is clean, and fifteen cards short
+
+**85 cards, every one real, Commander-legal, and inside Winter's `{B}{R}{G}`.**
+No bans, no Alchemy, no Arena-only printings, nothing outside the colour
+identity, nothing the bulk data cannot find - the legality sweep is clean for
+the second list running.
+
+**It is 85 of 100.** A Commander deck is a commander plus 99, and this is a
+commander plus 84. The fifteen missing are almost certainly basics - the list
+carries eleven duals, a fetch, two fetch-likes and Command Tower but not a
+single Swamp, Mountain or Forest - and basics are the one thing Commander lets
+you repeat. Nothing can be built as a *deck* until they are named, so that is
+the first question back.
+
+### 10 implemented, 7 addable
+
+**10 IMPLEMENTED, 7 ADDABLE, 68 BLOCKED, 0 UNKNOWN.** The ten are Arachnogenesis,
+Command Tower, Essence Warden, Exotic Orchard, Haywire Mite, Llanowar Wastes,
+Revitalizing Repast, Riveteers Overlook, Sakura-Tribe Elder and Woodland
+Cemetery - nine of them from the Blech list, which is the whole point of a
+Golgari-adjacent deck arriving third. The seven addable are all lands.
+
+Better than Winota's opening 6 implemented / 11 addable, and for the same
+reason in reverse: two of Winter's three colours have been grown into.
+
+### The report was stale again, and this time the whole table was
+
+`deck_report.py` classifies by running the card through the generator, which is
+computed and reliable. It explains *why* a card is blocked from a written table
+of capabilities, which is not - and that table had not been re-read since before
+the Winota list.
+
+The first run said 69 blocked. Reading the reasons against `types.ts`:
+
+- **"Turn-based triggers (upkeep, end step, each combat)"**, quoted against nine
+  cards, whose text read "trigger events are only enters-battlefield, attacks,
+  dies, landfall, permanent-enters". There are **twenty-four** events in use.
+- **"Planeswalkers - not a supported card type."** Ajani, Nacatl Avenger.
+- **"Static rules changes - cards that edit the rules of the turn itself have
+  nowhere to live."** Its own regex named four things: skipping a step, maximum
+  hand size, extra land drops, playing lands from a graveyard. All four are
+  fields on `StaticRules`.
+- **"A permanent that does not untap on its own."** `doesNotUntap`, which exists
+  because **Mana Vault is in the Winota deck**.
+- **"Ward variants beyond a flat mana cost"**, fired at Winter's own `Ward {2}`,
+  which is a flat mana cost.
+- and fourteen more: cast triggers, granting keywords, conditional statics,
+  alternative costs, sacrificing something other than the card, attach, counters
+  on a chosen target, counters other than +1/+1, dynamic amounts, targets by
+  controller, effects aimed at a player, playing from exile, blanket damage
+  prevention, regenerating more than one.
+
+**Nineteen headings, every one naming a capability the engine had already
+grown.** Between them they were the stated reason for most of a hundred-card
+list being called blocked.
+
+Two smaller bugs came out of the same read:
+
+- The oracle loader had **no filter for `front_card`**, so the oversized
+  memorabilia printing of Savage Lands - named "Savage Lands", type line "Card",
+  no rules text - was answering for the real Jund tri-land, which came out as
+  "the generator does not emit the card type Card". Exactly the art-series
+  failure in a layout nobody had seen. A Commander-legal printing now always
+  wins over an illegal one of the same name.
+- The four `UNSUPPORTED_TRIGGERS` wrappers included **`permanent-attacks`**,
+  which is Winota's own trigger. The tool was calling the commander of a
+  finished deck unsupported.
+
+### The distinction the table was missing
+
+Rewriting it forced a split that had been implicit and wrong:
+
+- **A generator gap** - the engine can express the card, `gen_fixtures` has no
+  template. Hand-written card work, no engine work. Every card in Winota's weird
+  tier was one of these.
+- **An engine gap** - there is no representation, and something has to be built.
+
+Headings now say which, and BLOCKED keeps meaning "the generator will not emit
+it" so that ADDABLE keeps its promise. On this list ten of the blocked cards are
+blocked *only* by generator gaps, and 31 are honestly unrecognised - which is a
+worse answer to read and a better one to have.
+
+### The commander is the hardest card in the deck
+
+Winter is three clauses and only the first is easy:
+
+- **`Ward {2}`** - a flat mana cost, which `wardCost` has carried since before
+  the Winota list.
+- **"At the beginning of your upkeep, each player draws two cards."** The upkeep
+  event exists; a draw aimed at *every* player rather than at you or at an
+  opponent is the new part.
+- **"Delirium - As long as there are four or more card types among cards in your
+  graveyard, each opponent's maximum hand size is equal to seven minus the
+  number of those card types."** `StaticRules.maxHandSize` exists as a number
+  you set for yourself. This is a number *computed from a count*, applied to
+  *opponents*, behind a condition that counts *card types in a graveyard* -
+  three separate things none of which the field does today. Delirium itself is
+  a `BoardCondition` the engine has no member for.
+
+Worth saying out loud before any of it is built, because the Winota list taught
+the opposite lesson twice: a card deferred as "a whole subsystem" usually needs
+a seam. This one genuinely is three jobs.
+
+### The real engine queue for this deck
+
+Small, and mostly not what the first run claimed:
+
+| Capability | Finishes | Cards |
+|---|---|---|
+| Enters-tapped conditions BoardCondition has no member for | 3 | Cinder Glade, Smoldering Marsh, Strangled Cemetery |
+| Searching for more than one card at a time | 2 | Rootweaver Druid, Veteran Explorer |
+| Turn-based triggers on a turn that is not yours | 1 | Howling Mine |
+| Tokens carrying their own rules text | 1 | Bramble Sovereign |
+| Cycling | 1 | Canyon Slough |
+| Destroy-all / exile-all | 1 | Thieves' Auction |
+
+The three taplands want one word: `controls-lands` counts lands and these count
+*basic* lands. "At the beginning of each player's draw step" is the deck's
+signature - Howling Mine, Rites of Flourishing, Spiteful Visions all share it -
+and per-player scoping is the one genuinely new trigger shape here.
+
+### Where the pool stands now
+
+`pool_report.py` runs the same `classify` over every Commander-legal card, so
+the two can never disagree. **31,830 Commander-legal cards** in the cached data:
+
+- **1,008 implemented** - a fixture exists.
+- **771 addable** - the generator emits them exactly, unread.
+- **1,938 blocked only by generator gaps** - the engine can express them; they
+  are hand-written card work.
+
+**3,717 cards, 11% of the pool, are reachable without building any new engine
+capability.** That is the honest floor, not the ceiling: 26,585 cards come back
+"unrecognised", which means the reason table has not been taught about them, not
+that they are impossible. The three biggest *named* gaps across the whole pool
+are keyword mechanics (1,408 cards - Cycling, Flashback, Kicker and friends),
+per-player turn scoping (432), and tokens with quoted abilities (398).
