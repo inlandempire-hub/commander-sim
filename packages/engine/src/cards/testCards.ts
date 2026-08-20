@@ -10,10 +10,28 @@ import type { CardDefinition } from "../types.js";
  * CLAUDE.md's vanilla/scripted/weird tiers for what "simple" means here.
  */
 
+/*
+ * The five basics carry a *chosen* printing rather than the one Scryfall calls
+ * representative: the full-art Edge of Eternities cycle by Adam Paquette,
+ * collector numbers 367-371. Asked for on 2026-08-21.
+ *
+ * `scryfallId` is only ever a printing key - it picks which artwork the client
+ * hotlinks (see cardArt.ts) and nothing else. Every audit in
+ * tools/scryfall-report matches fixtures **by name**, so a deliberate printing
+ * is safe there, and `add_scryfall_ids.py` skips a definition that already
+ * carries an id, so re-running it will not quietly put the default back.
+ *
+ * Basics are the only cards this is done for, and deliberately: they are the
+ * cards a deck holds thirty of, so they are most of what a board looks like.
+ * Anything else wanting a specific printing should use a deck's `artOverrides`
+ * (see ArtPicker in the deck builder), which is what that mechanism is for.
+ */
+
 export const MOUNTAIN: CardDefinition = {
   id: "mountain",
   name: "Mountain",
-  scryfallId: "c49d378e-9549-4320-b3c6-1aeb216d1e98",
+  // Edge of Eternities 370, full art. See the note at the top of this file.
+  scryfallId: "6b092822-f34f-4384-9d0a-23d863d27231",
   types: ["Land"],
   subtypes: ["Mountain"],
   supertypes: ["Basic"],
@@ -25,7 +43,8 @@ export const MOUNTAIN: CardDefinition = {
 export const FOREST: CardDefinition = {
   id: "forest",
   name: "Forest",
-  scryfallId: "c3e84b42-5423-4d4d-b8fc-cfbb2c53a4ca",
+  // Edge of Eternities 371, full art. See the note at the top of this file.
+  scryfallId: "0d6250d3-728b-4412-8efc-911bb6f5e910",
   types: ["Land"],
   subtypes: ["Forest"],
   supertypes: ["Basic"],
@@ -37,7 +56,8 @@ export const FOREST: CardDefinition = {
 export const PLAINS: CardDefinition = {
   id: "plains",
   name: "Plains",
-  scryfallId: "7b7c408b-8660-4db5-9a16-5003c11b4ac1",
+  // Edge of Eternities 367, full art. See the note at the top of this file.
+  scryfallId: "926aad15-87a8-4510-b327-d1648f89c497",
   types: ["Land"],
   subtypes: ["Plains"],
   supertypes: ["Basic"],
@@ -1944,7 +1964,8 @@ export const DARKSTEEL_MYR: CardDefinition = {
 export const SWAMP: CardDefinition = {
   id: "swamp",
   name: "Swamp",
-  scryfallId: "4031e5e4-e573-4130-8d20-4a606edef0a0",
+  // Edge of Eternities 369, full art. See the note at the top of this file.
+  scryfallId: "b938ac10-bd0f-4ce3-a743-958d5beadf58",
   types: ["Land"],
   subtypes: ["Swamp"],
   supertypes: ["Basic"],
@@ -1956,7 +1977,8 @@ export const SWAMP: CardDefinition = {
 export const ISLAND: CardDefinition = {
   id: "island",
   name: "Island",
-  scryfallId: "c6aa89a8-3584-4906-b9a9-41ef2f021f8e",
+  // Edge of Eternities 368, full art. See the note at the top of this file.
+  scryfallId: "81368899-5fef-4f10-80ea-b282eca0f42f",
   types: ["Land"],
   subtypes: ["Island"],
   supertypes: ["Basic"],

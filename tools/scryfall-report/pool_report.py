@@ -54,6 +54,7 @@ def main(argv):
 
     counts = Counter()
     by_reason = defaultdict(list)
+    gen_only_by_gap = Counter()
     generator_only = 0
     for card in cards:
         if card["name"].lower() in implemented:
@@ -71,6 +72,9 @@ def main(argv):
         # engine can already express - somebody has to sit down and write it.
         if titles and all(t.startswith("Generator gap") for t in titles):
             generator_only += 1
+            gen_only_by_gap[
+                " + ".join(sorted(t.replace("Generator gap - ", "") for t in titles))
+            ] += 1
 
     total = len(cards)
     print("=" * 78)
@@ -88,6 +92,18 @@ def main(argv):
     reachable = counts["implemented"] + counts["addable"] + generator_only
     print(f"  reachable without new engine capability: {reachable} "
           f"({reachable * 100 // total}% of the pool)")
+
+    print()
+    print("=" * 78)
+    print("THE CHEAPEST WORK THERE IS")
+    print("=" * 78)
+    print("Cards blocked *only* by generator gaps, grouped by which. The engine")
+    print("can already express every one of these, so each line is a templating")
+    print("job in gen_fixtures - after which the cards on it become ADDABLE and")
+    print("can be emitted in bulk rather than written one at a time.")
+    print()
+    for key, n in sorted(gen_only_by_gap.items(), key=lambda kv: -kv[1])[:12]:
+        print(f"{n:>6}  {key}")
 
     print()
     print("=" * 78)

@@ -4842,27 +4842,28 @@ Winter, Misanthropic Guide - Jund, `{B}{R}{G}`. A chaos deck: symmetrical draw,
 group-sacrifice, graveyard recursion, and several cards that hand an opponent a
 choice and make them make it.
 
-### The list is clean, and fifteen cards short
+### The list is clean
 
-**85 cards, every one real, Commander-legal, and inside Winter's `{B}{R}{G}`.**
+**100 cards, every one real, Commander-legal, and inside Winter's `{B}{R}{G}`.**
 No bans, no Alchemy, no Arena-only printings, nothing outside the colour
 identity, nothing the bulk data cannot find - the legality sweep is clean for
 the second list running.
 
-**It is 85 of 100.** A Commander deck is a commander plus 99, and this is a
-commander plus 84. The fifteen missing are almost certainly basics - the list
-carries eleven duals, a fetch, two fetch-likes and Command Tower but not a
-single Swamp, Mountain or Forest - and basics are the one thing Commander lets
-you repeat. Nothing can be built as a *deck* until they are named, so that is
-the first question back.
+It arrived as 85 and the missing fifteen were basics, as the shape of the mana
+base suggested: eleven duals, a fetch, two fetch-likes and Command Tower, and not
+a single Swamp, Mountain or Forest. **6 Swamp, 6 Forest, 3 Mountain**, given on
+2026-08-21.
 
-### 10 implemented, 7 addable
+### 25 implemented, 7 addable
 
-**10 IMPLEMENTED, 7 ADDABLE, 68 BLOCKED, 0 UNKNOWN.** The ten are Arachnogenesis,
-Command Tower, Essence Warden, Exotic Orchard, Haywire Mite, Llanowar Wastes,
-Revitalizing Repast, Riveteers Overlook, Sakura-Tribe Elder and Woodland
-Cemetery - nine of them from the Blech list, which is the whole point of a
-Golgari-adjacent deck arriving third. The seven addable are all lands.
+**25 IMPLEMENTED, 7 ADDABLE, 68 BLOCKED, 0 UNKNOWN.** Ten of the twenty-five are
+nonbasic: Arachnogenesis, Command Tower, Essence Warden, Exotic Orchard, Haywire
+Mite, Llanowar Wastes, Revitalizing Repast, Riveteers Overlook, Sakura-Tribe
+Elder and Woodland Cemetery - nine of them inherited from the Blech list, which
+is the whole point of a Golgari-adjacent deck arriving third. The fifteen basics
+are the rest, and the seven addable are all lands too.
+
+A quarter of the deck before any work starts, against Winota's opening six.
 
 Better than Winota's opening 6 implemented / 11 addable, and for the same
 reason in reverse: two of Winter's three colours have been grown into.
@@ -4976,6 +4977,51 @@ the two can never disagree. **31,830 Commander-legal cards** in the cached data:
 **3,717 cards, 11% of the pool, are reachable without building any new engine
 capability.** That is the honest floor, not the ceiling: 26,585 cards come back
 "unrecognised", which means the reason table has not been taught about them, not
-that they are impossible. The three biggest *named* gaps across the whole pool
-are keyword mechanics (1,408 cards - Cycling, Flashback, Kicker and friends),
-per-player turn scoping (432), and tokens with quoted abilities (398).
+that they are impossible.
+
+**Those 3,717 are not one tier of effort, and reading them as one is the mistake
+this number invites.** 1,008 are done. 771 the generator emits today, unread, in
+bulk. The other 1,938 need somebody to write a fixture each - and the Winota
+list is the calibration for what that costs: 100 cards, eleven batches.
+
+The useful cut is *why* each of those 1,938 is not generated, because **1,889 of
+them are blocked by exactly one generator gap**, and three gaps account for
+1,552:
+
+| Cards | Gap the generator has |
+|---|---|
+| 728 | a tap ability that is not one of the templated shapes |
+| 541 | a turn-based trigger the DSL already has |
+| 283 | planeswalkers written by hand |
+
+Each of those is a **templating job in `gen_fixtures`, not engine work**, and
+each converts its cards from BLOCKED to ADDABLE in bulk. That is the cheapest
+card-pool work available and it is a Python job, which is a genuinely new answer
+to "what should we build next" - `pool_report.py` prints it as its own section.
+
+The three biggest *engine* gaps across the whole pool are keyword mechanics
+(1,408 cards - Cycling, Flashback, Kicker and friends), per-player turn scoping
+(432), and tokens with quoted abilities (398).
+
+## The basics have a chosen printing (2026-08-21)
+
+The five basic lands now carry the **full-art Edge of Eternities cycle by Adam
+Paquette**, collector numbers 367-371, rather than whichever printing Scryfall
+treats as representative.
+
+`scryfallId` on a fixture is only ever a printing key: it picks which artwork
+the client hotlinks from Scryfall's CDN (see `cardArt.ts`) and has no other
+effect on anything. Two things had to be true before changing it was safe, and
+both are:
+
+- **Every audit in tools/scryfall-report matches fixtures by name**, not by id,
+  so a deliberate printing does not make `audit_fixtures.py` complain. It still
+  reports 1,053 fixtures and no problems.
+- **`add_scryfall_ids.py` skips a definition that already carries an id**, so
+  re-running the stamper will not quietly put the default back.
+
+Basics are the only cards this is done for, and deliberately: a deck holds
+thirty of them, so they are most of what a board actually looks like. Anything
+else wanting a specific printing should use a deck's `artOverrides` through the
+deck builder's art picker, which is the mechanism built for exactly that and
+which does not touch the shared fixture.
