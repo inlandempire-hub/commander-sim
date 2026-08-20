@@ -11165,6 +11165,27 @@ export const DISPEL: CardDefinition = {
   tier: "scripted",
 };
 
+export const CULTIVATE: CardDefinition = {
+  id: "cultivate",
+  name: "Cultivate",
+  scryfallId: "e60deb92-f7dd-4f4e-9036-e47dd586f985",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  // "Search for up to two basic lands, put one onto the battlefield tapped and
+  // the other into your hand." Two chained searches: the first fills the "onto
+  // the battlefield" role (so finding only one still lands it), the second the
+  // "into your hand" role.
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "battlefield", tapped: true },
+      { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" },
+    ],
+  },
+  tier: "scripted",
+};
+
 export const DEMONIC_BARGAIN: CardDefinition = {
   id: "demonic-bargain",
   name: "Demonic Bargain",
@@ -14390,5 +14411,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     LAVASPUR_BOOTS,
     WINGED_BOOTS,
     ZEPHYR_BOOTS,
+    CULTIVATE,
   ].map((def) => [def.id, def]),
 );
