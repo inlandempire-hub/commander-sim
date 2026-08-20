@@ -4643,3 +4643,92 @@ afternoon.
 
 **1,046 fixtures. 1,480 tests, typecheck clean**, all three audits clean bar the
 two long-known gaps, three consecutive green runs.
+
+## Batch 11: the last three, and the deck itself (2026-08-20)
+
+**The Winota list is at 100 of 100.** Every card in the deck is implemented
+exactly - no approximations - and the deck is in the repo, registered as an
+archetype, and played out by the bot on both sides.
+
+### The two "whole subsystems" cost an afternoon each
+
+Both of the cards this pool refused on the grounds that they needed a subsystem
+turned out to need a *seam*, not a rewrite.
+
+**Ajani's -4** was specified rather than built for two batches on the grounds
+that "each opponent chooses an artifact, a creature, an enchantment, and a
+planeswalker" was a new question reaching a dozen places. It is not a new
+question at all: `pendingCardChoices` has asked a *named* player to pick from a
+*computed* list since Braids, and it is a queue, which is exactly what "each
+opponent chooses" means. It needed one new mode and one validation rule - the
+chosen cards are the ones **kept**, the inverse of every other mode there, and
+the four types are four *slots* rather than four cards.
+
+**The Ring** is a genuine subsystem - an emblem with four cumulative abilities
+and a creature that bears them - and it went in cleanly because **none of the
+four belong to the emblem**. Every one is an ability *your Ring-bearer has*, so
+they are computed from the player's level and handed to the two functions that
+already answer what a permanent can do. Stamped onto a creature when it became
+the bearer, they would stay on one that stopped being it.
+
+**The lesson, twice over: a card deferred for the size of its question is worth
+re-reading against the engine before the next batch.** The deck report had the
+same failure in the other direction - it called three finished cards blocked
+because it only matched multi-faced cards by their full name.
+
+### What the last three needed
+
+- **Ajani**: transform (two zone changes and a new object, which is what the
+  card says), a batch death event, a counted damage amount, and targets on a
+  loyalty ability - which no planeswalker in the pool had ever needed.
+- **Dollmaker's Shop**: Rooms, and layer 7b. A Room is *not* the MDFC pattern
+  even though it shares the face question: an MDFC becomes the face you chose,
+  a Room keeps both. And Porcelain Gallery *sets* base power and toughness
+  rather than adjusting it, so it is read before counters and anthems.
+- **Boromir**: The Ring, a third shape of block restriction, a delayed trigger
+  that fires at end of combat rather than end of turn, and a spell that
+  remembers whether any mana was spent on it.
+
+## The deck is a deck now
+
+`packages/engine/src/winotaDeck.ts`, registered in `archetypes.ts`, with two
+tests: one that says it is legal Commander and holds no tokens or back faces,
+and one that plays it out with the bot on both sides across five shuffles.
+
+**That second test found five bugs on its first run**, every one of them the bot
+re-deriving a rule the engine already answers, and every one a *dead game*
+rather than a misplay - an action the engine refuses ends a bot game on the
+spot. They were invisible for as long as the only decks in play were a commander
+and forty basics:
+
+1. An ability cost the bot did not check (`activatableAbilities` exists).
+2. Timing it never asked about (`canPlayCardNow` exists).
+3. An animated land read by its printed type rather than `typesOf`.
+4. Tapping a painland put its trigger on the stack and closed the sorcery-speed
+   window it was paying for. The real rules have no such problem - mana
+   abilities are activated *during* casting - so the window is now measured
+   before the taps.
+5. A block restriction the bot had never heard of (`blockProblem` exists).
+
+The fifth needed a real distinction rather than a redirect: "could this creature
+block that one" and "is this block legal right now" are different questions, and
+asking the second during *attack* planning answers "that creature is not
+attacking" about the whole table. Hence `blockWouldBeIllegal` beside
+`blockProblem`.
+
+**A deck is a test.** Eleven batches of card-by-card work, three audits and
+1,500 unit tests did not find any of those five; one real hundred-card list
+playing itself found all five in an afternoon.
+
+**1,053 fixtures. 1,536 tests, typecheck clean**, all three audits clean bar the
+two long-known gaps.
+
+### Still open
+
+- The client's cast flow sends **exactly one target**, so Shatterskull
+  Smashing's two-target split (implemented and enforced in the engine, reachable
+  over the protocol) cannot be reached from the UI. Shared with Pest
+  Infestation.
+- The client has no UI for **unlocking a Room's second door** - the action
+  exists, is wired through the controller and the protocol, and has no button.
+- Incinerate and Winding Constrictor remain the two known text-audit gaps.
