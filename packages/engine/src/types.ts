@@ -1451,6 +1451,12 @@ export interface AlternativeCost {
   condition: BoardCondition;
   /** The printed wording, for the client's offer - "cast without paying its mana cost?". */
   label: string;
+  /**
+   * "You may sacrifice a nontoken blue creature rather than pay this spell's
+   * mana cost" - Flare of Denial. When set, choosing the alternative costs the
+   * named creature (via `options.sacrificeInstanceId`) rather than being free.
+   */
+  sacrifice?: { color?: Color; nontoken?: boolean };
 }
 
 /**

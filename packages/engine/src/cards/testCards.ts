@@ -11165,6 +11165,22 @@ export const DISPEL: CardDefinition = {
   tier: "scripted",
 };
 
+export const FLARE_OF_DENIAL: CardDefinition = {
+  id: "flare-of-denial",
+  name: "Flare of Denial",
+  scryfallId: "71a98efb-9b0a-496b-ac21-8d70527ea544",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  alternativeCost: {
+    condition: { kind: "controls-color", color: "U", count: 1 },
+    label: "Sacrifice a nontoken blue creature rather than pay this spell's mana cost",
+    sacrifice: { color: "U", nontoken: true },
+  },
+  castEffect: { kind: "counter", target: { kind: "spell" } },
+  tier: "scripted",
+};
+
 export const PROPAGANDA: CardDefinition = {
   id: "propaganda",
   name: "Propaganda",
@@ -14460,5 +14476,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     FELIX_FIVE_BOOTS,
     YOU_ARE_ALREADY_DEAD,
     PROPAGANDA,
+    FLARE_OF_DENIAL,
   ].map((def) => [def.id, def]),
 );

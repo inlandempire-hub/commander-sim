@@ -262,6 +262,21 @@ export function castSpell(
     }
     sacrificedPower = effectivePower(state, victim);
   }
+  if (alternative?.sacrifice) {
+    // Flare of Denial's alternative cost: the sacrifice *is* the cost, in place
+    // of mana. Validated here, performed below with everything else.
+    const altSacId = options.sacrificeInstanceId;
+    if (!altSacId) throw new Error(`${def.name}'s alternative cost requires a creature to sacrifice`);
+    const victim = player.battlefield.find((c) => c.instanceId === altSacId);
+    if (!victim) throw new Error(`${playerId} does not control ${altSacId}`);
+    const vdef = requireDefinition(state, victim.definitionId);
+    if (!vdef.types.includes("Creature")) throw new Error(`${vdef.name} is not a creature`);
+    if (alternative.sacrifice.color && (vdef.manaCost?.colors?.[alternative.sacrifice.color] ?? 0) <= 0) {
+      throw new Error(`${vdef.name} is not the required colour`);
+    }
+    if (alternative.sacrifice.nontoken && vdef.isToken) throw new Error(`${vdef.name} is a token`);
+    sacrificeId = altSacId;
+  }
 
   // A mode is chosen as the spell is cast, so the modal wrapper is unwrapped
   // here and never reaches the stack. Everything downstream - targeting,
