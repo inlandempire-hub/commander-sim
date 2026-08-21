@@ -1853,6 +1853,12 @@ export interface CardDefinition {
   enablesFreeCastFromHand?: boolean;
   /** "Delve" - each card exiled from your graveyard while casting this pays for {1}. See casting.ts. */
   delve?: boolean;
+  /**
+   * Cleave: the effect used when the spell is cast for its cleave cost (its
+   * `alternativeCost`), with the bracketed words removed - Dig Up's tutor
+   * widens from a basic land to any card. Used in place of `castEffect`.
+   */
+  cleaveEffect?: Effect;
   /** Whether this card can legally be someone's commander (legendary creature, or explicitly says so). */
   canBeCommander?: boolean;
   tier: "vanilla" | "scripted" | "weird";

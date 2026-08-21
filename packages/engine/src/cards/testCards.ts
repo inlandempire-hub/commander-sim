@@ -11398,6 +11398,24 @@ export const CULTIVATE: CardDefinition = {
   tier: "scripted",
 };
 
+export const DIG_UP: CardDefinition = {
+  id: "dig-up",
+  name: "Dig Up",
+  scryfallId: "8f14c947-2452-4fd6-8f1a-391cf5898100",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["B", "G"],
+  // Cleave {1}{B}{B}{G}: the cleave cost widens the tutor from a basic land to any card.
+  alternativeCost: {
+    condition: { kind: "controls-lands", count: 0 },
+    label: "Cast for its cleave cost",
+    manaCost: { generic: 1, colors: { B: 2, G: 1 } },
+  },
+  castEffect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" },
+  cleaveEffect: { kind: "searchLibrary", destination: "hand" },
+  tier: "scripted",
+};
+
 export const DEMONIC_COUNSEL: CardDefinition = {
   id: "demonic-counsel",
   name: "Demonic Counsel",
@@ -14866,6 +14884,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     PROLOGUE_TO_PHYRESIS,
     DISPEL,
     DEMONIC_BARGAIN,
+    DIG_UP,
     DEMONIC_COUNSEL,
     RELIQUARY_TOWER,
     TIME_STRETCH,

@@ -308,7 +308,10 @@ export function castSpell(
   // A mode is chosen as the spell is cast, so the modal wrapper is unwrapped
   // here and never reaches the stack. Everything downstream - targeting,
   // resolution, the bot, the client - sees a plain single effect.
-  let effect: Effect = def.castEffect ?? { kind: "draw", amount: 0 };
+  // Cleave (Dig Up): casting for the alternative (cleave) cost swaps in the
+  // bracket-removed effect.
+  let effect: Effect =
+    (options.useAlternativeCost && def.cleaveEffect) || def.castEffect || { kind: "draw", amount: 0 };
   if (effect.kind === "modal") {
     const modes = effect.modes;
     const chosen = options.chosenMode;
