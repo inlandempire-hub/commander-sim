@@ -43,6 +43,8 @@ export interface GameController {
    * `resolveSearch` - the game is stopped mid-spell until it is answered.
    */
   resolveArrange(playerId: string, order: string[], shuffle?: boolean): void;
+  /** Cycle a card from hand: pay its cycling cost, discard it, then draw or tutor. */
+  cycleCard(playerId: string, instanceId: string): void;
   /**
    * Answers a "you may" trigger. Gated exactly like `resolveSearch` - the game
    * is mid-resolution and nobody has priority until this comes back.

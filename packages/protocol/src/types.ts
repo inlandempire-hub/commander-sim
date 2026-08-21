@@ -68,6 +68,7 @@ export type ClientMessage =
   | { type: "takeMulligan" }
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }
+  | { type: "cycleCard"; instanceId: string }
   | { type: "concede" }
   | { type: "passPriority" };
 

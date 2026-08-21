@@ -1758,3 +1758,39 @@ export function creaturesAffectedByPumpAll(
     p.battlefield.filter((c) => state.cardDefinitions[c.definitionId]?.types.includes("Creature")),
   );
 }
+
+/**
+ * Cycling: "{cost}, Discard this card: Draw a card" - or, with `search`, a
+ * typecycling that tutors the named card to hand instead of drawing. Activated
+ * from the hand; the discard is part of the cost, so it happens whether or not
+ * a search finds anything.
+ */
+export function cycleCard(state: GameState, playerId: string, instanceId: string): void {
+  const player = requirePlayer(state, playerId);
+  const card = player.hand.find((c) => c.instanceId === instanceId);
+  if (!card) throw new Error("That card is not in hand");
+  const def = requireDefinition(state, card.definitionId);
+  if (!def.cycling) throw new Error(`${def.name} has no cycling ability`);
+  if (!canPayManaCost(player, def.cycling.cost)) {
+    throw new Error(`${playerId} cannot pay the cycling cost of ${def.name}`);
+  }
+  payManaCost(player, def.cycling.cost);
+  moveCard(state, instanceId, "graveyard");
+  log(state, `${playerId} cycles ${def.name}`);
+  if (def.cycling.search) {
+    applyEffect(
+      state,
+      playerId,
+      instanceId,
+      {
+        kind: "searchLibrary",
+        cardType: def.cycling.search.cardType,
+        subtypes: def.cycling.search.subtypes,
+        destination: "hand",
+      },
+      [],
+    );
+  } else {
+    drawCard(state, playerId, 1);
+  }
+}

@@ -11326,6 +11326,42 @@ export const YOU_ARE_ALREADY_DEAD: CardDefinition = {
   tier: "scripted",
 };
 
+export const LORIEN_REVEALED: CardDefinition = {
+  id: "lorien-revealed",
+  name: "Lórien Revealed",
+  scryfallId: "209204c7-aae5-4768-91b8-89c8c4d4a97f",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "draw", amount: 3 },
+  cycling: { cost: { generic: 1, colors: {} }, search: { subtypes: ["Island"] } },
+  tier: "scripted",
+};
+
+export const FOREBODING_LANDSCAPE: CardDefinition = {
+  id: "foreboding-landscape",
+  name: "Foreboding Landscape",
+  scryfallId: "cf53f97c-dd4c-44bd-93ba-faa6d64c985a",
+  types: ["Land"],
+  colorIdentity: ["B", "G", "U"],
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } },
+    {
+      cost: { tap: true, sacrificeSelf: true },
+      effect: {
+        kind: "searchLibrary",
+        cardType: "Land",
+        basicLandOnly: true,
+        subtypes: ["Swamp", "Forest", "Island"],
+        destination: "battlefield",
+        tapped: true,
+      },
+    },
+  ],
+  cycling: { cost: { generic: 0, colors: { B: 1, G: 1, U: 1 } } },
+  tier: "scripted",
+};
+
 export const CULTIVATE: CardDefinition = {
   id: "cultivate",
   name: "Cultivate",
@@ -14600,5 +14636,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     ARCANE_DENIAL,
     TRAVERSE_THE_ULVENWALD,
     FALLAJI_ARCHAEOLOGIST,
+    LORIEN_REVEALED,
+    FOREBODING_LANDSCAPE,
   ].map((def) => [def.id, def]),
 );

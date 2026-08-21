@@ -1809,6 +1809,12 @@ export interface CardDefinition {
    * charged in `declareAttackers`.
    */
   attackTax?: number;
+  /**
+   * "Cycling {2}" / "Islandcycling {1}" - "{cost}, Discard this card: Draw a
+   * card" (or, with `search`, tutor the named card to hand). Activated from
+   * hand; see `cycleCard`.
+   */
+  cycling?: { cost: ManaCost; search?: { cardType?: CardType; subtypes?: string[] } };
   /** Whether this card can legally be someone's commander (legendary creature, or explicitly says so). */
   canBeCommander?: boolean;
   tier: "vanilla" | "scripted" | "weird";
