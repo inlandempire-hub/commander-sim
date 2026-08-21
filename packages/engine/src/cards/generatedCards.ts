@@ -35,13 +35,18 @@ import type { CardDefinition } from "../types.js";
  * entries. `cardText.test.ts` is what caught it - it asserts every token in the
  * pool describes itself distinctly.
  *
- * One card was removed by hand after generation: **Dryad Arbor**, which has no
- * mana cost at all - it is a land that is also a creature - and which the
- * generator transcribed as a cost of {0}. `audit_fixtures.py` caught the
- * difference. {0} and "no cost" are not the same thing (one can be cast, the
- * other can only be played as a land), so it is a card that needs a decision
- * rather than a transcription. Re-add it by hand in testCards.ts if it is ever
- * wanted, and it will have to be dropped from a regeneration again.
+ * **Dryad Arbor** is not here, and the generator now refuses it on its own: a
+ * Land Creature with no mana cost at all, which `ts_mana_cost("")` would turn
+ * into a castable 1/1 for {0}. {0} and "no cost" are different cards (one can be
+ * cast, the other only played as a land), so `interpret` rejects any Land with
+ * an empty cost. `audit_fixtures.py` caught the {0} the first two times before
+ * that guard existed.
+ *
+ * Grown 2026-08-21 by ~200 cards when the generator learned three shapes it had
+ * been refusing: a generic "{cost}: <effect>" tap ability, a turn-based trigger
+ * carrying any effect the shared table has, and a planeswalker's loyalty
+ * abilities (the last emits nothing yet - a walker's effects, not its loyalty
+ * template, are what the DSL cannot express). See ROADMAP.md.
  */
 
 export const TOKEN_B_21_VILLAIN_MENACE: CardDefinition = {
@@ -10801,6 +10806,2798 @@ export const SAVAGE_LANDS: CardDefinition = {
   tier: "vanilla",
 };
 
+export const TOKEN_W_22_KNIGHT_ALLY: CardDefinition = {
+  id: "token-w-22-knight-ally",
+  name: "Knight Ally",
+  types: ["Creature"],
+  subtypes: ["Knight", "Ally"],
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_G_33_CENTAUR: CardDefinition = {
+  id: "token-g-33-centaur",
+  name: "Centaur",
+  types: ["Creature"],
+  subtypes: ["Centaur"],
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 3,
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_UR_44_ELEMENTAL: CardDefinition = {
+  id: "token-ur-44-elemental",
+  name: "Elemental",
+  types: ["Creature"],
+  subtypes: ["Elemental"],
+  colorIdentity: ["U", "R"],
+  power: 4,
+  toughness: 4,
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_R_23_MINOTAUR_HASTE: CardDefinition = {
+  id: "token-r-23-minotaur-haste",
+  name: "Minotaur",
+  types: ["Creature"],
+  subtypes: ["Minotaur"],
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 3,
+  keywords: ["Haste"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_W_11_CITIZEN: CardDefinition = {
+  id: "token-w-11-citizen",
+  name: "Citizen",
+  types: ["Creature"],
+  subtypes: ["Citizen"],
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_WB_21_INKLING_FLYING: CardDefinition = {
+  id: "token-wb-21-inkling-flying",
+  name: "Inkling",
+  types: ["Creature"],
+  subtypes: ["Inkling"],
+  colorIdentity: ["W", "B"],
+  power: 2,
+  toughness: 1,
+  keywords: ["Flying"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_W_11_SOLDIER_ALLY: CardDefinition = {
+  id: "token-w-11-soldier-ally",
+  name: "Soldier Ally",
+  types: ["Creature"],
+  subtypes: ["Soldier", "Ally"],
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_R_31_ELEMENTAL_HASTE: CardDefinition = {
+  id: "token-r-31-elemental-haste",
+  name: "Elemental",
+  types: ["Creature"],
+  subtypes: ["Elemental"],
+  colorIdentity: ["R"],
+  power: 3,
+  toughness: 1,
+  keywords: ["Haste"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_W_11_DOG: CardDefinition = {
+  id: "token-w-11-dog",
+  name: "Dog",
+  types: ["Creature"],
+  subtypes: ["Dog"],
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_RG_22_SATYR_HASTE: CardDefinition = {
+  id: "token-rg-22-satyr-haste",
+  name: "Satyr",
+  types: ["Creature"],
+  subtypes: ["Satyr"],
+  colorIdentity: ["R", "G"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Haste"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_RW_32_SPIRIT: CardDefinition = {
+  id: "token-rw-32-spirit",
+  name: "Spirit",
+  types: ["Creature"],
+  subtypes: ["Spirit"],
+  colorIdentity: ["R", "W"],
+  power: 3,
+  toughness: 2,
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_W_11_WARRIOR: CardDefinition = {
+  id: "token-w-11-warrior",
+  name: "Warrior",
+  types: ["Creature"],
+  subtypes: ["Warrior"],
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const TOKEN_U_22_DRAKE_FLYING: CardDefinition = {
+  id: "token-u-22-drake-flying",
+  name: "Drake",
+  types: ["Creature"],
+  subtypes: ["Drake"],
+  colorIdentity: ["U"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Flying"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const ADVENT_OF_THE_WURM: CardDefinition = {
+  id: "advent-of-the-wurm",
+  name: "Advent of the Wurm",
+  scryfallId: "ba3b5e35-5448-4115-a9c5-6ac14013c904",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { G: 2, W: 1 } },
+  colorIdentity: ["G", "W"],
+  castEffect: { kind: "createToken", count: 1, tokenDefinitionId: "token-g-55-wurm-trample" },
+  tier: "scripted",
+};
+
+export const AGENT_OF_STROMGALD: CardDefinition = {
+  id: "agent-of-stromgald",
+  name: "Agent of Stromgald",
+  scryfallId: "4a7506f8-cf09-46ca-ad80-3c398c487ae2",
+  types: ["Creature"],
+  subtypes: ["Human", "Knight"],
+  manaCost: { generic: 0, colors: { R: 1 } },
+  colorIdentity: ["B", "R"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { mana: { generic: 0, colors: { R: 1 } } }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const AKKI_ROCKSPEAKER: CardDefinition = {
+  id: "akki-rockspeaker",
+  name: "Akki Rockspeaker",
+  scryfallId: "9c8b6685-2c74-4026-aef0-73ca7bc43306",
+  types: ["Creature"],
+  subtypes: ["Goblin", "Shaman"],
+  manaCost: { generic: 1, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "addMana", color: "R", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const ALADDIN_S_RING: CardDefinition = {
+  id: "aladdins-ring",
+  name: "Aladdin's Ring",
+  scryfallId: "40b7370d-8ab4-4506-b7dd-d02c1ba92032",
+  types: ["Artifact"],
+  manaCost: { generic: 8, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 8, colors: {} } }, effect: { kind: "damage", amount: 4, target: { kind: "any-target" } } }],
+  tier: "vanilla",
+};
+
+export const ALLIED_REINFORCEMENTS: CardDefinition = {
+  id: "allied-reinforcements",
+  name: "Allied Reinforcements",
+  scryfallId: "fd7d7c93-5622-45ca-9359-110685d9162c",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-w-22-knight-ally" },
+  tier: "scripted",
+};
+
+export const AMPRYN_TACTICIAN: CardDefinition = {
+  id: "ampryn-tactician",
+  name: "Ampryn Tactician",
+  scryfallId: "82a2e1d9-6763-4024-a18b-982d96395553",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 2, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const ANABA_SHAMAN: CardDefinition = {
+  id: "anaba-shaman",
+  name: "Anaba Shaman",
+  scryfallId: "7cae202e-63f1-4d8b-bf85-2bf1a03c054c",
+  types: ["Creature"],
+  subtypes: ["Minotaur", "Shaman"],
+  manaCost: { generic: 3, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 0, colors: { R: 1 } } }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const ANARCHIST: CardDefinition = {
+  id: "anarchist",
+  name: "Anarchist",
+  scryfallId: "966d56fd-4df8-4532-860c-371641630a70",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 4, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Sorcery" } } }],
+  tier: "scripted",
+};
+
+export const APPRENTICE_WIZARD: CardDefinition = {
+  id: "apprentice-wizard",
+  name: "Apprentice Wizard",
+  scryfallId: "e13026a8-7e3c-45b2-9838-080f14ae4b29",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 1, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  power: 0,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 0, colors: { U: 1 } } }, effect: { kind: "addMana", color: "C", amount: 3 } }],
+  tier: "scripted",
+};
+
+export const ARCANE_ENCYCLOPEDIA: CardDefinition = {
+  id: "arcane-encyclopedia",
+  name: "Arcane Encyclopedia",
+  scryfallId: "00ff4cb8-a0e0-4527-a77d-03394065ffe0",
+  types: ["Artifact"],
+  subtypes: ["Book"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 3, colors: {} } }, effect: { kind: "draw", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const ARCHAEOMENDER: CardDefinition = {
+  id: "archaeomender",
+  name: "Archaeomender",
+  scryfallId: "22bb8779-ac19-43d6-b818-86eb8ee2f87d",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 2,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Artifact" } } }],
+  tier: "scripted",
+};
+
+export const ARCHIVIST: CardDefinition = {
+  id: "archivist",
+  name: "Archivist",
+  scryfallId: "2f025c11-feeb-429b-9518-f24d70596601",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 2, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "draw", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const ARCHON_OF_FALLING_STARS: CardDefinition = {
+  id: "archon-of-falling-stars",
+  name: "Archon of Falling Stars",
+  scryfallId: "d0dd1e40-a514-42df-8cc1-364998c7700c",
+  types: ["Creature"],
+  subtypes: ["Archon"],
+  manaCost: { generic: 4, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 4,
+  toughness: 4,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "dies", optional: true, effect: { kind: "returnFromGraveyard", destination: "battlefield", target: { kind: "card-in-your-graveyard", cardType: "Enchantment" } } }],
+  tier: "scripted",
+};
+
+export const ARMORER_GUILDMAGE: CardDefinition = {
+  id: "armorer-guildmage",
+  name: "Armorer Guildmage",
+  scryfallId: "e999fdc3-9269-44d7-9015-e16f5e5b73eb",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 0, colors: { R: 1 } },
+  colorIdentity: ["B", "G", "R"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 0, colors: { B: 1 } } }, effect: { kind: "pump", power: 1, toughness: 0, target: { kind: "creature" } } }, { cost: { tap: true, mana: { generic: 0, colors: { G: 1 } } }, effect: { kind: "pump", power: 0, toughness: 1, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const AURAMANCER: CardDefinition = {
+  id: "auramancer",
+  name: "Auramancer",
+  scryfallId: "d0957032-6d98-4cac-889b-890e9bfe1f86",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Enchantment" } } }],
+  tier: "scripted",
+};
+
+export const AVEN_CLOUDCHASER: CardDefinition = {
+  id: "aven-cloudchaser",
+  name: "Aven Cloudchaser",
+  scryfallId: "407110e9-19af-4ff5-97b2-c03225031a73",
+  types: ["Creature"],
+  subtypes: ["Bird", "Soldier"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Enchantment"] } } }],
+  tier: "scripted",
+};
+
+export const AZORIUS_SIGNET: CardDefinition = {
+  id: "azorius-signet",
+  name: "Azorius Signet",
+  scryfallId: "41c50b99-4a29-4bef-8d41-c548c8a61dac",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["U", "W"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "U", amount: 1 }, { color: "W", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const BATTERHORN: CardDefinition = {
+  id: "batterhorn",
+  name: "Batterhorn",
+  scryfallId: "a7b40f74-893f-4bfc-87b2-7f8df4c912d8",
+  types: ["Creature"],
+  subtypes: ["Beast"],
+  manaCost: { generic: 4, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 4,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } } }],
+  tier: "scripted",
+};
+
+export const BLISTER_BEETLE: CardDefinition = {
+  id: "blister-beetle",
+  name: "Blister Beetle",
+  scryfallId: "7f42bdeb-5a51-4303-96d8-9722f95d2905",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: -1, toughness: -1, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const BOG_INITIATE: CardDefinition = {
+  id: "bog-initiate",
+  name: "Bog Initiate",
+  scryfallId: "8962dc3b-24ca-4c3c-ba1d-933c29cf7b73",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { mana: { generic: 1, colors: {} } }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const BOLTWING_MARAUDER: CardDefinition = {
+  id: "boltwing-marauder",
+  name: "Boltwing Marauder",
+  scryfallId: "aab8841f-5c6f-47fc-91c9-acf3c84b7313",
+  types: ["Creature"],
+  subtypes: ["Dragon"],
+  manaCost: { generic: 3, colors: { B: 1, R: 1 } },
+  colorIdentity: ["B", "R"],
+  power: 5,
+  toughness: 4,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "permanent-enters", watches: "controller", watchFor: { type: "Creature" }, effect: { kind: "pump", power: 2, toughness: 0, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const BONE_FLUTE: CardDefinition = {
+  id: "bone-flute",
+  name: "Bone Flute",
+  scryfallId: "12aa4c51-4b3d-48c2-bebb-13ea98ebc3b2",
+  types: ["Artifact"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 2, colors: {} } }, effect: { kind: "pumpAll", power: -1, toughness: 0, scope: "all" } }],
+  tier: "vanilla",
+};
+
+export const BONE_PIT_BRUTE: CardDefinition = {
+  id: "bone-pit-brute",
+  name: "Bone Pit Brute",
+  scryfallId: "6075e0a3-a0ab-4a11-8ad2-7dabb071d309",
+  types: ["Creature"],
+  subtypes: ["Cyclops"],
+  manaCost: { generic: 4, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  power: 4,
+  toughness: 5,
+  keywords: ["Menace"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 4, toughness: 0, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const BORDERLAND_RANGER: CardDefinition = {
+  id: "borderland-ranger",
+  name: "Borderland Ranger",
+  scryfallId: "8f067c26-c51d-44d0-a0af-106b5778f06a",
+  types: ["Creature"],
+  subtypes: ["Human", "Scout", "Ranger"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" } }],
+  tier: "scripted",
+};
+
+export const BOROS_SIGNET: CardDefinition = {
+  id: "boros-signet",
+  name: "Boros Signet",
+  scryfallId: "49c37c0e-d363-4033-a069-710241cd9923",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["R", "W"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "R", amount: 1 }, { color: "W", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const BRAIDWOOD_CUP: CardDefinition = {
+  id: "braidwood-cup",
+  name: "Braidwood Cup",
+  scryfallId: "c2e783b7-9bd1-4f82-bf20-5d201413f5e8",
+  types: ["Artifact"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "gainLife", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const BURNING_TREE_EMISSARY: CardDefinition = {
+  id: "burning-tree-emissary",
+  name: "Burning-Tree Emissary",
+  scryfallId: "ba327a5e-bd57-4e24-b4b4-062202df30e1",
+  types: ["Creature"],
+  subtypes: ["Human", "Shaman"],
+  manaCost: { generic: 0, colors: {}, hybrid: [["R", "G"], ["R", "G"]] },
+  colorIdentity: ["G", "R"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "addManaCombination", mana: [{ color: "G", amount: 1 }, { color: "R", amount: 1 }] } }],
+  tier: "scripted",
+};
+
+export const BURRENTON_SHIELD_BEARERS: CardDefinition = {
+  id: "burrenton-shield-bearers",
+  name: "Burrenton Shield-Bearers",
+  scryfallId: "1afc1033-0004-43c1-9341-c5ed0b0048f2",
+  types: ["Creature"],
+  subtypes: ["Kithkin", "Soldier"],
+  manaCost: { generic: 4, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "attacks", effect: { kind: "pump", power: 0, toughness: 3, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const CADAVER_IMP: CardDefinition = {
+  id: "cadaver-imp",
+  name: "Cadaver Imp",
+  scryfallId: "f06ab823-9591-460d-a896-3073d9843df0",
+  types: ["Creature"],
+  subtypes: ["Imp"],
+  manaCost: { generic: 1, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Creature" } } }],
+  tier: "scripted",
+};
+
+export const CALL_OF_THE_CONCLAVE: CardDefinition = {
+  id: "call-of-the-conclave",
+  name: "Call of the Conclave",
+  scryfallId: "88cacc67-5b0e-4cd5-a552-f64934578930",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { G: 1, W: 1 } },
+  colorIdentity: ["G", "W"],
+  castEffect: { kind: "createToken", count: 1, tokenDefinitionId: "token-g-33-centaur" },
+  tier: "scripted",
+};
+
+export const CALL_THE_CAVALRY: CardDefinition = {
+  id: "call-the-cavalry",
+  name: "Call the Cavalry",
+  scryfallId: "5ffd9de5-c0b9-4d41-ab11-c77ce6f67c60",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-w-22-knight-vigilance" },
+  tier: "scripted",
+};
+
+export const CALL_TO_THE_FEAST: CardDefinition = {
+  id: "call-to-the-feast",
+  name: "Call to the Feast",
+  scryfallId: "cf31f32f-bbca-4e70-93ca-f74c20202939",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { B: 1, W: 1 } },
+  colorIdentity: ["B", "W"],
+  castEffect: { kind: "createToken", count: 3, tokenDefinitionId: "token-w-11-vampire-lifelink" },
+  tier: "scripted",
+};
+
+export const CANYON_JERBOA: CardDefinition = {
+  id: "canyon-jerboa",
+  name: "Canyon Jerboa",
+  scryfallId: "26b3938e-ebd7-4668-be3a-422c02ff5b08",
+  types: ["Creature"],
+  subtypes: ["Mouse"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 2,
+  triggeredAbilities: [{ event: "landfall", watches: "controller", effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const CAPTIVE_FLAME: CardDefinition = {
+  id: "captive-flame",
+  name: "Captive Flame",
+  scryfallId: "147a6ab8-e49c-402c-ae6a-17231054b1fa",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  activatedAbilities: [{ cost: { mana: { generic: 0, colors: { R: 1 } } }, effect: { kind: "pump", power: 1, toughness: 0, target: { kind: "creature" } } }],
+  tier: "vanilla",
+};
+
+export const CARTOGRAPHER: CardDefinition = {
+  id: "cartographer",
+  name: "Cartographer",
+  scryfallId: "8241680d-6453-44ac-ab0f-3e7ebdd31e89",
+  types: ["Creature"],
+  subtypes: ["Human"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Land" } } }],
+  tier: "scripted",
+};
+
+export const CATHODION: CardDefinition = {
+  id: "cathodion",
+  name: "Cathodion",
+  scryfallId: "13ddba34-e627-4f4c-b78c-ea0c48a22537",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Construct"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "addMana", color: "C", amount: 3 } }],
+  tier: "scripted",
+};
+
+export const CHRONOMATON: CardDefinition = {
+  id: "chronomaton",
+  name: "Chronomaton",
+  scryfallId: "787b6916-3fce-41dd-ab52-f17546fd04ed",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Golem"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addCounter", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const CIVIC_STALWART: CardDefinition = {
+  id: "civic-stalwart",
+  name: "Civic Stalwart",
+  scryfallId: "aa981489-4301-43f6-b1d7-2aa42e00cf75",
+  types: ["Creature"],
+  subtypes: ["Elephant", "Soldier"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const CIVIC_WAYFINDER: CardDefinition = {
+  id: "civic-wayfinder",
+  name: "Civic Wayfinder",
+  scryfallId: "5e9754ec-18d1-4c0f-abdd-49ce2d778083",
+  types: ["Creature"],
+  subtypes: ["Elf", "Druid", "Warrior"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" } }],
+  tier: "scripted",
+};
+
+export const CLOUDCHASER_EAGLE: CardDefinition = {
+  id: "cloudchaser-eagle",
+  name: "Cloudchaser Eagle",
+  scryfallId: "81cd5854-56ef-48ec-ad12-1690fa45b4a5",
+  types: ["Creature"],
+  subtypes: ["Bird"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Enchantment"] } } }],
+  tier: "scripted",
+};
+
+export const CRENELLATED_WALL: CardDefinition = {
+  id: "crenellated-wall",
+  name: "Crenellated Wall",
+  scryfallId: "d85ad08d-1120-411a-8bbe-ac93a56476bd",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Wall"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  power: 0,
+  toughness: 4,
+  keywords: ["Defender"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "pump", power: 0, toughness: 4, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const CRYSTAL_QUARRY: CardDefinition = {
+  id: "crystal-quarry",
+  name: "Crystal Quarry",
+  scryfallId: "55999d8e-50f8-4c8b-a0c3-f3256af62491",
+  types: ["Land"],
+  colorIdentity: ["B", "G", "R", "U", "W"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }, { cost: { tap: true, mana: { generic: 5, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 1 }, { color: "G", amount: 1 }, { color: "R", amount: 1 }, { color: "U", amount: 1 }, { color: "W", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const CUNNING_SPARKMAGE: CardDefinition = {
+  id: "cunning-sparkmage",
+  name: "Cunning Sparkmage",
+  scryfallId: "699842c1-6507-48ee-b98b-3774d1f07c76",
+  types: ["Creature"],
+  subtypes: ["Human", "Shaman"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 0,
+  toughness: 1,
+  keywords: ["Haste"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const DARKWATER_CATACOMBS: CardDefinition = {
+  id: "darkwater-catacombs",
+  name: "Darkwater Catacombs",
+  scryfallId: "03fbf51d-f622-4629-a228-a03ce7caf500",
+  types: ["Land"],
+  colorIdentity: ["B", "U"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 1 }, { color: "U", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const DAUNTLESS_VETERAN: CardDefinition = {
+  id: "dauntless-veteran",
+  name: "Dauntless Veteran",
+  scryfallId: "7a136f26-ac66-407f-b389-357222d2c4a2",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 1, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "attacks", effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const DAYBREAK_CHARGER: CardDefinition = {
+  id: "daybreak-charger",
+  name: "Daybreak Charger",
+  scryfallId: "ff87a671-054f-4357-8a62-450d36559a1b",
+  types: ["Creature"],
+  subtypes: ["Unicorn"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 2, toughness: 0, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const DAYBREAK_COMBATANTS: CardDefinition = {
+  id: "daybreak-combatants",
+  name: "Daybreak Combatants",
+  scryfallId: "8697a861-0f67-4ed3-bed8-f264fc78565e",
+  types: ["Creature"],
+  subtypes: ["Human", "Warrior"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Haste"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 2, toughness: 0, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const DEATH_S_HEAD_BUZZARD: CardDefinition = {
+  id: "deaths-head-buzzard",
+  name: "Death's-Head Buzzard",
+  scryfallId: "426aeebc-3ff5-411d-b123-49a42e57e9de",
+  types: ["Creature"],
+  subtypes: ["Bird"],
+  manaCost: { generic: 1, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 1,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "dies", effect: { kind: "pumpAll", power: -1, toughness: -1, scope: "all" } }],
+  tier: "scripted",
+};
+
+export const DEGA_DISCIPLE: CardDefinition = {
+  id: "dega-disciple",
+  name: "Dega Disciple",
+  scryfallId: "fb9cd7d9-8aad-4607-890c-9c8efe016a92",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["B", "R", "W"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 0, colors: { B: 1 } } }, effect: { kind: "pump", power: -2, toughness: 0, target: { kind: "creature" } } }, { cost: { tap: true, mana: { generic: 0, colors: { R: 1 } } }, effect: { kind: "pump", power: 2, toughness: 0, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const DESOLATE_MIRE: CardDefinition = {
+  id: "desolate-mire",
+  name: "Desolate Mire",
+  scryfallId: "6a261c7d-38a4-4000-97b2-76e7ab9989c5",
+  types: ["Land"],
+  colorIdentity: ["B", "W"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 1 }, { color: "W", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const DIMIR_SIGNET: CardDefinition = {
+  id: "dimir-signet",
+  name: "Dimir Signet",
+  scryfallId: "c3af24ce-b1ab-4137-9222-a4080acae928",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["B", "U"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 1 }, { color: "U", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const DISEASE_CARRIERS: CardDefinition = {
+  id: "disease-carriers",
+  name: "Disease Carriers",
+  scryfallId: "49125cfc-dbae-4543-9d2d-4cc78f45ce9a",
+  types: ["Creature"],
+  subtypes: ["Rat"],
+  manaCost: { generic: 2, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "pump", power: -2, toughness: -2, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const DISRUPTIVE_STUDENT: CardDefinition = {
+  id: "disruptive-student",
+  name: "Disruptive Student",
+  scryfallId: "ee43681d-e0f7-422b-a363-0d630f68d363",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "counter", target: { kind: "spell" }, unlessPays: { generic: 1, colors: {} } } }],
+  tier: "scripted",
+};
+
+export const DRAGON_FODDER: CardDefinition = {
+  id: "dragon-fodder",
+  name: "Dragon Fodder",
+  scryfallId: "f9abe517-f601-4784-8d62-2350bd755146",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-r-11-goblin" },
+  tier: "scripted",
+};
+
+export const DUAL_SUN_ADEPTS: CardDefinition = {
+  id: "dual-sun-adepts",
+  name: "Dual-Sun Adepts",
+  scryfallId: "c7e8c830-77ae-437f-8e28-ce61c5fde6b6",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Double Strike"],
+  activatedAbilities: [{ cost: { mana: { generic: 5, colors: {} } }, effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const EARTH_ORIGIN_YAK: CardDefinition = {
+  id: "earth-origin-yak",
+  name: "Earth-Origin Yak",
+  scryfallId: "abcde784-d0cd-4bac-b1bf-bd686ac2f73d",
+  types: ["Creature"],
+  subtypes: ["Ox"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 4,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const ELEMENTAL_SUMMONING: CardDefinition = {
+  id: "elemental-summoning",
+  name: "Elemental Summoning",
+  scryfallId: "ea51991c-1589-4c62-965b-5ae8d233520b",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: {}, hybrid: [["U", "R"], ["U", "R"]] },
+  colorIdentity: ["R", "U"],
+  castEffect: { kind: "createToken", count: 1, tokenDefinitionId: "token-ur-44-elemental" },
+  tier: "scripted",
+};
+
+export const ENERGIZER: CardDefinition = {
+  id: "energizer",
+  name: "Energizer",
+  scryfallId: "914f204c-7f3d-41f2-a771-0b6227d539eb",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Juggernaut"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  power: 2,
+  toughness: 2,
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 2, colors: {} } }, effect: { kind: "addCounter", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const ENLIGHTENED_ASCETIC: CardDefinition = {
+  id: "enlightened-ascetic",
+  name: "Enlightened Ascetic",
+  scryfallId: "76549fc3-5798-4c70-bb70-802b6f597eb7",
+  types: ["Creature"],
+  subtypes: ["Cat", "Monk"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Enchantment"] } } }],
+  tier: "scripted",
+};
+
+export const ENVIRONMENTAL_SCIENTIST: CardDefinition = {
+  id: "environmental-scientist",
+  name: "Environmental Scientist",
+  scryfallId: "f2bf6b36-43e4-49d9-98b2-cbb4304c248b",
+  types: ["Creature"],
+  subtypes: ["Human", "Druid"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" } }],
+  tier: "scripted",
+};
+
+export const ETERNAL_WITNESS: CardDefinition = {
+  id: "eternal-witness",
+  name: "Eternal Witness",
+  scryfallId: "39704000-65d3-4d39-849e-a3b617376bbc",
+  types: ["Creature"],
+  subtypes: ["Human", "Shaman"],
+  manaCost: { generic: 1, colors: { G: 2 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard" } } }],
+  tier: "scripted",
+};
+
+export const FALLAJI_VANGUARD: CardDefinition = {
+  id: "fallaji-vanguard",
+  name: "Fallaji Vanguard",
+  scryfallId: "ffe9ee1c-5eb3-4d63-a641-0ec5adf7b058",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 2, colors: { R: 1, W: 1 } },
+  colorIdentity: ["R", "W"],
+  power: 2,
+  toughness: 3,
+  keywords: ["First Strike"],
+  triggeredAbilities: [{ event: "permanent-enters", watches: "controller", includesSelf: true, watchFor: { type: "Creature" }, effect: { kind: "pump", power: 2, toughness: 0, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const FARBOG_BONEFLINGER: CardDefinition = {
+  id: "farbog-boneflinger",
+  name: "Farbog Boneflinger",
+  scryfallId: "3185eeac-39ae-4e6e-bfdd-4b8edd984af1",
+  types: ["Creature"],
+  subtypes: ["Zombie"],
+  manaCost: { generic: 4, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: -2, toughness: -2, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const FARFINDER: CardDefinition = {
+  id: "farfinder",
+  name: "Farfinder",
+  scryfallId: "53f63f40-46f1-4b9e-b447-ff9274f2b926",
+  types: ["Creature"],
+  subtypes: ["Fox"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  power: 1,
+  toughness: 1,
+  keywords: ["Vigilance"],
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" } }],
+  tier: "scripted",
+};
+
+export const FARHAVEN_ELF: CardDefinition = {
+  id: "farhaven-elf",
+  name: "Farhaven Elf",
+  scryfallId: "320d0a4c-c556-4468-b934-bfdf17961a53",
+  types: ["Creature"],
+  subtypes: ["Elf", "Druid"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "battlefield", tapped: true } }],
+  tier: "scripted",
+};
+
+export const FERROUS_LAKE: CardDefinition = {
+  id: "ferrous-lake",
+  name: "Ferrous Lake",
+  scryfallId: "92fa559c-a99b-4bc1-86c4-0c5eeeac9f4f",
+  types: ["Land"],
+  colorIdentity: ["R", "U"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "R", amount: 1 }, { color: "U", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const FESTERING_GOBLIN: CardDefinition = {
+  id: "festering-goblin",
+  name: "Festering Goblin",
+  scryfallId: "b039f65e-1287-4c6e-a1c2-773a008fc0a3",
+  types: ["Creature"],
+  subtypes: ["Zombie", "Goblin"],
+  manaCost: { generic: 0, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "pump", power: -1, toughness: -1, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const FIRE_SNAKE: CardDefinition = {
+  id: "fire-snake",
+  name: "Fire Snake",
+  scryfallId: "d4c36e32-59e8-4e3d-903e-a264211f2a82",
+  types: ["Creature"],
+  subtypes: ["Snake"],
+  manaCost: { generic: 4, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 3,
+  toughness: 1,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } } }],
+  tier: "scripted",
+};
+
+export const FIRE_SPRITES: CardDefinition = {
+  id: "fire-sprites",
+  name: "Fire Sprites",
+  scryfallId: "7e001344-4c5a-47de-b788-384765fc1fcd",
+  types: ["Creature"],
+  subtypes: ["Faerie"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G", "R"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 0, colors: { G: 1 } } }, effect: { kind: "addMana", color: "R", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const FLURRY_OF_HORNS: CardDefinition = {
+  id: "flurry-of-horns",
+  name: "Flurry of Horns",
+  scryfallId: "be522ae8-9cf4-4c63-9a1c-0010d482c00a",
+  types: ["Sorcery"],
+  manaCost: { generic: 4, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-r-23-minotaur-haste" },
+  tier: "scripted",
+};
+
+export const FRIENDLY_GHOST: CardDefinition = {
+  id: "friendly-ghost",
+  name: "Friendly Ghost",
+  scryfallId: "20e0dba2-d15c-4d55-9b68-00648175e760",
+  types: ["Creature"],
+  subtypes: ["Spirit"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 4,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 2, toughness: 4, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const GHITU_WAR_CRY: CardDefinition = {
+  id: "ghitu-war-cry",
+  name: "Ghitu War Cry",
+  scryfallId: "c9786c4f-f09b-46ce-966c-10efb1e5e609",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  activatedAbilities: [{ cost: { mana: { generic: 0, colors: { R: 1 } } }, effect: { kind: "pump", power: 1, toughness: 0, target: { kind: "creature" } } }],
+  tier: "vanilla",
+};
+
+export const GHOST_WARDEN: CardDefinition = {
+  id: "ghost-warden",
+  name: "Ghost Warden",
+  scryfallId: "2cd81534-79cb-4fde-bfa5-11c510ac6e11",
+  types: ["Creature"],
+  subtypes: ["Spirit"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "pump", power: 1, toughness: 1, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const GHOSTS_OF_THE_DAMNED: CardDefinition = {
+  id: "ghosts-of-the-damned",
+  name: "Ghosts of the Damned",
+  scryfallId: "d15e5505-74ad-4540-8b23-ab5e5add9227",
+  types: ["Creature"],
+  subtypes: ["Spirit"],
+  manaCost: { generic: 1, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 0,
+  toughness: 2,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "pump", power: -1, toughness: 0, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const GOBLIN_GARDENER: CardDefinition = {
+  id: "goblin-gardener",
+  name: "Goblin Gardener",
+  scryfallId: "9f5b02af-140e-404d-bf8a-6a706b323a13",
+  types: ["Creature"],
+  subtypes: ["Goblin"],
+  manaCost: { generic: 3, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 1,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } } }],
+  tier: "scripted",
+};
+
+export const GOBLIN_RALLY: CardDefinition = {
+  id: "goblin-rally",
+  name: "Goblin Rally",
+  scryfallId: "34d6a2d0-d855-4b87-9f4c-58dda0b81c82",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  castEffect: { kind: "createToken", count: 4, tokenDefinitionId: "token-r-11-goblin" },
+  tier: "scripted",
+};
+
+export const GOBLIN_SETTLER: CardDefinition = {
+  id: "goblin-settler",
+  name: "Goblin Settler",
+  scryfallId: "503ef4d7-2028-4363-b3af-f9fe690510f9",
+  types: ["Creature"],
+  subtypes: ["Goblin"],
+  manaCost: { generic: 3, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } } }],
+  tier: "scripted",
+};
+
+export const GOLDNIGHT_COMMANDER: CardDefinition = {
+  id: "goldnight-commander",
+  name: "Goldnight Commander",
+  scryfallId: "854ee15f-bf36-4b80-9717-6e6f02da790e",
+  types: ["Creature"],
+  subtypes: ["Human", "Cleric", "Soldier"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "permanent-enters", watches: "controller", watchFor: { type: "Creature" }, effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const GOLGARI_SIGNET: CardDefinition = {
+  id: "golgari-signet",
+  name: "Golgari Signet",
+  scryfallId: "95103b4c-d0c0-40fa-9ddd-c7416455ca0c",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["B", "G"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 1 }, { color: "G", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const GRAVEDIGGER: CardDefinition = {
+  id: "gravedigger",
+  name: "Gravedigger",
+  scryfallId: "0fb714a0-e61b-4ccf-8de6-3a6bf87c8315",
+  types: ["Creature"],
+  subtypes: ["Zombie"],
+  manaCost: { generic: 3, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Creature" } } }],
+  tier: "scripted",
+};
+
+export const GRIFFIN_DREAMFINDER: CardDefinition = {
+  id: "griffin-dreamfinder",
+  name: "Griffin Dreamfinder",
+  scryfallId: "b569fadd-d9ca-4b0d-bee2-9d45574e56f0",
+  types: ["Creature"],
+  subtypes: ["Griffin"],
+  manaCost: { generic: 3, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 4,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Enchantment" } } }],
+  tier: "scripted",
+};
+
+export const GRUUL_SIGNET: CardDefinition = {
+  id: "gruul-signet",
+  name: "Gruul Signet",
+  scryfallId: "ed1adca8-9386-42b0-ac6b-699394ac7969",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["G", "R"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "G", amount: 1 }, { color: "R", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const GUARDIAN_OF_PILGRIMS: CardDefinition = {
+  id: "guardian-of-pilgrims",
+  name: "Guardian of Pilgrims",
+  scryfallId: "f87b5e18-d1a9-424b-bec5-6a80f7699600",
+  types: ["Creature"],
+  subtypes: ["Spirit", "Cleric"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 1, toughness: 1, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const GYRE_ENGINEER: CardDefinition = {
+  id: "gyre-engineer",
+  name: "Gyre Engineer",
+  scryfallId: "26dd6a1d-4dcb-4392-9856-c0e4140efbd7",
+  types: ["Creature"],
+  subtypes: ["Vedalken", "Wizard"],
+  manaCost: { generic: 1, colors: { G: 1, U: 1 } },
+  colorIdentity: ["G", "U"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addManaCombination", mana: [{ color: "G", amount: 1 }, { color: "U", amount: 1 }] } }],
+  tier: "scripted",
+};
+
+export const HAVOC_DEMON: CardDefinition = {
+  id: "havoc-demon",
+  name: "Havoc Demon",
+  scryfallId: "5ad8ecef-bc09-4d30-bff1-4d21c239b2fb",
+  types: ["Creature"],
+  subtypes: ["Demon"],
+  manaCost: { generic: 5, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 5,
+  toughness: 5,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "dies", effect: { kind: "pumpAll", power: -5, toughness: -5, scope: "all" } }],
+  tier: "scripted",
+};
+
+export const HOP_TO_IT: CardDefinition = {
+  id: "hop-to-it",
+  name: "Hop to It",
+  scryfallId: "ee7207f8-5daa-42af-aeea-7a489047110b",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 3, tokenDefinitionId: "token-w-11-rabbit" },
+  tier: "scripted",
+};
+
+export const HORDELING_OUTBURST: CardDefinition = {
+  id: "hordeling-outburst",
+  name: "Hordeling Outburst",
+  scryfallId: "e4138531-ef42-4c56-864e-d3525a4f2082",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  castEffect: { kind: "createToken", count: 3, tokenDefinitionId: "token-r-11-goblin" },
+  tier: "scripted",
+};
+
+export const HORNET_HARASSER: CardDefinition = {
+  id: "hornet-harasser",
+  name: "Hornet Harasser",
+  scryfallId: "45598727-a8b1-4b3e-87c6-70c36f0d4fe8",
+  types: ["Creature"],
+  subtypes: ["Goblin", "Shaman"],
+  manaCost: { generic: 2, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "pump", power: -2, toughness: -2, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const HUNGRY_MEGASLOTH: CardDefinition = {
+  id: "hungry-megasloth",
+  name: "Hungry Megasloth",
+  scryfallId: "455c92ca-bb23-495d-be9e-2e0101b115ac",
+  types: ["Creature"],
+  subtypes: ["Sloth", "Beast"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 3,
+  keywords: ["Reach"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 2, colors: {} } }, effect: { kind: "addCounter", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const ICATIAN_TOWN: CardDefinition = {
+  id: "icatian-town",
+  name: "Icatian Town",
+  scryfallId: "582044a0-0f4e-4de4-8bea-bc64757db198",
+  types: ["Sorcery"],
+  manaCost: { generic: 5, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 4, tokenDefinitionId: "token-w-11-citizen" },
+  tier: "scripted",
+};
+
+export const INKLING_SUMMONING: CardDefinition = {
+  id: "inkling-summoning",
+  name: "Inkling Summoning",
+  scryfallId: "04a8a5b8-9743-4d1a-89e9-61bdf180b2e0",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: {}, hybrid: [["W", "B"], ["W", "B"]] },
+  colorIdentity: ["B", "W"],
+  castEffect: { kind: "createToken", count: 1, tokenDefinitionId: "token-wb-21-inkling-flying" },
+  tier: "scripted",
+};
+
+export const INSPIRING_CAPTAIN: CardDefinition = {
+  id: "inspiring-captain",
+  name: "Inspiring Captain",
+  scryfallId: "fb56d6ab-50bf-4407-9f30-595ef7ae9492",
+  types: ["Creature"],
+  subtypes: ["Human", "Knight"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const INSPIRING_UNICORN: CardDefinition = {
+  id: "inspiring-unicorn",
+  name: "Inspiring Unicorn",
+  scryfallId: "3320865c-ef02-4f18-82b0-47a6d845de0f",
+  types: ["Creature"],
+  subtypes: ["Unicorn"],
+  manaCost: { generic: 2, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "attacks", effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const IZZET_SIGNET: CardDefinition = {
+  id: "izzet-signet",
+  name: "Izzet Signet",
+  scryfallId: "2c747a97-9070-4c1e-b7b7-52637fbb30e1",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["R", "U"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "R", amount: 1 }, { color: "U", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const JADECRAFT_ARTISAN: CardDefinition = {
+  id: "jadecraft-artisan",
+  name: "Jadecraft Artisan",
+  scryfallId: "2b745934-c1fe-49f5-bda4-b0eafa1408e1",
+  types: ["Creature"],
+  subtypes: ["Merfolk", "Shaman"],
+  manaCost: { generic: 3, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 2, toughness: 2, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const JAYEMDAE_TOME: CardDefinition = {
+  id: "jayemdae-tome",
+  name: "Jayemdae Tome",
+  scryfallId: "518af905-f518-4269-89b4-781085be8dd2",
+  types: ["Artifact"],
+  subtypes: ["Book"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 4, colors: {} } }, effect: { kind: "draw", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const JOIN_THE_RANKS: CardDefinition = {
+  id: "join-the-ranks",
+  name: "Join the Ranks",
+  scryfallId: "e27e2eb4-d48b-43c3-bd19-e1748f310c54",
+  types: ["Instant"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-w-11-soldier-ally" },
+  tier: "scripted",
+};
+
+export const JOURNEYER_S_KITE: CardDefinition = {
+  id: "journeyers-kite",
+  name: "Journeyer's Kite",
+  scryfallId: "5440121d-d3b5-4d26-a2d9-674af73d449a",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 3, colors: {} } }, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" } }],
+  tier: "vanilla",
+};
+
+export const KABUTO_MOTH: CardDefinition = {
+  id: "kabuto-moth",
+  name: "Kabuto Moth",
+  scryfallId: "cf3ccd16-bb1b-40d5-87a6-47a6132e0143",
+  types: ["Creature"],
+  subtypes: ["Spirit"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 2,
+  keywords: ["Flying"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "pump", power: 1, toughness: 2, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const KEENING_BANSHEE: CardDefinition = {
+  id: "keening-banshee",
+  name: "Keening Banshee",
+  scryfallId: "80031bc4-28a8-4f57-916f-fcf01dc252f9",
+  types: ["Creature"],
+  subtypes: ["Spirit"],
+  manaCost: { generic: 2, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: -2, toughness: -2, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const KINSBAILE_SKIRMISHER: CardDefinition = {
+  id: "kinsbaile-skirmisher",
+  name: "Kinsbaile Skirmisher",
+  scryfallId: "257c396c-d8cc-487c-a6cb-2892c7e568a1",
+  types: ["Creature"],
+  subtypes: ["Kithkin", "Soldier"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 1, toughness: 1, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const KNIGHT_WATCH: CardDefinition = {
+  id: "knight-watch",
+  name: "Knight Watch",
+  scryfallId: "cd492072-9a8c-4d55-ac71-3c8efaa3fc87",
+  types: ["Sorcery"],
+  manaCost: { generic: 4, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-w-22-knight-vigilance" },
+  tier: "scripted",
+};
+
+export const KNOTVINE_MYSTIC: CardDefinition = {
+  id: "knotvine-mystic",
+  name: "Knotvine Mystic",
+  scryfallId: "f6372fa0-e9c8-45d0-a3b8-72eb191c6b26",
+  types: ["Creature"],
+  subtypes: ["Elf", "Druid"],
+  manaCost: { generic: 0, colors: { G: 1, R: 1, W: 1 } },
+  colorIdentity: ["G", "R", "W"],
+  power: 2,
+  toughness: 2,
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "G", amount: 1 }, { color: "R", amount: 1 }, { color: "W", amount: 1 }] } }],
+  tier: "scripted",
+};
+
+export const KRENKO_S_COMMAND: CardDefinition = {
+  id: "krenkos-command",
+  name: "Krenko's Command",
+  scryfallId: "b07d96a1-87a0-45ff-ae6e-230deaf44dca",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-r-11-goblin" },
+  tier: "scripted",
+};
+
+export const LAVAFUME_INVOKER: CardDefinition = {
+  id: "lavafume-invoker",
+  name: "Lavafume Invoker",
+  scryfallId: "8e773b3f-37ef-4e37-8b1e-99b7b6314877",
+  types: ["Creature"],
+  subtypes: ["Goblin", "Shaman"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  activatedAbilities: [{ cost: { mana: { generic: 8, colors: {} } }, effect: { kind: "pumpAll", power: 3, toughness: 0, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const LEONIN_ARMORGUARD: CardDefinition = {
+  id: "leonin-armorguard",
+  name: "Leonin Armorguard",
+  scryfallId: "8a57cdbd-3cd2-47c1-aec8-7f4fd7a7b804",
+  types: ["Creature"],
+  subtypes: ["Cat", "Soldier"],
+  manaCost: { generic: 2, colors: { G: 1, W: 1 } },
+  colorIdentity: ["G", "W"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const MAGMATIC_FORCE: CardDefinition = {
+  id: "magmatic-force",
+  name: "Magmatic Force",
+  scryfallId: "e98eb29b-af03-4a96-b84c-a0bd51f80f03",
+  types: ["Creature"],
+  subtypes: ["Elemental"],
+  manaCost: { generic: 5, colors: { R: 3 } },
+  colorIdentity: ["R"],
+  power: 7,
+  toughness: 7,
+  triggeredAbilities: [{ event: "upkeep", watches: "any", effect: { kind: "damage", amount: 3, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const MALAMET_WAR_SCRIBE: CardDefinition = {
+  id: "malamet-war-scribe",
+  name: "Malamet War Scribe",
+  scryfallId: "b92a6ba0-cea0-4084-92f1-2bd60ea25fb0",
+  types: ["Creature"],
+  subtypes: ["Cat", "Warrior"],
+  manaCost: { generic: 3, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 4,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pumpAll", power: 2, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const MANIC_VANDAL: CardDefinition = {
+  id: "manic-vandal",
+  name: "Manic Vandal",
+  scryfallId: "985a5866-8c62-46af-a0c0-e69d01d87f4f",
+  types: ["Creature"],
+  subtypes: ["Human", "Warrior"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } } }],
+  tier: "scripted",
+};
+
+export const MARBLE_CHALICE: CardDefinition = {
+  id: "marble-chalice",
+  name: "Marble Chalice",
+  scryfallId: "b76e9580-9154-476b-923f-b23bf55db026",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "gainLife", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const MAWCOR: CardDefinition = {
+  id: "mawcor",
+  name: "Mawcor",
+  scryfallId: "5baada74-d91e-4081-8d42-d165550b8373",
+  types: ["Creature"],
+  subtypes: ["Beast"],
+  manaCost: { generic: 3, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  power: 3,
+  toughness: 3,
+  keywords: ["Flying"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const MIDNIGHT_HAUNTING: CardDefinition = {
+  id: "midnight-haunting",
+  name: "Midnight Haunting",
+  scryfallId: "4399dcc7-7684-4345-9f74-318c3ec9af82",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-w-11-spirit-flying" },
+  tier: "scripted",
+};
+
+export const MONK_IDEALIST: CardDefinition = {
+  id: "monk-idealist",
+  name: "Monk Idealist",
+  scryfallId: "31c729e2-4e55-4a14-a288-9c3473e58b88",
+  types: ["Creature"],
+  subtypes: ["Human", "Monk", "Cleric"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Enchantment" } } }],
+  tier: "scripted",
+};
+
+export const MONK_REALIST: CardDefinition = {
+  id: "monk-realist",
+  name: "Monk Realist",
+  scryfallId: "589d4058-a304-40a4-aa7d-0ebda2877d42",
+  types: ["Creature"],
+  subtypes: ["Human", "Monk", "Cleric"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Enchantment"] } } }],
+  tier: "scripted",
+};
+
+export const MORKRUT_BANSHEE: CardDefinition = {
+  id: "morkrut-banshee",
+  name: "Morkrut Banshee",
+  scryfallId: "14ab7063-1704-4c56-a58d-4f4287299bd7",
+  types: ["Creature"],
+  subtypes: ["Spirit"],
+  manaCost: { generic: 3, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 4,
+  toughness: 4,
+  triggeredAbilities: [{ event: "enters-battlefield", onlyIf: { kind: "creature-died-this-turn" }, effect: { kind: "pump", power: -4, toughness: -4, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const MOSSFIRE_VALLEY: CardDefinition = {
+  id: "mossfire-valley",
+  name: "Mossfire Valley",
+  scryfallId: "29208018-8079-44bc-b33b-21cda4709bf2",
+  types: ["Land"],
+  colorIdentity: ["G", "R"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "G", amount: 1 }, { color: "R", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const MYR_MOONVESSEL: CardDefinition = {
+  id: "myr-moonvessel",
+  name: "Myr Moonvessel",
+  scryfallId: "af0515cc-bf2d-4674-b339-4f4eefbc943d",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Myr"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "addMana", color: "C", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const NANTUKO_DISCIPLE: CardDefinition = {
+  id: "nantuko-disciple",
+  name: "Nantuko Disciple",
+  scryfallId: "32bd6695-ee30-4ab1-a732-26b073c2fec6",
+  types: ["Creature"],
+  subtypes: ["Insect", "Druid"],
+  manaCost: { generic: 3, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 2,
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 0, colors: { G: 1 } } }, effect: { kind: "pump", power: 2, toughness: 2, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const NANTUKO_ELDER: CardDefinition = {
+  id: "nantuko-elder",
+  name: "Nantuko Elder",
+  scryfallId: "5c0a4e6e-cc4e-43d5-aece-f009e117366a",
+  types: ["Creature"],
+  subtypes: ["Insect", "Druid"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 2,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addManaCombination", mana: [{ color: "C", amount: 1 }, { color: "G", amount: 1 }] } }],
+  tier: "scripted",
+};
+
+export const OGRE_ARSONIST: CardDefinition = {
+  id: "ogre-arsonist",
+  name: "Ogre Arsonist",
+  scryfallId: "b67e28b2-9d25-4873-8db2-1f0853ab0c47",
+  types: ["Creature"],
+  subtypes: ["Ogre"],
+  manaCost: { generic: 4, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } } }],
+  tier: "scripted",
+};
+
+export const ONDU_GIANT: CardDefinition = {
+  id: "ondu-giant",
+  name: "Ondu Giant",
+  scryfallId: "14024eba-58aa-4c28-afbe-cde407f7ddd7",
+  types: ["Creature"],
+  subtypes: ["Giant", "Druid"],
+  manaCost: { generic: 3, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 4,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "battlefield", tapped: true } }],
+  tier: "scripted",
+};
+
+export const ORZHOV_SIGNET: CardDefinition = {
+  id: "orzhov-signet",
+  name: "Orzhov Signet",
+  scryfallId: "90894726-1940-4291-a05c-b85cefbfa344",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["B", "W"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 1 }, { color: "W", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const OVERFLOWING_BASIN: CardDefinition = {
+  id: "overflowing-basin",
+  name: "Overflowing Basin",
+  scryfallId: "6357d665-2b28-4747-ab43-b90176d78d42",
+  types: ["Land"],
+  colorIdentity: ["G", "U"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "G", amount: 1 }, { color: "U", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const OXIDDA_SCRAPMELTER: CardDefinition = {
+  id: "oxidda-scrapmelter",
+  name: "Oxidda Scrapmelter",
+  scryfallId: "c64fe85b-e471-489a-8c38-2357da1c7969",
+  types: ["Creature"],
+  subtypes: ["Beast"],
+  manaCost: { generic: 3, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } } }],
+  tier: "scripted",
+};
+
+export const PILGRIM_S_EYE: CardDefinition = {
+  id: "pilgrims-eye",
+  name: "Pilgrim's Eye",
+  scryfallId: "48bfc25b-f73c-431c-b173-adcd65c5d491",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Thopter"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" } }],
+  tier: "scripted",
+};
+
+export const PLANAR_PORTAL: CardDefinition = {
+  id: "planar-portal",
+  name: "Planar Portal",
+  scryfallId: "8743b2ce-0e18-42c9-aee4-f13197a9c481",
+  types: ["Artifact"],
+  manaCost: { generic: 6, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 6, colors: {} } }, effect: { kind: "searchLibrary", destination: "hand" } }],
+  tier: "vanilla",
+};
+
+export const POLLUTED_DEAD: CardDefinition = {
+  id: "polluted-dead",
+  name: "Polluted Dead",
+  scryfallId: "036c1954-37d3-4787-8df8-f2d0dd39058a",
+  types: ["Creature"],
+  subtypes: ["Zombie"],
+  manaCost: { generic: 4, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } } }],
+  tier: "scripted",
+};
+
+export const PRIEST_OF_GIX: CardDefinition = {
+  id: "priest-of-gix",
+  name: "Priest of Gix",
+  scryfallId: "8cbc4c4c-f1f5-4593-9894-1d8715a2f2c1",
+  types: ["Creature"],
+  subtypes: ["Phyrexian", "Human", "Cleric", "Minion"],
+  manaCost: { generic: 2, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "addMana", color: "B", amount: 3 } }],
+  tier: "scripted",
+};
+
+export const PRIEST_OF_URABRASK: CardDefinition = {
+  id: "priest-of-urabrask",
+  name: "Priest of Urabrask",
+  scryfallId: "d0a9f49c-f15c-4b2d-b6a5-8efc3c430d87",
+  types: ["Creature"],
+  subtypes: ["Phyrexian", "Human", "Cleric"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "addMana", color: "R", amount: 3 } }],
+  tier: "scripted",
+};
+
+export const PRIMAL_DRUID: CardDefinition = {
+  id: "primal-druid",
+  name: "Primal Druid",
+  scryfallId: "e928f694-c53b-46c5-8390-fa24b53f559c",
+  types: ["Creature"],
+  subtypes: ["Human", "Druid"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 0,
+  toughness: 3,
+  triggeredAbilities: [{ event: "dies", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "battlefield", tapped: true } }],
+  tier: "scripted",
+};
+
+export const PRODIGAL_SORCERER: CardDefinition = {
+  id: "prodigal-sorcerer",
+  name: "Prodigal Sorcerer",
+  scryfallId: "50aef269-55f9-4d84-8bc5-29e794297f11",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard", "Sorcerer"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const QUEEN_S_COMMISSION: CardDefinition = {
+  id: "queens-commission",
+  name: "Queen's Commission",
+  scryfallId: "f06c0007-299e-4d71-99c3-f905d942759d",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-w-11-vampire-lifelink" },
+  tier: "scripted",
+};
+
+export const RAKDOS_SIGNET: CardDefinition = {
+  id: "rakdos-signet",
+  name: "Rakdos Signet",
+  scryfallId: "01cc9536-f710-4c47-9e3f-d7e83cc888f2",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["B", "R"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 1 }, { color: "R", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const RAKKA_MAR: CardDefinition = {
+  id: "rakka-mar",
+  name: "Rakka Mar",
+  scryfallId: "cd36b274-5b76-44ec-8d62-069b08debe89",
+  types: ["Creature"],
+  subtypes: ["Human", "Shaman"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 2, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Haste"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 0, colors: { R: 1 } } }, effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-r-31-elemental-haste" } }],
+  canBeCommander: true,
+  tier: "scripted",
+};
+
+export const RAL_S_REINFORCEMENTS: CardDefinition = {
+  id: "rals-reinforcements",
+  name: "Ral's Reinforcements",
+  scryfallId: "74d0bb76-075c-49d7-9afb-e5bcf5b654f7",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-ur-11-elemental" },
+  tier: "scripted",
+};
+
+export const RAVAGING_HORDE: CardDefinition = {
+  id: "ravaging-horde",
+  name: "Ravaging Horde",
+  scryfallId: "6278d679-fc54-4527-ab16-90735574ab9b",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 3, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Land"] } } }],
+  tier: "scripted",
+};
+
+export const RAZORFIN_HUNTER: CardDefinition = {
+  id: "razorfin-hunter",
+  name: "Razorfin Hunter",
+  scryfallId: "99829552-917a-4373-9772-4255dff542d6",
+  types: ["Creature"],
+  subtypes: ["Merfolk", "Goblin"],
+  manaCost: { generic: 0, colors: { R: 1, U: 1 } },
+  colorIdentity: ["R", "U"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const RELEASE_THE_DOGS: CardDefinition = {
+  id: "release-the-dogs",
+  name: "Release the Dogs",
+  scryfallId: "7e1df99a-c139-44c9-8881-077dbfd7332f",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 4, tokenDefinitionId: "token-w-11-dog" },
+  tier: "scripted",
+};
+
+export const REVEL_OF_THE_FALLEN_GOD: CardDefinition = {
+  id: "revel-of-the-fallen-god",
+  name: "Revel of the Fallen God",
+  scryfallId: "e1d2c774-aab9-4747-af91-da792ed7cfe1",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { G: 2, R: 2 } },
+  colorIdentity: ["G", "R"],
+  castEffect: { kind: "createToken", count: 4, tokenDefinitionId: "token-rg-22-satyr-haste" },
+  tier: "scripted",
+};
+
+export const REYA_DAWNBRINGER: CardDefinition = {
+  id: "reya-dawnbringer",
+  name: "Reya Dawnbringer",
+  scryfallId: "44b45bdd-829a-4fc1-ad37-17c2bd57fac8",
+  types: ["Creature"],
+  subtypes: ["Angel"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 6, colors: { W: 3 } },
+  colorIdentity: ["W"],
+  power: 4,
+  toughness: 6,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "upkeep", watches: "controller", optional: true, effect: { kind: "returnFromGraveyard", destination: "battlefield", target: { kind: "card-in-your-graveyard", cardType: "Creature" } } }],
+  canBeCommander: true,
+  tier: "scripted",
+};
+
+export const ROD_OF_RUIN: CardDefinition = {
+  id: "rod-of-ruin",
+  name: "Rod of Ruin",
+  scryfallId: "9a0e90b8-bc38-4e1c-92ca-ac562cc57e31",
+  types: ["Artifact"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 3, colors: {} } }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "vanilla",
+};
+
+export const ROOTWATER_HUNTER: CardDefinition = {
+  id: "rootwater-hunter",
+  name: "Rootwater Hunter",
+  scryfallId: "e5858c71-0877-480c-9c46-a3fe006bf9db",
+  types: ["Creature"],
+  subtypes: ["Merfolk"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const RUBBLEBELT_BOAR: CardDefinition = {
+  id: "rubblebelt-boar",
+  name: "Rubblebelt Boar",
+  scryfallId: "196bf114-e135-43f3-83d5-cb08ca766881",
+  types: ["Creature"],
+  subtypes: ["Boar"],
+  manaCost: { generic: 3, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 3,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 2, toughness: 0, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const SACRED_ARMORY: CardDefinition = {
+  id: "sacred-armory",
+  name: "Sacred Armory",
+  scryfallId: "b05fde97-ab24-40c9-a1db-8844c3e62fc3",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { mana: { generic: 2, colors: {} } }, effect: { kind: "pump", power: 1, toughness: 0, target: { kind: "creature" } } }],
+  tier: "vanilla",
+};
+
+export const SALTFIELD_RECLUSE: CardDefinition = {
+  id: "saltfield-recluse",
+  name: "Saltfield Recluse",
+  scryfallId: "ecb21c04-d3f7-4960-9b9b-2354e98becb7",
+  types: ["Creature"],
+  subtypes: ["Human", "Rebel", "Cleric"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 2,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "pump", power: -2, toughness: 0, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const SANCTUM_GARGOYLE: CardDefinition = {
+  id: "sanctum-gargoyle",
+  name: "Sanctum Gargoyle",
+  scryfallId: "7678e008-f054-485d-ae21-6b97f83dd824",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Gargoyle"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 3,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Artifact" } } }],
+  tier: "scripted",
+};
+
+export const SCRIVENER: CardDefinition = {
+  id: "scrivener",
+  name: "Scrivener",
+  scryfallId: "ac6ccaeb-353a-4e40-8fe3-a88f7b20650f",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 4, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Instant" } } }],
+  tier: "scripted",
+};
+
+export const SEA_SCRYER: CardDefinition = {
+  id: "sea-scryer",
+  name: "Sea Scryer",
+  scryfallId: "124308ac-1bf6-4a79-8aaa-f3be8eeb3e78",
+  types: ["Creature"],
+  subtypes: ["Merfolk", "Wizard"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }, { cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addMana", color: "U", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const SELESNYA_SIGNET: CardDefinition = {
+  id: "selesnya-signet",
+  name: "Selesnya Signet",
+  scryfallId: "4e21a028-0f06-4124-bd0f-04989a1f9481",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["G", "W"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "G", amount: 1 }, { color: "W", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const SHADOWBLOOD_RIDGE: CardDefinition = {
+  id: "shadowblood-ridge",
+  name: "Shadowblood Ridge",
+  scryfallId: "d7af1d6b-ff13-4886-a212-4a6e09153475",
+  types: ["Land"],
+  colorIdentity: ["B", "R"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 1 }, { color: "R", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const SILENT_ATTENDANT: CardDefinition = {
+  id: "silent-attendant",
+  name: "Silent Attendant",
+  scryfallId: "56e90087-3738-40df-929b-d2f880264b55",
+  types: ["Creature"],
+  subtypes: ["Human", "Cleric"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 0,
+  toughness: 2,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "gainLife", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const SILENT_SENTINEL: CardDefinition = {
+  id: "silent-sentinel",
+  name: "Silent Sentinel",
+  scryfallId: "73798b01-fcbc-4dc0-9fde-6a618da185f2",
+  types: ["Creature"],
+  subtypes: ["Archon"],
+  manaCost: { generic: 5, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 4,
+  toughness: 6,
+  keywords: ["Flying"],
+  triggeredAbilities: [{ event: "attacks", optional: true, effect: { kind: "returnFromGraveyard", destination: "battlefield", target: { kind: "card-in-your-graveyard", cardType: "Enchantment" } } }],
+  tier: "scripted",
+};
+
+export const SIMIC_SIGNET: CardDefinition = {
+  id: "simic-signet",
+  name: "Simic Signet",
+  scryfallId: "bf222c78-f12e-4857-93da-fade99c740b8",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: ["G", "U"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "G", amount: 1 }, { color: "U", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const SKITTERING_SURVEYOR: CardDefinition = {
+  id: "skittering-surveyor",
+  name: "Skittering Surveyor",
+  scryfallId: "8bae9f1d-e96d-444c-a0fd-5608243ee6c8",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Construct"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  power: 1,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" } }],
+  tier: "scripted",
+};
+
+export const SKULL_OF_ORM: CardDefinition = {
+  id: "skull-of-orm",
+  name: "Skull of Orm",
+  scryfallId: "ccc3a7b4-ff44-4909-ab8d-35ba5d187815",
+  types: ["Artifact"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 5, colors: {} } }, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Enchantment" } } }],
+  tier: "vanilla",
+};
+
+export const SKYCLOUD_EXPANSE: CardDefinition = {
+  id: "skycloud-expanse",
+  name: "Skycloud Expanse",
+  scryfallId: "03f8c846-d80c-49a4-a562-e817cd0c6096",
+  types: ["Land"],
+  colorIdentity: ["U", "W"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "U", amount: 1 }, { color: "W", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const SLEDDING_OTTER_PENGUIN: CardDefinition = {
+  id: "sledding-otter-penguin",
+  name: "Sledding Otter-Penguin",
+  scryfallId: "d3e0f159-029d-4177-8f20-c96eca0a421c",
+  types: ["Creature"],
+  subtypes: ["Otter", "Bird"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 3,
+  activatedAbilities: [{ cost: { mana: { generic: 3, colors: {} } }, effect: { kind: "addCounter", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const SOULMENDER: CardDefinition = {
+  id: "soulmender",
+  name: "Soulmender",
+  scryfallId: "31b83ffd-bd08-48c6-98a3-811abc203f60",
+  types: ["Creature"],
+  subtypes: ["Human", "Cleric"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "gainLife", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const SPIRIT_SUMMONING: CardDefinition = {
+  id: "spirit-summoning",
+  name: "Spirit Summoning",
+  scryfallId: "74be6236-4095-419c-9927-fbd874df21f8",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: {}, hybrid: [["R", "W"], ["R", "W"]] },
+  colorIdentity: ["R", "W"],
+  castEffect: { kind: "createToken", count: 1, tokenDefinitionId: "token-rw-32-spirit" },
+  tier: "scripted",
+};
+
+export const SPROUT: CardDefinition = {
+  id: "sprout",
+  name: "Sprout",
+  scryfallId: "6967363f-1e05-4484-8790-47f7be68455c",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: { kind: "createToken", count: 1, tokenDefinitionId: "saproling-token" },
+  tier: "scripted",
+};
+
+export const STAFF_OF_NIN: CardDefinition = {
+  id: "staff-of-nin",
+  name: "Staff of Nin",
+  scryfallId: "4eca883f-4e6e-4ccc-ad69-a706e24ee151",
+  types: ["Artifact"],
+  manaCost: { generic: 6, colors: {} },
+  colorIdentity: [],
+  triggeredAbilities: [{ event: "upkeep", watches: "controller", effect: { kind: "draw", amount: 1 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const STAFF_OF_ZEGON: CardDefinition = {
+  id: "staff-of-zegon",
+  name: "Staff of Zegon",
+  scryfallId: "397a16db-dcba-4fca-a58b-438e43d7d574",
+  types: ["Artifact"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 3, colors: {} } }, effect: { kind: "pump", power: -2, toughness: 0, target: { kind: "creature" } } }],
+  tier: "vanilla",
+};
+
+export const STINGING_BARRIER: CardDefinition = {
+  id: "stinging-barrier",
+  name: "Stinging Barrier",
+  scryfallId: "ca7f7cd5-4e91-474a-9f60-a66f3f462b1c",
+  types: ["Creature"],
+  subtypes: ["Wall"],
+  manaCost: { generic: 2, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  power: 0,
+  toughness: 4,
+  keywords: ["Defender"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 0, colors: { U: 1 } } }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const STOIC_BUILDER: CardDefinition = {
+  id: "stoic-builder",
+  name: "Stoic Builder",
+  scryfallId: "0820f17c-ab4a-4a14-84ff-4ea200bef112",
+  types: ["Creature"],
+  subtypes: ["Human"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Land" } } }],
+  tier: "scripted",
+};
+
+export const SU_CHI: CardDefinition = {
+  id: "su-chi",
+  name: "Su-Chi",
+  scryfallId: "f27a3660-a50d-4402-97c2-8d70dcbc1782",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Construct"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  power: 4,
+  toughness: 4,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "addMana", color: "C", amount: 4 } }],
+  tier: "scripted",
+};
+
+export const SUNGRASS_PRAIRIE: CardDefinition = {
+  id: "sungrass-prairie",
+  name: "Sungrass Prairie",
+  scryfallId: "841f369e-6532-469c-8565-78094b33a3d9",
+  types: ["Land"],
+  colorIdentity: ["G", "W"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "G", amount: 1 }, { color: "W", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const SUNSCORCHED_DIVIDE: CardDefinition = {
+  id: "sunscorched-divide",
+  name: "Sunscorched Divide",
+  scryfallId: "eae999f9-9c58-4609-8ade-aca0acf07519",
+  types: ["Land"],
+  colorIdentity: ["R", "W"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "R", amount: 1 }, { color: "W", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const SWORN_COMPANIONS: CardDefinition = {
+  id: "sworn-companions",
+  name: "Sworn Companions",
+  scryfallId: "2ccfa5c1-69f9-4351-aba3-883fe92c9b98",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-w-11-soldier-lifelink" },
+  tier: "scripted",
+};
+
+export const SYLVAN_RANGER: CardDefinition = {
+  id: "sylvan-ranger",
+  name: "Sylvan Ranger",
+  scryfallId: "e36a5be0-a730-4cb7-9d1e-6ae84b5bc872",
+  types: ["Creature"],
+  subtypes: ["Elf", "Scout", "Ranger"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" } }],
+  tier: "scripted",
+};
+
+export const TAKE_UP_ARMS: CardDefinition = {
+  id: "take-up-arms",
+  name: "Take Up Arms",
+  scryfallId: "e707c745-0bb1-4a85-83c1-be97131bf488",
+  types: ["Instant"],
+  manaCost: { generic: 4, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: { kind: "createToken", count: 3, tokenDefinitionId: "token-w-11-warrior" },
+  tier: "scripted",
+};
+
+export const TALRAND_S_INVOCATION: CardDefinition = {
+  id: "talrands-invocation",
+  name: "Talrand's Invocation",
+  scryfallId: "88f43c2c-fee4-4df2-b326-a1d9840f64b0",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "createToken", count: 2, tokenDefinitionId: "token-u-22-drake-flying" },
+  tier: "scripted",
+};
+
+export const TEETERING_PEAKS: CardDefinition = {
+  id: "teetering-peaks",
+  name: "Teetering Peaks",
+  scryfallId: "e56aca36-bb51-45e3-9ef9-9f9f2aa1e088",
+  types: ["Land"],
+  colorIdentity: ["R"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 2, toughness: 0, target: { kind: "creature" } } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const TENTH_DISTRICT_GUARD: CardDefinition = {
+  id: "tenth-district-guard",
+  name: "Tenth District Guard",
+  scryfallId: "829f959e-91cd-42ea-8644-ce828a304d01",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 0, toughness: 1, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const THIRD_PATH_SAVANT: CardDefinition = {
+  id: "third-path-savant",
+  name: "Third Path Savant",
+  scryfallId: "793a51ab-59fb-424f-a315-3f63e8990322",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 2,
+  toughness: 3,
+  activatedAbilities: [{ cost: { mana: { generic: 7, colors: {} } }, effect: { kind: "draw", amount: 2 } }],
+  tier: "scripted",
+};
+
+export const THORNWIND_FAERIES: CardDefinition = {
+  id: "thornwind-faeries",
+  name: "Thornwind Faeries",
+  scryfallId: "d2f6a604-1a00-41c4-afe1-e80371c7596a",
+  types: ["Creature"],
+  subtypes: ["Faerie"],
+  manaCost: { generic: 1, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const THRISS_NANTUKO_PRIMUS: CardDefinition = {
+  id: "thriss-nantuko-primus",
+  name: "Thriss, Nantuko Primus",
+  scryfallId: "ad9e647d-903f-4a77-a56c-cd5c0c2f12cf",
+  types: ["Creature"],
+  subtypes: ["Insect", "Druid"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 5, colors: { G: 2 } },
+  colorIdentity: ["G"],
+  power: 5,
+  toughness: 5,
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 0, colors: { G: 1 } } }, effect: { kind: "pump", power: 5, toughness: 5, target: { kind: "creature" } } }],
+  canBeCommander: true,
+  tier: "scripted",
+};
+
+export const TOWER_OF_CHAMPIONS: CardDefinition = {
+  id: "tower-of-champions",
+  name: "Tower of Champions",
+  scryfallId: "f5280aef-dfd2-4d52-bc87-4a6d1f2bd173",
+  types: ["Artifact"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 8, colors: {} } }, effect: { kind: "pump", power: 6, toughness: 6, target: { kind: "creature" } } }],
+  tier: "vanilla",
+};
+
+export const TOWER_OF_FORTUNES: CardDefinition = {
+  id: "tower-of-fortunes",
+  name: "Tower of Fortunes",
+  scryfallId: "7622d6fe-73f2-417c-806c-8ca13192d271",
+  types: ["Artifact"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 8, colors: {} } }, effect: { kind: "draw", amount: 4 } }],
+  tier: "vanilla",
+};
+
+export const TREASURE_HUNTER: CardDefinition = {
+  id: "treasure-hunter",
+  name: "Treasure Hunter",
+  scryfallId: "0282b59e-78ef-412d-bb76-fb337f32a213",
+  types: ["Creature"],
+  subtypes: ["Human"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Artifact" } } }],
+  tier: "scripted",
+};
+
+export const TRUSTY_PACKBEAST: CardDefinition = {
+  id: "trusty-packbeast",
+  name: "Trusty Packbeast",
+  scryfallId: "0fcfe1b5-e35b-4a23-8ca8-4dee2ef94f32",
+  types: ["Creature"],
+  subtypes: ["Beast"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Artifact" } } }],
+  tier: "scripted",
+};
+
+export const TURNTIMBER_GROVE: CardDefinition = {
+  id: "turntimber-grove",
+  name: "Turntimber Grove",
+  scryfallId: "d0c5c07b-df81-4941-ae7e-2d38e317059d",
+  types: ["Land"],
+  colorIdentity: ["G"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 1, toughness: 1, target: { kind: "creature" } } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const UKTABI_ORANGUTAN: CardDefinition = {
+  id: "uktabi-orangutan",
+  name: "Uktabi Orangutan",
+  scryfallId: "b6a944ef-dbf2-47c9-a245-dfd2533a0680",
+  types: ["Creature"],
+  subtypes: ["Ape"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } } }],
+  tier: "scripted",
+};
+
+export const URSAPINE: CardDefinition = {
+  id: "ursapine",
+  name: "Ursapine",
+  scryfallId: "ba547810-c82a-498b-81eb-e81a8dcbbd42",
+  types: ["Creature"],
+  subtypes: ["Beast"],
+  manaCost: { generic: 3, colors: { G: 2 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 3,
+  activatedAbilities: [{ cost: { mana: { generic: 0, colors: { G: 1 } } }, effect: { kind: "pump", power: 1, toughness: 1, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const VALAKUT_INVOKER: CardDefinition = {
+  id: "valakut-invoker",
+  name: "Valakut Invoker",
+  scryfallId: "b8000d86-60e7-4edd-b685-14ade08b76f2",
+  types: ["Creature"],
+  subtypes: ["Human", "Shaman"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 3,
+  activatedAbilities: [{ cost: { mana: { generic: 8, colors: {} } }, effect: { kind: "damage", amount: 3, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const VIASHINO_FANGTAIL: CardDefinition = {
+  id: "viashino-fangtail",
+  name: "Viashino Fangtail",
+  scryfallId: "2616dac9-bbcf-453a-9205-8e433a1c62aa",
+  types: ["Creature"],
+  subtypes: ["Lizard", "Warrior"],
+  manaCost: { generic: 2, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  power: 3,
+  toughness: 3,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const VIRIDESCENT_BOG: CardDefinition = {
+  id: "viridescent-bog",
+  name: "Viridescent Bog",
+  scryfallId: "54d852fc-0f3a-4791-a147-b21ca6964763",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 1, colors: {} } }, effect: { kind: "addManaCombination", mana: [{ color: "B", amount: 1 }, { color: "G", amount: 1 }] } }],
+  tier: "vanilla",
+};
+
+export const VIRIDIAN_EMISSARY: CardDefinition = {
+  id: "viridian-emissary",
+  name: "Viridian Emissary",
+  scryfallId: "e488ed05-d63a-4852-b5e9-d7357c60c3e6",
+  types: ["Creature"],
+  subtypes: ["Phyrexian", "Elf", "Scout"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 1,
+  triggeredAbilities: [{ event: "dies", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "battlefield", tapped: true } }],
+  tier: "scripted",
+};
+
+export const VIRIDIAN_SHAMAN: CardDefinition = {
+  id: "viridian-shaman",
+  name: "Viridian Shaman",
+  scryfallId: "bed8b8aa-2c1f-4a5b-af6e-16802b3b9453",
+  types: ["Creature"],
+  subtypes: ["Elf", "Shaman"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } } }],
+  tier: "scripted",
+};
+
+export const VITHIAN_RENEGADES: CardDefinition = {
+  id: "vithian-renegades",
+  name: "Vithian Renegades",
+  scryfallId: "7459a075-1a5d-4053-ab49-21bb696b6400",
+  types: ["Creature"],
+  subtypes: ["Human", "Shaman"],
+  manaCost: { generic: 1, colors: { G: 1, R: 1 } },
+  colorIdentity: ["G", "R"],
+  power: 3,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } } }],
+  tier: "scripted",
+};
+
+export const VODALIAN_MAGE: CardDefinition = {
+  id: "vodalian-mage",
+  name: "Vodalian Mage",
+  scryfallId: "c107e82b-134a-4f2b-98c2-6537fae6a50d",
+  types: ["Creature"],
+  subtypes: ["Merfolk", "Wizard"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true, mana: { generic: 0, colors: { U: 1 } } }, effect: { kind: "counter", target: { kind: "spell" }, unlessPays: { generic: 1, colors: {} } } }],
+  tier: "scripted",
+};
+
+export const VULSHOK_HEARTSTOKER: CardDefinition = {
+  id: "vulshok-heartstoker",
+  name: "Vulshok Heartstoker",
+  scryfallId: "9d3152bc-5c59-4e98-95de-a51de05a3c98",
+  types: ["Creature"],
+  subtypes: ["Human", "Shaman"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 2, toughness: 0, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const VULSHOK_SORCERER: CardDefinition = {
+  id: "vulshok-sorcerer",
+  name: "Vulshok Sorcerer",
+  scryfallId: "b7153854-c548-48de-b9e2-72b7d9397563",
+  types: ["Creature"],
+  subtypes: ["Human", "Shaman", "Sorcerer"],
+  manaCost: { generic: 1, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Haste"],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
+export const WANDERING_MUSICIANS: CardDefinition = {
+  id: "wandering-musicians",
+  name: "Wandering Musicians",
+  scryfallId: "3da81dbd-dc80-47ff-a33b-270d23a24e0a",
+  types: ["Creature"],
+  subtypes: ["Human", "Bard", "Ally"],
+  manaCost: { generic: 3, colors: {}, hybrid: [["R", "W"]] },
+  colorIdentity: ["R", "W"],
+  power: 2,
+  toughness: 5,
+  triggeredAbilities: [{ event: "attacks", effect: { kind: "pumpAll", power: 1, toughness: 0, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const WAR_PRIEST_OF_THUNE: CardDefinition = {
+  id: "war-priest-of-thune",
+  name: "War Priest of Thune",
+  scryfallId: "b222a639-dd46-40f9-835d-3c68b74c295e",
+  types: ["Creature"],
+  subtypes: ["Human", "Cleric"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Enchantment"] } } }],
+  tier: "scripted",
+};
+
+export const WATER_TRIBE_CAPTAIN: CardDefinition = {
+  id: "water-tribe-captain",
+  name: "Water Tribe Captain",
+  scryfallId: "0a0cdf97-1927-47c6-8ef1-29969e3567ee",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier", "Ally"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 3,
+  activatedAbilities: [{ cost: { mana: { generic: 5, colors: {} } }, effect: { kind: "pumpAll", power: 1, toughness: 1, scope: "controller" } }],
+  tier: "scripted",
+};
+
+export const WILD_CELEBRANTS: CardDefinition = {
+  id: "wild-celebrants",
+  name: "Wild Celebrants",
+  scryfallId: "6b9e72f4-0087-4a79-b9af-296c8b930a25",
+  types: ["Creature"],
+  subtypes: ["Satyr"],
+  manaCost: { generic: 3, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  power: 5,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } } }],
+  tier: "scripted",
+};
+
+export const WILD_WANDERER: CardDefinition = {
+  id: "wild-wanderer",
+  name: "Wild Wanderer",
+  scryfallId: "0d20e020-30e1-4deb-8dfc-4c5fe056193d",
+  types: ["Creature"],
+  subtypes: ["Elf", "Druid"],
+  manaCost: { generic: 3, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", optional: true, effect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "battlefield", tapped: true } }],
+  tier: "scripted",
+};
+
+export const WYLULI_WOLF: CardDefinition = {
+  id: "wyluli-wolf",
+  name: "Wyluli Wolf",
+  scryfallId: "3c97d419-6fee-4a32-9e64-8a827da59934",
+  types: ["Creature"],
+  subtypes: ["Wolf"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "pump", power: 1, toughness: 1, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const YEVA_S_FORCEMAGE: CardDefinition = {
+  id: "yevas-forcemage",
+  name: "Yeva's Forcemage",
+  scryfallId: "200a7f42-9642-4ba8-b3db-a8824282ca00",
+  types: ["Creature"],
+  subtypes: ["Elf", "Shaman"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "pump", power: 2, toughness: 2, target: { kind: "creature" } } }],
+  tier: "scripted",
+};
+
+export const ZURAN_SPELLCASTER: CardDefinition = {
+  id: "zuran-spellcaster",
+  name: "Zuran Spellcaster",
+  scryfallId: "29d414a2-9afd-4bf1-908a-d9b5bea06222",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "damage", amount: 1, target: { kind: "any-target" } } }],
+  tier: "scripted",
+};
+
 /** Everything above, for the registry in testCards.ts. */
 export const GENERATED_CARD_DEFINITIONS: CardDefinition[] = [
   SAVAGE_LANDS,
@@ -11612,4 +14409,217 @@ export const GENERATED_CARD_DEFINITIONS: CardDefinition[] = [
   ZENDIKAR_S_ROIL,
   ZETALPA_PRIMAL_DAWN,
   ZHAO_THE_SEETHING_FLAME,
+  TOKEN_W_22_KNIGHT_ALLY,
+  TOKEN_G_33_CENTAUR,
+  TOKEN_UR_44_ELEMENTAL,
+  TOKEN_R_23_MINOTAUR_HASTE,
+  TOKEN_W_11_CITIZEN,
+  TOKEN_WB_21_INKLING_FLYING,
+  TOKEN_W_11_SOLDIER_ALLY,
+  TOKEN_R_31_ELEMENTAL_HASTE,
+  TOKEN_W_11_DOG,
+  TOKEN_RG_22_SATYR_HASTE,
+  TOKEN_RW_32_SPIRIT,
+  TOKEN_W_11_WARRIOR,
+  TOKEN_U_22_DRAKE_FLYING,
+  ADVENT_OF_THE_WURM,
+  AGENT_OF_STROMGALD,
+  AKKI_ROCKSPEAKER,
+  ALADDIN_S_RING,
+  ALLIED_REINFORCEMENTS,
+  AMPRYN_TACTICIAN,
+  ANABA_SHAMAN,
+  ANARCHIST,
+  APPRENTICE_WIZARD,
+  ARCANE_ENCYCLOPEDIA,
+  ARCHAEOMENDER,
+  ARCHIVIST,
+  ARCHON_OF_FALLING_STARS,
+  ARMORER_GUILDMAGE,
+  AURAMANCER,
+  AVEN_CLOUDCHASER,
+  AZORIUS_SIGNET,
+  BATTERHORN,
+  BLISTER_BEETLE,
+  BOG_INITIATE,
+  BOLTWING_MARAUDER,
+  BONE_FLUTE,
+  BONE_PIT_BRUTE,
+  BORDERLAND_RANGER,
+  BOROS_SIGNET,
+  BRAIDWOOD_CUP,
+  BURNING_TREE_EMISSARY,
+  BURRENTON_SHIELD_BEARERS,
+  CADAVER_IMP,
+  CALL_OF_THE_CONCLAVE,
+  CALL_THE_CAVALRY,
+  CALL_TO_THE_FEAST,
+  CANYON_JERBOA,
+  CAPTIVE_FLAME,
+  CARTOGRAPHER,
+  CATHODION,
+  CHRONOMATON,
+  CIVIC_STALWART,
+  CIVIC_WAYFINDER,
+  CLOUDCHASER_EAGLE,
+  CRENELLATED_WALL,
+  CRYSTAL_QUARRY,
+  CUNNING_SPARKMAGE,
+  DARKWATER_CATACOMBS,
+  DAUNTLESS_VETERAN,
+  DAYBREAK_CHARGER,
+  DAYBREAK_COMBATANTS,
+  DEATH_S_HEAD_BUZZARD,
+  DEGA_DISCIPLE,
+  DESOLATE_MIRE,
+  DIMIR_SIGNET,
+  DISEASE_CARRIERS,
+  DISRUPTIVE_STUDENT,
+  DRAGON_FODDER,
+  DUAL_SUN_ADEPTS,
+  EARTH_ORIGIN_YAK,
+  ELEMENTAL_SUMMONING,
+  ENERGIZER,
+  ENLIGHTENED_ASCETIC,
+  ENVIRONMENTAL_SCIENTIST,
+  ETERNAL_WITNESS,
+  FALLAJI_VANGUARD,
+  FARBOG_BONEFLINGER,
+  FARFINDER,
+  FARHAVEN_ELF,
+  FERROUS_LAKE,
+  FESTERING_GOBLIN,
+  FIRE_SNAKE,
+  FIRE_SPRITES,
+  FLURRY_OF_HORNS,
+  FRIENDLY_GHOST,
+  GHITU_WAR_CRY,
+  GHOST_WARDEN,
+  GHOSTS_OF_THE_DAMNED,
+  GOBLIN_GARDENER,
+  GOBLIN_RALLY,
+  GOBLIN_SETTLER,
+  GOLDNIGHT_COMMANDER,
+  GOLGARI_SIGNET,
+  GRAVEDIGGER,
+  GRIFFIN_DREAMFINDER,
+  GRUUL_SIGNET,
+  GUARDIAN_OF_PILGRIMS,
+  GYRE_ENGINEER,
+  HAVOC_DEMON,
+  HOP_TO_IT,
+  HORDELING_OUTBURST,
+  HORNET_HARASSER,
+  HUNGRY_MEGASLOTH,
+  ICATIAN_TOWN,
+  INKLING_SUMMONING,
+  INSPIRING_CAPTAIN,
+  INSPIRING_UNICORN,
+  IZZET_SIGNET,
+  JADECRAFT_ARTISAN,
+  JAYEMDAE_TOME,
+  JOIN_THE_RANKS,
+  JOURNEYER_S_KITE,
+  KABUTO_MOTH,
+  KEENING_BANSHEE,
+  KINSBAILE_SKIRMISHER,
+  KNIGHT_WATCH,
+  KNOTVINE_MYSTIC,
+  KRENKO_S_COMMAND,
+  LAVAFUME_INVOKER,
+  LEONIN_ARMORGUARD,
+  MAGMATIC_FORCE,
+  MALAMET_WAR_SCRIBE,
+  MANIC_VANDAL,
+  MARBLE_CHALICE,
+  MAWCOR,
+  MIDNIGHT_HAUNTING,
+  MONK_IDEALIST,
+  MONK_REALIST,
+  MORKRUT_BANSHEE,
+  MOSSFIRE_VALLEY,
+  MYR_MOONVESSEL,
+  NANTUKO_DISCIPLE,
+  NANTUKO_ELDER,
+  OGRE_ARSONIST,
+  ONDU_GIANT,
+  ORZHOV_SIGNET,
+  OVERFLOWING_BASIN,
+  OXIDDA_SCRAPMELTER,
+  PILGRIM_S_EYE,
+  PLANAR_PORTAL,
+  POLLUTED_DEAD,
+  PRIEST_OF_GIX,
+  PRIEST_OF_URABRASK,
+  PRIMAL_DRUID,
+  PRODIGAL_SORCERER,
+  QUEEN_S_COMMISSION,
+  RAKDOS_SIGNET,
+  RAKKA_MAR,
+  RAL_S_REINFORCEMENTS,
+  RAVAGING_HORDE,
+  RAZORFIN_HUNTER,
+  RELEASE_THE_DOGS,
+  REVEL_OF_THE_FALLEN_GOD,
+  REYA_DAWNBRINGER,
+  ROD_OF_RUIN,
+  ROOTWATER_HUNTER,
+  RUBBLEBELT_BOAR,
+  SACRED_ARMORY,
+  SALTFIELD_RECLUSE,
+  SANCTUM_GARGOYLE,
+  SCRIVENER,
+  SEA_SCRYER,
+  SELESNYA_SIGNET,
+  SHADOWBLOOD_RIDGE,
+  SILENT_ATTENDANT,
+  SILENT_SENTINEL,
+  SIMIC_SIGNET,
+  SKITTERING_SURVEYOR,
+  SKULL_OF_ORM,
+  SKYCLOUD_EXPANSE,
+  SLEDDING_OTTER_PENGUIN,
+  SOULMENDER,
+  SPIRIT_SUMMONING,
+  SPROUT,
+  STAFF_OF_NIN,
+  STAFF_OF_ZEGON,
+  STINGING_BARRIER,
+  STOIC_BUILDER,
+  SU_CHI,
+  SUNGRASS_PRAIRIE,
+  SUNSCORCHED_DIVIDE,
+  SWORN_COMPANIONS,
+  SYLVAN_RANGER,
+  TAKE_UP_ARMS,
+  TALRAND_S_INVOCATION,
+  TEETERING_PEAKS,
+  TENTH_DISTRICT_GUARD,
+  THIRD_PATH_SAVANT,
+  THORNWIND_FAERIES,
+  THRISS_NANTUKO_PRIMUS,
+  TOWER_OF_CHAMPIONS,
+  TOWER_OF_FORTUNES,
+  TREASURE_HUNTER,
+  TRUSTY_PACKBEAST,
+  TURNTIMBER_GROVE,
+  UKTABI_ORANGUTAN,
+  URSAPINE,
+  VALAKUT_INVOKER,
+  VIASHINO_FANGTAIL,
+  VIRIDESCENT_BOG,
+  VIRIDIAN_EMISSARY,
+  VIRIDIAN_SHAMAN,
+  VITHIAN_RENEGADES,
+  VODALIAN_MAGE,
+  VULSHOK_HEARTSTOKER,
+  VULSHOK_SORCERER,
+  WANDERING_MUSICIANS,
+  WAR_PRIEST_OF_THUNE,
+  WATER_TRIBE_CAPTAIN,
+  WILD_CELEBRANTS,
+  WILD_WANDERER,
+  WYLULI_WOLF,
+  YEVA_S_FORCEMAGE,
+  ZURAN_SPELLCASTER,
 ];

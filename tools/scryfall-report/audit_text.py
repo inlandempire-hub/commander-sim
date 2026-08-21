@@ -338,6 +338,16 @@ RULES = [
     # and every one of them reported as text nothing accounted for, which is
     # this audit missing a wording rather than the fixtures missing a clause.
     (r"^\{t\}: add (\{[wubrgc]\}, )+or \{[wubrgc]\}$", {"addMana", "addManaCombination"}),
+    # A mana ability whose cost is mana, or mana and a tap: the Signets, the
+    # karoo and filter lands, Apprentice Wizard, Agent of Stromgald. Added
+    # 2026-08-21 with the generic activated-ability templater - the tap-only
+    # mana rules above never covered a cost with mana in it, so a wave of
+    # perfectly good addMana fixtures reported as unaccounted text.
+    (r"^\{[wubrgc\d]+\}(?:, \{[wubrgct]\})*: add (\{[wubrgc]\})+$", {"addMana", "addManaCombination"}),
+    # A mana ability that fires on an enters or dies trigger rather than an
+    # activation - Akki Rockspeaker, Burning-Tree Emissary, Cathodion.
+    (r"^when this (?:creature|permanent) (?:enters|dies), add (\{[wubrgc]\})+$",
+     {"addMana", "addManaCombination"}),
     # Sunbaked Canyon. The horizon lands charge life for their coloured mana,
     # which is `ActivatedAbilityCost.payLife` on an otherwise ordinary mana
     # ability - the existing patterns all assume the cost is nothing but a tap.

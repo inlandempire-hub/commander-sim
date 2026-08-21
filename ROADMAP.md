@@ -5092,3 +5092,75 @@ jobs account for 1,552 of those 1,938: tap abilities in shapes it does not
 template (728), turn-based triggers the DSL already has (541), and planeswalkers
 (283). Each one converts its whole pile to ADDABLE, at which point this exercise
 repeats.
+
+## Three generator jobs: the tap ability, the turn-based trigger, the planeswalker (2026-08-21)
+
+The bulk add left `pool_report` with a "cheapest work" queue topped by three
+templating jobs - 728 tap abilities, 541 turn-based triggers, 283 planeswalkers.
+All three are done. Two of them were real; the third was the heuristic lying
+again, and building it is what proved so.
+
+### One shared effect parser under all four contexts
+
+The keystone was noticing that a spell, a triggered ability, an activated
+ability and a loyalty ability all ask the same question - *can the DSL express
+this effect* - and the generator had four different answers to it. `SPELL_RULES`
+was the rich one; the trigger path had a five-entry copy; tap and loyalty had
+none. So a card was emittable as a sorcery and refused as the identical upkeep
+trigger.
+
+`parse_effect` is now the single table (`EFFECT_RULES`), matched
+case-insensitively so one rule catches "Draw a card." at the head of a spell and
+"draw a card" after a trigger's comma. `spell_effect`, `trigger_effect`, the new
+generic `activated_ability`, and the new planeswalker path all go through it.
+
+### Jobs 1 and 2: 201 cards
+
+- **Tap abilities.** A generic `{cost}: <effect>` parser, where the cost is mana
+  and/or `{T}` and the effect goes through the shared table. Wyluli Wolf,
+  Prodigal Sorcerer, the Signets, Kabuto Moth, Staff of Zegon.
+- **Turn-based triggers.** The clauses (upkeep, draw step, end step, ...) already
+  existed; giving `trigger_effect` the whole effect table is the entire change.
+
+Together with the token-making spells the unified table also newly reaches, that
+is **201 real cards** - the pool goes 1,799 -> 2,000. Every one was verified two
+ways: all three audits clean (bar the two long-known gaps), and a hand sample of
+~30 checked against Scryfall, which is the only check that sees an effect's
+meaning rather than its shape.
+
+Three things the audits and tests caught that inspection did not, all the same
+families as the first bulk add: **Dryad Arbor** re-emitted as a {0} land-creature
+(now refused in `interpret`), a **Saproling token** minted under a second id
+identical to the pool's (de-dup tokens by shape, not id), and a wave of
+**mana-cost wordings** - `{1},{T}: Add {W}{U}`, `{R}: Add {B}`, ETB and death
+mana - that `audit_text` had no rule for.
+
+### Job 3: the planeswalker template exists and emits nothing
+
+The loyalty-ability template is built and correct - and it emits **zero** cards.
+Every Commander-legal planeswalker is refused, and on inspection each is refused
+on a real effect: a Compleated static line, "destroy all creatures with power 4
+or greater", "each player draws a card", an ultimate. **A planeswalker's
+blocker was never the missing loyalty template - it is the effects.** The report's
+"283 one template away" was the `classify` shortcut counting every planeswalker
+as addable-once-templated, which was never true. `classify` now routes
+planeswalkers through the generator, so the count tells the truth.
+
+### The honest number, corrected downward
+
+With the templater built, `ADDABLE` is **0** - the generator emits everything it
+can, and it is all in the pool. That changes what the leftover "generator gap"
+headings mean. A tap ability or turn-based trigger still blocked is no longer one
+templating job away: the templater tried it and refused, because its *effect* (or
+its cost) has no DSL shape. Those headings are relabelled off "Generator gap", and
+a tap line the generator *can* emit is suppressed in the report like any other
+supported line.
+
+The effect of that honesty: **reachable-without-new-engine-capability drops from
+the 3,717 quoted two days ago to 2,230** (1,978 implemented, 0 addable, 252
+genuinely-cheap generator gaps left). The 3,717 was the "generator gap" bucket
+overcounting - ~1,500 cards that looked like templating jobs but are inexpressible
+effects behind a `{T}:` the regex could see and an effect it could not. Building
+the templater is what told them apart. The remaining 252 are real: mana-ability
+riders (86), phyrexian/hybrid costs (79), wording variants (37), two-faced cards
+(22), and a scatter of trigger-effect and modal shapes.

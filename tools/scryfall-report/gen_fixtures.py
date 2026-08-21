@@ -95,6 +95,10 @@ ACTIVATED_PUMP = re.compile(
     r"^((?:\{[^}]+\})+): This creature gets \+(\d+)/\+(\d+) until end of turn\.$"
 )
 
+# The cost half of a generic activated ability: one or more mana/{T} symbols
+# before the colon. The effect half goes through parse_effect.
+ACTIVATED_COST = re.compile(r"^((?:\{[^}]+\})(?:, \{[^}]+\})*): (.+)$")
+
 WORD_NUMBERS = {
     "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -500,30 +504,16 @@ TRIGGER_ONLY_IF = [
 # "you may" - a trigger that needs a target needs targeting support the
 # triggered path does not have yet, and emitting one would put an ability on
 # the stack that can never resolve.
-TRIGGER_EFFECTS = [
-    # "you gain 1 life" and "gain 1 life" are the same effect: the second is
-    # what is left after "you may " is peeled off the front of Lifegift.
-    (re.compile(r"^(?:you )?gain (\d+) life\.$"), lambda m: '{ kind: "gainLife", amount: %s }' % m.group(1)),
-    (re.compile(r"^draw a card\.$"), lambda m: '{ kind: "draw", amount: 1 }'),
-    (re.compile(r"^draw (\w+) cards\.$"),
-     lambda m: '{ kind: "draw", amount: %d }' % WORD_NUMBERS[m.group(1)]
-     if m.group(1) in WORD_NUMBERS else None),
-    (re.compile(r"^put a \+1/\+1 counter on this creature\.$"),
-     lambda m: '{ kind: "addCounter", amount: 1 }'),
-    # "create four 1/1 green Insect creature tokens with flying and
-    # deathtouch". The token itself is minted as a side effect and
-    # collected in MINTED_TOKENS for the emitter to write out.
-    (re.compile(r"^create (.+)\.$"), lambda m: token_effect(m.group(1))),
-]
 
 
 def trigger_effect(text):
-    """The TS for the effect half of a trigger line, or None if unreadable."""
-    for pattern, build in TRIGGER_EFFECTS:
-        match = pattern.match(text)
-        if match:
-            return build(match)
-    return None
+    """The TS for the effect half of a trigger line, or None if unreadable.
+
+    One shared effect table now (see parse_effect). The trigger fragment
+    arrives lowercased and comma-led, which the case-insensitive matching and
+    the added trailing period handle.
+    """
+    return parse_effect(text)
 
 
 def enters_trigger(line):
@@ -657,6 +647,47 @@ def regenerate_ability(line):
         '{ cost: { tap: true }, effect: { kind: "regenerate", target: '
         '{ kind: "creature", subtypes: [%s] } } }' % ", ".join('"%s"' % s for s in subtypes)
     )
+
+
+def activated_ability(line, name):
+    """A generic "{cost}: <effect>" activated ability, or None.
+
+    The cost must be nothing but mana symbols and an optional {T} - the parts
+    ActivatedAbilityCost carries without a judgement call. Anything else
+    (sacrifice another permanent, pay life, remove a counter, discard) is
+    refused here, and the card falls to a more specific parser or off the end.
+    The effect goes through the one shared parser.
+
+    Runs after the dedicated mana / pump / regenerate / gain-life parsers, so it
+    only ever sees the shapes those leave behind - which is why it does not
+    re-handle them.
+    """
+    match = ACTIVATED_COST.match(line)
+    if not match:
+        return None
+    tap = False
+    mana_symbols = ""
+    for token in re.findall(r"\{([^}]+)\}", match.group(1)):
+        if token == "T":
+            tap = True
+        elif token.isdigit() or token in "WUBRGC":
+            mana_symbols += "{%s}" % token
+        else:
+            return None  # a cost part the DSL cannot carry
+    effect = parse_effect(match.group(2).replace(name, "~"))
+    if effect is None:
+        return None
+    bits = []
+    if tap:
+        bits.append("tap: true")
+    if mana_symbols:
+        cost = ts_mana_cost(mana_symbols)
+        if cost is None:
+            return None
+        bits.append("mana: %s" % cost)
+    if not bits:
+        return None  # a costless "ability" is not one to invent
+    return '{ cost: { %s }, effect: %s }' % (", ".join(bits), effect)
 
 
 def mana_abilities(line):
@@ -832,6 +863,11 @@ def interpret_permanent(card):
         if ENTERS_TRIGGERISH.match(line):
             return None
 
+        act = activated_ability(line, card["name"])
+        if act:
+            activated.append(act)
+            continue
+
         return None  # a line we can't express - skip the whole card
 
     # A land that taps for nothing and does nothing is not a card worth having,
@@ -980,9 +1016,9 @@ SPELL_RULES = [
      lambda m: '{ kind: "damage", amount: %s, target: { kind: "any-target" } }' % m[1]),
     (r"^This spell deals (\d+) damage to any target\.$",
      lambda m: '{ kind: "damage", amount: %s, target: { kind: "any-target" } }' % m[1]),
-    (r"^Draw (a|two|three|four) cards?\.$",
+    (r"^Draw (a|an|one|two|three|four|five|six|seven|eight|nine|ten) cards?\.$",
      lambda m: '{ kind: "draw", amount: %d }' % number(m[1])),
-    (r"^You gain (\d+) life\.$",
+    (r"^(?:You )?gain (\d+) life\.$",
      lambda m: '{ kind: "gainLife", amount: %s }' % m[1]),
     (r"^Counter target spell\.$",
      lambda m: '{ kind: "counter", target: { kind: "spell" } }'),
@@ -1038,6 +1074,48 @@ SPELL_RULES = [
 ]
 
 
+# The card's own name normalises to ~ in a spell; "this creature" and its kin
+# are the same self-reference in a trigger, an activated ability or a loyalty
+# ability, so they normalise too.
+THIS_SELF = re.compile(r"\bthis (?:creature|permanent|artifact|enchantment|land|planeswalker)\b", re.I)
+
+# Every effect the DSL can express, in the one place that answers "can the DSL
+# express this effect" - added 2026-08-21. SPELL_RULES was that answer for
+# spells; the trigger path had a five-entry copy and the activated and loyalty
+# paths had none, so a card was emittable as a sorcery and refused as the
+# identical upkeep trigger. Token creation and a +1/+1 counter on the source
+# lived in the trigger copy and belong to all four contexts.
+EFFECT_RULES = SPELL_RULES + [
+    (r"^Create (.+)\.$", lambda m: token_effect(m[1])),
+    (r"^Put a \+1/\+1 counter on ~\.$", lambda m: '{ kind: "addCounter", amount: 1 }'),
+]
+
+
+def parse_effect(sentence):
+    """A DSL effect string for one printed effect sentence, or None.
+
+    The single effect parser shared by spells, triggered abilities, activated
+    abilities and loyalty abilities. The caller hands it one sentence with the
+    card's own name already turned into ~; "this creature" and friends are
+    turned here. Matching is case-insensitive so one rule catches both "Draw a
+    card." at the head of a spell and "draw a card" after a trigger's comma,
+    and every rule stays written the way a card prints it.
+    """
+    text = THIS_SELF.sub("~", sentence).strip()
+    if not text.endswith("."):
+        text += "."
+    for pattern, build in EFFECT_RULES:
+        match = re.match(pattern, text, re.I)
+        if match:
+            built = build(match)
+            # ts_mana_cost and the token minter both return None for anything
+            # the engine cannot express; never emit the literal "None".
+            if built is None or "None" in built:
+                return None
+            return built
+    return None
+
+
 def add_mana_effect(symbols):
     """'{B}{B}{B}' into addMana, or addManaCombination when the colours differ.
 
@@ -1077,16 +1155,10 @@ def spell_effect(card):
     lines, uncounterable = lift_cant_be_countered([l.strip() for l in text.split("\n") if l.strip()])
     if len(lines) != 1:
         return None
-    for pattern, build in SPELL_RULES:
-        match = re.match(pattern, lines[0])
-        if match:
-            built = build(match)
-            # ts_mana_cost returns None for a cost the engine can't express,
-            # which would otherwise be emitted as the literal "None".
-            if built is None or "None" in built:
-                return None
-            return built, uncounterable
-    return None
+    effect = parse_effect(lines[0])
+    if effect is None:
+        return None
+    return effect, uncounterable
 
 
 def strip_reminder(text):
@@ -1137,6 +1209,12 @@ def parse_mana_cost(cost_string):
 
 def interpret(card):
     """Returns (keywords, triggers, activated, cant_be_countered) if fully representable, else None."""
+    # Dryad Arbor: a Land Creature with no mana cost at all. `ts_mana_cost("")`
+    # is a valid {0}, so `emit` would happily write a castable 1/1 for {0} - but
+    # the card has *no* cost and can only be played as a land, which is a
+    # different card. Refused here so classify and the generator agree on it.
+    if "Land" in card.get("type_line", "") and not card.get("mana_cost"):
+        return None
     text = strip_reminder(card.get("oracle_text"))
     keywords = []
     triggers = []
@@ -1215,9 +1293,74 @@ def interpret(card):
         if parts and all(p in SUPPORTED_KEYWORDS for p in parts):
             keywords.extend(SUPPORTED_KEYWORDS[p] for p in parts)
             continue
+
+        act = activated_ability(line, card["name"])
+        if act:
+            activated.append(act)
+            continue
         return None  # a line we can't express - skip the whole card
 
     return keywords, triggers, activated, uncounterable
+
+
+LOYALTY_LINE = re.compile(r"^([+\u2212-]?\d+): (.+)$")
+
+
+def interpret_planeswalker(card):
+    """(loyalty, loyalty_abilities) for a planeswalker whose every ability the
+    DSL can express, or None.
+
+    Refused whole if any line is not a loyalty ability, or any loyalty
+    ability's effect is not expressible. A planeswalker with an ability dropped
+    is a different, weaker card - the exact thing this file never emits - so a
+    walker with an unreadable ultimate is refused rather than trimmed.
+    """
+    loyalty = card.get("loyalty")
+    if loyalty is None or not str(loyalty).isdigit():
+        return None  # loyalty is X or *, no fixed starting value
+    if ts_mana_cost(card.get("mana_cost")) is None:
+        return None  # hybrid or phyrexian in the cost
+    text = strip_reminder(card.get("oracle_text")) or ""
+    abilities = []
+    for raw in [l.strip() for l in text.split("\n") if l.strip()]:
+        match = LOYALTY_LINE.match(raw)
+        if not match:
+            return None  # a static or triggered line - not a loyalty ability
+        try:
+            cost = int(match.group(1).replace("\u2212", "-"))
+        except ValueError:
+            return None
+        effect = parse_effect(match.group(2).replace(card["name"], "~"))
+        if effect is None:
+            return None
+        # The label is the printed wording, for the client's button - the same
+        # convention the hand-written planeswalkers follow.
+        label = match.group(2).replace('\\', '\\\\').replace('"', '\\"')
+        abilities.append('{ cost: %d, effect: %s, label: "%s" }' % (cost, effect, label))
+    if not abilities:
+        return None
+    return int(loyalty), abilities
+
+
+def emit_planeswalker(card, loyalty, abilities):
+    subtypes = card["type_line"].split("\u2014")[-1].strip().split() if "\u2014" in card["type_line"] else []
+    lines = [
+        "export const %s: CardDefinition = {" % const_name(card["name"]),
+        '  id: "%s",' % slugify(card["name"]),
+        '  name: "%s",' % card["name"].replace('"', '\\"'),
+        '  scryfallId: "%s",' % card["id"],
+        '  types: ["Planeswalker"],',
+    ]
+    if subtypes:
+        lines.append("  subtypes: [%s]," % ", ".join('"%s"' % t for t in subtypes))
+    lines.append('  supertypes: ["Legendary"],')
+    lines.append("  manaCost: %s," % ts_mana_cost(card.get("mana_cost")))
+    lines.append("  colorIdentity: [%s]," % ", ".join('"%s"' % c for c in card.get("color_identity") or []))
+    lines.append("  loyalty: %d," % loyalty)
+    lines.append("  loyaltyAbilities: [%s]," % ", ".join(abilities))
+    lines.append('  tier: "scripted",')
+    lines.append("};")
+    return "\n".join(lines)
 
 
 def emit_spell(card, effect, uncounterable=False):
@@ -1428,6 +1571,10 @@ def emit_named(names):
             interpreted = interpret(card)
             if interpreted is not None:
                 body = emit(card, *interpreted)
+        elif "Planeswalker" in type_line:
+            interpreted = interpret_planeswalker(card)
+            if interpreted is not None:
+                body = emit_planeswalker(card, *interpreted)
         else:
             interpreted = interpret_permanent(card)
             if interpreted is not None:

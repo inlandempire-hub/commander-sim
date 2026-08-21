@@ -96,10 +96,11 @@ BLOCKERS = [
      "the painland rider and 'activate only if you control ...' both generate; "
      "anything else on the end of a mana ability does not. The engine is not the limit here"),
     (r"^\{T\}:|^\{\d+\}, \{T\}:",
-     "Generator gap - a tap ability that is not one of the templated shapes",
-     "activatedAbilities carry tap costs, mana costs, life, sacrifice, discard-from-hand "
-     "and once-per-game, and reach most of the effect list; gen_fixtures only templates "
-     "the pump, mana, regenerate and gain-life shapes. Hand-writing these is card work"),
+     "A tap ability the generator cannot emit",
+     "the generic {cost}: <effect> templater landed 2026-08-21 and emits every tap "
+     "ability whose cost is mana and/or {T} and whose effect the DSL has. What reaches "
+     "here has a cost it cannot carry (sacrifice another, pay life, remove a counter, "
+     "discard) or an effect the DSL has no shape for - not a templating job"),
 
     # Removed 2026-08-21: "Turn-based triggers (upkeep, end step, each combat)",
     # which claimed the only events were enters-battlefield, attacks, dies,
@@ -439,9 +440,11 @@ def analyse_line(raw_line):
         if yours:
             rest = re.sub(r"^At the beginning of [^,]+,\s*", "", line, flags=re.I)
             return effect_reasons(rest) or [
-                ("Generator gap - a turn-based trigger the DSL already has",
-                 "upkeep, draw step, first main, beginning of combat and end step are all "
-                 "events; gen_fixtures only emits ETB, attack and death triggers")]
+                ("A turn-based trigger whose effect the DSL cannot express",
+                 "the clause (upkeep, draw step, first main, beginning of combat, end step) "
+                 "and the whole effect table are shared with the generator, which emits any "
+                 "turn-based trigger it can build - so what reaches here is an effect with "
+                 "no DSL shape, not a missing template")]
         reasons = [("Turn-based triggers scoped to a turn that is not yours",
                     "upkeep, draw step, first main phase, beginning of combat and end step "
                     "all exist as events, but only on your own turn; 'at the beginning of "
@@ -643,10 +646,19 @@ def classify(card):
             reasons.extend(face_reasons(face))
         return "blocked", reasons
     if "Planeswalker" in type_line:
-        # Was "not a supported card type" until Ajani, Nacatl Avenger.
-        return "blocked", [(type_line, "Generator gap - planeswalkers are written by hand",
-                            "loyalty, loyaltyAbilities and activateLoyaltyAbility all exist; "
-                            "gen_fixtures has no template for a loyalty ability")]
+        # The loyalty-ability template landed 2026-08-21, so a planeswalker is
+        # addable exactly when the generator emits it - which is when every one
+        # of its loyalty abilities has an expressible effect and it prints no
+        # static or triggered line. Almost none do: a planeswalker's effects
+        # (destroy all, target player draws, an ultimate) are the blocker, not
+        # the template, which is why the old "283 one template away" figure was
+        # the classify shortcut overcounting rather than a real queue.
+        if gen.interpret_planeswalker(card) is not None:
+            return "addable", None
+        return "blocked", [(type_line, "Planeswalker abilities the effect DSL can't express",
+                            "loyalty and loyaltyAbilities exist and the generator will emit a "
+                            "planeswalker whose every ability is expressible; this one has a static "
+                            "or triggered line, or a loyalty effect the DSL has no shape for")]
 
     if gen.parse_mana_cost(card.get("mana_cost")) is None and "Land" not in type_line:
         return "blocked", [(card.get("mana_cost") or "", "Generator gap - phyrexian or monocoloured hybrid in the cost",
@@ -696,6 +708,14 @@ def classify(card):
         if parts and all(p in gen.SUPPORTED_KEYWORDS for p in parts):
             continue
         if supported_permanent_line(line):
+            continue
+        # A tap ability the generic {cost}: <effect> templater emits is, like a
+        # supported permanent line, not what is blocking this card - something
+        # else on it is. Added 2026-08-21 with that templater; without it a
+        # card refused for one line was also blamed for a perfectly emittable
+        # tap ability, which is what kept the "tap ability" heading at the top
+        # of the queue after the work that empties it was already done.
+        if gen.activated_ability(line, card.get("name", "")):
             continue
         for title, why in analyse_line(line):
             reasons.append((line, title, why))
