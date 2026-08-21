@@ -455,6 +455,13 @@ export type Effect =
       nonland?: boolean;
       maxManaValue?: number;
       thenDraw?: boolean;
+      /**
+       * "Add {B} or {G} for each permanent destroyed this way" - Culling Ritual.
+       * One mana per permanent destroyed, spread as evenly as possible across
+       * these colours. A simplification: the printed card lets the player choose
+       * each pip's colour.
+       */
+      manaPerDestroyed?: Color[];
     }
   /**
    * "Look at the top N cards of your library, then put them back in any order"

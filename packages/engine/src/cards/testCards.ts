@@ -11599,6 +11599,22 @@ export const NECROPOLIS_REGENT: CardDefinition = {
   tier: "scripted",
 };
 
+export const CULLING_RITUAL: CardDefinition = {
+  id: "culling-ritual",
+  name: "Culling Ritual",
+  scryfallId: "abaad8c5-763d-4276-9b19-623cd19f59b9",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  castEffect: {
+    kind: "destroyAll",
+    cardTypes: ["Artifact", "Creature", "Enchantment", "Planeswalker"],
+    maxManaValue: 2,
+    manaPerDestroyed: ["B", "G"],
+  },
+  tier: "scripted",
+};
+
 export const DEATH_BEGETS_LIFE: CardDefinition = {
   id: "death-begets-life",
   name: "Death Begets Life",
@@ -14633,6 +14649,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     GROWTH_SPIRAL,
     WINDFALL,
     ARBOR_ELF,
+    CULLING_RITUAL,
     DEATH_BEGETS_LIFE,
     NECROPOLIS_REGENT,
     SHADOWMAGE_INFILTRATOR,

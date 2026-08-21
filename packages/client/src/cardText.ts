@@ -392,7 +392,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       const scope = effect.maxManaValue !== undefined ? ` with mana value ${effect.maxManaValue} or less` : "";
       const nonland = effect.nonland ? "nonland " : "";
       const draw = effect.thenDraw ? " Draw a card for each permanent destroyed this way." : "";
-      return `Destroy ${effect.maxManaValue !== undefined ? "each" : "all"} ${nonland}${noun}${scope}.${draw}`;
+      const mana = effect.manaPerDestroyed
+        ? ` Add ${effect.manaPerDestroyed.map((c) => `{${c}}`).join(" or ")} for each permanent destroyed this way.`
+        : "";
+      return `Destroy ${effect.maxManaValue !== undefined ? "each" : "all"} ${nonland}${noun}${scope}.${draw}${mana}`;
     }
     case "eachSacrifices": {
       const who = effect.who === "each-opponent" ? "Each opponent" : "Each player";

@@ -283,6 +283,12 @@ export function applyEffect(
         destroyed += 1;
       }
       if (effect.thenDraw && destroyed > 0) drawCard(state, controllerId, destroyed);
+      if (effect.manaPerDestroyed && effect.manaPerDestroyed.length > 0) {
+        // One mana per permanent destroyed, spread round-robin across the colours.
+        for (let i = 0; i < destroyed; i++) {
+          addMana(controller.manaPool, effect.manaPerDestroyed[i % effect.manaPerDestroyed.length]!, 1);
+        }
+      }
       return;
     }
     case "atNextUpkeep": {
