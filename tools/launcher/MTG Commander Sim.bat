@@ -9,7 +9,7 @@ REM  Pin this to the taskbar or Start menu and click it to play.
 REM
 REM  It rebuilds the engine, starts the web app in its OWN window, and opens
 REM  your browser at whatever you picked. This menu then comes back, so you can
-REM  keep switching - deck builder, then a bot game, then hotseat - without
+REM  keep switching - deck builder, then a bot game, then another deck - without
 REM  closing anything or waiting for another rebuild.
 REM
 REM  The web app lives in the separate "web app" window. That's the one that
@@ -42,16 +42,15 @@ echo   ===========================================
 echo.
 echo   Pick your deck - you'll play it against the bot:
 echo.
-echo     1   Radiant Ranks   (white)  Lots of small creatures, pumped by an anthem
-echo     2   Overgrowth      (green)  The biggest creatures on the table
-echo     3   Gravebound      (black)  Kill everything good, grind them down
-echo     4   Warband         (red)    Fast creatures and burn to the face
-echo     5   Tidewall        (blue)   Counter their spells, win in the air
+echo     1   Winota          (Boros)    Cheap hate pieces, then non-Humans flip free Humans off the top
+echo     2   Radiant Ranks   (white)    Lots of small creatures, pumped by an anthem
+echo     3   Blech           (Golgari)  Trade creatures for cards and life, grind with removal
+echo     4   Gravebound      (black)    Kill everything good, grind them down
+echo     5   Tidewall        (blue)     Counter their spells, win in the air
 echo.
 echo   Or:
 echo.
 echo     D   Deck builder - build your own deck, then play it
-echo     H   Hotseat - two people taking turns on this one screen
 echo     N   Host a game over the network for a friend
 echo     Q   Quit
 echo.
@@ -59,7 +58,7 @@ echo   You can come straight back here afterwards to switch - build a deck,
 echo   then play it against the bot, without restarting anything.
 echo.
 set "CHOICE="
-set /p "CHOICE=  Choose (or just press Enter for white):  "
+set /p "CHOICE=  Choose (or just press Enter for Winota):  "
 if not defined CHOICE set "CHOICE=1"
 
 REM All three must be cleared on every pass. Coming back to the menu with a
@@ -69,13 +68,18 @@ set "NETWORK="
 set "URL="
 set "MYDECK="
 
-if /i "%CHOICE%"=="1" set "MYDECK=white"
-if /i "%CHOICE%"=="2" set "MYDECK=green"
-if /i "%CHOICE%"=="3" set "MYDECK=black"
-if /i "%CHOICE%"=="4" set "MYDECK=red"
-if /i "%CHOICE%"=="5" set "MYDECK=blue"
+REM These keys must each be a word from the matching deck's name in
+REM packages/engine/src/archetypes.ts - the web app picks the deck whose name
+REM contains the key. If the archetypes there change, change these too, or a
+REM number will quietly fall back to the default game (which is how choosing
+REM "green" here used to load the white deck once Winota and Blech replaced the
+REM old green and red decks).
+if /i "%CHOICE%"=="1" set "MYDECK=winota"
+if /i "%CHOICE%"=="2" set "MYDECK=radiant"
+if /i "%CHOICE%"=="3" set "MYDECK=blech"
+if /i "%CHOICE%"=="4" set "MYDECK=gravebound"
+if /i "%CHOICE%"=="5" set "MYDECK=tidewall"
 if /i "%CHOICE%"=="D" set "URL=http://localhost:%PORT%/?mode=deck"
-if /i "%CHOICE%"=="H" set "URL=http://localhost:%PORT%/?deck=white&vs=green"
 if /i "%CHOICE%"=="N" set "NETWORK=1"
 if /i "%CHOICE%"=="Q" exit /b 0
 
@@ -189,7 +193,7 @@ exit /b 1
 
 REM Picks a random deck that isn't the one the player chose.
 :pickOpponent
-set "POOL=white green black red blue"
+set "POOL=winota radiant blech gravebound tidewall"
 set "PICKED="
 :reroll
 set /a "N=(%RANDOM% %% 5) + 1"
