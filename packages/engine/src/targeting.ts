@@ -90,6 +90,12 @@ export function isValidTarget(
         const def = cast ? requireDefinition(state, cast.instance.definitionId) : undefined;
         if (!def || !def.types.includes(selector.spellType)) return false;
       }
+      if (selector.notSpellType) {
+        // "Target noncreature spell" - the spell must not be of this type.
+        const cast = findInstance(state, obj.sourceInstanceId);
+        const def = cast ? requireDefinition(state, cast.instance.definitionId) : undefined;
+        if (def && def.types.includes(selector.notSpellType)) return false;
+      }
       return true;
     }
     case "card-in-your-graveyard": {

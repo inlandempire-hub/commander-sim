@@ -232,7 +232,7 @@ export type TargetSelector =
    * "target instant spell" (Dispel) and "target noncreature spell" are told
    * apart from a plain "target spell".
    */
-  | { kind: "spell"; spellType?: CardType }
+  | { kind: "spell"; spellType?: CardType; notSpellType?: CardType }
   /**
    * "Target land", "Target artifact", "Target noncreature artifact or
    * noncreature enchantment" - a permanent on the battlefield of a named type.
@@ -604,7 +604,7 @@ export type Effect =
    * point of damage it was just dealt. Always a plain number by the time
    * `applyEffect` sees it.
    */
-  | { kind: "createToken"; count: Amount; tokenDefinitionId: string }
+  | { kind: "createToken"; count: Amount; tokenDefinitionId: string; forController?: "each-opponent" }
   /**
    * "Target creature gets +N/+N until end of turn." Both numbers are signed, so
    * the same effect covers Giant Growth and the whole -N/-N removal family - a

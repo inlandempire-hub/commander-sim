@@ -11599,6 +11599,23 @@ export const NECROPOLIS_REGENT: CardDefinition = {
   tier: "scripted",
 };
 
+export const AN_OFFER_YOU_CANT_REFUSE: CardDefinition = {
+  id: "an-offer-you-cant-refuse",
+  name: "An Offer You Can't Refuse",
+  scryfallId: "a829747f-cf9b-4d81-ba66-9f0630ed4565",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "counter", target: { kind: "spell", notSpellType: "Creature" } },
+      { kind: "createToken", count: 2, tokenDefinitionId: "token-treasure", forController: "each-opponent" },
+    ],
+  },
+  tier: "scripted",
+};
+
 export const TOKEN_TREASURE: CardDefinition = {
   id: "token-treasure",
   name: "Treasure",
@@ -14700,6 +14717,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     GROWTH_SPIRAL,
     WINDFALL,
     ARBOR_ELF,
+    AN_OFFER_YOU_CANT_REFUSE,
     TOKEN_TREASURE,
     REVEL_IN_RICHES,
     OMNISCIENCE,

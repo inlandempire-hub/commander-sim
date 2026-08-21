@@ -815,21 +815,29 @@ export function applyEffect(
       // per token - "would create one or more tokens" is a single event, so
       // two Doubling Seasons make four Insects rather than compounding oddly
       // inside the loop.
-      const count = tokensCreated(
-        state,
-        controllerId,
-        evaluateAmount(state, controllerId, effect.count, "createToken count", sourceInstanceId),
-      );
-      for (let i = 0; i < count; i++) {
-        const token = createCardInstance(state, effect.tokenDefinitionId, controllerId, "battlefield");
-        /*
-         * A token enters the battlefield like anything else, so it goes
-         * through the same arrival path - haste, and every trigger that cares
-         * that a creature arrived. It used to only get the haste half, done
-         * here by hand, which meant three Soldier tokens beside a Soul Warden
-         * gained nothing.
-         */
-        enteredBattlefield(state, token);
+      // "Its controller creates two Treasure tokens" (An Offer You Can't Refuse)
+      // makes them for the opponents rather than the caster - in a two-player
+      // game, the one whose spell was just countered. A simplification of the
+      // exact "its controller".
+      const recipients =
+        effect.forController === "each-opponent"
+          ? state.players.filter((p) => p.id !== controllerId).map((p) => p.id)
+          : [controllerId];
+      for (const rid of recipients) {
+        const count = tokensCreated(
+          state,
+          rid,
+          evaluateAmount(state, rid, effect.count, "createToken count", sourceInstanceId),
+        );
+        for (let i = 0; i < count; i++) {
+          const token = createCardInstance(state, effect.tokenDefinitionId, rid, "battlefield");
+          /*
+           * A token enters the battlefield like anything else, so it goes
+           * through the same arrival path - haste, and every trigger that cares
+           * that a creature arrived.
+           */
+          enteredBattlefield(state, token);
+        }
       }
       return;
     }
