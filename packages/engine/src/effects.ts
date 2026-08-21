@@ -332,6 +332,16 @@ export function applyEffect(
       }
       return;
     }
+    case "winGame": {
+      // The controller wins, which in this engine means every other player loses.
+      for (const p of state.players) {
+        if (p.id === controllerId || p.hasLost) continue;
+        p.hasLost = true;
+        p.lossReason = `${controllerId} won the game`;
+      }
+      log(state, `${controllerId} wins the game`);
+      return;
+    }
     case "returnToHand": {
       // "Return ... to their owners' hands." moveCard sends each to its owner's
       // hand; a target already gone is simply skipped.

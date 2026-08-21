@@ -442,6 +442,8 @@ export type Effect =
   | { kind: "untap"; target: TargetSelector }
   /** "Return two target creatures to their owners' hands" - Step Through. Bounces each targeted permanent. */
   | { kind: "returnToHand"; target: TargetSelector }
+  /** "you win the game" - Revel in Riches. Every opponent loses. */
+  | { kind: "winGame" }
   /**
    * "Destroy all creatures and enchantments" - a wrath. Every permanent of one
    * of `cardTypes`, optionally only nonlands (`nonland`) or up to a mana value
@@ -1237,7 +1239,9 @@ export type TriggerCondition =
   /** "if you gained life this turn" - Moseo, and Eccentric Pestfinder's infusion. */
   | { kind: "gained-life-this-turn" }
   /** Ophiomancer: "if you control no Snakes". A `BoardCondition` read as a negation. */
-  | { kind: "not"; condition: BoardCondition };
+  | { kind: "not"; condition: BoardCondition }
+  /** "if you control ten or more Treasures" - Revel in Riches. A `BoardCondition` read straight. */
+  | { kind: "board"; condition: BoardCondition };
 
 export interface TriggeredAbility {
   event: TriggerEvent;

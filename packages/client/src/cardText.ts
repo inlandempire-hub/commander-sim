@@ -381,6 +381,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return "Each player discards their hand, then draws cards equal to the greatest number discarded this way.";
     case "untap":
       return `Untap ${describeTarget(effect.target)}.`;
+    case "winGame":
+      return "You win the game.";
     case "returnToHand":
       return `Return ${describeTarget(effect.target)} to ${
         effect.target.kind === "permanent" && effect.target.count && effect.target.count.max !== 1

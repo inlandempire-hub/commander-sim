@@ -589,6 +589,8 @@ export function triggerConditionMet(
     }
     case "not":
       return !meetsBoardCondition(state, controllerId, condition.condition);
+    case "board":
+      return meetsBoardCondition(state, controllerId, condition.condition);
   }
 }
 

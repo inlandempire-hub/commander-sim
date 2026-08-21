@@ -11599,6 +11599,46 @@ export const NECROPOLIS_REGENT: CardDefinition = {
   tier: "scripted",
 };
 
+export const TOKEN_TREASURE: CardDefinition = {
+  id: "token-treasure",
+  name: "Treasure",
+  types: ["Artifact"],
+  subtypes: ["Treasure"],
+  colorIdentity: [],
+  isToken: true,
+  activatedAbilities: [
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "W", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true, sacrificeSelf: true }, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "vanilla",
+};
+
+export const REVEL_IN_RICHES: CardDefinition = {
+  id: "revel-in-riches",
+  name: "Revel in Riches",
+  scryfallId: "79b0e035-8716-469d-99ae-a530cd96ef09",
+  types: ["Enchantment"],
+  manaCost: { generic: 4, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  triggeredAbilities: [
+    {
+      event: "permanent-dies",
+      watches: "any",
+      watchFor: { type: "Creature", controlledBy: "opponent" },
+      effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-treasure" },
+    },
+    {
+      event: "upkeep",
+      onlyIf: { kind: "board", condition: { kind: "controls-subtype", subtypes: ["Treasure"], count: 10 } },
+      effect: { kind: "winGame" },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const OMNISCIENCE: CardDefinition = {
   id: "omniscience",
   name: "Omniscience",
@@ -14660,6 +14700,8 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     GROWTH_SPIRAL,
     WINDFALL,
     ARBOR_ELF,
+    TOKEN_TREASURE,
+    REVEL_IN_RICHES,
     OMNISCIENCE,
     CULLING_RITUAL,
     DEATH_BEGETS_LIFE,
