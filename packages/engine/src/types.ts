@@ -42,6 +42,7 @@ export type Keyword =
   | "Menace"
   | "Fear"
   | "Nonbasic Landwalk"
+  | "Unblockable"
   | "Reach"
   | "Defender"
   | "Hexproof"
@@ -452,6 +453,8 @@ export type Effect =
   | { kind: "winGame" }
   /** "Look at target player's hand" - Gitaxian Probe. Information only; no game state changes. */
   | { kind: "lookAtHand"; target: TargetSelector }
+  /** "This creature becomes a copy of another target creature you control" - Silent Hallcreeper. */
+  | { kind: "becomeCopy"; target: TargetSelector }
   /** "Remove up to N counters from target permanent" - Glissa Sunslayer. Takes +1/+1 counters first, then others. */
   | { kind: "removeCounter"; amount: number; target: TargetSelector }
   /**

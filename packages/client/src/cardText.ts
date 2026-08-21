@@ -385,6 +385,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return "You win the game.";
     case "lookAtHand":
       return `Look at ${describeTarget(effect.target)}'s hand.`;
+    case "becomeCopy":
+      return `This creature becomes a copy of ${describeTarget(effect.target)}.`;
     case "counterAll":
       return `Counter all spells and abilities your opponents control.${
         effect.tokenPerCountered ? " Create a 1/1 blue and black Faerie creature token with flying for each one countered this way." : ""

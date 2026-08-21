@@ -11543,6 +11543,38 @@ export const TRAILBLAZERS_BOOTS: CardDefinition = {
   tier: "scripted",
 };
 
+export const SILENT_HALLCREEPER: CardDefinition = {
+  id: "silent-hallcreeper",
+  name: "Silent Hallcreeper",
+  scryfallId: "aac4f0cc-63be-4f08-956e-39839c9735ba",
+  types: ["Enchantment", "Creature"],
+  subtypes: ["Horror"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Unblockable"],
+  // "choose one that hasn't been chosen" (each mode once per game) is not tracked
+  // - any mode may be taken each time. The copy mode auto-targets a creature.
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      effect: {
+        kind: "modal",
+        modes: [
+          { label: "Put two +1/+1 counters on this creature", effect: { kind: "addCounter", amount: 2 } },
+          { label: "Draw a card", effect: { kind: "draw", amount: 1 } },
+          {
+            label: "This creature becomes a copy of another target creature you control",
+            effect: { kind: "becomeCopy", target: { kind: "creature" } },
+          },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const GITAXIAN_PROBE: CardDefinition = {
   id: "gitaxian-probe",
   name: "Gitaxian Probe",
@@ -14811,6 +14843,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WINGED_BOOTS,
     ZEPHYR_BOOTS,
     CULTIVATE,
+    SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,
     FELIX_FIVE_BOOTS,

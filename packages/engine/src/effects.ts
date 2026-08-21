@@ -359,6 +359,19 @@ export function applyEffect(
       }
       return;
     }
+    case "becomeCopy": {
+      // The source permanent takes on the printed characteristics of the target
+      // by adopting its definition. A copy of a card, so counters and marked
+      // damage on the source are left as they are (they belong to the object).
+      const t = targets.find((x): x is Extract<StackTarget, { kind: "card" }> => x.kind === "card");
+      const source = findInstance(state, sourceInstanceId);
+      if (!t || !source) return;
+      const copyOf = findInstance(state, t.instanceId);
+      if (!copyOf || copyOf.instance.zone !== "battlefield") return;
+      source.instance.definitionId = copyOf.instance.definitionId;
+      log(state, `${cardName(state, sourceInstanceId)} becomes a copy of ${cardName(state, t.instanceId)}`);
+      return;
+    }
     case "lookAtHand": {
       // Information only - the hand is revealed to the controller and nothing
       // in the game state changes. The redacted view already hides it from

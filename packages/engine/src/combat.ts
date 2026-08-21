@@ -103,6 +103,10 @@ export function blockProblem(
         return `${blockerDef.name} cannot block ${attackerDef.name} - it has flying, and this has neither flying nor reach`;
       }
     }
+    // "This creature can't be blocked."
+    if (hasKeyword(state, attackerFound.instance, "Unblockable")) {
+      return `${blockerDef.name} cannot block ${attackerDef.name} - it can't be blocked`;
+    }
     // Fear: "can't be blocked except by artifact creatures and/or black creatures."
     if (hasKeyword(state, attackerFound.instance, "Fear")) {
       const isArtifact = blockerDef.types.includes("Artifact");
