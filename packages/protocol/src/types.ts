@@ -31,6 +31,8 @@ export type ClientMessage =
       useAlternativeCost?: boolean;
       /** Cast for free via an Omniscience-style permanent the caster controls. */
       omniscienceFree?: boolean;
+      /** Cards to exile from the graveyard to pay for Delve. */
+      delveCount?: number;
     }
   | { type: "activateAbility"; instanceId: string; abilityIndex: number; targets?: StackTarget[] }
   | { type: "declareAttackers"; declarations: AttackerDeclaration[] }

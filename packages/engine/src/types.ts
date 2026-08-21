@@ -1851,6 +1851,8 @@ export interface CardDefinition {
   cycling?: { cost: ManaCost; search?: { cardType?: CardType; subtypes?: string[] } };
   /** Omniscience: "You may cast spells from your hand without paying their mana costs." Read by casting.ts. */
   enablesFreeCastFromHand?: boolean;
+  /** "Delve" - each card exiled from your graveyard while casting this pays for {1}. See casting.ts. */
+  delve?: boolean;
   /** Whether this card can legally be someone's commander (legendary creature, or explicitly says so). */
   canBeCommander?: boolean;
   tier: "vanilla" | "scripted" | "weird";

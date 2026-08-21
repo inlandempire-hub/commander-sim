@@ -74,6 +74,7 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
         sacrificeInstanceId: message.sacrificeInstanceId,
         useAlternativeCost: message.useAlternativeCost,
         omniscienceFree: message.omniscienceFree,
+        delveCount: message.delveCount,
       });
       return;
     case "activateAbility":

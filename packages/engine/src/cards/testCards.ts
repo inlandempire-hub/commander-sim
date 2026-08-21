@@ -11398,6 +11398,24 @@ export const CULTIVATE: CardDefinition = {
   tier: "scripted",
 };
 
+export const DEMONIC_COUNSEL: CardDefinition = {
+  id: "demonic-counsel",
+  name: "Demonic Counsel",
+  scryfallId: "ff79c845-4115-4fbf-b20f-37470f2bf7fb",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  delve: true,
+  // Delirium widens the search from a Demon card to any card.
+  castEffect: {
+    kind: "conditional",
+    condition: { kind: "card-types-in-graveyard", count: 4 },
+    then: { kind: "searchLibrary", destination: "hand" },
+    otherwise: { kind: "searchLibrary", subtypes: ["Demon"], destination: "hand" },
+  },
+  tier: "scripted",
+};
+
 export const DEMONIC_BARGAIN: CardDefinition = {
   id: "demonic-bargain",
   name: "Demonic Bargain",
@@ -14848,6 +14866,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     PROLOGUE_TO_PHYRESIS,
     DISPEL,
     DEMONIC_BARGAIN,
+    DEMONIC_COUNSEL,
     RELIQUARY_TOWER,
     TIME_STRETCH,
     LABORATORY_MANIAC,

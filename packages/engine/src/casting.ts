@@ -83,6 +83,8 @@ export interface CastOptions {
    * one is a player's choice and so is checked.
    */
   omniscienceFree?: boolean;
+  /** How many cards to exile from the graveyard to pay for this spell's Delve. */
+  delveCount?: number;
   /**
    * Cast this as a bestowed Aura for its bestow cost, attached to the creature
    * handed in as the target. It is still a creature card - it is simply not a
@@ -257,6 +259,13 @@ export function castSpell(
     cost = applyCommanderTax(cost, timesCast);
   }
 
+  // Delve: each card exiled from the graveyard pays for {1} of the generic cost.
+  let delved: string[] = [];
+  if (def.delve && options.delveCount && options.delveCount > 0) {
+    delved = player.graveyard.slice(0, options.delveCount).map((c) => c.instanceId);
+    cost = { ...cost, generic: Math.max(0, cost.generic - delved.length) };
+  }
+
   /*
    * The additional cost, validated before anything at all is paid or moved.
    *
@@ -347,6 +356,9 @@ export function castSpell(
   }
   const payment = payManaCostFor(player, cost, def);
   const restrictionsUsed = payment.restrictions;
+  // Delve's exiles are paid in the same breath as the mana.
+  for (const id of delved) moveCard(state, id, "exile");
+  if (delved.length > 0) log(state, `${playerId} delves, exiling ${delved.length} card${delved.length === 1 ? "" : "s"}`);
 
   /*
    * The rest of the cost, paid in the same breath as the mana (rule 601.2h).
