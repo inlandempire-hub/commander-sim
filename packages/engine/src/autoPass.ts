@@ -227,6 +227,7 @@ export function mustNotAutoPass(state: GameState, playerId: string): boolean {
   // Nobody has priority at all until every opening hand is settled.
   if (state.mulligan) return true;
   if (state.pendingSearch) return true;
+  if (state.pendingModal) return true;
   if (state.pendingArrange) return true;
   // Same for a "you may" trigger waiting on a yes or no.
   if (state.pendingConfirmation) return true;

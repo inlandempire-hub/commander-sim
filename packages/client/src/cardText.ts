@@ -545,7 +545,11 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       // damage to each opponent" will expect prevention and lifelink to matter.
       return effect.who === "target" && effect.target
         ? sentence(`${describeTarget(effect.target)} loses ${effect.amount} life.`)
-        : `Each opponent loses ${effect.amount} life.`;
+        : effect.who === "self"
+          ? `You lose ${effect.amount} life.`
+          : `Each opponent loses ${effect.amount} life.`;
+    case "removeCounter":
+      return `Remove up to ${effect.amount} counters from ${describeTarget(effect.target)}.`;
     case "counter": {
       const unless = effect.unlessPays
         ? ` unless its controller pays ${formatManaCost(effect.unlessPays)}`

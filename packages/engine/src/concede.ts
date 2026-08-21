@@ -25,6 +25,7 @@ export function concede(state: GameState, playerId: string): void {
   // cleared rather than left to block the game that is already over.
   if (state.mulligan?.playerId === playerId) state.mulligan = null;
   if (state.pendingSearch?.playerId === playerId) state.pendingSearch = null;
+  if (state.pendingModal?.playerId === playerId) state.pendingModal = null;
   if (state.pendingArrange?.playerId === playerId) state.pendingArrange = null;
   if (state.pendingConfirmation?.playerId === playerId) state.pendingConfirmation = null;
 }

@@ -31,6 +31,7 @@ export type BotAction =
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */
   | { kind: "resolveSearch"; instanceId: string | null }
   | { kind: "resolveArrange"; order: string[]; shuffle?: boolean }
+  | { kind: "resolveModal"; modeIndex: number }
   /** Answering a "you may" trigger that stopped mid-resolution. */
   | { kind: "resolveConfirmation"; accept: boolean }
   /** Pointing a triggered ability at something before it goes on the stack. */

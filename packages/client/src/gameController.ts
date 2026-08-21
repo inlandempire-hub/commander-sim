@@ -45,6 +45,8 @@ export interface GameController {
   resolveArrange(playerId: string, order: string[], shuffle?: boolean): void;
   /** Cycle a card from hand: pay its cycling cost, discard it, then draw or tutor. */
   cycleCard(playerId: string, instanceId: string): void;
+  /** Choose a mode for a modal triggered/activated ability. */
+  resolveModal(playerId: string, modeIndex: number): void;
   /**
    * Answers a "you may" trigger. Gated exactly like `resolveSearch` - the game
    * is mid-resolution and nobody has priority until this comes back.

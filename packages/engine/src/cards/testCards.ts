@@ -11543,6 +11543,46 @@ export const TRAILBLAZERS_BOOTS: CardDefinition = {
   tier: "scripted",
 };
 
+export const GLISSA_SUNSLAYER: CardDefinition = {
+  id: "glissa-sunslayer",
+  name: "Glissa Sunslayer",
+  scryfallId: "682b1b62-338a-49d1-9d4e-2d8ee2e6fc76",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Phyrexian", "Zombie", "Elf"],
+  manaCost: { generic: 1, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 3,
+  toughness: 3,
+  keywords: ["First Strike", "Deathtouch"],
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      effect: {
+        kind: "modal",
+        modes: [
+          {
+            label: "You draw a card and lose 1 life",
+            effect: {
+              kind: "sequence",
+              effects: [{ kind: "draw", amount: 1 }, { kind: "loseLife", amount: 1, who: "self" }],
+            },
+          },
+          {
+            label: "Destroy target enchantment",
+            effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Enchantment"] } },
+          },
+          {
+            label: "Remove up to three counters from target permanent",
+            effect: { kind: "removeCounter", amount: 3, target: { kind: "permanent" } },
+          },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const FELIX_FIVE_BOOTS: CardDefinition = {
   id: "felix-five-boots",
   name: "Felix Five-Boots",
@@ -14757,6 +14797,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WINGED_BOOTS,
     ZEPHYR_BOOTS,
     CULTIVATE,
+    GLISSA_SUNSLAYER,
     FELIX_FIVE_BOOTS,
     YOU_ARE_ALREADY_DEAD,
     PROPAGANDA,

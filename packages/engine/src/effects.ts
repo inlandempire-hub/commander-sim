@@ -955,7 +955,9 @@ export function applyEffect(
             targets
               .filter((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player")
               .map((t) => requirePlayer(state, t.playerId))
-          : state.players.filter((p) => p.id !== controllerId);
+          : effect.who === "self"
+            ? [requirePlayer(state, controllerId)]
+            : state.players.filter((p) => p.id !== controllerId);
       for (const player of losers) {
         if (player.hasLost) continue;
         // Evaluated per loser when the loser is the reference: "loses half their
@@ -1289,11 +1291,35 @@ export function applyEffect(
       return;
     }
     case "modal": {
-      // castSpell unwraps the chosen mode before the spell reaches the stack,
-      // so getting here means something built a modal triggered or activated
-      // ability - which nothing chooses a mode for yet. Loud rather than
-      // silently picking one.
-      throw new Error("Modal effects are only supported on cast spells");
+      // A modal *cast spell* is unwrapped before it reaches the stack, so
+      // reaching here means a modal triggered/activated ability is resolving.
+      // Stop and ask which mode; `resolveModal` applies it.
+      state.pendingModal = {
+        playerId: controllerId,
+        controllerId,
+        sourceInstanceId,
+        modes: effect.modes,
+      };
+      return;
+    }
+    case "removeCounter": {
+      // "Remove up to N counters from target permanent." Takes +1/+1 counters
+      // first, then other counters - a simplification where the player would
+      // choose which kinds and how many.
+      const t = targets.find((x): x is Extract<StackTarget, { kind: "card" }> => x.kind === "card");
+      if (!t) return;
+      const found = findInstance(state, t.instanceId);
+      if (!found) return;
+      let toRemove = effect.amount;
+      const fromPlus = Math.min(toRemove, found.instance.plusOneCounters);
+      found.instance.plusOneCounters -= fromPlus;
+      toRemove -= fromPlus;
+      const fromOther = Math.min(toRemove, found.instance.otherCounters);
+      found.instance.otherCounters -= fromOther;
+      if (fromPlus + fromOther > 0) {
+        log(state, `${controllerId} removes ${fromPlus + fromOther} counter${fromPlus + fromOther === 1 ? "" : "s"} from ${cardName(state, t.instanceId)}`);
+      }
+      return;
     }
   }
 }
@@ -1857,4 +1883,26 @@ export function cycleCard(state: GameState, playerId: string, instanceId: string
   } else {
     drawCard(state, playerId, 1);
   }
+}
+
+/**
+ * Applies the mode a player chose for a modal triggered/activated ability (see
+ * the `modal` effect). The chosen mode is auto-targeted - a simplification of
+ * the player's target choice - which is enough for the cards that use this.
+ */
+export function resolveModal(state: GameState, playerId: string, modeIndex: number): void {
+  const pending = state.pendingModal;
+  if (!pending) throw new Error("No modal choice is waiting to be resolved");
+  if (pending.playerId !== playerId) throw new Error(`The modal choice belongs to ${pending.playerId}`);
+  const mode = pending.modes[modeIndex];
+  if (!mode) throw new Error(`There is no mode ${modeIndex}`);
+  state.pendingModal = null;
+  log(state, `${playerId} chooses "${mode.label}"`);
+  const selector = targetSelectorOf(mode.effect);
+  let targets: StackTarget[] = [];
+  if (selector) {
+    const legal = legalTargetsFor(state, selector, pending.controllerId);
+    if (legal.length > 0) targets = [legal[0]!];
+  }
+  applyEffect(state, pending.controllerId, pending.sourceInstanceId, mode.effect, targets);
 }

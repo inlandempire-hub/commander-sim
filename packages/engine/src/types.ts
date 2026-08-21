@@ -444,6 +444,8 @@ export type Effect =
   | { kind: "returnToHand"; target: TargetSelector }
   /** "you win the game" - Revel in Riches. Every opponent loses. */
   | { kind: "winGame" }
+  /** "Remove up to N counters from target permanent" - Glissa Sunslayer. Takes +1/+1 counters first, then others. */
+  | { kind: "removeCounter"; amount: number; target: TargetSelector }
   /**
    * "Counter all spells your opponents control and all abilities your opponents
    * control" - Glen Elendra's Answer. `tokenPerCountered` makes one token for
@@ -711,7 +713,7 @@ export type Effect =
        * the player is chosen when the ability goes on the stack and may
        * legally be yourself.
        */
-      who: "each-opponent" | "target";
+      who: "each-opponent" | "target" | "self";
       /** Required when `who` is `"target"`, and meaningless otherwise. */
       target?: TargetSelector;
     }
@@ -2297,6 +2299,18 @@ export interface PendingSearch {
  * instance id, so an opponent's view of them is already the hidden-card
  * placeholder. Cleared by `resolveArrange`.
  */
+/**
+ * A modal triggered/activated ability shown to its controller, waiting on which
+ * mode to take. The chosen mode's effect is applied by `resolveModal`, which
+ * auto-targets it (a simplification of the player's target choice).
+ */
+export interface PendingModal {
+  playerId: string;
+  controllerId: string;
+  sourceInstanceId: string;
+  modes: Array<{ label: string; effect: Effect }>;
+}
+
 export interface PendingArrange {
   playerId: string;
   sourceInstanceId: string;
@@ -2470,6 +2484,13 @@ export interface GameState {
    * and no step advances - the game is mid-spell. Cleared by `resolveSearch`.
    */
   pendingSearch: PendingSearch | null;
+  /**
+   * A modal ability waiting on its controller to choose a mode - Glissa
+   * Sunslayer. Only from triggered/activated abilities: a modal spell has its
+   * mode chosen as it is cast. Gated like `pendingSearch`. Cleared by
+   * `resolveModal`.
+   */
+  pendingModal: PendingModal | null;
   /**
    * Extra turns queued to happen before the turn order rotates on - Time
    * Stretch. Each entry is the id of the player who takes that turn, drained

@@ -108,6 +108,9 @@ function perform(controller: GameController, playerId: string, action: BotAction
     case "resolveSearch":
       controller.resolveSearch(playerId, action.instanceId);
       return;
+    case "resolveModal":
+      controller.resolveModal(playerId, action.modeIndex);
+      return;
     case "resolveArrange":
       controller.resolveArrange(playerId, action.order, action.shuffle);
       return;

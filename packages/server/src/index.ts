@@ -11,6 +11,7 @@ import {
   resolveSearch,
   resolveArrange,
   cycleCard,
+  resolveModal,
   chooseTriggerTarget,
   resolveDiscard,
   activateLoyaltyAbility,
@@ -101,6 +102,9 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       return;
     case "cycleCard":
       cycleCard(state, playerId, message.instanceId);
+      return;
+    case "resolveModal":
+      resolveModal(state, playerId, message.modeIndex);
       return;
     case "resolveArrange":
       resolveArrange(state, playerId, message.order, message.shuffle ?? false);

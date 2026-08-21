@@ -5,6 +5,7 @@ import {
   declareBlockers,
   resolveSearch,
   resolveArrange,
+  resolveModal,
   resolveConfirmation,
   takeMulligan,
   keepHand,
@@ -59,6 +60,9 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
       return;
     case "resolveSearch":
       resolveSearch(state, playerId, action.instanceId);
+      return;
+    case "resolveModal":
+      resolveModal(state, playerId, action.modeIndex);
       return;
     case "resolveArrange":
       resolveArrange(state, playerId, action.order, action.shuffle ?? false);

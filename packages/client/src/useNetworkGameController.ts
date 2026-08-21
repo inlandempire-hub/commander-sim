@@ -80,6 +80,7 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
     resolveSearch: (_playerId, instanceId) => send({ type: "resolveSearch", instanceId }),
     resolveArrange: (_playerId, order, shuffle) => send({ type: "resolveArrange", order, shuffle }),
     cycleCard: (_playerId, instanceId) => send({ type: "cycleCard", instanceId }),
+    resolveModal: (_playerId, modeIndex) => send({ type: "resolveModal", modeIndex }),
     resolveConfirmation: (_playerId, accept) => send({ type: "resolveConfirmation", accept }),
     chooseTriggerTarget: (_playerId, target) => send({ type: "chooseTriggerTarget", target }),
     resolveDiscard: (_playerId, instanceId) => send({ type: "resolveDiscard", instanceId }),
