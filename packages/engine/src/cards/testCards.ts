@@ -11543,6 +11543,33 @@ export const TRAILBLAZERS_BOOTS: CardDefinition = {
   tier: "scripted",
 };
 
+export const INUNDATED_ARCHIVE: CardDefinition = {
+  id: "inundated-archive",
+  name: "Inundated Archive",
+  scryfallId: "060f9675-4921-4cbb-bae2-54c85c679fd4",
+  types: ["Land"],
+  colorIdentity: ["B", "U"],
+  entersTapped: true,
+  isBackFace: true,
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+  ],
+  tier: "vanilla",
+};
+
+export const WATERLOGGED_TEACHINGS: CardDefinition = {
+  id: "waterlogged-teachings",
+  name: "Waterlogged Teachings",
+  scryfallId: "060f9675-4921-4cbb-bae2-54c85c679fd4",
+  types: ["Instant"],
+  manaCost: { generic: 3, colors: {}, hybrid: [["U", "B"]] },
+  colorIdentity: ["B", "U"],
+  backFaceId: "inundated-archive",
+  castEffect: { kind: "searchLibrary", cardType: "Instant", orHasKeyword: "Flash", destination: "hand" },
+  tier: "scripted",
+};
+
 export const SILENT_HALLCREEPER: CardDefinition = {
   id: "silent-hallcreeper",
   name: "Silent Hallcreeper",
@@ -14843,6 +14870,8 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WINGED_BOOTS,
     ZEPHYR_BOOTS,
     CULTIVATE,
+    INUNDATED_ARCHIVE,
+    WATERLOGGED_TEACHINGS,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

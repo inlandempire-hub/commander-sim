@@ -1414,7 +1414,10 @@ function matchesSearch(
   const definition = state.cardDefinitions[card.definitionId];
   if (!definition) return false;
   if (effect.basicLandOnly && !definition.supertypes?.includes("Basic")) return false;
-  if (effect.cardType && !definition.types.includes(effect.cardType)) return false;
+  if (effect.cardType && !definition.types.includes(effect.cardType)) {
+    // "...or a card with flash" - a fallback keyword still qualifies it.
+    if (!(effect.orHasKeyword && definition.keywords?.includes(effect.orHasKeyword))) return false;
+  }
   if (effect.cardTypes?.length && !effect.cardTypes.some((t) => definition.types.includes(t))) return false;
   // "A Swamp or Mountain card" - any one of them is enough, and a nonbasic with
   // the type counts. Bayou is a legal find for a fetchland asking for a Swamp.

@@ -841,6 +841,8 @@ export type Effect =
       cardType?: CardType;
       /** "a creature or land card" - any one of these types qualifies (Traverse the Ulvenwald). */
       cardTypes?: CardType[];
+      /** "an instant card **or a card with flash**" - a card also qualifies if it has this keyword (Waterlogged Teachings). */
+      orHasKeyword?: Keyword;
       /** Narrows further to basic lands only, for the ramp spells. */
       basicLandOnly?: boolean;
       /**
