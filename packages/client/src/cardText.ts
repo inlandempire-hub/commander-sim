@@ -383,6 +383,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Untap ${describeTarget(effect.target)}.`;
     case "winGame":
       return "You win the game.";
+    case "counterAll":
+      return `Counter all spells and abilities your opponents control.${
+        effect.tokenPerCountered ? " Create a 1/1 blue and black Faerie creature token with flying for each one countered this way." : ""
+      }`;
     case "returnToHand":
       return `Return ${describeTarget(effect.target)} to ${
         effect.target.kind === "permanent" && effect.target.count && effect.target.count.max !== 1

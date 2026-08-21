@@ -332,6 +332,33 @@ export function applyEffect(
       }
       return;
     }
+    case "counterAll": {
+      // Every stack object an opponent controls that can be countered is removed;
+      // a countered spell's card goes to its owner's graveyard (or the command
+      // zone). Abilities have no card and just cease. Count what was countered.
+      let countered = 0;
+      for (const obj of [...state.stack]) {
+        if (obj.controllerId === controllerId || obj.cantBeCountered) continue;
+        const index = state.stack.findIndex((o) => o.id === obj.id);
+        if (index < 0) continue;
+        state.stack.splice(index, 1);
+        const found = findInstance(state, obj.sourceInstanceId);
+        if (found?.instance.zone === "stack") {
+          moveCard(state, obj.sourceInstanceId, found.instance.isCommander ? "command" : "graveyard");
+        }
+        countered += 1;
+      }
+      if (countered > 0) {
+        log(state, `${controllerId} counters ${countered} opposing spell${countered === 1 ? "" : "s"} and abilit${countered === 1 ? "y" : "ies"}`);
+      }
+      if (effect.tokenPerCountered) {
+        for (let i = 0; i < countered; i++) {
+          const token = createCardInstance(state, effect.tokenPerCountered, controllerId, "battlefield");
+          enteredBattlefield(state, token);
+        }
+      }
+      return;
+    }
     case "winGame": {
       // The controller wins, which in this engine means every other player loses.
       for (const p of state.players) {

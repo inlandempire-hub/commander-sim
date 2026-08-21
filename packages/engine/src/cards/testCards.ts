@@ -11599,6 +11599,31 @@ export const NECROPOLIS_REGENT: CardDefinition = {
   tier: "scripted",
 };
 
+export const TOKEN_UB_11_FAERIE_FLYING: CardDefinition = {
+  id: "token-ub-11-faerie-flying",
+  name: "Faerie",
+  types: ["Creature"],
+  subtypes: ["Faerie"],
+  colorIdentity: ["B", "U"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const GLEN_ELENDRAS_ANSWER: CardDefinition = {
+  id: "glen-elendras-answer",
+  name: "Glen Elendra's Answer",
+  scryfallId: "fa5bfbf9-dca2-42b7-a431-f9afedb54528",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  cantBeCountered: true,
+  castEffect: { kind: "counterAll", tokenPerCountered: "token-ub-11-faerie-flying" },
+  tier: "scripted",
+};
+
 export const AN_OFFER_YOU_CANT_REFUSE: CardDefinition = {
   id: "an-offer-you-cant-refuse",
   name: "An Offer You Can't Refuse",
@@ -14718,6 +14743,8 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WINDFALL,
     ARBOR_ELF,
     AN_OFFER_YOU_CANT_REFUSE,
+    TOKEN_UB_11_FAERIE_FLYING,
+    GLEN_ELENDRAS_ANSWER,
     TOKEN_TREASURE,
     REVEL_IN_RICHES,
     OMNISCIENCE,

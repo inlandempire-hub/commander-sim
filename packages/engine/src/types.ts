@@ -445,6 +445,12 @@ export type Effect =
   /** "you win the game" - Revel in Riches. Every opponent loses. */
   | { kind: "winGame" }
   /**
+   * "Counter all spells your opponents control and all abilities your opponents
+   * control" - Glen Elendra's Answer. `tokenPerCountered` makes one token for
+   * each object actually countered.
+   */
+  | { kind: "counterAll"; tokenPerCountered?: string }
+  /**
    * "Destroy all creatures and enchantments" - a wrath. Every permanent of one
    * of `cardTypes`, optionally only nonlands (`nonland`) or up to a mana value
    * (`maxManaValue`), goes through the ordinary destroy path so indestructible,
