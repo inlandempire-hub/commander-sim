@@ -1,4 +1,5 @@
 import type { CardDefinition } from "../types.js";
+import { GENERATED_CARD_DEFINITIONS } from "./generatedCards.js";
 
 /**
  * A hand-picked set of real, accurately-represented cards used to exercise
@@ -14480,6 +14481,7 @@ export const INKMOTH_NEXUS: CardDefinition = {
 export const TOKEN_C_11_SPIRIT: CardDefinition = {
   id: "token-c-11-spirit",
   name: "Spirit",
+  scryfallId: "395e0d40-19f5-4355-9e6c-88265fdef197",
   types: ["Creature"],
   subtypes: ["Spirit"],
   colorIdentity: [],
@@ -14817,6 +14819,7 @@ export const ANGRATHS_MARAUDERS: CardDefinition = {
 export const TOKEN_TREASURE: CardDefinition = {
   id: "token-treasure",
   name: "Treasure",
+  scryfallId: "5e138adb-32ba-4b63-8964-5447bc353161",
   types: ["Artifact"],
   subtypes: ["Treasure"],
   colorIdentity: [],
@@ -16382,6 +16385,17 @@ export const BOROMIR_WARDEN_OF_THE_TOWER: CardDefinition = {
 
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
+    /*
+     * The bulk-generated pool, spread in rather than listed card by card - see
+     * generatedCards.ts for what it is and why it is a separate file.
+     *
+     * **First**, so that a hand-written definition wins a collision with a
+     * machine-written one. `Object.fromEntries` keeps the *last* entry for a
+     * repeated key, so being first is what makes these the ones that lose - and
+     * a card somebody read and reasoned about should beat a transcription of
+     * it. Nothing collides today; this is about the day something does.
+     */
+    ...GENERATED_CARD_DEFINITIONS,
     BOROMIR_WARDEN_OF_THE_TOWER,
     DOLLMAKERS_SHOP,
     PORCELAIN_GALLERY,

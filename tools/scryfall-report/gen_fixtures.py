@@ -1227,6 +1227,11 @@ def emit_spell(card, effect, uncounterable=False):
         "export const %s: CardDefinition = {" % const_name(card["name"]),
         '  id: "%s",' % slugify(card["name"]),
         '  name: "%s",' % card["name"].replace('"', '\\"'),
+        # Added 2026-08-21. This path was the one emitter of the four that never
+        # wrote an id, and it went unnoticed until a bulk run put eight spells
+        # in the pool with no artwork - `cardArt.test.ts` asserts every non-token
+        # fixture carries one, and that is what found it.
+        '  scryfallId: "%s",' % card["id"],
         "  types: [%s]," % ", ".join('"%s"' % t for t in types),
         "  manaCost: %s," % ts_mana_cost(card.get("mana_cost")),
         "  colorIdentity: [%s]," % ", ".join('"%s"' % c for c in card.get("color_identity") or []),
@@ -1381,7 +1386,14 @@ def emit_named(names):
     with gzip.open(DATA, "rt", encoding="utf-8") as fh:
         for line in fh:
             card = json.loads(line)
-            if card.get("layout") in ("art_series", "token", "double_faced_token"):
+            # "front_card" added 2026-08-21, and it is the art-series failure
+            # again in a layout nobody had met: the oversized memorabilia
+            # printing of Savage Lands is named Savage Lands, has the type line
+            # "Card" and no rules text, and it shadowed the real Jund tri-land
+            # here exactly as it did in deck_report.py. The generator's answer
+            # was "not representable exactly", which is the worst way to be
+            # wrong - it looks like a verdict about the card.
+            if card.get("layout") in ("art_series", "token", "double_faced_token", "front_card"):
                 continue
             key = card["name"].lower()
             # Half-names are collected *before* the wanted-name check below,

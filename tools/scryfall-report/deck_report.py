@@ -43,7 +43,11 @@ import gen_fixtures as gen
 
 HERE = Path(__file__).parent
 DATA = HERE / "data" / "oracle-cards.jsonl.gz"
-FIXTURES = HERE.parent.parent / "packages" / "engine" / "src" / "cards" / "testCards.ts"
+CARDS_DIR = HERE.parent.parent / "packages" / "engine" / "src" / "cards"
+# Both halves of the pool: the hand-written file and the bulk-generated one.
+# Reading only testCards.ts would report every generated card as
+# unimplemented, which is the most expensive way for this tool to be wrong.
+FIXTURES = [CARDS_DIR / "testCards.ts", CARDS_DIR / "generatedCards.ts"]
 
 # Lines the decklist format allows that are not cards.
 SECTION = re.compile(r"^(commander|deck|sideboard|maybeboard|companion)\s*:?\s*$", re.I)
@@ -566,7 +570,7 @@ def load_oracle():
 
 def load_implemented():
     """Card names already present as fixtures."""
-    text = FIXTURES.read_text(encoding="utf-8")
+    text = "\n".join(path.read_text(encoding="utf-8") for path in FIXTURES if path.exists())
     return {m.lower() for m in re.findall(r'^\s*name: "([^"]+)",', text, re.M)}
 
 

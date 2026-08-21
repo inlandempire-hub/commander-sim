@@ -5025,3 +5025,70 @@ thirty of them, so they are most of what a board actually looks like. Anything
 else wanting a specific printing should use a deck's `artOverrides` through the
 deck builder's art picker, which is the mechanism built for exactly that and
 which does not touch the shared fixture.
+
+## The bulk pool: 770 cards in one go (2026-08-21)
+
+Every card `gen_fixtures.py` could already emit, emitted. The pool goes from
+**1,029 hand-written cards to 1,799**, and `pool_report.py` from 1,008
+Commander-legal names implemented to 1,778.
+
+They live in `packages/engine/src/cards/generatedCards.ts`, deliberately apart
+from `testCards.ts`. That file is the hand-written pool - cards somebody read,
+decided about and commented, the Blech and Winota lists among them, several
+carrying paragraphs on why a clause is modelled the way it is. This one has no
+reasoning in it and should never grow any: if a card here needs a decision made
+about it, it moves next door. The generated array is spread into the registry
+**first**, so a hand-written definition wins a collision.
+
+### What the machinery caught, and I did not
+
+The input was 771 names and nobody read a single card. Five separate things came
+back, every one from an audit or a test rather than from inspection - which is
+the whole argument for having them:
+
+1. **`audit_fixtures`: Dryad Arbor.** A land that is also a creature, with *no
+   mana cost at all*, which the generator transcribed as a cost of `{0}`. Those
+   are different things - one can be cast, the other can only be played as a
+   land - so it is a card needing a decision rather than a transcription, and it
+   was dropped.
+2. **`audit_text`: sixteen cards printing "{T}: Add {W}, {U}, or {B}."** The
+   tri-lands and the Obelisks. The fixtures are right - three abilities, one per
+   colour, exactly as a dual writes two - and the *audit* had no rule for the
+   three-colour wording. A gap in the checker, not in the cards.
+3. **`cardArt.test.ts`: eight spells with no Scryfall id.** `emit_spell` was the
+   one emitter of four that never wrote one, and it had been that way for as
+   long as it has existed. Nothing noticed until a bulk run put eight artless
+   cards in the pool.
+4. **`cardText.test.ts`: two tokens twice.** The generator minted
+   `token-w-11-soldier` and `token-g-11-saproling`, byte-identical to the
+   pool's own `soldier-token` and `saproling-token`. **De-duplicating tokens by
+   id is not enough** - two definitions of the same token can differ in nothing
+   but their id, and the only thing that complains is the test asserting every
+   token in the pool describes itself distinctly.
+5. **`audit_fixtures` again: Savage Lands, for the third time.** The memorabilia
+   printing - name "Savage Lands", type line "Card", no rules text, not
+   Commander-legal - shadowed the real Jund tri-land in `gen_fixtures.py` and
+   then in `audit_fixtures.py`, having already done it in `deck_report.py` a day
+   earlier. The generator's answer was "not representable exactly", which is the
+   worst possible way to be wrong: it reads as a verdict about the card.
+   **Every loader in tools/scryfall-report now filters `front_card`.**
+
+And one self-inflicted: `add_scryfall_ids.py` matches a fixture by the shape of
+its first three lines, and the basics had gained a comment above `scryfallId`
+the day before. The optional group stopped matching, the "already stamped?"
+check said no, and a run inserted a *second* id above the chosen printing. Its
+regex tolerates a comment now. That file's own header already warned about this
+exact failure from a previous occurrence, which is its own lesson.
+
+### What is left
+
+`pool_report.py` now finds **nothing** the generator can emit that is not
+already in - ADDABLE is 0. Everything further is one of the two harder tiers:
+1,938 cards the engine can express but the generator cannot template, and the
+rest needing new engine capability.
+
+**So the next cheap win is not cards, it is the generator.** Three templating
+jobs account for 1,552 of those 1,938: tap abilities in shapes it does not
+template (728), turn-based triggers the DSL already has (541), and planeswalkers
+(283). Each one converts its whole pile to ADDABLE, at which point this exercise
+repeats.

@@ -27,9 +27,13 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BULK_PATH = os.path.join(HERE, "data", "oracle-cards.jsonl.gz")
-FIXTURES_PATH = os.path.normpath(
-    os.path.join(HERE, "..", "..", "packages", "engine", "src", "cards", "testCards.ts")
-)
+# Both halves of the pool. The bulk-generated file arrived on 2026-08-21 and
+# this tool would otherwise never stamp anything in it - which matters, because
+# the generator's spell path had been emitting cards with no id at all.
+FIXTURE_PATHS = [
+    os.path.normpath(os.path.join(HERE, "..", "..", "packages", "engine", "src", "cards", name))
+    for name in ("testCards.ts", "generatedCards.ts")
+]
 
 # Matches the opening of a fixture and captures its name field, e.g.
 #   export const LIGHTNING_BOLT: CardDefinition = {
@@ -42,11 +46,17 @@ FIXTURES_PATH = os.path.normpath(
 # the match stopped at `name:` the answer was always no - so a second run
 # stamped every card a second time and wrote 875 duplicate lines into the
 # fixtures. The stamp is written directly after `name:`, so this is where it is.
+#
+# The comment line is part of it too, and for the same reason. The five basic
+# lands carry a deliberate printing with a note above it saying so; without
+# this, the match stopped at `name:`, the "already stamped?" check said no, and
+# a run inserted a *second* id above the chosen one - which is a TypeScript
+# duplicate-key error rather than a silent wrong answer, but only by luck.
 DEFINITION_RE = re.compile(
     r'(export const (\w+): CardDefinition = \{\n'
     r'(\s*)id: "([^"]+)",\n'
     r'\s*name: "([^"]+)",\n)'
-    r'(\s*scryfallId: "[^"]+",\n)?'
+    r'((?:\s*//[^\n]*\n)?\s*scryfallId: "[^"]+",\n)?'
 )
 
 
@@ -59,7 +69,7 @@ def load_names_to_ids() -> dict:
             card = json.loads(line)
             # Only real, illustrated cards. Scryfall's oracle file includes
             # tokens and art series; a fixture never refers to those by name.
-            if card.get("layout") in ("art_series", "token", "double_faced_token"):
+            if card.get("layout") in ("art_series", "token", "double_faced_token", "front_card"):
                 continue
             by_name.setdefault(card["name"], card["id"])
             if card.get("card_faces"):
@@ -87,9 +97,6 @@ def main() -> None:
         sys.exit("Missing %s - run fetch_bulk_data.py first." % BULK_PATH)
 
     by_name = load_names_to_ids()
-    with open(FIXTURES_PATH, "r", encoding="utf-8") as handle:
-        source = handle.read()
-
     matched, missing, already = [], [], []
 
     def replace(match: "re.Match") -> str:
@@ -104,7 +111,12 @@ def main() -> None:
         matched.append(card_name)
         return header + '%sscryfallId: "%s",\n' % (indent, scryfall_id)
 
-    patched = DEFINITION_RE.sub(replace, source)
+    patched_by_path = {}
+    for path in FIXTURE_PATHS:
+        if not os.path.exists(path):
+            continue
+        with open(path, "r", encoding="utf-8") as handle:
+            patched_by_path[path] = DEFINITION_RE.sub(replace, handle.read())
 
     print("matched: %d" % len(matched))
     print("already stamped: %d" % len(already))
@@ -116,9 +128,10 @@ def main() -> None:
         print("\nDry run. Re-run with --write to patch the fixtures.")
         return
 
-    with open(FIXTURES_PATH, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(patched)
-    print("\nWrote %s" % FIXTURES_PATH)
+    for path, patched in patched_by_path.items():
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(patched)
+        print("Wrote %s" % path)
 
 
 if __name__ == "__main__":

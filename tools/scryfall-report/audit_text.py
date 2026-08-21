@@ -332,6 +332,12 @@ RULES = [
     # Mana, in all the shapes the engine writes it.
     (r"^\{t\}: add (\{[wubrgc]\})+$", {"addMana", "addManaCombination"}),
     (r"^\{t\}: add \{[wubrgc]\} or \{[wubrgc]\}$", {"addMana", "addManaCombination"}),
+    # The tri-lands and the Obelisks: "{T}: Add {W}, {U}, or {B}." Three
+    # abilities on the fixture, one per colour, exactly as a dual writes two.
+    # Added 2026-08-21 with the bulk pool - sixteen cards arrived printing this
+    # and every one of them reported as text nothing accounted for, which is
+    # this audit missing a wording rather than the fixtures missing a clause.
+    (r"^\{t\}: add (\{[wubrgc]\}, )+or \{[wubrgc]\}$", {"addMana", "addManaCombination"}),
     # Sunbaked Canyon. The horizon lands charge life for their coloured mana,
     # which is `ActivatedAbilityCost.payLife` on an otherwise ordinary mana
     # ability - the existing patterns all assume the cost is nothing but a tap.
@@ -696,7 +702,13 @@ def main():
             # identity at all. Indexed first they shadow the genuine face -
             # which is how Pillarverge Pathway came to be reported as a
             # colourless non-land that is not Commander legal.
-            if card.get("layout") == "art_series":
+            # "front_card" is here for the same reason "art_series" is, and was added
+            # 2026-08-21 after it bit a third tool: the oversized memorabilia printing of
+            # Savage Lands is named "Savage Lands", has the type line "Card", carries no
+            # rules text and is not Commander-legal - and it answered for the real Jund
+            # tri-land. Any layout that is a picture of a card rather than a card belongs
+            # in this list.
+            if card.get("layout") in ("art_series", "front_card"):
                 continue
             if "Token" in card.get("type_line", ""):
                 continue

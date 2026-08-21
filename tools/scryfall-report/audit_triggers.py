@@ -54,7 +54,13 @@ def load_scryfall():
             # identity at all. Indexed first they shadow the genuine face -
             # which is how Pillarverge Pathway came to be reported as a
             # colourless non-land that is not Commander legal.
-            if card.get("layout") == "art_series":
+            # "front_card" is here for the same reason "art_series" is, and was added
+            # 2026-08-21 after it bit a third tool: the oversized memorabilia printing of
+            # Savage Lands is named "Savage Lands", has the type line "Card", carries no
+            # rules text and is not Commander-legal - and it answered for the real Jund
+            # tri-land. Any layout that is a picture of a card rather than a card belongs
+            # in this list.
+            if card.get("layout") in ("art_series", "front_card"):
                 continue
             if "Token" in card.get("type_line", ""):
                 continue
