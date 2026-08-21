@@ -79,7 +79,8 @@ export function canPayManaCost(player: Player, cost: ManaCost): boolean {
   // Phyrexian pips are paid with 2 life each (Gitaxian Probe). Payable only if
   // the player can spare it without dropping to 0 or below.
   const phyrexianLife = 2 * (cost.phyrexian?.length ?? 0);
-  return player.life > phyrexianLife;
+  if (phyrexianLife > 0 && player.life <= phyrexianLife) return false;
+  return true;
 }
 
 /** Deducts a mana cost from the player's mana pool. Throws if they can't pay - callers must check canPayManaCost first. */
