@@ -77,6 +77,13 @@ export interface CastOptions {
    */
   free?: boolean;
   /**
+   * The player chose to cast this without paying, using an Omniscience-style
+   * permanent they control. Validated against a permanent whose definition sets
+   * `enablesFreeCastFromHand`; unlike `free`, which internal effects set, this
+   * one is a player's choice and so is checked.
+   */
+  omniscienceFree?: boolean;
+  /**
    * Cast this as a bestowed Aura for its bestow cost, attached to the creature
    * handed in as the target. It is still a creature card - it is simply not a
    * creature while it is attached to one.
@@ -228,7 +235,14 @@ export function castSpell(
   }
 
   if (options.bestowOnto && !def.bestowCost) throw new Error(`${def.name} has no bestow cost`);
-  const free = alternative !== undefined || options.free === true;
+  if (options.omniscienceFree) {
+    // "You may cast spells from your hand without paying their mana costs."
+    const enabled = player.battlefield.some(
+      (c) => requireDefinition(state, c.definitionId).enablesFreeCastFromHand,
+    );
+    if (!enabled) throw new Error(`${playerId} controls nothing that lets them cast ${def.name} for free`);
+  }
+  const free = alternative !== undefined || options.free === true || options.omniscienceFree === true;
   let cost: ManaCost = alternative
     ? // Blasphemous Edict pays a reduced {B}; every other alternative is free of
       // mana (paid by a sacrifice, or by nothing).

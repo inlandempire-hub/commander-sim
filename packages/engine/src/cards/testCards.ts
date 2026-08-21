@@ -11599,6 +11599,17 @@ export const NECROPOLIS_REGENT: CardDefinition = {
   tier: "scripted",
 };
 
+export const OMNISCIENCE: CardDefinition = {
+  id: "omniscience",
+  name: "Omniscience",
+  scryfallId: "d33d91d0-1506-45e4-9def-975bf901815e",
+  types: ["Enchantment"],
+  manaCost: { generic: 7, colors: { U: 3 } },
+  colorIdentity: ["U"],
+  enablesFreeCastFromHand: true,
+  tier: "scripted",
+};
+
 export const CULLING_RITUAL: CardDefinition = {
   id: "culling-ritual",
   name: "Culling Ritual",
@@ -14649,6 +14660,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     GROWTH_SPIRAL,
     WINDFALL,
     ARBOR_ELF,
+    OMNISCIENCE,
     CULLING_RITUAL,
     DEATH_BEGETS_LIFE,
     NECROPOLIS_REGENT,

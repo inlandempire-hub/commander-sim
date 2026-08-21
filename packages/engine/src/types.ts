@@ -1824,6 +1824,8 @@ export interface CardDefinition {
    * hand; see `cycleCard`.
    */
   cycling?: { cost: ManaCost; search?: { cardType?: CardType; subtypes?: string[] } };
+  /** Omniscience: "You may cast spells from your hand without paying their mana costs." Read by casting.ts. */
+  enablesFreeCastFromHand?: boolean;
   /** Whether this card can legally be someone's commander (legendary creature, or explicitly says so). */
   canBeCommander?: boolean;
   tier: "vanilla" | "scripted" | "weird";
