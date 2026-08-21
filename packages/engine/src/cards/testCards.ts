@@ -11326,6 +11326,21 @@ export const YOU_ARE_ALREADY_DEAD: CardDefinition = {
   tier: "scripted",
 };
 
+export const STEP_THROUGH: CardDefinition = {
+  id: "step-through",
+  name: "Step Through",
+  scryfallId: "716534cb-aa89-4de7-9aa5-8d8aa4422a6a",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  castEffect: {
+    kind: "returnToHand",
+    target: { kind: "permanent", cardTypes: ["Creature"], count: { min: 2, max: 2 } },
+  },
+  cycling: { cost: { generic: 2, colors: {} }, search: { subtypes: ["Wizard"] } },
+  tier: "scripted",
+};
+
 export const LORIEN_REVEALED: CardDefinition = {
   id: "lorien-revealed",
   name: "Lórien Revealed",
@@ -14638,5 +14653,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     FALLAJI_ARCHAEOLOGIST,
     LORIEN_REVEALED,
     FOREBODING_LANDSCAPE,
+    STEP_THROUGH,
   ].map((def) => [def.id, def]),
 );

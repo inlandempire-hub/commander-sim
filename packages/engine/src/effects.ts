@@ -326,6 +326,19 @@ export function applyEffect(
       }
       return;
     }
+    case "returnToHand": {
+      // "Return ... to their owners' hands." moveCard sends each to its owner's
+      // hand; a target already gone is simply skipped.
+      for (const t of targets) {
+        if (t.kind !== "card") continue;
+        const found = findInstance(state, t.instanceId);
+        if (found && found.instance.zone === "battlefield") {
+          log(state, `${cardName(state, t.instanceId)} is returned to its owner's hand`);
+          moveCard(state, t.instanceId, "hand");
+        }
+      }
+      return;
+    }
     case "untap": {
       // "Untap target Forest." Just clears the tapped flag on the chosen
       // permanent; the target legality is enforced when the ability is aimed.

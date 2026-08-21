@@ -440,6 +440,8 @@ export type Effect =
   | { kind: "windfall" }
   /** "{T}: Untap target Forest." - Arbor Elf. Untaps one targeted permanent. */
   | { kind: "untap"; target: TargetSelector }
+  /** "Return two target creatures to their owners' hands" - Step Through. Bounces each targeted permanent. */
+  | { kind: "returnToHand"; target: TargetSelector }
   /**
    * "Destroy all creatures and enchantments" - a wrath. Every permanent of one
    * of `cardTypes`, optionally only nonlands (`nonland`) or up to a mana value

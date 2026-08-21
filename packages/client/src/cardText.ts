@@ -381,6 +381,12 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return "Each player discards their hand, then draws cards equal to the greatest number discarded this way.";
     case "untap":
       return `Untap ${describeTarget(effect.target)}.`;
+    case "returnToHand":
+      return `Return ${describeTarget(effect.target)} to ${
+        effect.target.kind === "permanent" && effect.target.count && effect.target.count.max !== 1
+          ? "their owners' hands"
+          : "its owner's hand"
+      }.`;
     case "destroyAll": {
       const noun = effect.cardTypes.map((t) => `${t.toLowerCase()}s`).join(" and ");
       const scope = effect.maxManaValue !== undefined ? ` with mana value ${effect.maxManaValue} or less` : "";
