@@ -19,7 +19,7 @@ import { controllerMeets } from "./conditions.js";
 export function manaValue(cost: ManaCost): number {
   const pips = ALL_COLORS.reduce((sum, c) => sum + (cost.colors[c] ?? 0), 0);
   // A hybrid symbol counts 1 whichever half of it gets paid.
-  return cost.generic + pips + (cost.hybrid?.length ?? 0);
+  return cost.generic + pips + (cost.hybrid?.length ?? 0) + (cost.phyrexian?.length ?? 0);
 }
 
 /** The commander tax rule: +{2} generic per previous cast from the command zone this game. */
@@ -75,7 +75,11 @@ export function canPayManaCostFromPool(pool: ManaPool, cost: ManaCost): boolean 
 }
 
 export function canPayManaCost(player: Player, cost: ManaCost): boolean {
-  return canPayManaCostFromPool(player.manaPool, cost);
+  if (!canPayManaCostFromPool(player.manaPool, cost)) return false;
+  // Phyrexian pips are paid with 2 life each (Gitaxian Probe). Payable only if
+  // the player can spare it without dropping to 0 or below.
+  const phyrexianLife = 2 * (cost.phyrexian?.length ?? 0);
+  return player.life > phyrexianLife;
 }
 
 /** Deducts a mana cost from the player's mana pool. Throws if they can't pay - callers must check canPayManaCost first. */
@@ -101,6 +105,9 @@ export function payManaCost(player: Player, cost: ManaCost): void {
   if (genericRemaining > 0) {
     player.manaPool.generic = (player.manaPool.generic ?? 0) - genericRemaining;
   }
+  // Phyrexian pips are paid with 2 life each.
+  const phyrexianLife = 2 * (cost.phyrexian?.length ?? 0);
+  if (phyrexianLife > 0) player.life -= phyrexianLife;
 }
 
 /**

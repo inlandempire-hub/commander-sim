@@ -11543,6 +11543,20 @@ export const TRAILBLAZERS_BOOTS: CardDefinition = {
   tier: "scripted",
 };
 
+export const GITAXIAN_PROBE: CardDefinition = {
+  id: "gitaxian-probe",
+  name: "Gitaxian Probe",
+  scryfallId: "995486ce-58bb-4753-a812-0ca73ef1a235",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: {}, phyrexian: ["U"] },
+  colorIdentity: ["U"],
+  castEffect: {
+    kind: "sequence",
+    effects: [{ kind: "lookAtHand", target: { kind: "player" } }, { kind: "draw", amount: 1 }],
+  },
+  tier: "scripted",
+};
+
 export const GLISSA_SUNSLAYER: CardDefinition = {
   id: "glissa-sunslayer",
   name: "Glissa Sunslayer",
@@ -14797,6 +14811,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WINGED_BOOTS,
     ZEPHYR_BOOTS,
     CULTIVATE,
+    GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,
     FELIX_FIVE_BOOTS,
     YOU_ARE_ALREADY_DEAD,

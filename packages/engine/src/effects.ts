@@ -359,6 +359,14 @@ export function applyEffect(
       }
       return;
     }
+    case "lookAtHand": {
+      // Information only - the hand is revealed to the controller and nothing
+      // in the game state changes. The redacted view already hides it from
+      // everyone else, so there is nothing to move.
+      const t = targets.find((x): x is Extract<StackTarget, { kind: "player" }> => x.kind === "player");
+      if (t) log(state, `${controllerId} looks at ${t.playerId}'s hand`);
+      return;
+    }
     case "winGame": {
       // The controller wins, which in this engine means every other player loses.
       for (const p of state.players) {

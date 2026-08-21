@@ -79,6 +79,12 @@ export interface ManaCost {
    */
   hybrid?: Color[][];
   /**
+   * Phyrexian pips - "{U/P}" is one entry, `"U"`, payable with that colour or 2
+   * life. Modelled as always paid with life (how Gitaxian Probe is played); a
+   * client could offer the mana instead. Counts 1 towards mana value.
+   */
+  phyrexian?: Color[];
+  /**
    * How many {X} symbols the cost prints. One for The Meathook Massacre
    * ({X}{B}{B}), two for Pest Infestation ({X}{X}{G}) - where choosing X = 3
    * costs six generic, not three.
@@ -444,6 +450,8 @@ export type Effect =
   | { kind: "returnToHand"; target: TargetSelector }
   /** "you win the game" - Revel in Riches. Every opponent loses. */
   | { kind: "winGame" }
+  /** "Look at target player's hand" - Gitaxian Probe. Information only; no game state changes. */
+  | { kind: "lookAtHand"; target: TargetSelector }
   /** "Remove up to N counters from target permanent" - Glissa Sunslayer. Takes +1/+1 counters first, then others. */
   | { kind: "removeCounter"; amount: number; target: TargetSelector }
   /**
