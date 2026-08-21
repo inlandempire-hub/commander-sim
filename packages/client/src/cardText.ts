@@ -954,6 +954,8 @@ function describeTriggerCondition(condition: TriggerCondition): string {
       return "if you gained life this turn";
     case "not":
       return `if ${negateCondition(condition.condition)}`;
+    case "board":
+      return `if ${describeCondition(condition.condition)}`;
   }
 }
 
