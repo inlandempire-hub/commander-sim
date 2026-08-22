@@ -8,7 +8,7 @@ import {
   spendablePool,
 } from "./mana.js";
 import { controllerMeets } from "./conditions.js";
-import { effectivePower } from "./counters.js";
+import { effectivePower, protectionFrom } from "./counters.js";
 import { sacrificePermanent } from "./sba.js";
 import { describeSubject, fireWatchers, pushOntoStack, pushSpellCopyOntoStack, putOntoBattlefield } from "./permanents.js";
 import { isValidTarget, legalTargetsFor, targetCountOf, targetSelectorOf, targetSelectorsOf } from "./targeting.js";
@@ -394,6 +394,21 @@ export function castSpell(
     }
   }
 
+  /*
+   * "protection from instants and from sorceries" - Sword of Wealth and Power.
+   * A creature with protection from this spell's type is not a legal target for
+   * it, whichever selector matched above. Checked here rather than in
+   * `isValidTarget` because that is asked for abilities too, and this is a
+   * property of being targeted by a *spell* of the named type.
+   */
+  for (const target of targets) {
+    if (target.kind !== "card") continue;
+    const found = findInstance(state, target.instanceId);
+    if (found && protectionFrom(state, found.instance).some((t) => def.types.includes(t))) {
+      throw new Error(`Illegal target for ${def.name} - protection`);
+    }
+  }
+
   // Restricted mana counts here and nowhere else: this is the only place that
   // knows *what* is being cast, which is the whole question its restriction
   // asks. See spendablePool in mana.ts.
@@ -510,6 +525,21 @@ export function castSpell(
       pushSpellCopyOntoStack(state, instanceId, playerId, effect, targets);
     }
     log(state, `Storm: ${def.name} is copied ${priorSpells} time${priorSpells === 1 ? "" : "s"}`);
+  }
+
+  /*
+   * "When you next cast an instant or sorcery spell this turn, copy that spell."
+   * - Sword of Wealth and Power, armed by its combat trigger. Spent here on the
+   * caster's next instant or sorcery: one copy on the stack, same targets (new
+   * targets are the documented simplification), the pending count decremented.
+   */
+  if (
+    player.copyNextInstantOrSorcery > 0 &&
+    (def.types.includes("Instant") || def.types.includes("Sorcery"))
+  ) {
+    player.copyNextInstantOrSorcery -= 1;
+    pushSpellCopyOntoStack(state, instanceId, playerId, effect, targets);
+    log(state, `${playerId} copies ${def.name}`);
   }
 
   state.passesInSuccession = 0;

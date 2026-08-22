@@ -29,6 +29,7 @@ export function createPlayer(id: string): Player {
     poisonCounters: 0,
     lifeGainedThisTurn: 0,
     plusOneCountersPlacedThisTurn: 0,
+    copyNextInstantOrSorcery: 0,
   };
 }
 

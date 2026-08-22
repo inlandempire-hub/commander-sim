@@ -14118,6 +14118,51 @@ export const RADSTORM: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Equipped creature gets +2/+2 and has protection from instants and from
+ * sorceries. Whenever equipped creature deals combat damage to a player, create
+ * a Treasure token. When you next cast an instant or sorcery spell this turn,
+ * copy that spell. You may choose new targets for the copy. Equip {2}" - Sword
+ * of Wealth and Power.
+ *
+ * The Equipment shape Zephyr Boots established (staticBuff + an attachedToThis
+ * combat trigger + an equip ability), now with the protection facet on the buff
+ * and, on connect, a Treasure and the armed next-cast copy. The copy reuses the
+ * spell-copy core; new targets for it are the documented simplification.
+ */
+export const SWORD_OF_WEALTH_AND_POWER: CardDefinition = {
+  id: "sword-of-wealth-and-power",
+  name: "Sword of Wealth and Power",
+  scryfallId: "ed9e5041-3c05-4a8a-9f00-081b01685d0c",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 2, colors: {} },
+  staticBuff: { power: 2, toughness: 2, grantsProtectionFrom: ["Instant", "Sorcery"] },
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      watchFor: { attachedToThis: true },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "createToken", count: 1, tokenDefinitionId: "token-treasure" },
+          { kind: "copyNextInstantOrSorcery" },
+        ],
+      },
+    },
+  ],
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 2, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -15109,6 +15154,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     STARWINDER,
     PSYCHIC_FROG,
     RADSTORM,
+    SWORD_OF_WEALTH_AND_POWER,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

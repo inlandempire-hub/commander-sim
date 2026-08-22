@@ -626,6 +626,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
     }
     case "proliferate":
       return "Proliferate.";
+    case "copyNextInstantOrSorcery":
+      return "When you next cast an instant or sorcery spell this turn, copy that spell.";
     case "infectiousBite": {
       const poison =
         effect.poisonEachOpponent === 1

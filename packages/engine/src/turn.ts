@@ -327,6 +327,7 @@ function runAutomaticStepActions(state: GameState): void {
         // the tally does. Cleanup rather than untap, because Iridescent
         // Hornbeetle reads it during the end step, which is still this turn.
         player.plusOneCountersPlacedThisTurn = 0;
+        player.copyNextInstantOrSorcery = 0;
         emptyManaPool(player);
       }
       // "If a creature died *this turn*" - the turn ends here, so the count

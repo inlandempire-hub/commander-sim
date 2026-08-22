@@ -1013,6 +1013,13 @@ export function applyEffect(
       }
       return;
     }
+    case "copyNextInstantOrSorcery": {
+      // Arms the delayed copy; castSpell spends it on the controller's next
+      // instant or sorcery. A count, so two of them copy the next two spells.
+      controller.copyNextInstantOrSorcery += 1;
+      log(state, `${controllerId} will copy their next instant or sorcery spell this turn`);
+      return;
+    }
     case "proliferate": {
       /*
        * "Give each another counter of each kind already there." Auto-taken over

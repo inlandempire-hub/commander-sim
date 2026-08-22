@@ -86,6 +86,19 @@ function buffsReaching(state: GameState, instance: CardInstance): Array<NonNulla
   return found;
 }
 
+/**
+ * The card types a spell may not target this creature with - "protection from
+ * instants and from sorceries", gathered from every buff reaching it (Sword of
+ * Wealth and Power). Empty for almost everything.
+ */
+export function protectionFrom(state: GameState, instance: CardInstance): CardType[] {
+  const types: CardType[] = [];
+  for (const buff of buffsReaching(state, instance)) {
+    for (const t of buff.grantsProtectionFrom ?? []) if (!types.includes(t)) types.push(t);
+  }
+  return types;
+}
+
 /** The total power/toughness bonus from the "anthem"/"lord" pattern. */
 function staticBuffFor(state: GameState, instance: CardInstance): { power: number; toughness: number } {
   const total = { power: 0, toughness: 0 };

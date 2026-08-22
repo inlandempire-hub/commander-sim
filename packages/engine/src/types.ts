@@ -775,6 +775,14 @@ export type Effect =
    * wants those. A documented simplification, like Delve's take-from-the-top.
    */
   | { kind: "proliferate" }
+  /**
+   * "When you next cast an instant or sorcery spell this turn, copy that spell."
+   * - Sword of Wealth and Power's combat trigger. Arms the controller's
+   * `copyNextInstantOrSorcery`; the copy is made by `castSpell` when they next
+   * cast one. New targets for the copy are a documented simplification - it
+   * copies with the same targets.
+   */
+  | { kind: "copyNextInstantOrSorcery" }
   | {
       kind: "infectiousBite";
       /** "Target creature you control deals damage equal to its power..." - target 0. */
@@ -1753,6 +1761,15 @@ export interface CardDefinition {
      */
     grantsWardCost?: ManaCost;
     /**
+     * "has protection from instants and from sorceries" - Sword of Wealth and
+     * Power. The card types the equipped/affected creature cannot be the target
+     * of a spell of. Modelled as the can't-be-targeted facet of protection,
+     * which is the one this deck turns on; the damage-prevention and
+     * can't-be-blocked-by facets are not (a documented simplification - almost
+     * every instant or sorcery that touches a creature does so by targeting it).
+     */
+    grantsProtectionFrom?: CardType[];
+    /**
      * Which of the controller's permanents it reaches, beyond the subtype.
      *
      * `"attacking"` is Blight Mound's "**Attacking** Pests you control", which
@@ -2573,6 +2590,13 @@ export interface Player {
    * Reset in the cleanup step with the rest of the turn's state.
    */
   plusOneCountersPlacedThisTurn: number;
+  /**
+   * "When you next cast an instant or sorcery spell this turn, copy that spell."
+   * - Sword of Wealth and Power. A count of pending next-cast copies, each
+   * spent (as a copy on the stack) by the next instant or sorcery this player
+   * casts. Reset in cleanup - "this turn" is its whole life.
+   */
+  copyNextInstantOrSorcery: number;
 }
 
 export type Phase = "beginning" | "precombat-main" | "combat" | "postcombat-main" | "ending";
