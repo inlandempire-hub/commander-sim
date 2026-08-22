@@ -1849,6 +1849,12 @@ export interface CardDefinition {
    * hand; see `cycleCard`.
    */
   cycling?: { cost: ManaCost; search?: { cardType?: CardType; subtypes?: string[] } };
+  /**
+   * "Ninjutsu {2}{U}" - pay the cost and return an unblocked attacker you
+   * control to hand to put this from hand onto the battlefield tapped and
+   * attacking. See `ninjutsu` in casting.ts.
+   */
+  ninjutsu?: { cost: ManaCost };
   /** Omniscience: "You may cast spells from your hand without paying their mana costs." Read by casting.ts. */
   enablesFreeCastFromHand?: boolean;
   /** "Delve" - each card exiled from your graveyard while casting this pays for {1}. See casting.ts. */

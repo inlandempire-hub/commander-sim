@@ -45,6 +45,8 @@ export interface GameController {
   resolveArrange(playerId: string, order: string[], shuffle?: boolean): void;
   /** Cycle a card from hand: pay its cycling cost, discard it, then draw or tutor. */
   cycleCard(playerId: string, instanceId: string): void;
+  /** Ninjutsu: return an unblocked attacker to hand and put a Ninja in tapped and attacking. */
+  ninjutsu(playerId: string, ninjaInstanceId: string, returnedAttackerInstanceId: string): void;
   /** Choose a mode for a modal triggered/activated ability. */
   resolveModal(playerId: string, modeIndex: number): void;
   /**

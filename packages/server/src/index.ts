@@ -11,6 +11,7 @@ import {
   resolveSearch,
   resolveArrange,
   cycleCard,
+  ninjutsu,
   resolveModal,
   chooseTriggerTarget,
   resolveDiscard,
@@ -103,6 +104,9 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       return;
     case "cycleCard":
       cycleCard(state, playerId, message.instanceId);
+      return;
+    case "ninjutsu":
+      ninjutsu(state, playerId, message.ninjaInstanceId, message.returnedAttackerInstanceId);
       return;
     case "resolveModal":
       resolveModal(state, playerId, message.modeIndex);

@@ -644,3 +644,38 @@ export function playLand(state: GameState, playerId: string, instanceId: string)
 
   state.passesInSuccession = 0;
 }
+
+/**
+ * Ninjutsu: return an unblocked attacker you control to hand and pay the cost to
+ * put a Ninja from your hand onto the battlefield tapped and attacking the same
+ * player. Used during the declare-blockers step, once blocks are in.
+ */
+export function ninjutsu(
+  state: GameState,
+  playerId: string,
+  ninjaInstanceId: string,
+  returnedAttackerInstanceId: string,
+): void {
+  const player = requirePlayer(state, playerId);
+  const ninja = player.hand.find((c) => c.instanceId === ninjaInstanceId);
+  if (!ninja) throw new Error("That card is not in hand");
+  const def = requireDefinition(state, ninja.definitionId);
+  if (!def.ninjutsu) throw new Error(`${def.name} has no ninjutsu ability`);
+  const defendingPlayerId = state.attackers[returnedAttackerInstanceId];
+  if (defendingPlayerId === undefined) throw new Error("That creature is not attacking");
+  if (!player.battlefield.some((c) => c.instanceId === returnedAttackerInstanceId)) {
+    throw new Error(`${playerId} does not control that attacker`);
+  }
+  if (Object.values(state.blockers).includes(returnedAttackerInstanceId)) {
+    throw new Error("That attacker is blocked");
+  }
+  if (!canPayManaCostFromPool(player.manaPool, def.ninjutsu.cost)) {
+    throw new Error(`${playerId} cannot pay the ninjutsu cost of ${def.name}`);
+  }
+  payManaCostFor(player, def.ninjutsu.cost);
+  delete state.attackers[returnedAttackerInstanceId];
+  moveCard(state, returnedAttackerInstanceId, "hand");
+  putOntoBattlefield(state, ninjaInstanceId, { tapped: true });
+  state.attackers[ninjaInstanceId] = defendingPlayerId;
+  log(state, `${playerId} ninjutsus ${def.name} in`);
+}

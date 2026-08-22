@@ -11606,6 +11606,21 @@ export const WATERLOGGED_TEACHINGS: CardDefinition = {
   tier: "scripted",
 };
 
+export const MIST_SYNDICATE_NAGA: CardDefinition = {
+  id: "mist-syndicate-naga",
+  name: "Mist-Syndicate Naga",
+  scryfallId: "65c8f074-e260-4f8e-85d1-1904ca928b51",
+  types: ["Creature"],
+  subtypes: ["Snake", "Ninja"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 3,
+  toughness: 1,
+  ninjutsu: { cost: { generic: 2, colors: { U: 1 } } },
+  triggeredAbilities: [{ event: "combat-damage-to-player", effect: { kind: "createCopyToken", of: "self" } }],
+  tier: "scripted",
+};
+
 export const SILENT_HALLCREEPER: CardDefinition = {
   id: "silent-hallcreeper",
   name: "Silent Hallcreeper",
@@ -14910,6 +14925,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     CULTIVATE,
     INUNDATED_ARCHIVE,
     WATERLOGGED_TEACHINGS,
+    MIST_SYNDICATE_NAGA,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

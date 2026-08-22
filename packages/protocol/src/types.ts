@@ -74,6 +74,7 @@ export type ClientMessage =
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }
   | { type: "cycleCard"; instanceId: string }
+  | { type: "ninjutsu"; ninjaInstanceId: string; returnedAttackerInstanceId: string }
   | { type: "concede" }
   | { type: "passPriority" };
 
