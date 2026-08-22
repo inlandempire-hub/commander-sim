@@ -1,5 +1,5 @@
 import type { GameState, StackObject, StackTarget, TargetSelector, Effect } from "./types.js";
-import { findInstance, requireDefinition } from "./state.js";
+import { findInstance, requireDefinition, requirePlayer } from "./state.js";
 import { hasKeyword } from "./counters.js";
 import { evaluateAmount } from "./amounts.js";
 import { manaValue } from "./mana.js";
@@ -52,6 +52,12 @@ export function isValidTarget(
       }
       // "target creature that was dealt damage this turn" - You Are Already Dead.
       if (selector.damagedThisTurn && !found.instance.damagedThisTurn) return false;
+      // "with mana value less than or equal to the number of cards in its
+      // controller's graveyard" - Drown in the Loch.
+      if (selector.maxMvFromControllerGraveyard) {
+        const gy = requirePlayer(state, found.instance.controllerId).graveyard.length;
+        if (manaValue(def.manaCost ?? { generic: 0, colors: {} }) > gy) return false;
+      }
       return !isProtectedByHexproof(state, target.instanceId, controllerId);
     }
     case "permanent": {
@@ -95,6 +101,12 @@ export function isValidTarget(
         const cast = findInstance(state, obj.sourceInstanceId);
         const def = cast ? requireDefinition(state, cast.instance.definitionId) : undefined;
         if (def && def.types.includes(selector.notSpellType)) return false;
+      }
+      if (selector.maxMvFromControllerGraveyard) {
+        const cast = findInstance(state, obj.sourceInstanceId);
+        const def = cast ? requireDefinition(state, cast.instance.definitionId) : undefined;
+        const gy = requirePlayer(state, obj.controllerId).graveyard.length;
+        if (def && manaValue(def.manaCost ?? { generic: 0, colors: {} }) > gy) return false;
       }
       return true;
     }

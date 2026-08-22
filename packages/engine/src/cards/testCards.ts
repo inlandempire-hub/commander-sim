@@ -11434,6 +11434,31 @@ export const DEMONIC_COUNSEL: CardDefinition = {
   tier: "scripted",
 };
 
+export const DROWN_IN_THE_LOCH: CardDefinition = {
+  id: "drown-in-the-loch",
+  name: "Drown in the Loch",
+  scryfallId: "eb7b9762-740b-4c1c-a411-20dbf023aea5",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { U: 1, B: 1 } },
+  colorIdentity: ["B", "U"],
+  castEffect: {
+    kind: "modal",
+    modes: [
+      {
+        label:
+          "Counter target spell with mana value less than or equal to the number of cards in its controller's graveyard",
+        effect: { kind: "counter", target: { kind: "spell", maxMvFromControllerGraveyard: true } },
+      },
+      {
+        label:
+          "Destroy target creature with mana value less than or equal to the number of cards in its controller's graveyard",
+        effect: { kind: "destroy", target: { kind: "creature", maxMvFromControllerGraveyard: true } },
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
 export const DEMONIC_BARGAIN: CardDefinition = {
   id: "demonic-bargain",
   name: "Demonic Bargain",
@@ -14900,6 +14925,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     DISPEL,
     DEMONIC_BARGAIN,
     DIG_UP,
+    DROWN_IN_THE_LOCH,
     DEMONIC_COUNSEL,
     RELIQUARY_TOWER,
     TIME_STRETCH,

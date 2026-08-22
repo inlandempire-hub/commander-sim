@@ -230,7 +230,7 @@ export type TargetSelector =
    * "Target creature", or - with `subtypes` - "target Insect, Rat, Spider, or
    * Squirrel" (Swarmyard). Any one of the listed subtypes qualifies.
    */
-  | { kind: "creature"; subtypes?: string[]; damagedThisTurn?: boolean }
+  | { kind: "creature"; subtypes?: string[]; damagedThisTurn?: boolean; maxMvFromControllerGraveyard?: boolean }
   | { kind: "player"; count?: TargetCount }
   | { kind: "opponent-of-controller" }
   /**
@@ -239,7 +239,7 @@ export type TargetSelector =
    * "target instant spell" (Dispel) and "target noncreature spell" are told
    * apart from a plain "target spell".
    */
-  | { kind: "spell"; spellType?: CardType; notSpellType?: CardType }
+  | { kind: "spell"; spellType?: CardType; notSpellType?: CardType; maxMvFromControllerGraveyard?: boolean }
   /**
    * "Target land", "Target artifact", "Target noncreature artifact or
    * noncreature enchantment" - a permanent on the battlefield of a named type.
