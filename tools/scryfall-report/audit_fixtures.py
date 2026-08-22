@@ -109,6 +109,9 @@ def mana_cost_to_string(cost):
     # activation cost, which this never looked at.
     for pair in cost.get("hybrid", []) or []:
         parts.append("{%s}" % "/".join(pair))
+    # "{U/P}" - a Phyrexian pip, paid with the colour or 2 life.
+    for pip in cost.get("phyrexian", []) or []:
+        parts.append("{%s/P}" % pip)
     # A genuinely free spell is written "{0}", not "" - "" means "no mana cost
     # at all", which is a different thing (lands, most tokens).
     return "".join(parts) or "{0}"
@@ -169,6 +172,10 @@ def audit(fixtures, by_name):
 
         expected_keywords = scryfall_keywords(card)
         actual_keywords = {k.lower() for k in fixture.get("keywords") or []}
+        # The engine models a few printed *abilities* as keywords for convenience -
+        # "can't be blocked" and "nonbasic landwalk" are written out on the card,
+        # not as keyword lines, so they never appear in Scryfall's keyword list.
+        actual_keywords -= {"unblockable", "nonbasic landwalk"}
         invented = actual_keywords - expected_keywords
         if invented:
             issues.append("keywords on fixture but not on the real card: %s" % ", ".join(sorted(invented)))
