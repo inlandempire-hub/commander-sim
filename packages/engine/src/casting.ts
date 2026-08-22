@@ -11,7 +11,7 @@ import { controllerMeets } from "./conditions.js";
 import { effectivePower } from "./counters.js";
 import { sacrificePermanent } from "./sba.js";
 import { describeSubject, fireWatchers, pushOntoStack, putOntoBattlefield } from "./permanents.js";
-import { isValidTarget, legalTargetsFor, targetCountOf, targetSelectorOf } from "./targeting.js";
+import { isValidTarget, legalTargetsFor, targetCountOf, targetSelectorOf, targetSelectorsOf } from "./targeting.js";
 import { attemptWardPayments } from "./ward.js";
 import { costWithX, requiresX, resolveAmounts } from "./x.js";
 
@@ -330,8 +330,24 @@ export function castSpell(
   // would otherwise leave the game half-cast - mana spent and the card sitting
   // on the stack - and an illegal target is the easy way to hit that now that
   // targets can disappear in response to a spell.
-  const selector = targetSelectorOf(effect);
-  if (selector) {
+  const selectors = targetSelectorsOf(effect);
+  if (selectors.length > 1) {
+    /*
+     * Two selectors of different kinds - Infectious Bite's "creature you
+     * control" and "creature you don't control" - validated positionally: one
+     * target apiece, each against its own selector, in order. Neither is "up to"
+     * so the count is exact.
+     */
+    if (targets.length !== selectors.length) {
+      throw new Error(`${def.name} requires ${selectors.length} targets`);
+    }
+    selectors.forEach((sel, i) => {
+      if (!isValidTarget(state, sel, targets[i]!, playerId)) {
+        throw new Error(`Illegal target for ${def.name}`);
+      }
+    });
+  } else if (selectors.length === 1) {
+    const selector = selectors[0]!;
     /*
      * How many, not merely whether. "Up to X target artifacts" with X = 2 is a
      * legal cast for nought, one or two of them and an illegal cast for three -

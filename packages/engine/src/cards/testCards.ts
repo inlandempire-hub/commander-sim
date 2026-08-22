@@ -14010,6 +14010,32 @@ export const TWENTY_TOED_TOAD: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Target creature you control deals damage equal to its power to target
+ * creature you don't control. Each opponent gets a poison counter." - Infectious
+ * Bite.
+ *
+ * The pool's one two-target effect. Its dealer and recipient are opposite
+ * requirements ("you control" / "you don't"), so they are two selectors
+ * validated positionally rather than a count on one; the poison rides along in
+ * the same effect. See the `infectiousBite` effect.
+ */
+export const INFECTIOUS_BITE: CardDefinition = {
+  id: "infectious-bite",
+  name: "Infectious Bite",
+  scryfallId: "83dfb2a5-cd5c-46c6-9bb8-7c5d00f3e003",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: {
+    kind: "infectiousBite",
+    dealer: { kind: "creature", controlledBy: "you" },
+    recipient: { kind: "creature", controlledBy: "opponent" },
+    poisonEachOpponent: 1,
+  },
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -14997,6 +15023,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     WATERLOGGED_TEACHINGS,
     MIST_SYNDICATE_NAGA,
     TWENTY_TOED_TOAD,
+    INFECTIOUS_BITE,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

@@ -52,6 +52,9 @@ export function isValidTarget(
       }
       // "target creature that was dealt damage this turn" - You Are Already Dead.
       if (selector.damagedThisTurn && !found.instance.damagedThisTurn) return false;
+      // "target creature you control" / "you don't control" - Infectious Bite.
+      if (selector.controlledBy === "you" && found.instance.controllerId !== controllerId) return false;
+      if (selector.controlledBy === "opponent" && found.instance.controllerId === controllerId) return false;
       // "with mana value less than or equal to the number of cards in its
       // controller's graveyard" - Drown in the Loch.
       if (selector.maxMvFromControllerGraveyard) {
@@ -189,6 +192,21 @@ export function targetCountOf(
   return { min: count.min, max: count.max === "x" ? chosenX : count.max };
 }
 
+/**
+ * Every target selector an effect takes, in the order the targets are given -
+ * one for almost everything, two for Infectious Bite's dealer-and-recipient.
+ *
+ * Separate from `targetSelectorOf` (which stays single-valued so its many
+ * callers are untouched) and read only where the count genuinely matters:
+ * casting, which validates each target against its own selector positionally. A
+ * single-selector effect is a one-element list, and a targetless one is empty.
+ */
+export function targetSelectorsOf(effect: Effect): TargetSelector[] {
+  if (effect.kind === "infectiousBite") return [effect.dealer, effect.recipient];
+  const single = targetSelectorOf(effect);
+  return single ? [single] : [];
+}
+
 export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
   switch (effect.kind) {
     case "damage":
@@ -233,6 +251,14 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "loseLife":
     case "exileGraveyard":
       return effect.target;
+    /*
+     * The two-target effect's *first* selector, so every single-selector caller
+     * - autoPass's "has any legal target?", the client's target prompt - still
+     * gets a sensible answer. The full pair is read by `targetSelectorsOf`,
+     * which is what casting validates against.
+     */
+    case "infectiousBite":
+      return effect.dealer;
     /*
      * A sequence targets if one of its steps does, and the targets chosen for
      * the whole are handed to every step - which is right while exactly one

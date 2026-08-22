@@ -624,6 +624,13 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
           : `onto the battlefield${effect.tapped ? " tapped" : ""}`;
       return `${whoSearches(effect)} for ${what}, put it ${where}, then shuffle.`;
     }
+    case "infectiousBite": {
+      const poison =
+        effect.poisonEachOpponent === 1
+          ? "Each opponent gets a poison counter."
+          : `Each opponent gets ${effect.poisonEachOpponent} poison counters.`;
+      return `Target creature you control deals damage equal to its power to target creature you don't control. ${poison}`;
+    }
     // A best-effort renderer: any effect with no explicit clause contributes
     // nothing rather than breaking the sentence. Every effect the pool actually
     // uses is handled above (the "never renders an empty clause" test guards it).

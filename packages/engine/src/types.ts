@@ -230,7 +230,18 @@ export type TargetSelector =
    * "Target creature", or - with `subtypes` - "target Insect, Rat, Spider, or
    * Squirrel" (Swarmyard). Any one of the listed subtypes qualifies.
    */
-  | { kind: "creature"; subtypes?: string[]; damagedThisTurn?: boolean; maxMvFromControllerGraveyard?: boolean }
+  | {
+      kind: "creature";
+      subtypes?: string[];
+      damagedThisTurn?: boolean;
+      maxMvFromControllerGraveyard?: boolean;
+      /**
+       * "target creature **you control**" / "**you don't control**" - Infectious
+       * Bite names one of each. Omitted means any creature, which is what every
+       * other creature-targeting card in the pool says.
+       */
+      controlledBy?: "you" | "opponent";
+    }
   | { kind: "player"; count?: TargetCount }
   | { kind: "opponent-of-controller" }
   /**
@@ -740,6 +751,28 @@ export type Effect =
       amount: Amount;
       who: "each-opponent" | "target";
       target?: TargetSelector;
+    }
+  /**
+   * "Target creature you control deals damage equal to its power to target
+   * creature you don't control. Each opponent gets a poison counter." -
+   * Infectious Bite.
+   *
+   * The one effect in the pool with two targets that are not the same kind of
+   * thing: a creature you control that deals the damage, and one you don't that
+   * takes it. They cannot be a `count: 2` on one selector, because "you
+   * control" and "you don't control" are opposite requirements - so this
+   * carries a selector for each, validated positionally (`dealer` first). The
+   * poison is folded in rather than chained through a `sequence`, so the whole
+   * card is one effect and needs no target-sharing across steps.
+   */
+  | {
+      kind: "infectiousBite";
+      /** "Target creature you control deals damage equal to its power..." - target 0. */
+      dealer: TargetSelector;
+      /** "...to target creature you don't control." - target 1. */
+      recipient: TargetSelector;
+      /** "Each opponent gets a poison counter." */
+      poisonEachOpponent: number;
     }
   /**
    * "Each opponent discards a card" - Send in the Pest.

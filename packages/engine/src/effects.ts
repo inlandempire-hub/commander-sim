@@ -1013,6 +1013,37 @@ export function applyEffect(
       }
       return;
     }
+    case "infectiousBite": {
+      /*
+       * targets[0] is the dealer (a creature you control), targets[1] the
+       * recipient (one you don't). The dealer deals damage equal to its power,
+       * routed through the ordinary creature-damage door so its deathtouch, a
+       * shield, and any "is dealt damage" trigger all apply exactly as they
+       * would in a fight. Its power is read now, at resolution.
+       */
+      const dealerT = targets[0];
+      const recipientT = targets[1];
+      if (dealerT?.kind === "card" && recipientT?.kind === "card") {
+        const dealer = findInstance(state, dealerT.instanceId);
+        const recipient = findInstance(state, recipientT.instanceId);
+        if (dealer && recipient && recipient.instance.zone === "battlefield") {
+          const power = effectivePower(state, dealer.instance);
+          const deathtouch = hasKeyword(state, dealer.instance, "Deathtouch");
+          const dealt = damageCreature(state, recipient.instance, power, { deathtouch }).dealt;
+          if (dealt > 0) {
+            log(state, `${cardName(state, dealerT.instanceId)} deals ${dealt} damage to ${cardName(state, recipientT.instanceId)}`);
+          }
+        }
+      }
+      // "Each opponent gets a poison counter" - folded in, so the whole card is
+      // one effect. Happens whether or not the fight found a legal recipient.
+      for (const player of state.players) {
+        if (player.id === controllerId || player.hasLost) continue;
+        player.poisonCounters += effect.poisonEachOpponent;
+        log(state, `${player.id} gets ${effect.poisonEachOpponent} poison counter${effect.poisonEachOpponent === 1 ? "" : "s"}`);
+      }
+      return;
+    }
     case "discard": {
       /*
        * Each opponent picks their own card, so this queues a question per
