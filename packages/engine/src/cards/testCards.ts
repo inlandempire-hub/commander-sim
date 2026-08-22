@@ -14036,6 +14036,37 @@ export const INFECTIOUS_BITE: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Whenever a creature you control deals combat damage to a player, you may
+ * draw that many cards. Warp {2}{U}{U}" - Starwinder.
+ *
+ * The combat half is the combat-damage-to-player watcher every Necropolis
+ * Regent-shaped card already uses, here paying out an optional draw of the
+ * amount dealt. The Warp half is the new bone: cast for its warp cost, exiled
+ * at the next end step, castable from exile later for its printed {5}{U}{U}.
+ */
+export const STARWINDER: CardDefinition = {
+  id: "starwinder",
+  name: "Starwinder",
+  scryfallId: "27d1a010-5790-4b35-9fdc-0e366eed021d",
+  types: ["Creature"],
+  subtypes: ["Leviathan"],
+  manaCost: { generic: 5, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  power: 7,
+  toughness: 7,
+  warp: { cost: { generic: 2, colors: { U: 2 } } },
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      watches: "controller",
+      optional: true,
+      effect: { kind: "draw", amount: { kind: "event-amount" } },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -15024,6 +15055,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     MIST_SYNDICATE_NAGA,
     TWENTY_TOED_TOAD,
     INFECTIOUS_BITE,
+    STARWINDER,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

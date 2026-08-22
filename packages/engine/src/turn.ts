@@ -238,6 +238,25 @@ function runAutomaticStepActions(state: GameState): void {
       dealCombatDamage(state, "regular");
       break;
     }
+    case "end": {
+      /*
+       * Warp: "Exile this creature at the beginning of the next end step, then
+       * you may cast it from exile on a later turn." - Starwinder. A turn-based
+       * action rather than a trigger, scanned off the battlefield so a warped
+       * creature that has already died or left takes nothing with it. Marked
+       * `warpedInExile` on the way so `castSpell` will let its owner recast it.
+       */
+      for (const player of state.players) {
+        for (const instance of [...player.battlefield]) {
+          if (!instance.exileAtNextEndStep) continue;
+          instance.exileAtNextEndStep = false;
+          log(state, `${requireDefinition(state, instance.definitionId).name} is exiled (warp)`);
+          moveCard(state, instance.instanceId, "exile");
+          instance.warpedInExile = true;
+        }
+      }
+      break;
+    }
     case "end-combat": {
       state.attackers = {};
       state.blockers = {};

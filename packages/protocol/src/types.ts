@@ -33,6 +33,8 @@ export type ClientMessage =
       omniscienceFree?: boolean;
       /** Cards to exile from the graveyard to pay for Delve. */
       delveCount?: number;
+      /** Cast for the warp cost (Starwinder); the creature leaves at the next end step. */
+      useWarp?: boolean;
     }
   | { type: "activateAbility"; instanceId: string; abilityIndex: number; targets?: StackTarget[] }
   | { type: "declareAttackers"; declarations: AttackerDeclaration[] }

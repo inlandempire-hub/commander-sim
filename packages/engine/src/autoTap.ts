@@ -205,11 +205,16 @@ export function castingCostOf(
   instanceId: string,
   fromCommandZone = false,
   chosenX = 0,
+  useWarp = false,
 ): ManaCost {
   const player = requirePlayer(state, playerId);
   const found = findInstance(state, instanceId);
   if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
-  const printed = requireDefinition(state, found.instance.definitionId).manaCost ?? EMPTY_COST;
+  const def = requireDefinition(state, found.instance.definitionId);
+  // Warp pays its own cost, so that is what auto-tap must reach for - the
+  // printed cost would tap far too much and refuse an affordable warp.
+  if (useWarp && def.warp) return def.warp.cost;
+  const printed = def.manaCost ?? EMPTY_COST;
   const cost = costWithX(printed, chosenX);
   if (!fromCommandZone) return cost;
   return applyCommanderTax(cost, player.commanderCastCount[instanceId] ?? 0);
@@ -299,7 +304,7 @@ export function castSpellWithAutoTap(
   targets: StackTarget[] = [],
   options: CastOptions = {},
 ): void {
-  const cost = castingCostOf(state, playerId, instanceId, options.fromCommandZone, options.chosenX ?? 0);
+  const cost = castingCostOf(state, playerId, instanceId, options.fromCommandZone, options.chosenX ?? 0, options.useWarp);
   withAutoTap(state, playerId, cost, () => castSpell(state, playerId, instanceId, targets, options));
 }
 

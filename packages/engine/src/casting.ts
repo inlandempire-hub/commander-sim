@@ -86,6 +86,13 @@ export interface CastOptions {
   /** How many cards to exile from the graveyard to pay for this spell's Delve. */
   delveCount?: number;
   /**
+   * Cast this for its warp cost - Starwinder. Pays `def.warp.cost` in place of
+   * the mana cost and marks the creature to be exiled at the next end step. Only
+   * from hand; a warp-exiled card cast from exile later pays its ordinary cost
+   * and takes none of this.
+   */
+  useWarp?: boolean;
+  /**
    * Cast this as a bestowed Aura for its bestow cost, attached to the creature
    * handed in as the target. It is still a creature card - it is simply not a
    * creature while it is attached to one.
@@ -183,8 +190,20 @@ export function castSpell(
   if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
   const { instance } = found;
 
+  /*
+   * "...then you may cast it from exile on a later turn." - a warp-exiled card
+   * is cast from exile for its ordinary cost, which is the one door into
+   * `castSpell` that does not start in hand or the command zone. Only that card,
+   * only cast normally: a warp cast itself and a command-zone cast go the usual
+   * way.
+   */
+  const castingFromWarpExile =
+    instance.zone === "exile" &&
+    instance.warpedInExile === true &&
+    !options.fromCommandZone &&
+    !options.useWarp;
   const expectedZone = options.fromCommandZone ? "command" : "hand";
-  if (instance.zone !== expectedZone) {
+  if (!castingFromWarpExile && instance.zone !== expectedZone) {
     throw new Error(`${instanceId} is not in ${playerId}'s ${expectedZone} zone`);
   }
   if (instance.ownerId !== playerId) {
@@ -193,6 +212,10 @@ export function castSpell(
 
   const def = requireDefinition(state, instance.definitionId);
   const isPermanentSpell = def.types.some((t) => PERMANENT_TYPES.has(t));
+  if (options.useWarp) {
+    if (!def.warp) throw new Error(`${def.name} has no warp cost`);
+    if (instance.zone !== "hand") throw new Error(`${def.name} can only be warped from hand`);
+  }
 
   if (isSorcerySpeedOnly(def) && !options.ignoreTiming && !canCastAtSorcerySpeed(state, playerId)) {
     throw new Error(`${def.name} can only be cast at sorcery speed`);
@@ -251,9 +274,13 @@ export function castSpell(
       (alternative.manaCost ?? { generic: 0, colors: {} })
     : options.free === true
       ? { generic: 0, colors: {} }
-      : options.bestowOnto
-        ? def.bestowCost!
-        : costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
+      : options.useWarp
+        ? // Warp replaces the mana cost with its own, like an alternative cost -
+          // but it is not "free", so it stays out of the `free` branch above.
+          def.warp!.cost
+        : options.bestowOnto
+          ? def.bestowCost!
+          : costWithX(def.manaCost ?? { generic: 0, colors: {} }, chosenX);
   if (options.fromCommandZone && !free) {
     const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
     cost = applyCommanderTax(cost, timesCast);
@@ -408,6 +435,14 @@ export function castSpell(
    * as the permanent arrives - long after the stack object has gone.
    */
   instance.bestowTarget = options.bestowOnto;
+  /*
+   * Warp: the creature this becomes leaves at the next end step. Marked on the
+   * card now, read off the battlefield then. Cast from its warp-exile the flag
+   * is cleared - a card cast for its ordinary cost is just a creature, and it is
+   * no longer the warped copy waiting in exile either.
+   */
+  if (options.useWarp) instance.exileAtNextEndStep = true;
+  instance.warpedInExile = false;
 
   moveCard(state, instanceId, "stack");
   log(state, `${playerId} casts ${def.name}`);

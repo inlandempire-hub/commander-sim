@@ -1872,6 +1872,19 @@ export interface CardDefinition {
    */
   suspend?: { timeCounters: number; cost: ManaCost };
   /**
+   * "Warp {2}{U}{U} (You may cast this card from your hand for its warp cost.
+   * Exile this creature at the beginning of the next end step, then you may cast
+   * it from exile on a later turn.)" - Starwinder.
+   *
+   * An alternative way to cast, taken with `CastOptions.useWarp`: the spell is
+   * cast from hand for `cost` and resolves as normal, but it leaves at the next
+   * end step (marked `exileAtNextEndStep` as it is cast) and, once exiled that
+   * way (`warpedInExile`), may be cast from exile for its ordinary mana cost on
+   * a later turn. Cast for its normal cost, none of that applies - it is simply
+   * a creature.
+   */
+  warp?: { cost: ManaCost };
+  /**
    * "Devour 1" - as this enters, you may sacrifice any number of creatures; it
    * enters with that many times this number of +1/+1 counters on it.
    */
@@ -2024,6 +2037,17 @@ export interface CardInstance {
    * the permanent arrives - the stack object is long gone by then.
    */
   bestowTarget?: string;
+  /**
+   * Warp (Starwinder). Set when the card is cast for its warp cost: the
+   * creature it becomes is exiled at the beginning of the next end step.
+   */
+  exileAtNextEndStep?: boolean;
+  /**
+   * Warp again. Set as the creature is exiled by the line above, marking the
+   * card in exile as one its owner may cast from there for its ordinary mana
+   * cost on a later turn.
+   */
+  warpedInExile?: boolean;
   /** Whether this planeswalker has already used a loyalty ability this turn. */
   loyaltyUsedThisTurn: boolean;
   /** Time counters, while this card sits suspended in exile. */
