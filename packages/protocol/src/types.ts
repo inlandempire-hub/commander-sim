@@ -35,6 +35,8 @@ export type ClientMessage =
       delveCount?: number;
       /** Cast for the warp cost (Starwinder); the creature leaves at the next end step. */
       useWarp?: boolean;
+      /** Pay the Offspring cost (Thundertrap Trainer); a 1/1 token copy is made on ETB. */
+      payOffspring?: boolean;
     }
   | {
       type: "activateAbility";

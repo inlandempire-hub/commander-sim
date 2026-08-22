@@ -206,6 +206,7 @@ export function castingCostOf(
   fromCommandZone = false,
   chosenX = 0,
   useWarp = false,
+  payOffspring = false,
 ): ManaCost {
   const player = requirePlayer(state, playerId);
   const found = findInstance(state, instanceId);
@@ -215,7 +216,15 @@ export function castingCostOf(
   // printed cost would tap far too much and refuse an affordable warp.
   if (useWarp && def.warp) return def.warp.cost;
   const printed = def.manaCost ?? EMPTY_COST;
-  const cost = costWithX(printed, chosenX);
+  let cost = costWithX(printed, chosenX);
+  // Offspring stacks its cost on top, so auto-tap has to reach for both.
+  if (payOffspring && def.offspring) {
+    const colors = { ...cost.colors };
+    for (const [color, count] of Object.entries(def.offspring.cost.colors ?? {})) {
+      colors[color as keyof typeof colors] = (colors[color as keyof typeof colors] ?? 0) + (count ?? 0);
+    }
+    cost = { ...cost, generic: cost.generic + (def.offspring.cost.generic ?? 0), colors };
+  }
   if (!fromCommandZone) return cost;
   return applyCommanderTax(cost, player.commanderCastCount[instanceId] ?? 0);
 }
@@ -304,7 +313,15 @@ export function castSpellWithAutoTap(
   targets: StackTarget[] = [],
   options: CastOptions = {},
 ): void {
-  const cost = castingCostOf(state, playerId, instanceId, options.fromCommandZone, options.chosenX ?? 0, options.useWarp);
+  const cost = castingCostOf(
+    state,
+    playerId,
+    instanceId,
+    options.fromCommandZone,
+    options.chosenX ?? 0,
+    options.useWarp,
+    options.payOffspring,
+  );
   withAutoTap(state, playerId, cost, () => castSpell(state, playerId, instanceId, targets, options));
 }
 

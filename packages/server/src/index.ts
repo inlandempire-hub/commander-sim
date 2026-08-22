@@ -77,6 +77,7 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
         omniscienceFree: message.omniscienceFree,
         delveCount: message.delveCount,
         useWarp: message.useWarp,
+        payOffspring: message.payOffspring,
       });
       return;
     case "activateAbility":

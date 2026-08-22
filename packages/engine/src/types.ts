@@ -776,6 +776,18 @@ export type Effect =
    */
   | { kind: "proliferate" }
   /**
+   * "Look at the top four cards of your library. You may reveal a noncreature,
+   * nonland card from among them and put it into your hand. Put the rest on the
+   * bottom of your library in a random order." - Thundertrap Trainer.
+   *
+   * Look at `amount`, take up to one that is none of `excludeTypes`, and the
+   * rest go to the bottom (in library order rather than a fresh shuffle - a
+   * documented simplification, the order of face-down cards nobody sees). Reuses
+   * `pendingCardChoices` for the "may take", with `restToBottom` carrying the
+   * looked-at set.
+   */
+  | { kind: "lookTopMayTake"; amount: number; excludeTypes?: CardType[] }
+  /**
    * "When you next cast an instant or sorcery spell this turn, copy that spell."
    * - Sword of Wealth and Power's combat trigger. Arms the controller's
    * `copyNextInstantOrSorcery`; the copy is made by `castSpell` when they next
@@ -993,7 +1005,12 @@ export type Effect =
    * must not be marked `isToken`, or every real one would cease to exist on
    * leaving the battlefield.
    */
-  | { kind: "createCopyToken"; of: "self" | "attached-creature" }
+  | {
+      kind: "createCopyToken";
+      of: "self" | "attached-creature";
+      /** "a 1/1 token copy of it" - Offspring prints the copy's P/T over the original's. */
+      ptOverride?: { power: number; toughness: number };
+    }
   /**
    * "Mill three cards. Then you may pay {1} and 3 life. If you do, put a card
    * from among those cards into your hand." - Ripples of Undeath.
@@ -1973,6 +1990,12 @@ export interface CardDefinition {
   /** "Delve" - each card exiled from your graveyard while casting this pays for {1}. See casting.ts. */
   delve?: boolean;
   /**
+   * "Offspring {4} (You may pay an additional {4} as you cast this spell. If you
+   * do, when this creature enters, create a 1/1 token copy of it.)" - Thundertrap
+   * Trainer. Taken with `CastOptions.payOffspring`. See casting.ts.
+   */
+  offspring?: { cost: ManaCost };
+  /**
    * "Storm (When you cast this spell, copy it for each spell cast before it this
    * turn.)" - Radstorm. On cast, a copy of the spell is put on the stack for
    * each spell already cast this turn (`state.spellsCastThisTurn`, read before
@@ -2095,6 +2118,19 @@ export interface CardInstance {
    * cost on a later turn.
    */
   warpedInExile?: boolean;
+  /**
+   * A power/toughness this instance has in place of its definition's - the 1/1
+   * an Offspring token copy is printed as while copying everything else about
+   * the creature (Thundertrap Trainer). Undefined for all but such tokens.
+   */
+  basePowerOverride?: number;
+  baseToughnessOverride?: number;
+  /**
+   * Offspring: this creature was cast for its Offspring cost, so a 1/1 token
+   * copy of it is made as it enters. Set at cast, spent (and cleared) in
+   * `enteredBattlefield`.
+   */
+  offspringPaid?: boolean;
   /** Whether this planeswalker has already used a loyalty ability this turn. */
   loyaltyUsedThisTurn: boolean;
   /** Time counters, while this card sits suspended in exile. */
@@ -2326,6 +2362,12 @@ export interface PendingCardChoice {
   effectControllerId: string;
   /** The rest of a `sequence` this interrupted - see `PendingSearch.followUp`. */
   followUp?: Effect[];
+  /**
+   * Cards to move to the bottom of the library once the choice is made -
+   * everything looked at but not taken (Thundertrap Trainer's "put the rest on
+   * the bottom"). The taken card is filtered out when this is applied.
+   */
+  restToBottom?: string[];
   /**
    * Devour and Braids both count the chosen cards afterwards - one to place
    * counters, one to decide who was punished - so the source is carried rather

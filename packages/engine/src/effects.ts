@@ -544,6 +544,13 @@ export function applyEffect(
          * every real copy of that card cease to exist on leaving play.
          */
         token.isTokenCopy = true;
+        // "a 1/1 token copy" - Offspring stamps the copy's printed P/T over the
+        // original's, everything else copied. Set before it enters so its own
+        // arrival reads the right size.
+        if (effect.ptOverride) {
+          token.basePowerOverride = effect.ptOverride.power;
+          token.baseToughnessOverride = effect.ptOverride.toughness;
+        }
         enteredBattlefield(state, token);
       }
       log(state, `${controllerId} creates a token copy of ${cardName(state, copied.instanceId)}`);
@@ -589,6 +596,35 @@ export function applyEffect(
         cost: effect.cost,
         ifDeclined: effect.ifDeclined,
         prompt: `${cardName(state, sourceInstanceId)}: you may take one of the milled cards`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
+    case "lookTopMayTake": {
+      /*
+       * "Look at the top four cards. You may reveal a noncreature, nonland card
+       * and put it into your hand. Put the rest on the bottom." Nothing moves
+       * yet - the looked-at cards stay on top until the choice resolves, which
+       * is where the taken one goes to hand and the rest go to the bottom.
+       */
+      const looked = controller.library.slice(0, effect.amount).map((c) => c.instanceId);
+      if (looked.length === 0) return;
+      const takeable = effect.excludeTypes
+        ? looked.filter((id) => {
+            const types = requireDefinition(state, findInstance(state, id)!.instance.definitionId).types;
+            return !effect.excludeTypes!.some((t) => types.includes(t));
+          })
+        : looked;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: takeable,
+        min: 0,
+        max: 1,
+        mode: "to-hand",
+        restToBottom: looked,
+        prompt: `${cardName(state, sourceInstanceId)}: you may reveal a noncreature, nonland card to put into your hand`,
         followUp: pendingFollowUp,
       });
       return;
@@ -1818,6 +1854,20 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
 
   if (pending.mode === "cast-free" && chosen.length > 0) {
     castForFree(state, playerId, chosen[0]!);
+  }
+
+  /*
+   * "Put the rest on the bottom of your library" - Thundertrap Trainer. The
+   * looked-at cards minus whatever was taken, moved to the bottom in library
+   * order (the fresh random shuffle is the documented simplification). `moveCard`
+   * to "library" drops each at the bottom, so a same-zone move re-files it there.
+   */
+  if (pending.restToBottom) {
+    const rest = pending.restToBottom.filter((id) => !chosen.includes(id));
+    for (const id of rest) moveCard(state, id, "library");
+    if (rest.length > 0) {
+      log(state, `${playerId} puts ${rest.length} card${rest.length === 1 ? "" : "s"} on the bottom of their library`);
+    }
   }
 
   /*

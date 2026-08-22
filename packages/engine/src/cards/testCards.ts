@@ -14163,6 +14163,36 @@ export const SWORD_OF_WEALTH_AND_POWER: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Offspring {4} ... When this creature enters, look at the top four cards of
+ * your library. You may reveal a noncreature, nonland card from among them and
+ * put it into your hand. Put the rest on the bottom of your library in a random
+ * order." - Thundertrap Trainer.
+ *
+ * Two new bones: Offspring (an optional additional cost that makes a 1/1 token
+ * copy on ETB, via the createCopyToken P/T override) and the lookTopMayTake
+ * impulse (look four, keep one noncreature/nonland, rest to the bottom).
+ */
+export const THUNDERTRAP_TRAINER: CardDefinition = {
+  id: "thundertrap-trainer",
+  name: "Thundertrap Trainer",
+  scryfallId: "9cf3af94-b7c8-415c-a5a1-d89967fd0bba",
+  types: ["Creature"],
+  subtypes: ["Otter", "Wizard"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 2,
+  offspring: { cost: { generic: 4, colors: {} } },
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "lookTopMayTake", amount: 4, excludeTypes: ["Creature", "Land"] },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -15155,6 +15185,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     PSYCHIC_FROG,
     RADSTORM,
     SWORD_OF_WEALTH_AND_POWER,
+    THUNDERTRAP_TRAINER,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

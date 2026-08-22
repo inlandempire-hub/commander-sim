@@ -224,7 +224,7 @@ export function effectiveTriggers(state: GameState, instance: CardInstance): Tri
 export function effectivePower(state: GameState, instance: CardInstance): number {
   const def = requireDefinition(state, instance.definitionId);
   return (
-    (def.power ?? 0) +
+    (instance.basePowerOverride ?? def.power ?? 0) +
     instance.plusOneCounters -
     instance.minusOneCounters +
     instance.temporaryPowerBonus +
@@ -243,7 +243,7 @@ export function effectivePower(state: GameState, instance: CardInstance): number
 export function effectiveToughness(state: GameState, instance: CardInstance): number {
   const def = requireDefinition(state, instance.definitionId);
   return (
-    (def.toughness ?? 0) +
+    (instance.baseToughnessOverride ?? def.toughness ?? 0) +
     instance.plusOneCounters -
     instance.minusOneCounters +
     instance.temporaryToughnessBonus +

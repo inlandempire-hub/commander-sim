@@ -233,6 +233,24 @@ export function enteredBattlefield(
   }
 
   /*
+   * Offspring: "when this creature enters, create a 1/1 token copy of it." Only
+   * when the Offspring cost was paid; the token itself never sets this, so it
+   * makes no copy of its own. Put on the stack like the printed ETB triggers
+   * above so it resolves in step with them.
+   */
+  if (instance.offspringPaid) {
+    instance.offspringPaid = false;
+    pushOntoStack(
+      state,
+      instance.instanceId,
+      instance.controllerId,
+      { kind: "createCopyToken", of: "self", ptOverride: { power: 1, toughness: 1 } },
+      [],
+      false,
+    );
+  }
+
+  /*
    * Triggers printed on permanents that were already here, watching for
    * something to arrive - the "Whenever another creature you control enters"
    * family. The same shape as landfall, which scans the battlefield rather

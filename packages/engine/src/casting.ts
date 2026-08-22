@@ -93,6 +93,11 @@ export interface CastOptions {
    */
   useWarp?: boolean;
   /**
+   * Pay the Offspring cost (Thundertrap Trainer) - an additional cost on top of
+   * the mana cost that makes a 1/1 token copy of the creature as it enters.
+   */
+  payOffspring?: boolean;
+  /**
    * Cast this as a bestowed Aura for its bestow cost, attached to the creature
    * handed in as the target. It is still a creature card - it is simply not a
    * creature while it is attached to one.
@@ -286,6 +291,17 @@ export function castSpell(
     cost = applyCommanderTax(cost, timesCast);
   }
 
+  // Offspring: an additional cost stacked on top of the mana cost. Refused if
+  // the card has none, so a client cannot conjure a token copy for free.
+  if (options.payOffspring) {
+    if (!def.offspring) throw new Error(`${def.name} has no Offspring cost`);
+    const merged = { ...cost.colors };
+    for (const [color, count] of Object.entries(def.offspring.cost.colors ?? {})) {
+      merged[color as keyof typeof merged] = (merged[color as keyof typeof merged] ?? 0) + (count ?? 0);
+    }
+    cost = { ...cost, generic: cost.generic + (def.offspring.cost.generic ?? 0), colors: merged };
+  }
+
   // Delve: each card exiled from the graveyard pays for {1} of the generic cost.
   let delved: string[] = [];
   if (def.delve && options.delveCount && options.delveCount > 0) {
@@ -458,6 +474,9 @@ export function castSpell(
    */
   if (options.useWarp) instance.exileAtNextEndStep = true;
   instance.warpedInExile = false;
+  // Offspring: remembered on the card so the token copy is made as it enters,
+  // long after the stack object has gone.
+  if (options.payOffspring) instance.offspringPaid = true;
 
   moveCard(state, instanceId, "stack");
   log(state, `${playerId} casts ${def.name}`);
