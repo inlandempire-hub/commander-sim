@@ -36,7 +36,8 @@ DATA = Path(__file__).parent / "data" / "oracle-cards.jsonl.gz"
 MODELLED = {
     "enters-battlefield", "attacks", "dies", "landfall", "permanent-enters", "gain-life",
     "permanent-dies", "permanent-sacrificed", "permanent-attacks", "leaves-battlefield",
-    "spell-cast", "damaged", "combat-damage-to-player", "upkeep", "first-main", "begin-combat", "end-step",
+    "spell-cast", "damaged", "combat-damage-to-player", "attack-with-two-or-more",
+    "upkeep", "first-main", "begin-combat", "end-step",
 }
 
 
@@ -195,6 +196,14 @@ def classify(clause, card_name):
     if re.search(r"deals damage", c):
         return None, "damage-dealt trigger - not modelled"
 
+    # "Whenever you attack with two or more creatures" - Twenty-Toed Toad, and a
+    # real event since 2026-08-22. A controller-side attack event about the whole
+    # declaration, distinct from `attacks` (this card printed on the creature)
+    # and `permanent-attacks` (one per attacker). Checked before the attack
+    # regexes below so it is not swept up as one of those.
+    if re.search(r"whenever you attack with two or more creatures", c):
+        return "attack-with-two-or-more", None
+
     if re.search(r"^when(ever)?\s+%s\s+attacks" % self_ref, c) or re.search(
         r"whenever .*attacks", c
     ):
@@ -220,6 +229,15 @@ def classify(clause, card_name):
     # bare search for the word claimed the sentence for the wrong event.
     if re.search(r"^whenever you cast( or copy)? ", c):
         return "spell-cast", None
+
+    # "When you next cast an instant or sorcery spell this turn, copy that spell"
+    # - Sword of Wealth and Power. A delayed triggered ability set up by the
+    # Equipment's combat trigger and modelled as an *effect*
+    # (`copyNextInstantOrSorcery`) on that trigger rather than as a triggered
+    # ability of its own, so there is no fixture trigger for it to match - which
+    # is documented here rather than left as an unrecognised shape.
+    if re.search(r"when you next cast an instant or sorcery spell this turn, copy that spell", c):
+        return None, "delayed spell-copy - modelled as an effect on the combat trigger, not a fixture trigger"
 
     # "Whenever a player sacrifices a nontoken creature" - Fumulus, the
     # Infestation, and a real event since 2026-08-13. Deliberately not folded
