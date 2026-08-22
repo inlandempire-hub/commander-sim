@@ -14067,6 +14067,37 @@ export const STARWINDER: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Whenever this creature deals combat damage to a player or planeswalker, draw
+ * a card. Discard a card: Put a +1/+1 counter on this creature. Exile three
+ * cards from your graveyard: This creature gains flying until end of turn." -
+ * Psychic Frog.
+ *
+ * The draw is the self-scoped combat-damage watcher (the "or planeswalker" half
+ * is the usual documented simplification - the engine's combat damage lands on
+ * players). The two abilities are the new bones: a "discard a card" cost, whose
+ * card is announced with the activation, and an "exile three from your
+ * graveyard" cost, taken from the top the way Delve is. The flying is an
+ * ordinary pump granting a keyword until end of turn.
+ */
+export const PSYCHIC_FROG: CardDefinition = {
+  id: "psychic-frog",
+  name: "Psychic Frog",
+  scryfallId: "68924203-c3d9-41ce-8ca8-c6dd491eb3ca",
+  types: ["Creature"],
+  subtypes: ["Frog"],
+  manaCost: { generic: 0, colors: { U: 1, B: 1 } },
+  colorIdentity: ["B", "U"],
+  power: 1,
+  toughness: 2,
+  triggeredAbilities: [{ event: "combat-damage-to-player", effect: { kind: "draw", amount: 1 } }],
+  activatedAbilities: [
+    { cost: { discard: 1 }, effect: { kind: "addCounter", amount: 1 } },
+    { cost: { exileFromGraveyard: 3 }, effect: { kind: "pump", power: 0, toughness: 0, grants: ["Flying"] } },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -15056,6 +15087,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     TWENTY_TOED_TOAD,
     INFECTIOUS_BITE,
     STARWINDER,
+    PSYCHIC_FROG,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

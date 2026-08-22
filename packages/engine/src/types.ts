@@ -1426,6 +1426,19 @@ export interface ActivatedAbilityCost {
    * work at all.
    */
   sacrificeSelf?: boolean;
+  /**
+   * "Discard a card" as a cost - Psychic Frog's first ability. Which card is
+   * the player's choice, announced with the activation the way a spell's
+   * sacrifice cost is (`sacrificeInstanceId`), not asked for on resolution.
+   */
+  discard?: number;
+  /**
+   * "Exile N cards from your graveyard" as a cost - Psychic Frog's second
+   * ability. Taken from the top of the graveyard, the same documented
+   * simplification Delve uses: the choice of which cards to exile from a
+   * hidden-order zone changes nothing this deck can read.
+   */
+  exileFromGraveyard?: number;
 }
 
 /**

@@ -315,12 +315,13 @@ export function activateAbilityWithAutoTap(
   instanceId: string,
   abilityIndex: number,
   targets: StackTarget[] = [],
+  options: { discardInstanceIds?: string[] } = {},
 ): void {
   const found = findInstance(state, instanceId);
   const ability = found
     ? requireDefinition(state, found.instance.definitionId).activatedAbilities?.[abilityIndex]
     : undefined;
-  const run = () => activateAbility(state, playerId, instanceId, abilityIndex, targets);
+  const run = () => activateAbility(state, playerId, instanceId, abilityIndex, targets, options);
   if (!ability?.cost.mana) {
     run();
     return;

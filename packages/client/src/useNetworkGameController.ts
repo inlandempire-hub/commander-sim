@@ -73,8 +73,14 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
         sacrificeInstanceId: options?.sacrificeInstanceId,
         useAlternativeCost: options?.useAlternativeCost,
       }),
-    activateAbility: (_playerId, instanceId, abilityIndex, targets) =>
-      send({ type: "activateAbility", instanceId, abilityIndex, targets: targets ?? [] }),
+    activateAbility: (_playerId, instanceId, abilityIndex, targets, options) =>
+      send({
+        type: "activateAbility",
+        instanceId,
+        abilityIndex,
+        targets: targets ?? [],
+        discardInstanceIds: options?.discardInstanceIds,
+      }),
     declareAttackers: (_playerId, declarations) => send({ type: "declareAttackers", declarations }),
     declareBlockers: (_playerId, declarations) => send({ type: "declareBlockers", declarations }),
     resolveSearch: (_playerId, instanceId) => send({ type: "resolveSearch", instanceId }),

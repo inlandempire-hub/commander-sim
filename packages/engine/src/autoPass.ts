@@ -181,6 +181,15 @@ export function hasAnyLegalAction(state: GameState, playerId: string): boolean {
       // Life is a cost like any other: an ability you cannot pay for is not an
       // action, and offering it stops the turn for something you can't do.
       if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) continue;
+      // The same for the two graveyard/hand costs: an ability whose cost cannot
+      // be paid is not an action worth stopping the turn to offer.
+      if (ability.cost.discard !== undefined && player.hand.length < ability.cost.discard) continue;
+      if (
+        ability.cost.exileFromGraveyard !== undefined &&
+        player.graveyard.length < ability.cost.exileFromGraveyard
+      ) {
+        continue;
+      }
       if (hasSomethingToTarget(state, playerId, ability.effect)) return true;
     }
   }

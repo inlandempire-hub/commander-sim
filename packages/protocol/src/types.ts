@@ -36,7 +36,14 @@ export type ClientMessage =
       /** Cast for the warp cost (Starwinder); the creature leaves at the next end step. */
       useWarp?: boolean;
     }
-  | { type: "activateAbility"; instanceId: string; abilityIndex: number; targets?: StackTarget[] }
+  | {
+      type: "activateAbility";
+      instanceId: string;
+      abilityIndex: number;
+      targets?: StackTarget[];
+      /** Cards discarded to pay a "Discard a card" activation cost - Psychic Frog. */
+      discardInstanceIds?: string[];
+    }
   | { type: "declareAttackers"; declarations: AttackerDeclaration[] }
   | { type: "declareBlockers"; declarations: BlockerDeclaration[] }
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */

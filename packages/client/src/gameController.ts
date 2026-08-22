@@ -28,7 +28,13 @@ export interface GameController {
       useAlternativeCost?: boolean;
     },
   ): void;
-  activateAbility(playerId: string, instanceId: string, abilityIndex: number, targets?: StackTarget[]): void;
+  activateAbility(
+    playerId: string,
+    instanceId: string,
+    abilityIndex: number,
+    targets?: StackTarget[],
+    options?: { discardInstanceIds?: string[] },
+  ): void;
   declareAttackers(playerId: string, declarations: AttackerDeclaration[]): void;
   declareBlockers(playerId: string, declarations: BlockerDeclaration[]): void;
   /**
