@@ -624,6 +624,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
           : `onto the battlefield${effect.tapped ? " tapped" : ""}`;
       return `${whoSearches(effect)} for ${what}, put it ${where}, then shuffle.`;
     }
+    case "proliferate":
+      return "Proliferate.";
     case "infectiousBite": {
       const poison =
         effect.poisonEachOpponent === 1

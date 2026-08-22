@@ -68,6 +68,35 @@ export function pushOntoStack(
 }
 
 /**
+ * Puts a copy of a spell on the stack - Storm, Sword of Wealth and Power.
+ *
+ * A copy is not a card, so nothing moves zones and no cast triggers fire: it
+ * carries the same effect and (possibly new) targets, resolves like the spell it
+ * copies, and ceases to exist afterwards. `isCopy` is what keeps
+ * `finishResolution` from moving the card `sourceInstanceId` names, which for a
+ * Storm copy is the original spell still on the stack beneath it.
+ */
+export function pushSpellCopyOntoStack(
+  state: GameState,
+  sourceInstanceId: string,
+  controllerId: string,
+  effect: Effect,
+  targets: StackTarget[],
+): StackObject {
+  const obj: StackObject = {
+    id: `s${state.nextStackObjectId++}`,
+    sourceInstanceId,
+    controllerId,
+    effect,
+    targets,
+    isPermanentSpell: false,
+    isCopy: true,
+  };
+  state.stack.push(obj);
+  return obj;
+}
+
+/**
  * Puts a card onto the battlefield and fires its enters-the-battlefield
  * triggers. Used by a resolving permanent spell, by reanimation out of a
  * graveyard, and by a tutor that finds a land - all of which are genuinely the

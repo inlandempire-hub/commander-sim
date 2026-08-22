@@ -10,7 +10,7 @@ import {
 import { controllerMeets } from "./conditions.js";
 import { effectivePower } from "./counters.js";
 import { sacrificePermanent } from "./sba.js";
-import { describeSubject, fireWatchers, pushOntoStack, putOntoBattlefield } from "./permanents.js";
+import { describeSubject, fireWatchers, pushOntoStack, pushSpellCopyOntoStack, putOntoBattlefield } from "./permanents.js";
 import { isValidTarget, legalTargetsFor, targetCountOf, targetSelectorOf, targetSelectorsOf } from "./targeting.js";
 import { attemptWardPayments } from "./ward.js";
 import { costWithX, requiresX, resolveAmounts } from "./x.js";
@@ -495,6 +495,21 @@ export function castSpell(
       [],
       false,
     );
+  }
+
+  /*
+   * Storm: "copy it for each spell cast before it this turn." The count is read
+   * before this cast bumps it, so "before it" is exactly the current tally. The
+   * copies go on top of the spell, so they resolve first, carrying the same
+   * effect and targets - Storm gives no choice of new targets (that is Sword).
+   */
+  const priorSpells = state.spellsCastThisTurn;
+  state.spellsCastThisTurn += 1;
+  if (def.storm && priorSpells > 0) {
+    for (let i = 0; i < priorSpells; i++) {
+      pushSpellCopyOntoStack(state, instanceId, playerId, effect, targets);
+    }
+    log(state, `Storm: ${def.name} is copied ${priorSpells} time${priorSpells === 1 ? "" : "s"}`);
   }
 
   state.passesInSuccession = 0;

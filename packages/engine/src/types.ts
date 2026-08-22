@@ -765,6 +765,16 @@ export type Effect =
    * poison is folded in rather than chained through a `sequence`, so the whole
    * card is one effect and needs no target-sharing across steps.
    */
+  /**
+   * "Proliferate. (Choose any number of permanents and/or players, then give
+   * each another counter of each kind already there.)" - Radstorm.
+   *
+   * The real card is a free choice of any subset. Modelled as the beneficial
+   * subset - the controller's own +1/+1, loyalty and other counters, and poison
+   * on opponents - since there is no counter-choice UI and this deck only ever
+   * wants those. A documented simplification, like Delve's take-from-the-top.
+   */
+  | { kind: "proliferate" }
   | {
       kind: "infectiousBite";
       /** "Target creature you control deals damage equal to its power..." - target 0. */
@@ -1946,6 +1956,13 @@ export interface CardDefinition {
   /** "Delve" - each card exiled from your graveyard while casting this pays for {1}. See casting.ts. */
   delve?: boolean;
   /**
+   * "Storm (When you cast this spell, copy it for each spell cast before it this
+   * turn.)" - Radstorm. On cast, a copy of the spell is put on the stack for
+   * each spell already cast this turn (`state.spellsCastThisTurn`, read before
+   * this cast bumps it). See casting.ts.
+   */
+  storm?: boolean;
+  /**
    * Cleave: the effect used when the spell is cast for its cleave cost (its
    * `alternativeCost`), with the bracketed words removed - Dig Up's tutor
    * widens from a basic land to any card. Used in place of `castEffect`.
@@ -2163,6 +2180,14 @@ export interface StackObject {
   onlyIf?: TriggerCondition;
   /** What to put in the yes/no prompt for an `optional` trigger. */
   prompt?: string;
+  /**
+   * A copy of a spell (Storm, Sword of Wealth and Power), not a real card on the
+   * stack. It resolves like the spell it copies but ceases to exist afterwards
+   * rather than going to a graveyard - so `finishResolution` must not move the
+   * card `sourceInstanceId` still points at, which for a Storm copy is the
+   * original spell sitting lower on the same stack.
+   */
+  isCopy?: boolean;
 }
 
 /**
@@ -2671,6 +2696,13 @@ export interface GameState {
    * need the whole thing rewritten.
    */
   creatureDeathsThisTurn: number;
+  /**
+   * How many spells have been cast so far this turn, by anyone - Storm counts
+   * "each spell cast before it this turn". Incremented as each spell goes on the
+   * stack and reset in cleanup; the Storm spell reads it *before* its own cast
+   * bumps the count, so "before it" falls out for free.
+   */
+  spellsCastThisTurn: number;
   /**
    * A fog in force for the rest of this turn - Arachnogenesis. Null when there
    * is none, which is almost always. Cleared in the cleanup step.

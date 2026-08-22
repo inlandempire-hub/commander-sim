@@ -333,6 +333,7 @@ function runAutomaticStepActions(state: GameState): void {
       // does too. Cleanup rather than untap because a card could ask about it
       // during an opponent's end step, which is still this turn.
       state.creatureDeathsThisTurn = 0;
+      state.spellsCastThisTurn = 0;
       // "Prevent all combat damage ... this turn" ends with the turn.
       state.combatDamagePrevention = null;
       break;

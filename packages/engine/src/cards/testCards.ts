@@ -14098,6 +14098,26 @@ export const PSYCHIC_FROG: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Storm (When you cast this spell, copy it for each spell cast before it this
+ * turn.) Proliferate." - Radstorm.
+ *
+ * Storm is the `storm` flag read at cast time; the copies carry the same
+ * proliferate effect. Proliferate is the new effect, auto-taken over the
+ * beneficial subset of counters.
+ */
+export const RADSTORM: CardDefinition = {
+  id: "radstorm",
+  name: "Radstorm",
+  scryfallId: "d778cdec-8fc7-4174-bae1-4c8e8ccdfab3",
+  types: ["Instant"],
+  manaCost: { generic: 3, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  storm: true,
+  castEffect: { kind: "proliferate" },
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -15088,6 +15108,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     INFECTIOUS_BITE,
     STARWINDER,
     PSYCHIC_FROG,
+    RADSTORM,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

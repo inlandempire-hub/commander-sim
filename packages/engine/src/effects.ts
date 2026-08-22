@@ -1013,6 +1013,28 @@ export function applyEffect(
       }
       return;
     }
+    case "proliferate": {
+      /*
+       * "Give each another counter of each kind already there." Auto-taken over
+       * the beneficial subset: the controller's own permanents that carry
+       * +1/+1, loyalty or other counters, and poison on opponents. A -1/-1
+       * counter on your own creature is never a counter you would choose to add,
+       * so it is left alone; opponents' +1/+1 counters likewise.
+       */
+      for (const instance of controller.battlefield) {
+        if (instance.plusOneCounters > 0) instance.plusOneCounters += countersPlaced(state, instance, 1);
+        if (instance.loyalty > 0) instance.loyalty += 1;
+        if (instance.otherCounters > 0) instance.otherCounters += 1;
+      }
+      for (const player of state.players) {
+        if (player.id === controllerId || player.hasLost) continue;
+        if (player.poisonCounters > 0) {
+          player.poisonCounters += 1;
+          log(state, `${player.id} gets another poison counter (proliferate)`);
+        }
+      }
+      return;
+    }
     case "infectiousBite": {
       /*
        * targets[0] is the dealer (a creature you control), targets[1] the
