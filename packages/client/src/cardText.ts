@@ -968,6 +968,8 @@ function describeTriggerCondition(condition: TriggerCondition): string {
       return `if ${negateCondition(condition.condition)}`;
     case "board":
       return `if ${describeCondition(condition.condition)}`;
+    case "counters-or-hand-at-least":
+      return `if there are ${condition.count} or more counters on it or you have ${condition.count} or more cards in hand`;
   }
 }
 
@@ -1075,6 +1077,8 @@ function describeTrigger(
       return `Whenever ${castSubject(ability)} casts ${watchedSpell(ability.watchFor)}, ${tail}`;
     case "damaged":
       return `Whenever this creature is dealt damage, ${tail}`;
+    case "attack-with-two-or-more":
+      return `Whenever you attack with two or more creatures, ${tail}`;
     case "upkeep":
       return `At the beginning of ${whoseStep} upkeep, ${tail}`;
     case "first-main":

@@ -13966,6 +13966,50 @@ export const ECCENTRIC_PESTFINDER: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * "Your maximum hand size is twenty. Whenever you attack with two or more
+ * creatures, put a +1/+1 counter on this creature and draw a card. Whenever
+ * this creature attacks, you win the game if there are twenty or more counters
+ * on it or you have twenty or more cards in hand." - Twenty-Toed Toad.
+ *
+ * Three lines, three existing bones: a hand-size static (a raise, not the
+ * usual trim), a whole-declaration attack trigger that grows it and refills
+ * your hand, and a self-attack trigger whose intervening-if is the win. Both
+ * paths to twenty are one condition, checked again on resolution so a bounce in
+ * response takes the win with it.
+ */
+export const TWENTY_TOED_TOAD: CardDefinition = {
+  id: "twenty-toed-toad",
+  name: "Twenty-Toed Toad",
+  scryfallId: "1b3de0d8-5911-4743-8623-010f12c2055b",
+  types: ["Creature"],
+  subtypes: ["Frog", "Wizard"],
+  manaCost: { generic: 3, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 3,
+  toughness: 3,
+  staticRules: { setMaxHandSize: 20 },
+  triggeredAbilities: [
+    {
+      event: "attack-with-two-or-more",
+      watches: "controller",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "addCounter", amount: 1 },
+          { kind: "draw", amount: 1 },
+        ],
+      },
+    },
+    {
+      event: "attacks",
+      effect: { kind: "winGame" },
+      onlyIf: { kind: "counters-or-hand-at-least", count: 20 },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -14952,6 +14996,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     INUNDATED_ARCHIVE,
     WATERLOGGED_TEACHINGS,
     MIST_SYNDICATE_NAGA,
+    TWENTY_TOED_TOAD,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

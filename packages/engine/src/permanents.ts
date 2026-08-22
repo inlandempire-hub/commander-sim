@@ -591,6 +591,16 @@ export function triggerConditionMet(
       return !meetsBoardCondition(state, controllerId, condition.condition);
     case "board":
       return meetsBoardCondition(state, controllerId, condition.condition);
+    case "counters-or-hand-at-least": {
+      // Either threshold on its own wins the game for the toad. Hand size is
+      // asked first because it needs no source; the counters are read off the
+      // trigger's own permanent, and every kind of counter counts.
+      if (requirePlayer(state, controllerId).hand.length >= condition.count) return true;
+      if (!sourceInstanceId) return false;
+      const found = findInstance(state, sourceInstanceId);
+      if (!found || found.instance.zone !== "battlefield") return false;
+      return found.instance.plusOneCounters + found.instance.otherCounters >= condition.count;
+    }
   }
 }
 

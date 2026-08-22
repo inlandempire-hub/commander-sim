@@ -193,6 +193,24 @@ export function declareAttackers(state: GameState, playerId: string, declaration
     fireWatchers(state, "permanent-attacks", describeSubject(state, instance));
   }
 
+  /*
+   * "Whenever you attack with two or more creatures" - Twenty-Toed Toad.
+   *
+   * Once for the whole declaration, not once per attacker, so it is fired here
+   * after the per-attacker loop rather than inside it. Only when two or more
+   * were declared; a lone attacker leaves it silent. It reads the attacking
+   * player's own permanents, which is what "you attack" means.
+   */
+  if (declarations.length >= 2) {
+    for (const instance of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, instance)) {
+        if (trigger.event === "attack-with-two-or-more") {
+          pushTrigger(state, instance.instanceId, playerId, trigger);
+        }
+      }
+    }
+  }
+
   if (declarations.length > 0) {
     log(
       state,

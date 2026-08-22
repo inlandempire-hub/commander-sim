@@ -266,11 +266,17 @@ function runAutomaticStepActions(state: GameState): void {
       for (const player of state.players) {
         let limit = 7;
         let unlimited = false;
+        // "Your maximum hand size is twenty." - a set rather than a reduction, so
+        // it overrides the seven-and-min logic below. A later one on the
+        // battlefield wins, standing in for the timestamp rule.
+        let override: number | undefined;
         for (const instance of player.battlefield) {
           const rules = state.cardDefinitions[instance.definitionId]?.staticRules;
           if (rules?.noMaxHandSize) unlimited = true;
           if (rules?.maxHandSize !== undefined) limit = Math.min(limit, rules.maxHandSize);
+          if (rules?.setMaxHandSize !== undefined) override = rules.setMaxHandSize;
         }
+        if (override !== undefined) limit = override;
         if (unlimited) continue;
         while (player.hand.length > limit) {
           const last = player.hand[player.hand.length - 1]!;

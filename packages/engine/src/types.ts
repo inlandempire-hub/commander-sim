@@ -1224,6 +1224,15 @@ export type TriggerEvent =
    * decides whose creatures count. Fired from `dealCombatDamage`.
    */
   | "combat-damage-to-player"
+  /**
+   * "Whenever you attack with two or more creatures" - Twenty-Toed Toad.
+   *
+   * A controller-side event, not a per-attacker one: it asks about the whole
+   * declaration at once, so it fires once when its controller declares two or
+   * more attackers and not at all for a lone attacker. `watches` reads the
+   * controller of the permanent printing it. Fired from `declareAttackers`.
+   */
+  | "attack-with-two-or-more"
   | "upkeep"
   /**
    * "At the beginning of your first main phase" - the precombat main only.
@@ -1262,7 +1271,15 @@ export type TriggerCondition =
   /** Ophiomancer: "if you control no Snakes". A `BoardCondition` read as a negation. */
   | { kind: "not"; condition: BoardCondition }
   /** "if you control ten or more Treasures" - Revel in Riches. A `BoardCondition` read straight. */
-  | { kind: "board"; condition: BoardCondition };
+  | { kind: "board"; condition: BoardCondition }
+  /**
+   * "if there are twenty or more counters on it or you have twenty or more
+   * cards in hand" - Twenty-Toed Toad's win condition. Two thresholds at once,
+   * either of which is enough: the counters on the trigger's own source, and
+   * the cards in its controller's hand. An intervening-if, so it is checked
+   * again on resolution - the toad does not win if it is bounced in response.
+   */
+  | { kind: "counters-or-hand-at-least"; count: number };
 
 export interface TriggeredAbility {
   event: TriggerEvent;
@@ -1582,6 +1599,16 @@ export interface StaticRules {
   maxHandSize?: number;
   /** "You have no maximum hand size." - Reliquary Tower. Wins over any maxHandSize while it is in play. */
   noMaxHandSize?: boolean;
+  /**
+   * "Your maximum hand size is twenty." - Twenty-Toed Toad.
+   *
+   * Sets the limit to a specific number rather than trimming it: where
+   * `maxHandSize` is a reduction (Necrodominance's five, taken as the smaller of
+   * it and seven), this is a raise, and it overrides the base seven outright. A
+   * later one on the battlefield wins over an earlier, standing in for the
+   * timestamp the rules would use; `noMaxHandSize` still trumps it.
+   */
+  setMaxHandSize?: number;
   /**
    * "If you would draw a card while your library has no cards in it, you win the
    * game instead." - Laboratory Maniac. Checked when the empty-library draw
