@@ -123,10 +123,9 @@ body {
   padding: 6px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--detail-w);
-  /* Top bar, then one row per player. There used to be a fourth row between
-     them for the action bar; the buttons moved into the rail and the row went,
-     which is 64px of height handed back to the two boards. */
-  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
+  /* Top bar, opponent's board, the phase strip on the dividing line, then your
+     board. The phase strip is a thin auto row between the two 1fr boards. */
+  grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 6px;
 }
 
@@ -176,7 +175,84 @@ body {
 
 .side:not(.side--flipped) {
   grid-column: 1;
+  grid-row: 4;
+}
+
+/*
+ * The phase strip on the line dividing the two boards. A thin band the full
+ * width of the table, the turn's steps laid left to right with the current one
+ * lit. `.sidebar` still spans row 1 / -1 beside it.
+ */
+.phasebar {
+  grid-column: 1;
   grid-row: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(24, 30, 40, 0.95), rgba(14, 18, 25, 0.95));
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+  overflow: hidden;
+}
+.phasebar__turn {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  flex: 0 0 auto;
+  padding-right: 10px;
+  border-right: 1px solid var(--border);
+}
+.phasebar__turn-num {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.phasebar__turn-who {
+  color: var(--muted, #9aa7b8);
+  font-size: 11px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phasebar__steps {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.phasebar__step {
+  position: relative;
+  flex: 1 1 0;
+  text-align: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: var(--muted, #8a97a8);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.phasebar__step--active {
+  color: #fff;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent) inset;
+}
+.phasebar__substep {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--accent) 75%, #fff);
+  margin-top: 1px;
 }
 
 /*
@@ -1379,6 +1455,51 @@ body {
   height: 100%;
   object-fit: cover;
   pointer-events: none;
+}
+
+/*
+ * The live power/toughness pill overlaid on the full card face - the one thing
+ * the printed art can't show, sat over where the printed P/T is (bottom-right)
+ * so it reads as the current, authoritative value. Only on battlefield
+ * creatures; a card in hand shows its printed numbers and needs no pill.
+ */
+.card__pt-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  z-index: 2;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #fff;
+  background: rgba(8, 11, 16, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.card__pt-badge--grown {
+  border-color: #6cb35c;
+}
+.card__pt-badge--temp {
+  border-color: #d5a537;
+}
+.card__pt-badge--hurt {
+  border-color: #e0654a;
+}
+.card__pt-badge .card__counters {
+  color: #8fe08f;
+  font-weight: 700;
+}
+.card__pt-badge .card__damage {
+  color: #ff9a86;
+  font-weight: 700;
+}
+.card__pt-badge .card__shield {
+  color: #9ec9ff;
+  font-weight: 700;
 }
 
 .card__body {
