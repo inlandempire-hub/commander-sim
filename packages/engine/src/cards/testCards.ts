@@ -14193,6 +14193,42 @@ export const THUNDERTRAP_TRAINER: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Trample. This creature gets +10/+10 for each player who has lost the game.
+ * Whenever this creature deals combat damage to a player, you may mill that many
+ * cards. Put any number of land cards from among them onto the battlefield
+ * tapped." - Rampant Frogantua.
+ *
+ * Two new bones: a dynamic `selfBuff` (a count-times-ten read off the board
+ * every time its stats are, so it grows as players fall) and the
+ * millThenPlayLands combat trigger (mill the damage dealt, then put any of the
+ * milled lands out tapped).
+ */
+export const RAMPANT_FROGANTUA: CardDefinition = {
+  id: "rampant-frogantua",
+  name: "Rampant Frogantua",
+  scryfallId: "8549b26f-f1fb-42d2-b20d-987e6461d191",
+  types: ["Creature"],
+  subtypes: ["Frog"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 3,
+  keywords: ["Trample"],
+  selfBuff: {
+    power: { kind: "count", of: { what: "players-who-have-lost" }, times: 10 },
+    toughness: { kind: "count", of: { what: "players-who-have-lost" }, times: 10 },
+  },
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      optional: true,
+      effect: { kind: "millThenPlayLands", amount: { kind: "event-amount" } },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -15186,6 +15222,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     RADSTORM,
     SWORD_OF_WEALTH_AND_POWER,
     THUNDERTRAP_TRAINER,
+    RAMPANT_FROGANTUA,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

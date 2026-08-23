@@ -34,7 +34,9 @@ export function evaluateAmount(
   sourceInstanceId?: string,
 ): number {
   if (typeof amount === "number") return amount;
-  if (amount.kind === "count") return countOf(state, controllerId, amount.of, sourceInstanceId);
+  if (amount.kind === "count") {
+    return countOf(state, controllerId, amount.of, sourceInstanceId) * (amount.times ?? 1);
+  }
   /*
    * An unresolved X or event-amount reaching here means a fire site skipped
    * `resolveAmounts`. Loud, because the alternative is a board wipe that
@@ -101,6 +103,8 @@ function countOf(
       return player.lifeGainedThisTurn;
     case "opponents":
       return state.players.filter((p) => p.id !== controllerId && !p.hasLost).length;
+    case "players-who-have-lost":
+      return state.players.filter((p) => p.hasLost).length;
     case "creatures-attacking-you":
       // `state.attackers` maps an attacker to the player it is attacking, so
       // this is a count of the entries pointed at us - not of our creatures,

@@ -628,6 +628,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return "Proliferate.";
     case "lookTopMayTake":
       return `Look at the top ${effect.amount} cards of your library. You may reveal a noncreature, nonland card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.`;
+    case "millThenPlayLands":
+      return "You may mill that many cards. Put any number of land cards from among them onto the battlefield tapped.";
     case "copyNextInstantOrSorcery":
       return "When you next cast an instant or sorcery spell this turn, copy that spell.";
     case "infectiousBite": {
@@ -727,6 +729,8 @@ function describeCount(of: Countable): string {
       return "the amount of life you gained this turn";
     case "opponents":
       return "each opponent";
+    case "players-who-have-lost":
+      return "player who has lost the game";
     case "creatures-attacking-you":
       return "creature attacking you";
     case "half-library-round-up":

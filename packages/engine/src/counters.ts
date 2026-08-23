@@ -8,6 +8,7 @@ import type {
   TriggeredAbility,
 } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
+import { evaluateAmount } from "./amounts.js";
 
 /**
  * Whether a `staticBuff` printed on `source` reaches `candidate`.
@@ -228,8 +229,22 @@ export function effectivePower(state: GameState, instance: CardInstance): number
     instance.plusOneCounters -
     instance.minusOneCounters +
     instance.temporaryPowerBonus +
-    staticBuffFor(state, instance).power
+    staticBuffFor(state, instance).power +
+    selfBuffAmount(state, instance, "power")
   );
+}
+
+/**
+ * The dynamic self-buff (Rampant Frogantua's "+10/+10 for each player who has
+ * lost"), evaluated fresh against the board every time stats are read - which is
+ * the whole point, so it grows and shrinks as players do. Zero off the
+ * battlefield and for every creature without one.
+ */
+function selfBuffAmount(state: GameState, instance: CardInstance, which: "power" | "toughness"): number {
+  if (instance.zone !== "battlefield") return 0;
+  const buff = requireDefinition(state, instance.definitionId).selfBuff;
+  if (!buff) return 0;
+  return evaluateAmount(state, instance.controllerId, buff[which], "selfBuff", instance.instanceId);
 }
 
 /**
@@ -247,6 +262,7 @@ export function effectiveToughness(state: GameState, instance: CardInstance): nu
     instance.plusOneCounters -
     instance.minusOneCounters +
     instance.temporaryToughnessBonus +
-    staticBuffFor(state, instance).toughness
+    staticBuffFor(state, instance).toughness +
+    selfBuffAmount(state, instance, "toughness")
   );
 }

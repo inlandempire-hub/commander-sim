@@ -145,7 +145,16 @@ export type Amount =
    * is the single place that turns it into a number, and every handler that
    * takes an `Amount` goes through it.
    */
-  | { kind: "count"; of: Countable }
+  | {
+      kind: "count";
+      of: Countable;
+      /**
+       * "+10/+10 **for each** player who has lost the game" - Rampant Frogantua.
+       * The per-thing multiplier, so the count of things is scaled by it. One
+       * when omitted, which is every "for each ..." that adds a flat one apiece.
+       */
+      times?: number;
+    }
   /**
    * "...where X is the sacrificed creature's power" - Tend the Pests, and the
    * "if you do" half of Disciple of Freyalise.
@@ -206,7 +215,9 @@ export type Countable =
   /** "the amount of life you gained this turn" - Moseo, Vein's New Dean. */
   | { what: "life-gained-this-turn" }
   /** "For each opponent" - Turn Stones. One in a duel, three in a pod. */
-  | { what: "opponents" };
+  | { what: "opponents" }
+  /** "for each player who has lost the game" - Rampant Frogantua. Counts every player, not just opponents. */
+  | { what: "players-who-have-lost" };
 
 /**
  * How many things an effect points at.
@@ -787,6 +798,14 @@ export type Effect =
    * looked-at set.
    */
   | { kind: "lookTopMayTake"; amount: number; excludeTypes?: CardType[] }
+  /**
+   * "You may mill that many cards. Put any number of land cards from among them
+   * onto the battlefield tapped." - Rampant Frogantua. Mills `amount` (the
+   * combat damage dealt, an event-amount), then offers the milled *lands* to put
+   * onto the battlefield tapped, any number. Reuses `pendingCardChoices` with
+   * the to-battlefield mode.
+   */
+  | { kind: "millThenPlayLands"; amount: Amount }
   /**
    * "When you next cast an instant or sorcery spell this turn, copy that spell."
    * - Sword of Wealth and Power's combat trigger. Arms the controller's
@@ -1757,6 +1776,13 @@ export interface CardDefinition {
    * Anything that grants keywords, changes types, or depends on timestamps
    * still needs the real thing. See ROADMAP.md.
    */
+  /**
+   * "This creature gets +10/+10 for each player who has lost the game." -
+   * Rampant Frogantua. A buff on the creature *itself* whose size is read off
+   * the board every time its stats are, so it grows as players fall. Distinct
+   * from `staticBuff`, which is a fixed number a permanent hands to others.
+   */
+  selfBuff?: { power: Amount; toughness: Amount };
   staticBuff?: {
     power: number;
     toughness: number;
@@ -2368,6 +2394,8 @@ export interface PendingCardChoice {
    * the bottom"). The taken card is filtered out when this is applied.
    */
   restToBottom?: string[];
+  /** The to-battlefield chosen cards arrive tapped - Rampant Frogantua's lands. */
+  toBattlefieldTapped?: boolean;
   /**
    * Devour and Braids both count the chosen cards afterwards - one to place
    * counters, one to decide who was punished - so the source is carried rather

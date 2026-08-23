@@ -629,6 +629,36 @@ export function applyEffect(
       });
       return;
     }
+    case "millThenPlayLands": {
+      /*
+       * Mill that many, then offer the milled *lands* to put onto the
+       * battlefield tapped - Rampant Frogantua. The cards are in the graveyard
+       * by the time the choice is made, which is where "from among them" points.
+       */
+      const n = evaluateAmount(state, controllerId, effect.amount, "mill amount", sourceInstanceId);
+      const milled = controller.library.slice(0, n).map((c) => c.instanceId);
+      for (const id of milled) moveCard(state, id, "graveyard");
+      if (milled.length > 0) {
+        log(state, `${controllerId} mills ${milled.length} card${milled.length === 1 ? "" : "s"}`);
+      }
+      const lands = milled.filter((id) =>
+        requireDefinition(state, findInstance(state, id)!.instance.definitionId).types.includes("Land"),
+      );
+      if (lands.length === 0) return;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: lands,
+        min: 0,
+        max: lands.length,
+        mode: "to-battlefield",
+        toBattlefieldTapped: true,
+        prompt: `${cardName(state, sourceInstanceId)}: you may put any number of the milled lands onto the battlefield tapped`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
     case "castFreeFromHand": {
       const candidates = controller.hand.filter((card) => {
         const def = requireDefinition(state, card.definitionId);
@@ -1830,8 +1860,11 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
       moveCard(state, id, "hand");
       log(state, `${playerId} takes ${cardName(state, id)}`);
     } else if (pending.mode === "to-battlefield") {
-      putOntoBattlefield(state, id);
-      log(state, `${playerId} puts ${cardName(state, id)} onto the battlefield`);
+      putOntoBattlefield(state, id, { tapped: pending.toBattlefieldTapped });
+      log(
+        state,
+        `${playerId} puts ${cardName(state, id)} onto the battlefield${pending.toBattlefieldTapped ? " tapped" : ""}`,
+      );
     }
     // "cast-free" is handled below: it needs the caster, not the chooser, and
     // casting is not a zone move this function should be doing by hand.
