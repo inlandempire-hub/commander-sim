@@ -72,6 +72,10 @@ export function useNetworkGameController(serverUrl: string, myPlayerId: string):
         chosenX: options?.chosenX,
         sacrificeInstanceId: options?.sacrificeInstanceId,
         useAlternativeCost: options?.useAlternativeCost,
+        omniscienceFree: options?.omniscienceFree,
+        useWarp: options?.useWarp,
+        payOffspring: options?.payOffspring,
+        removeCounterFrom: options?.removeCounterFrom,
       }),
     activateAbility: (_playerId, instanceId, abilityIndex, targets, options) =>
       send({

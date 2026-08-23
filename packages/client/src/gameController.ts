@@ -26,6 +26,14 @@ export interface GameController {
       sacrificeInstanceId?: string;
       /** "You may cast this spell without paying its mana cost." */
       useAlternativeCost?: boolean;
+      /** Cast for free via an Omniscience-style permanent you control. */
+      omniscienceFree?: boolean;
+      /** Cast for the Warp cost (Starwinder); the creature leaves at the next end step. */
+      useWarp?: boolean;
+      /** Pay the Offspring cost (Thundertrap Trainer); a 1/1 token copy is made on ETB. */
+      payOffspring?: boolean;
+      /** Creatures the +1/+1 counters come off to cast this from the graveyard (Quilled Greatwurm). */
+      removeCounterFrom?: string[];
     },
   ): void;
   activateAbility(
