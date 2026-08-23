@@ -1,6 +1,6 @@
 import { ALL_COLORS, type CardInstance, type Color, type GameState, type ManaColor, type ManaCost, type ManaPool, type Player, type StackTarget } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
-import { abilityAvailable, addMana, applyCommanderTax, canPayManaCostFromPool, isFreeManaAbility, potentialAvailableMana } from "./mana.js";
+import { abilityAvailable, addMana, applyCommanderTax, canPayManaCostFromPool, isFreeManaAbility, payColoredPart, potentialAvailableMana } from "./mana.js";
 import { activateAbility } from "./abilities.js";
 import { castSpell, type CastOptions } from "./casting.js";
 import { costWithX } from "./x.js";
@@ -66,8 +66,76 @@ export function manaSources(state: GameState, player: Player): ManaSource[] {
 }
 
 /** Whether the player could pay `cost` if they tapped everything available, floating mana included. */
+/**
+ * Whether this player could pay `cost` by tapping what they have untapped.
+ *
+ * Not a flattened potential-mana pool, which double-counts a dual: a Hinterland
+ * Harbor lists a "{T}: add G" and a "{T}: add U" ability, and summing both said
+ * the land could make G *and* U from one tap. On a mono-colour manabase that
+ * never mattered; a two-colour deck full of duals over-promised its coloured
+ * pips, and the bot would propose a {4}{G}{G} it could not actually pay.
+ *
+ * So each source is one tap that makes one of its colours, and the coloured
+ * pips are matched to sources (a small bipartite matching) before the generic
+ * pips are covered from whatever is left. Colourless-only sources and floating
+ * generic pay the generic part only. Under-counting is safe here - the bot
+ * simply holds a spell - so an odd unsatisfiable matching errs that way.
+ */
 export function couldAfford(state: GameState, playerId: string, cost: ManaCost): boolean {
-  return canPayManaCostFromPool(potentialAvailableMana(state, playerId), cost);
+  const player = requirePlayer(state, playerId);
+
+  // Every mana we could make, each usable once. A unit's `colors` are the
+  // colours it can pay; empty means it pays only the generic part.
+  const units: Array<{ colors: Color[] }> = [];
+  for (const color of ALL_COLORS) {
+    for (let i = 0; i < (player.manaPool[color] ?? 0); i++) units.push({ colors: [color] });
+  }
+  for (let i = 0; i < (player.manaPool.generic ?? 0); i++) units.push({ colors: [] });
+  // Tap sources grouped by permanent - a dual's two abilities are one tap.
+  const byInstance = new Map<string, { amount: number; colors: Set<Color> }>();
+  for (const source of manaSources(state, player)) {
+    const group = byInstance.get(source.instance.instanceId) ?? { amount: source.amount, colors: new Set<Color>() };
+    if (source.color !== "C") group.colors.add(source.color);
+    group.amount = source.amount;
+    byInstance.set(source.instance.instanceId, group);
+  }
+  for (const group of byInstance.values()) {
+    for (let i = 0; i < group.amount; i++) units.push({ colors: [...group.colors] });
+  }
+
+  // The coloured pips (each one colour) and hybrid pips (any of a set).
+  const pips: Color[][] = [];
+  for (const color of ALL_COLORS) {
+    for (let i = 0; i < (cost.colors[color] ?? 0); i++) pips.push([color]);
+  }
+  for (const symbol of cost.hybrid ?? []) {
+    pips.push([...symbol]);
+  }
+
+  // Match coloured pips to units. Kuhn's algorithm: each pip claims a unit,
+  // bumping an earlier pip to another of its options where it can.
+  const unitForPip: number[] = new Array(pips.length).fill(-1);
+  const pipForUnit: number[] = new Array(units.length).fill(-1);
+  const canPay = (pip: Color[], unit: { colors: Color[] }) => unit.colors.some((c) => pip.includes(c));
+  const tryAssign = (pipIndex: number, seen: boolean[]): boolean => {
+    for (let u = 0; u < units.length; u++) {
+      if (seen[u] || !canPay(pips[pipIndex]!, units[u]!)) continue;
+      seen[u] = true;
+      if (pipForUnit[u] === -1 || tryAssign(pipForUnit[u]!, seen)) {
+        pipForUnit[u] = pipIndex;
+        unitForPip[pipIndex] = u;
+        return true;
+      }
+    }
+    return false;
+  };
+  for (let p = 0; p < pips.length; p++) {
+    if (!tryAssign(p, new Array(units.length).fill(false))) return false;
+  }
+
+  // Every coloured pip is covered; the rest of the units pay the generic part.
+  const unitsLeft = units.length - pips.length;
+  return unitsLeft >= cost.generic;
 }
 
 /**
@@ -104,8 +172,14 @@ function chooseSource(sources: ManaSource[], pool: ManaPool, cost: ManaCost): Ma
    * through to "anything untapped helps with the generic part" and start
    * tapping colourless rocks that can never pay it. Any colour named by a
    * hybrid symbol is worth having when the cost is still unpayable.
+   *
+   * But only while the hybrid is *not yet* coverable: once the pool can pay the
+   * whole coloured-and-hybrid part (payColoredPart succeeds), the shortfall is
+   * purely generic, and demanding a hybrid colour anyway would tap U/B sources
+   * to nothing and starve a {3}{U/B} of its three generic - the pool has the
+   * one U it needs and just wants three more lands of any kind.
    */
-  if (shortfallColors.length === 0 && cost.hybrid?.length) {
+  if (shortfallColors.length === 0 && cost.hybrid?.length && payColoredPart(pool, cost) === null) {
     for (const symbol of cost.hybrid) {
       for (const color of symbol) {
         if (!shortfallColors.includes(color)) shortfallColors.push(color);
@@ -113,13 +187,54 @@ function chooseSource(sources: ManaSource[], pool: ManaPool, cost: ManaCost): Ma
     }
   }
 
-  // A colourless source is never in shortfallColors, which is exactly right:
-  // it can only ever help with the generic part of a cost.
-  const useful =
-    shortfallColors.length > 0 ? sources.filter((s) => shortfallColors.includes(s.color)) : sources;
+  // Only the generic part is left: any untapped source helps, painless first.
+  if (shortfallColors.length === 0) {
+    return sources.find((s) => s.damageToController === 0) ?? sources[0] ?? null;
+  }
 
-  const painless = useful.find((s) => s.damageToController === 0);
-  return painless ?? useful[0] ?? sources[0] ?? null;
+  /*
+   * Pay the scarcest colour first, from the least flexible source that makes it.
+   *
+   * Tapping a dual (Temple of Deceit makes U or B) for a colour a basic could
+   * have made instead is how {1}{U}{B} failed with U from an Island still
+   * available: the dual got spent on U and there was nothing left for B. So
+   * count how many untapped permanents can make each needed colour, take the
+   * rarest, and pay it from a single-colour source before a dual - which keeps
+   * the flexible sources for the colours that have no other provider.
+   */
+  const instances = new Map<string, ManaSource[]>();
+  for (const source of sources) {
+    const list = instances.get(source.instance.instanceId) ?? [];
+    list.push(source);
+    instances.set(source.instance.instanceId, list);
+  }
+  const providerCount = (color: ManaColor): number =>
+    [...instances.values()].filter((entries) => entries.some((e) => e.color === color)).length;
+  // Only colours something untapped can actually make. A hybrid puts both of its
+  // colours in the shortfall, but only one of them needs a source - and if one
+  // half (say U) has no provider at all, targeting it makes no progress and
+  // there is nothing to tap. Nothing payable here means this source can't help.
+  const payable = shortfallColors.filter((color) => providerCount(color) > 0);
+  if (payable.length === 0) return null;
+  const targetColor = payable.sort((a, b) => providerCount(a) - providerCount(b))[0]!;
+
+  const makers = [...instances.values()].filter((entries) => entries.some((e) => e.color === targetColor));
+  makers.sort((a, b) => {
+    // A single-colour source before a dual, so duals are held for scarce colours.
+    const flexA = new Set(a.map((e) => e.color)).size;
+    const flexB = new Set(b.map((e) => e.color)).size;
+    if (flexA !== flexB) return flexA - flexB;
+    // Then a painless source before a painland.
+    const painA = a.some((e) => e.color === targetColor && e.damageToController === 0) ? 0 : 1;
+    const painB = b.some((e) => e.color === targetColor && e.damageToController === 0) ? 0 : 1;
+    return painA - painB;
+  });
+  const chosen = makers[0]!;
+  return (
+    chosen.find((e) => e.color === targetColor && e.damageToController === 0) ??
+    chosen.find((e) => e.color === targetColor) ??
+    null
+  );
 }
 
 /**

@@ -140,8 +140,28 @@ export function wouldDie(
 export function canBlock(state: GameState, blocker: CardInstance, attacker: CardInstance): boolean {
   if (blocker.tapped) return false;
   if (!isCreature(state, blocker)) return false;
-  if (!hasKeyword(state, attacker, "Flying")) return true;
-  return hasKeyword(state, blocker, "Flying") || hasKeyword(state, blocker, "Reach");
+  // The same evasion checks the engine's blockProblem enforces - kept in step so
+  // the bot never proposes a block the engine will throw out. (Menace is a
+  // whole-declaration rule and is not a single-pairing check, so it is not here.)
+  if (hasKeyword(state, attacker, "Unblockable")) return false;
+  if (hasKeyword(state, attacker, "Flying")) {
+    if (!hasKeyword(state, blocker, "Flying") && !hasKeyword(state, blocker, "Reach")) return false;
+  }
+  if (hasKeyword(state, attacker, "Fear")) {
+    const blockerDef = definitionOf(state, blocker);
+    const isArtifact = blockerDef?.types.includes("Artifact") ?? false;
+    const isBlack = (blockerDef?.manaCost?.colors?.B ?? 0) > 0;
+    if (!isArtifact && !isBlack) return false;
+  }
+  if (hasKeyword(state, attacker, "Nonbasic Landwalk")) {
+    const defender = state.players.find((p) => p.id === blocker.controllerId);
+    const controlsNonbasic = (defender?.battlefield ?? []).some((c) => {
+      const d = definitionOf(state, c);
+      return (d?.types.includes("Land") ?? false) && !(d?.supertypes ?? []).includes("Basic");
+    });
+    if (controlsNonbasic) return false;
+  }
+  return true;
 }
 
 /** Creatures that could legally be declared as attackers right now. */

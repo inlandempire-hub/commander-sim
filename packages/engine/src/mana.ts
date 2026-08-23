@@ -42,7 +42,7 @@ export function applyCommanderTax(cost: ManaCost, timesPreviouslyCast: number): 
  * exact for one symbol and can only ever be wrong in the safe direction - it
  * reports a cost unpayable, never payable when it is not.
  */
-function payColoredPart(pool: ManaPool, cost: ManaCost): ManaPool | null {
+export function payColoredPart(pool: ManaPool, cost: ManaCost): ManaPool | null {
   const remaining = { ...pool };
   for (const color of ALL_COLORS) {
     const need = cost.colors[color] ?? 0;

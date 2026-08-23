@@ -521,6 +521,14 @@ function useValueAbility(state: GameState, me: Player): BotAction | null {
        * is left out until the bot can tell that a creature is about to be lost.
        */
       if (ability.effect.kind === "regenerate") return false;
+      // A "discard a card" cost needs the bot to name which card, and its
+      // activate action carries none - so it is left out rather than proposed
+      // and thrown out. (Psychic Frog's +1/+1 pump.) Exile-from-graveyard costs
+      // are taken off the top by the engine and need no such choice.
+      if (ability.cost.discard) return false;
+      // "Exile N cards from your graveyard" is unpayable with fewer than N
+      // there - the engine throws, so don't offer it (Psychic Frog's flying).
+      if (ability.cost.exileFromGraveyard && me.graveyard.length < ability.cost.exileFromGraveyard) return false;
       if (!abilityAvailable(state, me.id, ability)) return false;
       return true;
     });

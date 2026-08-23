@@ -1,8 +1,11 @@
 import {
   activateAbilityWithAutoTap,
   castSpellWithAutoTap,
+  chooseTriggerTarget,
   declareAttackers,
   declareBlockers,
+  resolveCardChoice,
+  resolveDiscard,
   resolveSearch,
   resolveArrange,
   resolveModal,
@@ -38,6 +41,13 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
     case "castSpell":
       castSpellWithAutoTap(state, playerId, action.instanceId, action.targets, {
         fromCommandZone: action.fromCommandZone,
+        // These were dropped, so a bot casting for {X}, sacrificing to an
+        // additional cost, or taking an alternative cost (Flare of Denial's
+        // sacrifice-instead-of-mana) had its choice thrown away and the spell
+        // attempted at full price - which then "could not be afforded".
+        chosenX: action.chosenX,
+        sacrificeInstanceId: action.sacrificeInstanceId,
+        useAlternativeCost: action.useAlternativeCost,
       });
       return;
     case "activateAbility":
@@ -69,6 +79,21 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
       return;
     case "resolveConfirmation":
       resolveConfirmation(state, playerId, action.accept);
+      return;
+    /*
+     * These three were missing, so a bot answering a card choice, a discard or
+     * a triggered ability's target did nothing at all - the pending decision
+     * stayed put and the same action was proposed forever. The demo decks never
+     * raise them; the Felix deck (Windfall, Emergent Ultimatum, Bojuka Bog) does.
+     */
+    case "resolveCardChoice":
+      resolveCardChoice(state, playerId, action.instanceIds);
+      return;
+    case "resolveDiscard":
+      resolveDiscard(state, playerId, action.instanceId);
+      return;
+    case "chooseTriggerTarget":
+      chooseTriggerTarget(state, playerId, action.target);
       return;
     case "passPriority":
       passPriority(state, playerId);
