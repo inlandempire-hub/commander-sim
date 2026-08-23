@@ -1,0 +1,49 @@
+name: Deploy client to GitHub Pages
+
+# Builds the React client to a static bundle and publishes it to GitHub Pages.
+# The bundle is fully client-side (the bot opponent runs in the browser), so no
+# server is needed; card art is fetched from Scryfall's CDN at runtime, which a
+# normal web page is free to do.
+
+on:
+  push:
+    branches: [felix-five-boots, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push supersedes an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # tsc -b builds the engine and protocol dist the client bundles, then vite
+      # produces packages/client/dist.
+      - run: npm run build -w @mtg-commander-sim/client
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/client/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
