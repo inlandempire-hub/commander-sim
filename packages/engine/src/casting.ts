@@ -98,6 +98,13 @@ export interface CastOptions {
    */
   payOffspring?: boolean;
   /**
+   * Which creatures the +1/+1 counters come off to cast this from the graveyard
+   * (Quilled Greatwurm) - one instance id per counter removed, so a creature
+   * giving up two counters appears twice. Length must equal the card's
+   * `castFromGraveyard.removeCounters`.
+   */
+  removeCounterFrom?: string[];
+  /**
    * Cast this as a bestowed Aura for its bestow cost, attached to the creature
    * handed in as the target. It is still a creature card - it is simply not a
    * creature while it is attached to one.
@@ -207,8 +214,14 @@ export function castSpell(
     instance.warpedInExile === true &&
     !options.fromCommandZone &&
     !options.useWarp;
+  const def0 = requireDefinition(state, instance.definitionId);
+  // "You may cast this card from your graveyard by removing six counters..." -
+  // Quilled Greatwurm's own door into the graveyard, distinct from Warp's exile
+  // one and gated on the card carrying the permission.
+  const castingFromGraveyard =
+    instance.zone === "graveyard" && def0.castFromGraveyard !== undefined && !options.fromCommandZone;
   const expectedZone = options.fromCommandZone ? "command" : "hand";
-  if (!castingFromWarpExile && instance.zone !== expectedZone) {
+  if (!castingFromWarpExile && !castingFromGraveyard && instance.zone !== expectedZone) {
     throw new Error(`${instanceId} is not in ${playerId}'s ${expectedZone} zone`);
   }
   if (instance.ownerId !== playerId) {
@@ -300,6 +313,29 @@ export function castSpell(
       merged[color as keyof typeof merged] = (merged[color as keyof typeof merged] ?? 0) + (count ?? 0);
     }
     cost = { ...cost, generic: cost.generic + (def.offspring.cost.generic ?? 0), colors: merged };
+  }
+
+  /*
+   * Quilled Greatwurm's graveyard cost: remove N +1/+1 counters from among your
+   * creatures, one per entry in `removeCounterFrom`. Validated whole here, paid
+   * with the mana below - so an unaffordable cast takes no counters off first.
+   */
+  const removeCounterFrom = options.removeCounterFrom ?? [];
+  if (castingFromGraveyard) {
+    const need = def.castFromGraveyard!.removeCounters;
+    if (removeCounterFrom.length !== need) {
+      throw new Error(`${def.name} needs ${need} counters removed to cast from the graveyard`);
+    }
+    const perCreature = new Map<string, number>();
+    for (const id of removeCounterFrom) perCreature.set(id, (perCreature.get(id) ?? 0) + 1);
+    for (const [id, count] of perCreature) {
+      const creature = player.battlefield.find((c) => c.instanceId === id);
+      if (!creature) throw new Error(`${playerId} does not control ${id}`);
+      if (!requireDefinition(state, creature.definitionId).types.includes("Creature")) {
+        throw new Error(`${id} is not a creature`);
+      }
+      if (creature.plusOneCounters < count) throw new Error(`${id} does not have ${count} +1/+1 counters`);
+    }
   }
 
   // Delve: each card exiled from the graveyard pays for {1} of the generic cost.
@@ -448,6 +484,13 @@ export function castSpell(
     const life = typeof def.additionalCost.amount === "number" ? def.additionalCost.amount : chosenX;
     player.life -= life;
     log(state, `${playerId} pays ${life} life`);
+  }
+  if (castingFromGraveyard && removeCounterFrom.length > 0) {
+    for (const id of removeCounterFrom) {
+      const creature = player.battlefield.find((c) => c.instanceId === id);
+      if (creature) creature.plusOneCounters -= 1;
+    }
+    log(state, `${playerId} removes ${removeCounterFrom.length} +1/+1 counters to cast ${def.name} from their graveyard`);
   }
   if (sacrificeId) sacrificePermanent(state, sacrificeId);
   /*

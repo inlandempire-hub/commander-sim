@@ -14229,6 +14229,38 @@ export const RAMPANT_FROGANTUA: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Trample. Whenever a creature you control deals combat damage during your
+ * turn, put that many +1/+1 counters on it. You may cast this card from your
+ * graveyard by removing six counters from among creatures you control in
+ * addition to paying its other costs." - Quilled Greatwurm.
+ *
+ * Two new bones: the combat-damage-dealt watcher (any recipient, on your turn,
+ * counters onto the damager) and a cast-from-graveyard door whose additional
+ * cost is removing six +1/+1 counters spread across your creatures.
+ */
+export const QUILLED_GREATWURM: CardDefinition = {
+  id: "quilled-greatwurm",
+  name: "Quilled Greatwurm",
+  scryfallId: "31b60531-3d33-4e66-923a-29008716b15c",
+  types: ["Creature"],
+  subtypes: ["Wurm"],
+  manaCost: { generic: 4, colors: { G: 2 } },
+  colorIdentity: ["G"],
+  power: 7,
+  toughness: 7,
+  keywords: ["Trample"],
+  castFromGraveyard: { removeCounters: 6 },
+  triggeredAbilities: [
+    {
+      event: "combat-damage-dealt",
+      watches: "controller",
+      effect: { kind: "addCounter", amount: { kind: "event-amount" } },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -15223,6 +15255,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     SWORD_OF_WEALTH_AND_POWER,
     THUNDERTRAP_TRAINER,
     RAMPANT_FROGANTUA,
+    QUILLED_GREATWURM,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

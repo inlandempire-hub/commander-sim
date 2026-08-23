@@ -1094,6 +1094,10 @@ function describeTrigger(
       return `Whenever ${castSubject(ability)} casts ${watchedSpell(ability.watchFor)}, ${tail}`;
     case "damaged":
       return `Whenever this creature is dealt damage, ${tail}`;
+    case "combat-damage-dealt":
+      return `Whenever ${
+        ability.watches === "controller" ? "a creature you control" : "this creature"
+      } deals combat damage during your turn, ${tail}`;
     case "attack-with-two-or-more":
       return `Whenever you attack with two or more creatures, ${tail}`;
     case "upkeep":

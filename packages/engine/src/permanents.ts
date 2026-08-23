@@ -417,6 +417,37 @@ export function fireCombatDamageToPlayer(
 }
 
 /**
+ * "Whenever a creature you control deals combat damage during your turn, put
+ * that many +1/+1 counters on it." - Quilled Greatwurm.
+ *
+ * Fired once per damaging creature with the total it dealt this step, after the
+ * whole combat has been worked out. "During your turn" is the guard at the top:
+ * blockers deal their damage on the attacker's turn, so a defending player's
+ * Greatwurm never sees it. Felix's doubling is deliberately left off this one -
+ * it doubles triggers from combat damage *to a player*, and this event is wider.
+ */
+export function fireCombatDamageDealt(
+  state: GameState,
+  damagerInstanceId: string,
+  damagerControllerId: string,
+  amount: number,
+): void {
+  if (amount <= 0) return;
+  if (state.players[state.activePlayerIndex]?.id !== damagerControllerId) return;
+  for (const player of state.players) {
+    for (const watcher of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "combat-damage-dealt") continue;
+        const scope = trigger.watches;
+        if (scope === undefined && watcher.instanceId !== damagerInstanceId) continue;
+        if (scope === "controller" && watcher.controllerId !== damagerControllerId) continue;
+        pushTrigger(state, damagerInstanceId, watcher.controllerId, trigger, amount);
+      }
+    }
+  }
+}
+
+/**
  * "Whenever a land enters" - fired both by a land played for the turn and by
  * one put onto the battlefield some other way (a fetchland, a ramp spell).
  *

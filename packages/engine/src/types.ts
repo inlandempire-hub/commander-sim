@@ -1312,6 +1312,16 @@ export type TriggerEvent =
    */
   | "combat-damage-to-player"
   /**
+   * "Whenever a creature you control deals combat damage during your turn" -
+   * Quilled Greatwurm. Wider than `combat-damage-to-player`: it fires for combat
+   * damage dealt to anything (a blocker as well as a player), with the total a
+   * creature dealt this step carried as `{ kind: "event-amount" }` and the
+   * damaging creature as the trigger's source, so "put that many +1/+1 counters
+   * on it" lands on it. Only on the damager's own turn; `watches` decides whose
+   * creatures count. Fired from `dealCombatDamage`.
+   */
+  | "combat-damage-dealt"
+  /**
    * "Whenever you attack with two or more creatures" - Twenty-Toed Toad.
    *
    * A controller-side event, not a per-attacker one: it asks about the whole
@@ -1967,6 +1977,14 @@ export interface CardDefinition {
    * a creature.
    */
   warp?: { cost: ManaCost };
+  /**
+   * "You may cast this card from your graveyard by removing six counters from
+   * among creatures you control in addition to paying its other costs." -
+   * Quilled Greatwurm. The additional cost is `removeCounters` +1/+1 counters
+   * spread across the caster's creatures however they like, announced with the
+   * cast via `CastOptions.removeCounterFrom`. See casting.ts.
+   */
+  castFromGraveyard?: { removeCounters: number };
   /**
    * "Devour 1" - as this enters, you may sacrifice any number of creatures; it
    * enters with that many times this number of +1/+1 counters on it.

@@ -78,6 +78,7 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
         delveCount: message.delveCount,
         useWarp: message.useWarp,
         payOffspring: message.payOffspring,
+        removeCounterFrom: message.removeCounterFrom,
       });
       return;
     case "activateAbility":

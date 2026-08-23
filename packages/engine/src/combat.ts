@@ -4,7 +4,13 @@ import { gainLife } from "./life.js";
 import { effectivePower, effectiveToughness, effectiveTriggers, hasKeyword } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
 import { canPayManaCost, payManaCost } from "./mana.js";
-import { describeSubject, fireCombatDamageToPlayer, fireWatchers, pushTrigger } from "./permanents.js";
+import {
+  describeSubject,
+  fireCombatDamageDealt,
+  fireCombatDamageToPlayer,
+  fireWatchers,
+  pushTrigger,
+} from "./permanents.js";
 
 /**
  * Combat damage happens in two sub-steps once anything has First or Double
@@ -301,6 +307,17 @@ function combatDamageIsPrevented(state: GameState, instance: CardInstance): bool
 }
 
 export function dealCombatDamage(state: GameState, step: DamageStep = "regular"): void {
+  /*
+   * How much combat damage each creature dealt this step, to anything - Quilled
+   * Greatwurm's "deals combat damage during your turn" counts the lot, blockers
+   * included. Tallied across every damage site below and fired once per creature
+   * after the whole combat is worked out, so a trampler's blocker-and-player
+   * damage arrives as one number.
+   */
+  const dealtByCreature = new Map<string, number>();
+  const addDealt = (instanceId: string, n: number): void => {
+    if (n > 0) dealtByCreature.set(instanceId, (dealtByCreature.get(instanceId) ?? 0) + n);
+  };
   const blockersByAttacker = new Map<string, string[]>();
   for (const [blockerInstanceId, attackerInstanceId] of Object.entries(state.blockers)) {
     const list = blockersByAttacker.get(attackerInstanceId) ?? [];
@@ -356,6 +373,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       if (dealt > 0) {
         fireCombatDamageToPlayer(state, attackerInstanceId, attackerFound.instance.controllerId, dealt);
       }
+      addDealt(attackerInstanceId, dealt);
       continue;
     }
 
@@ -384,10 +402,12 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
         // trample does not get to carry the prevented damage through to the
         // player (rule 702.19b assigns against toughness, not against what
         // survives prevention).
-        preventedByBlockers += damageCreature(state, blockerFound.instance, assign, {
+        const toBlocker = damageCreature(state, blockerFound.instance, assign, {
           infect: hasKeyword(state, attackerFound.instance, "Infect"),
           deathtouch: attackerHasDeathtouch,
-        }).prevented;
+        });
+        preventedByBlockers += toBlocker.prevented;
+        addDealt(attackerInstanceId, toBlocker.dealt);
         remainingPower -= assign;
       }
 
@@ -405,6 +425,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       if (blockerHasLifelink && dealtToAttacker > 0) {
         gainLife(state, blockerFound.instance.controllerId, dealtToAttacker);
       }
+      addDealt(blockerFound.instance.instanceId, dealtToAttacker);
     }
     if (anyBlockerDeathtouchDamage) attackerFound.instance.deathtouchDamage = true;
 
@@ -421,6 +442,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       if (trampledThrough > 0) {
         fireCombatDamageToPlayer(state, attackerInstanceId, attackerFound.instance.controllerId, trampledThrough);
       }
+      addDealt(attackerInstanceId, trampledThrough);
     }
 
     if (attackerStrikesNow && attackerHasLifelink && power > 0) {
@@ -430,6 +452,16 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       const dealt = power - preventedByBlockers - (remainingPower - trampledThrough);
       if (dealt > 0) gainLife(state, attackerFound.instance.controllerId, dealt);
     }
+  }
+
+  /*
+   * "Whenever a creature you control deals combat damage during your turn" -
+   * fired once per damaging creature now that the totals are in, so a trampler
+   * that hit a blocker and a player grows by the sum rather than twice.
+   */
+  for (const [instanceId, total] of dealtByCreature) {
+    const found = findOnAnyBattlefield(state, instanceId);
+    if (found) fireCombatDamageDealt(state, instanceId, found.instance.controllerId, total);
   }
 }
 

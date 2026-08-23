@@ -36,8 +36,8 @@ DATA = Path(__file__).parent / "data" / "oracle-cards.jsonl.gz"
 MODELLED = {
     "enters-battlefield", "attacks", "dies", "landfall", "permanent-enters", "gain-life",
     "permanent-dies", "permanent-sacrificed", "permanent-attacks", "leaves-battlefield",
-    "spell-cast", "damaged", "combat-damage-to-player", "attack-with-two-or-more",
-    "upkeep", "first-main", "begin-combat", "end-step",
+    "spell-cast", "damaged", "combat-damage-to-player", "combat-damage-dealt",
+    "attack-with-two-or-more", "upkeep", "first-main", "begin-combat", "end-step",
 }
 
 
@@ -191,6 +191,12 @@ def classify(clause, card_name):
         return "damaged", None
     if re.search(r"is dealt damage", c):
         return None, "watches something else being dealt damage - not modelled"
+    # "Whenever a creature you control deals combat damage during your turn" -
+    # Quilled Greatwurm, and a real event since 2026-08-22. Wider than the
+    # to-a-player one below (it counts damage to a blocker too), so it is matched
+    # first on its own distinctive "during your turn" wording.
+    if re.search(r"deals combat damage during your turn", c):
+        return "combat-damage-dealt", None
     if re.search(r"deals combat damage to a player", c):
         return "combat-damage-to-player", None
     if re.search(r"deals damage", c):

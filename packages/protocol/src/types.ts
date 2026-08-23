@@ -37,6 +37,8 @@ export type ClientMessage =
       useWarp?: boolean;
       /** Pay the Offspring cost (Thundertrap Trainer); a 1/1 token copy is made on ETB. */
       payOffspring?: boolean;
+      /** Creatures the +1/+1 counters come off to cast this from the graveyard (Quilled Greatwurm). */
+      removeCounterFrom?: string[];
     }
   | {
       type: "activateAbility";
