@@ -322,6 +322,7 @@ export function castingCostOf(
   chosenX = 0,
   useWarp = false,
   payOffspring = false,
+  useAlternativeCost = false,
 ): ManaCost {
   const player = requirePlayer(state, playerId);
   const found = findInstance(state, instanceId);
@@ -330,6 +331,12 @@ export function castingCostOf(
   // Warp pays its own cost, so that is what auto-tap must reach for - the
   // printed cost would tap far too much and refuse an affordable warp.
   if (useWarp && def.warp) return def.warp.cost;
+  // The alternative cost replaces the mana cost outright - Dig Up's cleave
+  // {1}{B}{B}{G}, or a truly free one ({0}). Without this, auto-tap reached for
+  // the printed cost instead and left the alternative unpayable.
+  if (useAlternativeCost && def.alternativeCost) {
+    return def.alternativeCost.manaCost ?? EMPTY_COST;
+  }
   const printed = def.manaCost ?? EMPTY_COST;
   let cost = costWithX(printed, chosenX);
   // Offspring stacks its cost on top, so auto-tap has to reach for both.
@@ -436,6 +443,7 @@ export function castSpellWithAutoTap(
     options.chosenX ?? 0,
     options.useWarp,
     options.payOffspring,
+    options.useAlternativeCost,
   );
   withAutoTap(state, playerId, cost, () => castSpell(state, playerId, instanceId, targets, options));
 }
