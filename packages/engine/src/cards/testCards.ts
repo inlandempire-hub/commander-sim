@@ -14261,6 +14261,24 @@ export const QUILLED_GREATWURM: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Search your library for up to three monocolored cards with different names
+ * and exile them. An opponent chooses one of those cards. Shuffle that card into
+ * your library. You may cast the other cards without paying their mana costs.
+ * Exile Emergent Ultimatum." - the whole card as one bespoke effect, run across
+ * the caster's search and the opponent's pick (see effects.ts).
+ */
+export const EMERGENT_ULTIMATUM: CardDefinition = {
+  id: "emergent-ultimatum",
+  name: "Emergent Ultimatum",
+  scryfallId: "3a6a52ab-6d38-4429-9969-90064e615152",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { B: 2, G: 3, U: 2 } },
+  colorIdentity: ["B", "G", "U"],
+  castEffect: { kind: "emergentUltimatum" },
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -15256,6 +15274,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     THUNDERTRAP_TRAINER,
     RAMPANT_FROGANTUA,
     QUILLED_GREATWURM,
+    EMERGENT_ULTIMATUM,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

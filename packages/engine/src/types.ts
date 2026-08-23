@@ -807,6 +807,15 @@ export type Effect =
    */
   | { kind: "millThenPlayLands"; amount: Amount }
   /**
+   * "Search your library for up to three monocolored cards with different names
+   * and exile them. An opponent chooses one of those cards. Shuffle that card
+   * into your library. You may cast the other cards without paying their mana
+   * costs. Exile Emergent Ultimatum." - the whole card as one bespoke effect,
+   * run across two `pendingCardChoices` (the caster's search, then the
+   * opponent's pick). See effects.ts.
+   */
+  | { kind: "emergentUltimatum" }
+  /**
    * "When you next cast an instant or sorcery spell this turn, copy that spell."
    * - Sword of Wealth and Power's combat trigger. Arms the controller's
    * `copyNextInstantOrSorcery`; the copy is made by `castSpell` when they next
@@ -2394,7 +2403,7 @@ export interface PendingCardChoice {
   min: number;
   max: number;
   /** What happens to the chosen cards. */
-  mode: "sacrifice" | "cast-free" | "to-hand" | "to-library-top" | "to-battlefield";
+  mode: "sacrifice" | "cast-free" | "to-hand" | "to-library-top" | "to-battlefield" | "exile";
   /** A price paid only if something is chosen - Ripples of Undeath. */
   cost?: { mana?: ManaCost; life?: number };
   /**
@@ -2414,6 +2423,15 @@ export interface PendingCardChoice {
   restToBottom?: string[];
   /** The to-battlefield chosen cards arrive tapped - Rampant Frogantua's lands. */
   toBattlefieldTapped?: boolean;
+  /** "up to three ... with different names" - the chosen must have distinct names (Emergent Ultimatum). */
+  distinctNames?: boolean;
+  /**
+   * Which half of Emergent Ultimatum this choice is: "search" is the caster
+   * exiling up to three cards, "opponent-pick" is the opponent choosing one of
+   * them to shuffle back (the rest are then cast for free). Drives the bespoke
+   * follow-on in `resolveCardChoice`.
+   */
+  emergentStep?: "search" | "opponent-pick";
   /**
    * Devour and Braids both count the chosen cards afterwards - one to place
    * counters, one to decide who was punished - so the source is carried rather

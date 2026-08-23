@@ -659,6 +659,35 @@ export function applyEffect(
       });
       return;
     }
+    case "emergentUltimatum": {
+      /*
+       * "Exile Emergent Ultimatum." Done first so the sorcery lands in exile
+       * rather than the graveyard finishResolution would otherwise send it to -
+       * it is off the stack either way, and this is the zone the card names.
+       */
+      moveCard(state, sourceInstanceId, "exile");
+      // "up to three monocolored cards" - exactly one colour in the mana cost;
+      // colourless and multicolour cards need not apply.
+      const candidates = controller.library.filter((card) => {
+        const colors = requireDefinition(state, card.definitionId).manaCost?.colors ?? {};
+        return Object.values(colors).filter((n) => (n ?? 0) > 0).length === 1;
+      });
+      if (candidates.length === 0) return;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: candidates.map((c) => c.instanceId),
+        min: 0,
+        max: 3,
+        mode: "exile",
+        distinctNames: true,
+        emergentStep: "search",
+        prompt: `${cardName(state, sourceInstanceId)}: search for up to three monocolored cards with different names and exile them`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
     case "castFreeFromHand": {
       const candidates = controller.hand.filter((card) => {
         const def = requireDefinition(state, card.definitionId);
@@ -1828,6 +1857,11 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
   for (const id of instanceIds) {
     if (!pending.candidateInstanceIds.includes(id)) throw new Error("That card was not offered");
   }
+  // "with different names" - Emergent Ultimatum's search may not take two copies.
+  if (pending.distinctNames) {
+    const names = instanceIds.map((id) => requireDefinition(state, findInstance(state, id)!.instance.definitionId).name);
+    if (new Set(names).size !== names.length) throw new Error("The chosen cards must have different names");
+  }
 
   const player = requirePlayer(state, playerId);
   let chosen = [...instanceIds];
@@ -1854,8 +1888,34 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
 
   state.pendingCardChoices.shift();
 
+  /*
+   * Emergent Ultimatum's second half: the opponent has chosen one of the exiled
+   * cards. Shuffle it into the caster's library, then the caster casts the rest
+   * for free. Handled here, ahead of the generic mode loop, because none of the
+   * exiled cards move the way any mode would - one goes to a library, the others
+   * to the stack from exile.
+   */
+  if (pending.emergentStep === "opponent-pick") {
+    const casterId = pending.effectControllerId;
+    const picked = chosen[0];
+    if (picked) {
+      moveCard(state, picked, "library");
+      shuffleLibrary(state, casterId);
+      log(state, `${playerId} shuffles ${cardName(state, picked)} into ${casterId}'s library`);
+    }
+    for (const id of pending.candidateInstanceIds) {
+      if (id === picked) continue;
+      castFromExileForFree(state, casterId, id);
+    }
+    return;
+  }
+
   for (const id of chosen) {
     if (pending.mode === "sacrifice") sacrificePermanent(state, id);
+    else if (pending.mode === "exile") {
+      moveCard(state, id, "exile");
+      log(state, `${playerId} exiles ${cardName(state, id)}`);
+    }
     else if (pending.mode === "to-hand") {
       moveCard(state, id, "hand");
       log(state, `${playerId} takes ${cardName(state, id)}`);
@@ -1900,6 +1960,32 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
     for (const id of rest) moveCard(state, id, "library");
     if (rest.length > 0) {
       log(state, `${playerId} puts ${rest.length} card${rest.length === 1 ? "" : "s"} on the bottom of their library`);
+    }
+  }
+
+  /*
+   * Emergent Ultimatum's first half is done: the searched cards are exiled.
+   * Searching shuffles the library, and then an opponent is asked to choose one
+   * of the exiled cards to shuffle back. Nothing more to do if the caster took
+   * nothing.
+   */
+  if (pending.emergentStep === "search") {
+    shuffleLibrary(state, pending.effectControllerId);
+    if (chosen.length > 0) {
+      const opponent = state.players.find((p) => p.id !== pending.effectControllerId && !p.hasLost);
+      if (opponent) {
+        state.pendingCardChoices.unshift({
+          playerId: opponent.id,
+          effectControllerId: pending.effectControllerId,
+          sourceInstanceId: pending.sourceInstanceId,
+          candidateInstanceIds: chosen,
+          min: 1,
+          max: 1,
+          mode: "exile",
+          emergentStep: "opponent-pick",
+          prompt: `${cardName(state, pending.sourceInstanceId)}: choose a card to shuffle into ${pending.effectControllerId}'s library`,
+        });
+      }
     }
   }
 
@@ -1988,6 +2074,32 @@ function castForFree(state: GameState, playerId: string, instanceId: string): vo
   state.priorityPlayerIndex = state.players.findIndex((p) => p.id === playerId);
   try {
     castSpell(state, playerId, instanceId, targets, { free: true });
+  } finally {
+    state.priorityPlayerIndex = priorityBefore;
+  }
+}
+
+/**
+ * "You may cast the other cards without paying their mana costs." - Emergent
+ * Ultimatum, casting from exile. Moved to hand first (the suspend trick) because
+ * `castSpell`'s free path starts there; timing is ignored, since this is part of
+ * a resolution rather than a fresh priority window.
+ */
+function castFromExileForFree(state: GameState, playerId: string, instanceId: string): void {
+  const found = findInstance(state, instanceId);
+  if (!found || found.instance.zone !== "exile") return;
+  const def = requireDefinition(state, found.instance.definitionId);
+  const selector = targetSelectorOf(def.castEffect ?? { kind: "draw", amount: 0 });
+  const targets = selector ? legalTargetsFor(state, selector, playerId).slice(0, 1) : [];
+  if (selector && targets.length === 0) return;
+  // A land is not cast; it is simply left in exile (the card says "cast", and a
+  // land among the exiled ones has no way to be played from here).
+  if (def.types.includes("Land")) return;
+  moveCard(state, instanceId, "hand");
+  const priorityBefore = state.priorityPlayerIndex;
+  state.priorityPlayerIndex = state.players.findIndex((p) => p.id === playerId);
+  try {
+    castSpell(state, playerId, instanceId, targets, { free: true, ignoreTiming: true });
   } finally {
     state.priorityPlayerIndex = priorityBefore;
   }

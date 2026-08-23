@@ -630,6 +630,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Look at the top ${effect.amount} cards of your library. You may reveal a noncreature, nonland card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.`;
     case "millThenPlayLands":
       return "You may mill that many cards. Put any number of land cards from among them onto the battlefield tapped.";
+    case "emergentUltimatum":
+      return "Search your library for up to three monocolored cards with different names and exile them. An opponent chooses one of those cards. Shuffle that card into your library. You may cast the other cards without paying their mana costs. Exile this spell.";
     case "copyNextInstantOrSorcery":
       return "When you next cast an instant or sorcery spell this turn, copy that spell.";
     case "infectiousBite": {
