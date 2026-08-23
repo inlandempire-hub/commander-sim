@@ -174,6 +174,97 @@ export const MIKE_DECK: DeckList = {
 };
 
 /**
+ * The Felix Five-Boots Sultai (BUG) deck - every non-basic card is one this
+ * engine represents exactly (built card by card on the `felix-five-boots`
+ * branch, all verified by audit_fixtures.py). The 66 non-basics are the deck's
+ * real spells and nonbasic lands; the manabase is topped up to 99 with basics
+ * split across the three colours, which is the one approximation here - the
+ * exact basic-land split from the paper list is not reconstructed.
+ */
+const FELIX_NONBASICS = [
+  "an-offer-you-cant-refuse",
+  "arbor-elf",
+  "arcane-denial",
+  "arcane-signet",
+  "baleful-strix",
+  "blasphemous-edict",
+  "bojuka-bog",
+  "brainstorm",
+  "culling-ritual",
+  "cultivate",
+  "death-begets-life",
+  "demonic-bargain",
+  "demonic-counsel",
+  "dig-up",
+  "dispel",
+  "drown-in-the-loch",
+  "emergent-ultimatum",
+  "emet-selch-unsundered",
+  "fabricate",
+  "fallaji-archaeologist",
+  "flare-of-denial",
+  "flare-of-malice",
+  "foreboding-landscape",
+  "gitaxian-probe",
+  "glen-elendras-answer",
+  "glissa-sunslayer",
+  "growth-spiral",
+  "halimar-depths",
+  "hinterland-harbor",
+  "infectious-bite",
+  "laboratory-maniac",
+  "lavaspur-boots",
+  "lorien-revealed",
+  "mishras-bauble",
+  "mist-syndicate-naga",
+  "necropolis-regent",
+  "omniscience",
+  "opulent-palace",
+  "peer-into-the-abyss",
+  "ponder",
+  "prologue-to-phyresis",
+  "propaganda",
+  "psychic-frog",
+  "quilled-greatwurm",
+  "radstorm",
+  "rampant-frogantua",
+  "reliquary-tower",
+  "revel-in-riches",
+  "shadowmage-infiltrator",
+  "silent-hallcreeper",
+  "starwinder",
+  "step-through",
+  "swiftfoot-boots",
+  "sword-of-wealth-and-power",
+  "temple-of-deceit",
+  "temple-of-malady",
+  "thundertrap-trainer",
+  "time-stretch",
+  "trailblazers-boots",
+  "traverse-the-ulvenwald",
+  "twenty-toed-toad",
+  "waterlogged-teachings",
+  "windfall",
+  "winged-boots",
+  "you-are-already-dead",
+  "zephyr-boots",
+];
+
+/** The basics that top the manabase to 99, split across Felix's three colours. */
+const FELIX_BASICS = [
+  ...repeat("forest", 11),
+  ...repeat("island", 11),
+  ...repeat("swamp", 99 - FELIX_NONBASICS.length - 22),
+];
+
+export const FELIX_DECK: DeckList = {
+  commanderId: "felix-five-boots",
+  libraryIds: [...FELIX_NONBASICS, ...FELIX_BASICS],
+};
+
+export const FELIX_PILOT = "Felix Pilot";
+
+/**
  * Whether players get to look at their opening hand and send it back.
  *
  * Off by default, and that is deliberate rather than lazy: a headless test or

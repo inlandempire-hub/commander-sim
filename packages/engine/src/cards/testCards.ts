@@ -11746,6 +11746,7 @@ export const FELIX_FIVE_BOOTS: CardDefinition = {
   keywords: ["Menace", "Ward"],
   wardCost: { generic: 2, colors: {} },
   staticRules: { extraCombatDamageToPlayerTrigger: true },
+  canBeCommander: true,
   tier: "scripted",
 };
 
