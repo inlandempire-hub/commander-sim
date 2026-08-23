@@ -109,7 +109,18 @@ def clauses(card):
                 continue
             if re.match(r"^(When|Whenever|At the beginning|At end of)\b", s, re.I):
                 found.append(s)
-    return found
+    # "Whenever X enters or attacks, ..." is one printed sentence but two
+    # triggers, and the engine models it as two - Emet-Selch. Split it so each
+    # half classifies on its own rather than the pair reading as one wrong event.
+    expanded = []
+    for c in found:
+        m = re.match(r"^(Whenever .*?) enters or attacks(,.*)$", c, re.I)
+        if m:
+            expanded.append("%s enters%s" % (m.group(1), m.group(2)))
+            expanded.append("%s attacks%s" % (m.group(1), m.group(2)))
+        else:
+            expanded.append(c)
+    return expanded
 
 
 def watched_noun(clause):
@@ -138,8 +149,14 @@ def classify(clause, card_name):
     useful half of a "missing trigger" report.
     """
     c = clause.lower()
-    # "Soul Warden" in older templating, "this creature" in newer.
-    self_ref = r"(this creature|this permanent|this artifact|this enchantment|%s)" % re.escape(card_name.lower())
+    # "Soul Warden" in older templating, "this creature" in newer. A card also
+    # refers to itself by the name before its comma - "Whenever Emet-Selch ..."
+    # on a card titled "Emet-Selch, Unsundered" - so that short form counts too.
+    short_name = card_name.lower().split(",")[0]
+    self_ref = r"(this creature|this permanent|this artifact|this enchantment|%s|%s)" % (
+        re.escape(card_name.lower()),
+        re.escape(short_name),
+    )
 
     # Turn-based triggers became real events on 2026-08-10 (Deathreap Ritual).
     # The draw step is deliberately still not one: no card in the pool wants

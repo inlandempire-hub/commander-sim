@@ -659,6 +659,18 @@ export function applyEffect(
       });
       return;
     }
+    case "transform": {
+      // "you may transform Emet-Selch." Flip the source to its back face in
+      // place - same instance, so counters and damage are untouched; only the
+      // definition it points at changes.
+      const source = findInstance(state, sourceInstanceId);
+      if (!source || source.instance.zone !== "battlefield") return;
+      const front = requireDefinition(state, source.instance.definitionId);
+      if (!front.backFaceId) return;
+      source.instance.definitionId = front.backFaceId;
+      log(state, `${controllerId} transforms ${front.name} into ${requireDefinition(state, front.backFaceId).name}`);
+      return;
+    }
     case "emergentUltimatum": {
       /*
        * "Exile Emergent Ultimatum." Done first so the sorcery lands in exile

@@ -632,6 +632,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return "You may mill that many cards. Put any number of land cards from among them onto the battlefield tapped.";
     case "emergentUltimatum":
       return "Search your library for up to three monocolored cards with different names and exile them. An opponent chooses one of those cards. Shuffle that card into your library. You may cast the other cards without paying their mana costs. Exile this spell.";
+    case "transform":
+      return "Transform this creature.";
     case "copyNextInstantOrSorcery":
       return "When you next cast an instant or sorcery spell this turn, copy that spell.";
     case "infectiousBite": {
@@ -1020,6 +1022,8 @@ function negateCondition(condition: BoardCondition): string {
       return `there are fewer than ${condition.count} creatures on the battlefield`;
     case "card-types-in-graveyard":
       return `there are fewer than ${condition.count} card types among cards in your graveyard`;
+    case "cards-in-graveyard":
+      return `there are fewer than ${condition.count} cards in your graveyard`;
   }
 }
 
@@ -1174,6 +1178,8 @@ function describeCondition(condition: BoardCondition): string {
       return `there are ${condition.count} or more creatures on the battlefield`;
     case "card-types-in-graveyard":
       return `there are ${condition.count} or more card types among cards in your graveyard`;
+    case "cards-in-graveyard":
+      return `there are ${condition.count} or more cards in your graveyard`;
   }
 }
 

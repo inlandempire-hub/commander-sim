@@ -14279,6 +14279,70 @@ export const EMERGENT_ULTIMATUM: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Hades, Sorcerer of Eld" - Emet-Selch's back face. A 6/6 with vigilance whose
+ * two static lines are the payoff: playing lands from your graveyard on your
+ * turn (the "play cards from your graveyard" clause, modelled for lands - the
+ * documented simplification, since casting nonland spells from the graveyard is
+ * its own subsystem), and the graveyard-to-exile replacement it shares with
+ * Necrodominance. `isBackFace`, so it is never cast or found on its own.
+ */
+export const HADES_SORCERER_OF_ELD: CardDefinition = {
+  id: "hades-sorcerer-of-eld",
+  name: "Hades, Sorcerer of Eld",
+  scryfallId: "75cf4eb8-33e7-4dfc-b890-a7e3b5c1b9d5",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Avatar"],
+  colorIdentity: ["B", "U"],
+  power: 6,
+  toughness: 6,
+  keywords: ["Vigilance"],
+  isBackFace: true,
+  staticRules: { playLandsFromGraveyard: true },
+  replacementEffects: [{ kind: "graveyard-to-exile" }],
+  tier: "scripted",
+};
+
+/**
+ * "Emet-Selch, Unsundered // Hades, Sorcerer of Eld." The front is a 2/4 with
+ * vigilance that loots as it enters or attacks, and transforms in your upkeep
+ * once your graveyard has grown to fourteen. Transform swaps it to `backFaceId`
+ * in place; a one-way flip.
+ */
+export const EMET_SELCH_UNSUNDERED: CardDefinition = {
+  id: "emet-selch-unsundered",
+  name: "Emet-Selch, Unsundered",
+  scryfallId: "75cf4eb8-33e7-4dfc-b890-a7e3b5c1b9d5",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Elder", "Wizard"],
+  manaCost: { generic: 1, colors: { U: 1, B: 1 } },
+  colorIdentity: ["B", "U"],
+  power: 2,
+  toughness: 4,
+  keywords: ["Vigilance"],
+  backFaceId: "hades-sorcerer-of-eld",
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "sequence", effects: [{ kind: "draw", amount: 1 }, { kind: "discard", amount: 1, who: "self" }] },
+    },
+    {
+      event: "attacks",
+      effect: { kind: "sequence", effects: [{ kind: "draw", amount: 1 }, { kind: "discard", amount: 1, who: "self" }] },
+    },
+    {
+      event: "upkeep",
+      watches: "controller",
+      optional: true,
+      onlyIf: { kind: "board", condition: { kind: "cards-in-graveyard", count: 14 } },
+      effect: { kind: "transform" },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     MOUNTAIN,
@@ -15275,6 +15339,8 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     RAMPANT_FROGANTUA,
     QUILLED_GREATWURM,
     EMERGENT_ULTIMATUM,
+    EMET_SELCH_UNSUNDERED,
+    HADES_SORCERER_OF_ELD,
     SILENT_HALLCREEPER,
     GITAXIAN_PROBE,
     GLISSA_SUNSLAYER,

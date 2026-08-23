@@ -816,6 +816,12 @@ export type Effect =
    */
   | { kind: "emergentUltimatum" }
   /**
+   * "you may transform Emet-Selch" - turns the source over in place to its back
+   * face (`backFaceId`), a one-way flip in this deck. The same permanent, so its
+   * counters and damage ride along; only its printed characteristics change.
+   */
+  | { kind: "transform" }
+  /**
    * "When you next cast an instant or sorcery spell this turn, copy that spell."
    * - Sword of Wealth and Power's combat trigger. Arms the controller's
    * `copyNextInstantOrSorcery`; the copy is made by `castSpell` when they next
@@ -1149,6 +1155,8 @@ export type BoardCondition =
   | { kind: "creatures-on-battlefield"; count: number }
   /** Delirium: "four or more card types among cards in your graveyard" - Traverse the Ulvenwald. Distinct types. */
   | { kind: "card-types-in-graveyard"; count: number }
+  /** "if there are fourteen or more cards in your graveyard" - Emet-Selch. A plain count of your graveyard. */
+  | { kind: "cards-in-graveyard"; count: number }
   /**
    * "you control a Swamp or a Forest" - Woodland Cemetery, Wastewood Verge.
    * `count` defaults to 1, and any one of the listed subtypes qualifies.
