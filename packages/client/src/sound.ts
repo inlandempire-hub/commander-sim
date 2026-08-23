@@ -42,7 +42,11 @@ export type Cue =
   | "mana"
   | "refuse";
 
-const SFX = "/sfx";
+// import.meta.env.BASE_URL is "/" in dev and whatever the build was given
+// (e.g. "/commander-sim/" for GitHub Pages), and always ends in a slash. The
+// sound files are the one committed asset served from public/, so their paths
+// have to follow the base or they 404 when the app is hosted under a subpath.
+const SFX = `${import.meta.env.BASE_URL}sfx`;
 
 const slides = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `${SFX}/card-slide-${n}.ogg`);
 const places = [1, 2, 3, 4].map((n) => `${SFX}/card-place-${n}.ogg`);

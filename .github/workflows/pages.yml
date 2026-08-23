@@ -1,0 +1,65 @@
+# Builds the web client and publishes it to GitHub Pages.
+#
+# GitHub does the build from a fresh checkout of the repo, which matters for
+# more than convenience: the repo deliberately does NOT contain Wizards of the
+# Coast artwork (mana symbols, card backs, fonts are all gitignored - see the
+# .gitignore and CLAUDE.md's copyright posture). A local `dist` would sweep in
+# whatever art happens to sit in your working copy's public/ folder; this build
+# starts clean and ships none of it. The app draws its own fallbacks for those,
+# and card pictures are hotlinked from Scryfall at runtime rather than bundled.
+#
+# The site lands at https://inlandempire-hub.github.io/commander-sim/ - a
+# project page under a subpath, which is why the client is built with
+# --base=/commander-sim/ so every asset URL carries that prefix.
+#
+# Only bot mode, the deck builder and the card lab work here: two-player network
+# play needs the WebSocket server (packages/server), which static hosting can't
+# run.
+name: Deploy web client to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: read the code, write the Pages deployment, and mint the
+# short-lived token deploy-pages needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push supersedes an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # The client reads the other packages from their built output, so they
+      # are built first, in dependency order.
+      - run: npm run build -w @mtg-commander-sim/engine
+      - run: npm run build -w @mtg-commander-sim/protocol
+      - run: npm run build -w @mtg-commander-sim/bot
+      - run: npm run build -w @mtg-commander-sim/client -- --base=/commander-sim/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/client/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
