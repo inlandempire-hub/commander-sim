@@ -133,8 +133,12 @@ export function CardView({
   // and stays that way permanently if it never does - offline, a token with no
   // printing, a URL Scryfall has retired. The text card is the one that has to
   // work; the art is decoration on top of it.
+  // The whole printed card - border, art and text box - not just an art crop.
+  // The board used to draw its own frame around the illustration; now the real
+  // card face is shown and only the live state the print can't know (current
+  // power/toughness, damage, counters) is overlaid on top.
   const overrides = useArtOverrides(instance.ownerId);
-  const artUrl = cardArtUrl(definition, "art_crop", overrides);
+  const artUrl = cardArtUrl(definition, "normal", overrides);
   const [artFailed, setArtFailed] = useState(false);
   const showArt = artUrl !== undefined && !artFailed;
 
@@ -258,40 +262,63 @@ export function CardView({
           onError={() => setArtFailed(true)}
         />
       )}
-      <div className="card__body">
-        <div className="card__header">
-          <span className="card__name">{definition.name}</span>
-          {showCost && <ManaCostView cost={definition.manaCost} size={10} className="card__cost" />}
+      {showArt ? (
+        /*
+         * The printed card already shows its name, cost, type and rules text, so
+         * the only thing overlaid on the full face is what the print cannot know:
+         * a battlefield creature's current power/toughness after anthems, the
+         * counters and damage on it, and any prevention shield. A small pill in
+         * the bottom-left, where the printed P/T sits, so it reads as an update
+         * to it rather than as separate clutter.
+         */
+        isCreature &&
+        onBattlefield && (
+          <span
+            className={[
+              "card__pt-badge",
+              temporary ? "card__pt-badge--temp" : "",
+              instance.damageMarked > 0 ? "card__pt-badge--hurt" : "",
+              instance.plusOneCounters > 0 ? "card__pt-badge--grown" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {power}/{toughness}
+            {instance.plusOneCounters > 0 && <span className="card__counters"> (+{instance.plusOneCounters})</span>}
+            {instance.damageMarked > 0 && <span className="card__damage"> -{instance.damageMarked}</span>}
+            {instance.damagePrevention > 0 && <span className="card__shield"> ⛨{instance.damagePrevention}</span>}
+          </span>
+        )
+      ) : (
+        <div className="card__body">
+          <div className="card__header">
+            <span className="card__name">{definition.name}</span>
+            {showCost && <ManaCostView cost={definition.manaCost} size={10} className="card__cost" />}
+          </div>
+          <div className="card__type">{typeLine(definition)}</div>
+          <div className="card__footer">
+            {isCreature && (
+              <span className="card__pt">
+                {power}/{toughness}
+                {instance.plusOneCounters > 0 && <span className="card__counters"> (+{instance.plusOneCounters})</span>}
+                {temporary && (
+                  <span className="card__counters">
+                    {" "}
+                    ({signed(instance.temporaryPowerBonus)}/{signed(instance.temporaryToughnessBonus)} EOT)
+                  </span>
+                )}
+                {instance.damageMarked > 0 && <span className="card__damage"> (-{instance.damageMarked})</span>}
+                {instance.damagePrevention > 0 && (
+                  <span className="card__shield"> (shield {instance.damagePrevention})</span>
+                )}
+              </span>
+            )}
+            {definition.keywords?.length ? (
+              <span className="card__keywords">{definition.keywords.join(", ")}</span>
+            ) : null}
+          </div>
         </div>
-        {/* With art there is no room for a type line or keyword list, and no
-            need - the detail panel reads out the whole card on hover. */}
-        {!showArt && <div className="card__type">{typeLine(definition)}</div>}
-        <div className="card__footer">
-          {isCreature && (
-            <span className="card__pt">
-              {power}/{toughness}
-              {instance.plusOneCounters > 0 && <span className="card__counters"> (+{instance.plusOneCounters})</span>}
-              {temporary && (
-                // Until-end-of-turn pumps, shown separately from permanent counters.
-                <span className="card__counters">
-                  {" "}
-                  ({signed(instance.temporaryPowerBonus)}/{signed(instance.temporaryToughnessBonus)} EOT)
-                </span>
-              )}
-              {instance.damageMarked > 0 && <span className="card__damage"> (-{instance.damageMarked})</span>}
-              {/* Shown on the P/T line rather than as a badge because that is
-                  where the reader is already looking to work out whether this
-                  creature survives combat, and the shield is part of that sum. */}
-              {instance.damagePrevention > 0 && (
-                <span className="card__shield"> (shield {instance.damagePrevention})</span>
-              )}
-            </span>
-          )}
-          {!showArt && definition.keywords?.length ? (
-            <span className="card__keywords">{definition.keywords.join(", ")}</span>
-          ) : null}
-        </div>
-      </div>
+      )}
       {badge && <div className="card__badge">{badge}</div>}
       {hit && (
         <span className="card__hit-number" key={hit.key}>

@@ -21,6 +21,7 @@ import {
 } from "@mtg-commander-sim/engine";
 import type { GameController } from "./gameController.js";
 import { PlayerBoard } from "./components/PlayerBoard.js";
+import { PhaseBar } from "./components/PhaseBar.js";
 import {
   MAX_VOLUME,
   cueForLogLine,
@@ -1281,6 +1282,9 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
         {topPlayers.map((player) => (
           <PlayerBoard key={player.id} flipped hideHand={!revealAllHands} {...boardProps(player)} />
         ))}
+
+        {/* The turn's phase strip, on the line that divides the two boards. */}
+        <PhaseBar state={state} activePlayerId={activePlayer.id} />
 
         {/* The controls ride in the gap under the bottom seat's command zone -
             see ActionBar. Concede goes in the rail instead, above the piles,
