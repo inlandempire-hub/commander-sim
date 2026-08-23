@@ -1,4 +1,5 @@
 import type { DeckList } from "./commander.js";
+import { FELIX_DECK } from "./demoGame.js";
 
 /**
  * Pre-built archetype decks, one per colour, for the bot to pilot and for
@@ -438,6 +439,13 @@ export const ARCHETYPES: Archetype[] = [
     name: "Tidewall (mono-blue)",
     plan: "Counter anything that matters, block what resolves anyway, draw cards, and win in the air.",
     deck: build("caelorna-coral-tyrant", BLUE_NONLANDS, "island"),
+  },
+  {
+    // The hand-built Sultai deck - every non-basic card the engine represents
+    // exactly. Selectable in the client with ?deck=felix.
+    name: "Felix Five-Boots (Sultai)",
+    plan: "Grind card advantage behind counters and removal, then close with Felix's doubled combat triggers or a Twenty-Toed Toad / Laboratory Maniac win.",
+    deck: FELIX_DECK,
   },
 ];
 
