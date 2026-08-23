@@ -34,6 +34,10 @@ jobs:
       # produces packages/client/dist.
       - run: npm run build -w @mtg-commander-sim/client
       - uses: actions/configure-pages@v5
+        # Turn Pages on automatically where the plan allows it, so no manual
+        # Settings step is needed once the repo can host Pages at all.
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: packages/client/dist
