@@ -69,6 +69,21 @@ Client changes: `App.tsx` no longer talks to the engine directly - it depends on
 - No spectators, no chat, no lobby UI for picking a seat - you edit the URL by hand.
 - The bot (Phase 4) will plug into the exact same server/action-API shape as a third kind of "client" - no rework anticipated there per CLAUDE.md's architecture.
 
+**Playing over the internet (the settled plan - no code change needed):** the server
+listens on `ws://localhost:8787`, so out of the box two players have to be on the same
+machine or the same LAN. The agreed way to play across the internet without building
+cloud hosting, a lobby, or port-forwarding is a **virtual-LAN / mesh-VPN app that both
+players install** - **Tailscale** is the chosen tool (ZeroTier and the older Hamachi are
+the same idea). Both install it and join the same private network; one player runs
+`npm run dev -w @mtg-commander-sim/server`, and the other connects to the host's Tailscale
+address in place of `localhost`. It makes two computers anywhere behave as if plugged into
+the same home network, so the existing LAN-only server "just works" between them with zero
+new code. The client already supports this: the server address is a `?server=` URL parameter
+(`main.tsx`, defaults to `ws://localhost:8787`), so the joining player just uses e.g.
+`?mode=network&seat=mike&server=ws://100.x.y.z:8787` with the host's Tailscale address - no
+code edit at all. This is deliberately preferred over standing up a public cloud-hosted
+server, which the static GitHub Pages site cannot run anyway.
+
 ## Phase 4 — Bot
 - [x] Heuristic bot (efficient mana use, attack when favorable, block to survive) — no full game-tree search — DONE (2026-07-31), see "Heuristic bot" below
 - [x] A handful of pre-built archetype decks, picked at random per game — DONE (2026-07-31), now **five** decks in `packages/engine/src/archetypes.ts`, one per colour. Control (Tidewall, mono-blue) arrived once the engine got counterspells and card draw — see "Spells, counterspells, and a control deck" below.
