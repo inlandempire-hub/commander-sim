@@ -54,6 +54,9 @@ See [ROADMAP.md](ROADMAP.md) for build phases and current status.
 - [docs/SETUP.md](docs/SETUP.md) — running it from a fresh clone. **Note the engine must be built (`npm run build -w @mtg-commander-sim/engine`) before the client/server/bot can resolve it** — a fresh clone has no `dist/`.
 - [docs/TESTING.md](docs/TESTING.md) — running and writing tests, plus the four things that reliably trip people up (priority, mana pools, bot player order, resolving the stack).
 - [docs/ADDING-CARDS.md](docs/ADDING-CARDS.md) — **read before touching `testCards.ts`.** Every card must be looked up in the Scryfall data first and represented exactly; never write a fixture from memory, and never approximate a card the effect DSL can't express.
+- [docs/BRANCHING.md](docs/BRANCHING.md) — **read before starting a new deck or any branch.** A deck branch changes card *data* only; engine changes land on `main` first. This is the rule that keeps two people's work from colliding (see the felix-five-boots merge).
 
 ## Collaboration note
 This repo may be worked on simultaneously by multiple people. This file is meant to give any Claude Code session (yours or a collaborator's) full context on the project's intent and constraints without re-deriving them from scratch — keep it up to date as decisions change.
+
+**Branch discipline:** a new-deck branch changes card *data* only (`testCards.ts` additions, `archetypes.ts`, the deck's own lab/test/decklist files); engine changes go to `main` first, one capability at a time. This keeps parallel work from colliding on the shared engine core. See [docs/BRANCHING.md](docs/BRANCHING.md) for the full workflow and the reasoning behind it.
