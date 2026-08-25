@@ -306,6 +306,12 @@ export function activateAbility(
    * has different answers depending on the first.
    */
   chosenMode?: number,
+  /**
+   * Choices announced with the activation because they are part of the cost -
+   * which cards to discard for Psychic Frog's "Discard a card", paid on
+   * activation the way a spell's sacrifice cost is.
+   */
+  options: { discardInstanceIds?: string[] } = {},
 ): void {
   const found = findInstance(state, instanceId);
   if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
@@ -387,6 +393,25 @@ export function activateAbility(
     // rule, and it is why this is `<` rather than `<=`.
     throw new Error(`${playerId} cannot pay ${ability.cost.payLife} life`);
   }
+  // "Discard a card" - the chosen cards, validated whole before anything is
+  // paid: exactly as many as the cost names, each actually in this player's
+  // hand. Announced with the activation because a cost is paid on activation.
+  const discardIds = options.discardInstanceIds ?? [];
+  if (ability.cost.discard !== undefined) {
+    if (discardIds.length !== ability.cost.discard) {
+      throw new Error(`${def.name} requires ${ability.cost.discard} card(s) to discard`);
+    }
+    for (const id of discardIds) {
+      if (!player.hand.some((c) => c.instanceId === id)) {
+        throw new Error(`${playerId} cannot discard ${id} - it is not in hand`);
+      }
+    }
+  }
+  // "Exile N cards from your graveyard" - taken from the top, so all that is
+  // checked is that there are enough.
+  if (ability.cost.exileFromGraveyard !== undefined && player.graveyard.length < ability.cost.exileFromGraveyard) {
+    throw new Error(`${def.name} needs ${ability.cost.exileFromGraveyard} cards in the graveyard`);
+  }
 
   // Through `tapPermanent`, so City of Brass hurts its controller for the mana.
   if (ability.cost.tap) tapPermanent(state, instance);
@@ -394,6 +419,18 @@ export function activateAbility(
   if (ability.cost.payLife !== undefined) {
     player.life -= ability.cost.payLife;
     log(state, `${playerId} pays ${ability.cost.payLife} life`);
+  }
+  if (ability.cost.discard !== undefined) {
+    for (const id of discardIds) {
+      const discarded = findInstance(state, id)!;
+      log(state, `${playerId} discards ${requireDefinition(state, discarded.instance.definitionId).name}`);
+      moveCard(state, id, "graveyard");
+    }
+  }
+  if (ability.cost.exileFromGraveyard !== undefined) {
+    const exiled = player.graveyard.slice(0, ability.cost.exileFromGraveyard).map((c) => c.instanceId);
+    for (const id of exiled) moveCard(state, id, "exile");
+    log(state, `${playerId} exiles ${exiled.length} card${exiled.length === 1 ? "" : "s"} from their graveyard`);
   }
   /*
    * The sacrifice happens here, as part of the cost, and that ordering is the

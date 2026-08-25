@@ -166,6 +166,9 @@ export type Keyword =
   | "Haste"
   | "Vigilance"
   | "Menace"
+  | "Fear"
+  | "Nonbasic Landwalk"
+  | "Unblockable"
   | "Reach"
   | "Defender"
   | "Hexproof"
@@ -263,7 +266,11 @@ export interface ManaCost {
    * It counts 1 towards mana value however it is paid.
    */
   hybrid?: Color[][];
-  /** One entry per Phyrexian symbol - see the note above. */
+  /**
+   * Phyrexian pips - "{U/P}" is one entry, `"U"`, payable with that colour or 2
+   * life. Modelled as always paid with life (how Gitaxian Probe is played); a
+   * client could offer the mana instead. Counts 1 towards mana value.
+   */
   phyrexian?: Color[];
   /**
    * How many {X} symbols the cost prints. One for The Meathook Massacre
@@ -325,7 +332,16 @@ export type Amount =
    * is the single place that turns it into a number, and every handler that
    * takes an `Amount` goes through it.
    */
-  | { kind: "count"; of: Countable }
+  | {
+      kind: "count";
+      of: Countable;
+      /**
+       * "+10/+10 **for each** player who has lost the game" - Rampant Frogantua.
+       * The per-thing multiplier, so the count of things is scaled by it. One
+       * when omitted, which is every "for each ..." that adds a flat one apiece.
+       */
+      times?: number;
+    }
   /**
    * "...where X is the sacrificed creature's power" - Tend the Pests, and the
    * "if you do" half of Disciple of Freyalise.
@@ -397,6 +413,14 @@ export type Countable =
   /** "equal to the number of creature cards in your graveyard" - Grist. */
   | { what: "creature-cards-in-your-graveyard" }
   /**
+   * "half the number of cards in their library ... round up" - Peer into the
+   * Abyss. Counts the reference player's library, which for a `who: "target"`
+   * effect is the target, so the amount is read against whoever is drawing.
+   */
+  | { what: "half-library-round-up" }
+  /** "loses half their life ... round up" - Peer into the Abyss. */
+  | { what: "half-life-round-up" }
+  /**
    * "for each counter on this creature" - Twitching Doll, which counts *nest*
    * counters. Reads the +1/+1 pile and `otherCounters` together, because
    * "counters on it" on a real card means all of them.
@@ -441,7 +465,9 @@ export type Countable =
    * from `creatures` above, which counts the board: Rabblemaster's own tokens
    * sitting at home are not part of its number.
    */
-  | { what: "attacking-creatures"; subtype?: string; excludeSource?: boolean };
+  | { what: "attacking-creatures"; subtype?: string; excludeSource?: boolean }
+  /** "for each player who has lost the game" - Rampant Frogantua. Counts every player, not just opponents. */
+  | { what: "players-who-have-lost" };
 
 /**
  * How many things an effect points at.
@@ -469,13 +495,9 @@ export type TargetSelector =
       kind: "creature";
       subtypes?: string[];
       /**
-       * "target creature **you control**" - Kiki-Jiki and Rionya.
-       *
-       * A real restriction rather than decoration, and in the other direction
-       * from the usual one: a Kiki-Jiki that could copy an opponent's creature
-       * is a materially better card, and one that could copy a creature it does
-       * not control is not the card printed. Left off, this means any creature
-       * on the table, which is what every other card using the selector says.
+       * "target creature **you control**" - Kiki-Jiki and Rionya; also
+       * "**you don't control**" - Infectious Bite names one of each. Omitted
+       * means any creature, which is what every other card using the selector says.
        */
       controlledBy?: "you" | "opponent";
       /**
@@ -497,10 +519,19 @@ export type TargetSelector =
        * Rionya, which is a combo the card does not have.
        */
       excludeSource?: boolean;
+      /** "target creature that was **dealt damage this turn**" - You Are Already Dead. */
+      damagedThisTurn?: boolean;
+      /** Cap the target's mana value by the mana value of a card in the controller's graveyard - Drown in the Loch. */
+      maxMvFromControllerGraveyard?: boolean;
     }
   | { kind: "player"; count?: TargetCount }
   | { kind: "opponent-of-controller" }
-  /** "Target spell" - a spell on the stack, as opposed to a triggered or activated ability. */
+  /**
+   * "Target spell" - a spell on the stack, as opposed to a triggered or
+   * activated ability. `spellType`/`notSpellType` narrow it to a card type, which
+   * is how "target instant spell" (Dispel) and "target noncreature spell" are told
+   * apart from a plain "target spell".
+   */
   | {
       kind: "spell";
       /**
@@ -522,6 +553,11 @@ export type TargetSelector =
        * Elemental Blast would be castable with no blue spell on the stack.
        */
       color?: Color;
+      /** "target **instant** spell" (Dispel), "target **noncreature** spell". */
+      spellType?: CardType;
+      notSpellType?: CardType;
+      /** Cap the spell's mana value by a card in the controller's graveyard - Drown in the Loch. */
+      maxMvFromControllerGraveyard?: boolean;
     }
   /**
    * "Target land", "Target artifact", "Target noncreature artifact or
@@ -542,6 +578,8 @@ export type TargetSelector =
        * engine learns a new card type.
        */
       cardTypes?: CardType[];
+      /** "target Forest" - narrows to permanents with one of these subtypes. */
+      subtypes?: string[];
       /**
        * "target permanent **an opponent controls**" (Assassin's Trophy), or
        * "target creature or enchantment **you control**" (Alseid of Life's
@@ -710,7 +748,14 @@ export type Effect =
    * resolve - "draw cards equal to the greatest power among non-Human
    * creatures you control".
    */
-  | { kind: "draw"; amount: Amount }
+  | { kind: "draw"; amount: Amount; who?: "target" }
+  /**
+   * "... at the beginning of the next turn's upkeep" - Arcane Denial, Mishra's
+   * Bauble. Queues `effect` to run then, for the controller or for each
+   * opponent (Arcane Denial's "its controller may draw", which in a two-player
+   * game is the one opponent).
+   */
+  | { kind: "atNextUpkeep"; who: "controller" | "each-opponent"; effect: Effect }
   | { kind: "addMana"; color: ManaColor; amount: number }
   /**
    * One activation producing mana of more than one colour - "Add {B}{G}", the
@@ -803,6 +848,88 @@ export type Effect =
    * `attemptedDrawFromEmptyLibrary`.
    */
   | { kind: "mill"; amount: Amount }
+  /**
+   * "Exile the top N cards of your library" - Demonic Bargain. The same move as
+   * mill, one zone over: the cards leave the library for exile rather than the
+   * graveyard, and like mill it takes whatever is there and stops if the library
+   * is shorter than N.
+   */
+  | { kind: "exileTop"; amount: Amount }
+  /**
+   * "Target player takes N extra turns after this one." - Time Stretch. Queues
+   * the turns onto `GameState.extraTurns`, taken before the turn order rotates
+   * on. Player-count-agnostic: the queue is drained in order regardless of how
+   * many players there are.
+   */
+  | { kind: "extraTurn"; count: number; target: TargetSelector }
+  /**
+   * "You may put a land card from your hand onto the battlefield." - Growth
+   * Spiral. An optional extra land that does not use the turn's land drop; the
+   * choice reuses the card-choice picker with a to-battlefield mode.
+   */
+  | { kind: "putLandFromHand" }
+  /**
+   * "Each player discards their hand, then draws cards equal to the greatest
+   * number of cards a player discarded this way." - Windfall. One bespoke step
+   * because the draw count is read from the hands as they were before anyone
+   * discarded, which no general discard/draw pair records.
+   */
+  | { kind: "windfall" }
+  /** "{T}: Untap target Forest." - Arbor Elf. Untaps one targeted permanent. */
+  | { kind: "untap"; target: TargetSelector }
+  /** "Return two target creatures to their owners' hands" - Step Through. Bounces each targeted permanent. */
+  | { kind: "returnToHand"; target: TargetSelector }
+  /** "you win the game" - Revel in Riches. Every opponent loses. */
+  | { kind: "winGame" }
+  /** "Look at target player's hand" - Gitaxian Probe. Information only; no game state changes. */
+  | { kind: "lookAtHand"; target: TargetSelector }
+  /** "This creature becomes a copy of another target creature you control" - Silent Hallcreeper. */
+  | { kind: "becomeCopy"; target: TargetSelector }
+  /** "Remove up to N counters from target permanent" - Glissa Sunslayer. Takes +1/+1 counters first, then others. */
+  | { kind: "removeCounter"; amount: number; target: TargetSelector }
+  /**
+   * "Counter all spells your opponents control and all abilities your opponents
+   * control" - Glen Elendra's Answer. `tokenPerCountered` makes one token for
+   * each object actually countered.
+   */
+  | { kind: "counterAll"; tokenPerCountered?: string }
+  /**
+   * "Destroy all creatures and enchantments" - a wrath. Every permanent of one
+   * of `cardTypes`, optionally only nonlands (`nonland`) or up to a mana value
+   * (`maxManaValue`), goes through the ordinary destroy path so indestructible,
+   * regeneration and dies triggers all apply. `thenDraw` draws one card per
+   * permanent actually destroyed (Death Begets Life).
+   */
+  | {
+      kind: "destroyAll";
+      cardTypes: CardType[];
+      nonland?: boolean;
+      maxManaValue?: number;
+      thenDraw?: boolean;
+      /**
+       * "Add {B} or {G} for each permanent destroyed this way" - Culling Ritual.
+       * One mana per permanent destroyed, spread as evenly as possible across
+       * these colours. A simplification: the printed card lets the player choose
+       * each pip's colour.
+       */
+      manaPerDestroyed?: Color[];
+    }
+  /**
+   * "Look at the top N cards of your library, then put them back in any order"
+   * - Halimar Depths, and Ponder (which adds `mayShuffle` and a follow-up
+   * draw). Distinct from scry: every card goes back on top, none to the bottom,
+   * so the only choice is the ordering. Stops resolution and asks, exactly like
+   * a search - see `PendingArrange` and `resolveArrange`.
+   */
+  | { kind: "lookAndArrange"; amount: number; mayShuffle?: boolean }
+  /**
+   * "Put N cards from your hand on top of your library in any order" -
+   * Brainstorm's second half. Stops and asks which cards (and in what order),
+   * riding on `PendingCardChoice` with the `to-library-top` mode: the chosen
+   * cards go on top in the order named, first-named on top. `count` is a
+   * ceiling - a hand shorter than N puts back only what it has.
+   */
+  | { kind: "putFromHandOnTop"; count: number }
   /**
    * "Look at the top N cards of your library. You may put any of them on the
    * bottom" - scry, as printed on Path of Ancestry.
@@ -974,6 +1101,12 @@ export type Effect =
       kind: "createToken";
       count: Amount;
       tokenDefinitionId: string;
+      /**
+       * "For each opponent, create a token..." - one token per opponent, as
+       * opposed to `attacking: "each-opponent"` which also aims each at its own
+       * player. Used by Dan's Felix cards for the plain per-opponent count.
+       */
+      forController?: "each-opponent";
       /**
        * "...that's tapped and attacking" - Ainok Strike Leader, Anim Pakal,
        * Myrel, and every other attack trigger that adds to the combat it fired
@@ -1189,9 +1322,97 @@ export type Effect =
        * the player is chosen when the ability goes on the stack and may
        * legally be yourself.
        */
-      who: "each-opponent" | "target";
+      who: "each-opponent" | "target" | "self";
       /** Required when `who` is `"target"`, and meaningless otherwise. */
       target?: TargetSelector;
+    }
+  /**
+   * "Each opponent gets a poison counter" - Prologue to Phyresis. Poison is
+   * already tracked per player (Infect deals it, ten of them is a loss via a
+   * state-based action); this is the other way a player gets it, an effect
+   * rather than damage. Shaped like `loseLife` because the choice of who is the
+   * same one - each opponent, or a chosen target.
+   */
+  | {
+      kind: "poison";
+      amount: Amount;
+      who: "each-opponent" | "target";
+      target?: TargetSelector;
+    }
+  /**
+   * "Target creature you control deals damage equal to its power to target
+   * creature you don't control. Each opponent gets a poison counter." -
+   * Infectious Bite.
+   *
+   * The one effect in the pool with two targets that are not the same kind of
+   * thing: a creature you control that deals the damage, and one you don't that
+   * takes it. They cannot be a `count: 2` on one selector, because "you
+   * control" and "you don't control" are opposite requirements - so this
+   * carries a selector for each, validated positionally (`dealer` first). The
+   * poison is folded in rather than chained through a `sequence`, so the whole
+   * card is one effect and needs no target-sharing across steps.
+   */
+  /**
+   * "Proliferate. (Choose any number of permanents and/or players, then give
+   * each another counter of each kind already there.)" - Radstorm.
+   *
+   * The real card is a free choice of any subset. Modelled as the beneficial
+   * subset - the controller's own +1/+1, loyalty and other counters, and poison
+   * on opponents - since there is no counter-choice UI and this deck only ever
+   * wants those. A documented simplification, like Delve's take-from-the-top.
+   */
+  | { kind: "proliferate" }
+  /**
+   * "Look at the top four cards of your library. You may reveal a noncreature,
+   * nonland card from among them and put it into your hand. Put the rest on the
+   * bottom of your library in a random order." - Thundertrap Trainer.
+   *
+   * Look at `amount`, take up to one that is none of `excludeTypes`, and the
+   * rest go to the bottom (in library order rather than a fresh shuffle - a
+   * documented simplification, the order of face-down cards nobody sees). Reuses
+   * `pendingCardChoices` for the "may take", with `restToBottom` carrying the
+   * looked-at set.
+   */
+  | { kind: "lookTopMayTake"; amount: number; excludeTypes?: CardType[] }
+  /**
+   * "You may mill that many cards. Put any number of land cards from among them
+   * onto the battlefield tapped." - Rampant Frogantua. Mills `amount` (the
+   * combat damage dealt, an event-amount), then offers the milled *lands* to put
+   * onto the battlefield tapped, any number. Reuses `pendingCardChoices` with
+   * the to-battlefield mode.
+   */
+  | { kind: "millThenPlayLands"; amount: Amount }
+  /**
+   * "Search your library for up to three monocolored cards with different names
+   * and exile them. An opponent chooses one of those cards. Shuffle that card
+   * into your library. You may cast the other cards without paying their mana
+   * costs. Exile Emergent Ultimatum." - the whole card as one bespoke effect,
+   * run across two `pendingCardChoices` (the caster's search, then the
+   * opponent's pick). See effects.ts.
+   */
+  | { kind: "emergentUltimatum" }
+  /**
+   * "you may transform Emet-Selch" - turns the source over in place to its back
+   * face (`backFaceId`), a one-way flip in this deck. The same permanent, so its
+   * counters and damage ride along; only its printed characteristics change.
+   */
+  | { kind: "transform" }
+  /**
+   * "When you next cast an instant or sorcery spell this turn, copy that spell."
+   * - Sword of Wealth and Power's combat trigger. Arms the controller's
+   * `copyNextInstantOrSorcery`; the copy is made by `castSpell` when they next
+   * cast one. New targets for the copy are a documented simplification - it
+   * copies with the same targets.
+   */
+  | { kind: "copyNextInstantOrSorcery" }
+  | {
+      kind: "infectiousBite";
+      /** "Target creature you control deals damage equal to its power..." - target 0. */
+      dealer: TargetSelector;
+      /** "...to target creature you don't control." - target 1. */
+      recipient: TargetSelector;
+      /** "Each opponent gets a poison counter." */
+      poisonEachOpponent: number;
     }
   /**
    * "Each opponent discards a card" - Send in the Pest.
@@ -1207,9 +1428,11 @@ export type Effect =
    */
   /**
    * `"controller"` is The Ring's second ability - "draw a card, then discard a
-   * card" - where the player discarding is the one who drew.
+   * card" - where the player discarding is the one who drew. `"self"` is the
+   * same actor, spelled the way Dan's Felix cards name it; the handler treats
+   * the two identically.
    */
-  | { kind: "discard"; amount: number; who: "each-opponent" | "controller" }
+  | { kind: "discard"; amount: number; who: "each-opponent" | "controller" | "self" }
   /**
    * "Surveil 1" - look at the top card of your library, then choose whether to
    * put it into your graveyard.
@@ -1307,8 +1530,14 @@ export type Effect =
        * A list means any one of them qualifies - Enlightened Tutor's "an
        * artifact **or** enchantment card". One field rather than two, because
        * it is one question, which is the same shape `watchFor.type` takes.
+       * (`cardTypes` below is Dan's separate spelling of the same "any one of
+       * these" question; the handler accepts either.)
        */
       cardType?: CardType | CardType[];
+      /** "a creature or land card" - any one of these types qualifies (Traverse the Ulvenwald). */
+      cardTypes?: CardType[];
+      /** "an instant card **or a card with flash**" - a card also qualifies if it has this keyword (Waterlogged Teachings). */
+      orHasKeyword?: Keyword;
       /**
        * "a creature card with **power 2 or less**" - Imperial Recruiter,
        * "**toughness 2 or less**" - Recruiter of the Guard, "**mana value 1 or
@@ -1381,6 +1610,20 @@ export type Effect =
    * the game to stop and ask which, and no card in the pool wants that yet.
    */
   | { kind: "sacrifice"; what: "self" }
+  /**
+   * An edict: "Each opponent sacrifices a creature ..." (Flare of Malice) or
+   * "Each player sacrifices N creatures". `greatestManaValue` forces the highest
+   * mana value among the qualifying permanents (Flare of Malice); otherwise the
+   * lowest `count` are given up. The choice is resolved by the engine rather
+   * than asked, which is a simplification where more than one option is legal.
+   */
+  | {
+      kind: "eachSacrifices";
+      who: "each-player" | "each-opponent";
+      count?: number;
+      types?: CardType[];
+      greatestManaValue?: boolean;
+    }
   /**
    * Several effects, in order, as one resolution - "sacrifice it, then search
    * your library ... and you gain 1 life".
@@ -1464,6 +1707,8 @@ export type Effect =
        * sacrificed token dies, so anything watching for a death sees it.
        */
       delayedEnd?: DelayedAction;
+      /** "a 1/1 token copy of it" - Offspring prints the copy's P/T over the original's. */
+      ptOverride?: { power: number; toughness: number };
     }
   /**
    * "Mill three cards. Then you may pay {1} and 3 life. If you do, put a card
@@ -1472,7 +1717,15 @@ export type Effect =
    * One effect rather than a mill beside a choice, because the choice is over
    * *the cards this milled* - a set that exists only inside this resolution.
    */
-  | { kind: "millThenMayTake"; amount: number; cost: { mana?: ManaCost; life?: number } }
+  | {
+      kind: "millThenMayTake";
+      amount: number;
+      cost: { mana?: ManaCost; life?: number };
+      /** Only milled cards of none of these types may be taken - Fallaji's "noncreature, nonland". */
+      excludeTypes?: CardType[];
+      /** "If you don't, put a +1/+1 counter on this creature" - Fallaji Archaeologist. */
+      ifDeclined?: Effect;
+    }
   /**
    * "You may cast a spell with mana value 5 or less from your hand without
    * paying its mana cost." - Rishkar's Expertise.
@@ -1840,6 +2093,12 @@ export type BoardCondition =
   | { kind: "controls-other-lands"; count: number }
   /** "you have two or more opponents" - Undergrowth Stadium. */
   | { kind: "opponents"; count: number }
+  /** "if there are thirteen or more creatures on the battlefield" - Blasphemous Edict. Counts every player's. */
+  | { kind: "creatures-on-battlefield"; count: number }
+  /** Delirium: "four or more card types among cards in your graveyard" - Traverse the Ulvenwald. Distinct types. */
+  | { kind: "card-types-in-graveyard"; count: number }
+  /** "if there are fourteen or more cards in your graveyard" - Emet-Selch. A plain count of your graveyard. */
+  | { kind: "cards-in-graveyard"; count: number }
   /**
    * "you control a Swamp or a Forest" - Woodland Cemetery, Wastewood Verge.
    * `count` defaults to 1, and any one of the listed subtypes qualifies.
@@ -2085,6 +2344,34 @@ export type TriggerEvent =
    */
   | "creatures-dealt-combat-damage"
   | "damaged"
+  /**
+   * "Whenever a creature you control deals combat damage to a player" -
+   * Necropolis Regent, Starwinder. A watcher event whose subject is the
+   * creature that dealt the damage; the trigger is pushed with that creature as
+   * its source, so "put that many +1/+1 counters on it" lands on the attacker,
+   * and the amount dealt is carried as `{ kind: "event-amount" }`. `watches`
+   * decides whose creatures count. Fired from `dealCombatDamage`.
+   */
+  | "combat-damage-to-player"
+  /**
+   * "Whenever a creature you control deals combat damage during your turn" -
+   * Quilled Greatwurm. Wider than `combat-damage-to-player`: it fires for combat
+   * damage dealt to anything (a blocker as well as a player), with the total a
+   * creature dealt this step carried as `{ kind: "event-amount" }` and the
+   * damaging creature as the trigger's source, so "put that many +1/+1 counters
+   * on it" lands on it. Only on the damager's own turn; `watches` decides whose
+   * creatures count. Fired from `dealCombatDamage`.
+   */
+  | "combat-damage-dealt"
+  /**
+   * "Whenever you attack with two or more creatures" - Twenty-Toed Toad.
+   *
+   * A controller-side event, not a per-attacker one: it asks about the whole
+   * declaration at once, so it fires once when its controller declares two or
+   * more attackers and not at all for a lone attacker. `watches` reads the
+   * controller of the permanent printing it. Fired from `declareAttackers`.
+   */
+  | "attack-with-two-or-more"
   | "upkeep"
   /**
    * "At the beginning of your first main phase" - the precombat main only.
@@ -2224,7 +2511,15 @@ export type TriggerCondition =
    * condition because that is how it is printed: untap the Vault in response
    * and the damage never happens.
    */
-  | { kind: "source-is-tapped" };
+  | { kind: "source-is-tapped" }
+  /**
+   * "if there are twenty or more counters on it or you have twenty or more
+   * cards in hand" - Twenty-Toed Toad's win condition. Two thresholds at once,
+   * either of which is enough: the counters on the trigger's own source, and
+   * the cards in its controller's hand. An intervening-if, so it is checked
+   * again on resolution - the toad does not win if it is bounced in response.
+   */
+  | { kind: "counters-or-hand-at-least"; count: number };
 
 export interface TriggeredAbility {
   event: TriggerEvent;
@@ -2416,6 +2711,19 @@ export interface ActivatedAbilityCost {
    * the reason a fetchland's search still happens.
    */
   fromHand?: "exile" | "discard";
+  /**
+   * "Discard a card" as a cost - Psychic Frog's first ability. Which card is
+   * the player's choice, announced with the activation the way a spell's
+   * sacrifice cost is (`sacrificeInstanceId`), not asked for on resolution.
+   */
+  discard?: number;
+  /**
+   * "Exile N cards from your graveyard" as a cost - Psychic Frog's second
+   * ability. Taken from the top of the graveyard, the same documented
+   * simplification Delve uses: the choice of which cards to exile from a
+   * hidden-order zone changes nothing this deck can read.
+   */
+  exileFromGraveyard?: number;
 }
 
 /**
@@ -2647,6 +2955,18 @@ export interface AlternativeCost {
   condition: BoardCondition;
   /** The printed wording, for the client's offer - "cast without paying its mana cost?". */
   label: string;
+  /**
+   * "You may sacrifice a nontoken blue creature rather than pay this spell's
+   * mana cost" - Flare of Denial. When set, choosing the alternative costs the
+   * named creature (via `options.sacrificeInstanceId`) rather than being free.
+   */
+  sacrifice?: { color?: Color; nontoken?: boolean };
+  /**
+   * "You may pay {B} rather than pay this spell's mana cost ..." - Blasphemous
+   * Edict. The reduced cost paid when the alternative is chosen; omitted means
+   * the alternative is free (paid only by `sacrifice`, or by nothing).
+   */
+  manaCost?: ManaCost;
 }
 
 /**
@@ -2744,6 +3064,33 @@ export interface StaticRules {
    * See `attackRequirement`, which is the one place that decides.
    */
   othersOfSubtypeMustAttack?: string;
+  /** "You have no maximum hand size." - Reliquary Tower. Wins over any maxHandSize while it is in play. */
+  noMaxHandSize?: boolean;
+  /**
+   * "Your maximum hand size is twenty." - Twenty-Toed Toad.
+   *
+   * Sets the limit to a specific number rather than trimming it: where
+   * `maxHandSize` is a reduction (Necrodominance's five, taken as the smaller of
+   * it and seven), this is a raise, and it overrides the base seven outright. A
+   * later one on the battlefield wins over an earlier, standing in for the
+   * timestamp the rules would use; `noMaxHandSize` still trumps it.
+   */
+  setMaxHandSize?: number;
+  /**
+   * "If you would draw a card while your library has no cards in it, you win the
+   * game instead." - Laboratory Maniac. Checked when the empty-library draw
+   * would otherwise lose the game (see sba.ts); a real replacement on the draw
+   * event, modelled at the state-based check because that is where the
+   * empty-library loss already lives.
+   */
+  winInsteadOfEmptyDraw?: boolean;
+  /**
+   * Felix Five-Boots: "If a creature you control dealing combat damage to a
+   * player causes a triggered ability of a permanent you control to trigger,
+   * that ability triggers an additional time." Read in `fireCombatDamageToPlayer`
+   * - each permanent you control with this flag adds one extra firing.
+   */
+  extraCombatDamageToPlayerTrigger?: boolean;
 }
 
 /**
@@ -2771,6 +3118,23 @@ export interface StaticBuff {
    * `CardDefinition.keywords` directly any more: see `effectiveKeywords`.
    */
   grants?: Keyword[];
+  /**
+   * The ward cost handed to whatever this is attached to - Lavaspur Boots'
+   * "ward {1}", Winged Boots' "ward {4}". Meaningful only when `grants`
+   * includes "Ward"; ward.ts reads it off the attached Equipment because the
+   * warded creature's own definition carries no ward cost. (Distinct from
+   * `grantsWardLife`, which is ward paid in life rather than mana.)
+   */
+  grantsWardCost?: ManaCost;
+  /**
+   * "has protection from instants and from sorceries" - Sword of Wealth and
+   * Power. The card types the equipped/affected creature cannot be the target
+   * of a spell of. Modelled as the can't-be-targeted facet of protection,
+   * which is the one this deck turns on; the damage-prevention and
+   * can't-be-blocked-by facets are not (a documented simplification - almost
+   * every instant or sorcery that touches a creature does so by targeting it).
+   */
+  grantsProtectionFrom?: CardType[];
   /**
    * Which of the controller's permanents it reaches, beyond the subtype.
    *
@@ -2881,6 +3245,13 @@ export interface CardDefinition {
    * Anything that grants keywords, changes types, or depends on timestamps
    * still needs the real thing. See ROADMAP.md.
    */
+  /**
+   * "This creature gets +10/+10 for each player who has lost the game." -
+   * Rampant Frogantua. A buff on the creature *itself* whose size is read off
+   * the board every time its stats are, so it grows as players fall. Distinct
+   * from `staticBuff`, which is a fixed number a permanent hands to others.
+   */
+  selfBuff?: { power: Amount; toughness: Amount };
   staticBuff?: StaticBuff | StaticBuff[];
   /**
    * "If an effect would ... instead" - the replacement-effect family. See
@@ -3157,6 +3528,27 @@ export interface CardDefinition {
    */
   suspend?: { timeCounters: number; cost: ManaCost };
   /**
+   * "Warp {2}{U}{U} (You may cast this card from your hand for its warp cost.
+   * Exile this creature at the beginning of the next end step, then you may cast
+   * it from exile on a later turn.)" - Starwinder.
+   *
+   * An alternative way to cast, taken with `CastOptions.useWarp`: the spell is
+   * cast from hand for `cost` and resolves as normal, but it leaves at the next
+   * end step (marked `exileAtNextEndStep` as it is cast) and, once exiled that
+   * way (`warpedInExile`), may be cast from exile for its ordinary mana cost on
+   * a later turn. Cast for its normal cost, none of that applies - it is simply
+   * a creature.
+   */
+  warp?: { cost: ManaCost };
+  /**
+   * "You may cast this card from your graveyard by removing six counters from
+   * among creatures you control in addition to paying its other costs." -
+   * Quilled Greatwurm. The additional cost is `removeCounters` +1/+1 counters
+   * spread across the caster's creatures however they like, announced with the
+   * cast via `CastOptions.removeCounterFrom`. See casting.ts.
+   */
+  castFromGraveyard?: { removeCounters: number };
+  /**
    * "Devour 1" - as this enters, you may sacrifice any number of creatures; it
    * enters with that many times this number of +1/+1 counters on it.
    */
@@ -3194,6 +3586,48 @@ export interface CardDefinition {
    * does nothing when it resolves. See the `counter` effect in effects.ts.
    */
   cantBeCountered?: boolean;
+  /**
+   * Propaganda: "Creatures can't attack you unless their controller pays {2}
+   * for each creature they control that's attacking you." The generic mana an
+   * attacking player owes per attacker aimed at this permanent's controller;
+   * charged in `declareAttackers`.
+   */
+  attackTax?: number;
+  /**
+   * "Cycling {2}" / "Islandcycling {1}" - "{cost}, Discard this card: Draw a
+   * card" (or, with `search`, tutor the named card to hand). Activated from
+   * hand; see `cycleCard`.
+   */
+  cycling?: { cost: ManaCost; search?: { cardType?: CardType; subtypes?: string[] } };
+  /**
+   * "Ninjutsu {2}{U}" - pay the cost and return an unblocked attacker you
+   * control to hand to put this from hand onto the battlefield tapped and
+   * attacking. See `ninjutsu` in casting.ts.
+   */
+  ninjutsu?: { cost: ManaCost };
+  /** Omniscience: "You may cast spells from your hand without paying their mana costs." Read by casting.ts. */
+  enablesFreeCastFromHand?: boolean;
+  /** "Delve" - each card exiled from your graveyard while casting this pays for {1}. See casting.ts. */
+  delve?: boolean;
+  /**
+   * "Offspring {4} (You may pay an additional {4} as you cast this spell. If you
+   * do, when this creature enters, create a 1/1 token copy of it.)" - Thundertrap
+   * Trainer. Taken with `CastOptions.payOffspring`. See casting.ts.
+   */
+  offspring?: { cost: ManaCost };
+  /**
+   * "Storm (When you cast this spell, copy it for each spell cast before it this
+   * turn.)" - Radstorm. On cast, a copy of the spell is put on the stack for
+   * each spell already cast this turn (`state.spellsCastThisTurn`, read before
+   * this cast bumps it). See casting.ts.
+   */
+  storm?: boolean;
+  /**
+   * Cleave: the effect used when the spell is cast for its cleave cost (its
+   * `alternativeCost`), with the bracketed words removed - Dig Up's tutor
+   * widens from a basic land to any card. Used in place of `castEffect`.
+   */
+  cleaveEffect?: Effect;
   /** Whether this card can legally be someone's commander (legendary creature, or explicitly says so). */
   canBeCommander?: boolean;
   tier: "vanilla" | "scripted" | "weird";
@@ -3212,6 +3646,8 @@ export interface CardInstance {
   zone: ZoneId;
   tapped: boolean;
   damageMarked: number;
+  /** "was dealt damage this turn" - set whenever damage lands, cleared in cleanup. For You Are Already Dead. */
+  damagedThisTurn?: boolean;
   /** True if any damage currently marked on this creature came from a Deathtouch source - makes it lethal regardless of amount. */
   deathtouchDamage: boolean;
   /** +1/+1 counters currently on this permanent. Reset to 0 on any zone change (a "new object" per the real rules). */
@@ -3297,6 +3733,30 @@ export interface CardInstance {
    * the permanent arrives - the stack object is long gone by then.
    */
   bestowTarget?: string;
+  /**
+   * Warp (Starwinder). Set when the card is cast for its warp cost: the
+   * creature it becomes is exiled at the beginning of the next end step.
+   */
+  exileAtNextEndStep?: boolean;
+  /**
+   * Warp again. Set as the creature is exiled by the line above, marking the
+   * card in exile as one its owner may cast from there for its ordinary mana
+   * cost on a later turn.
+   */
+  warpedInExile?: boolean;
+  /**
+   * A power/toughness this instance has in place of its definition's - the 1/1
+   * an Offspring token copy is printed as while copying everything else about
+   * the creature (Thundertrap Trainer). Undefined for all but such tokens.
+   */
+  basePowerOverride?: number;
+  baseToughnessOverride?: number;
+  /**
+   * Offspring: this creature was cast for its Offspring cost, so a 1/1 token
+   * copy of it is made as it enters. Set at cast, spent (and cleared) in
+   * `enteredBattlefield`.
+   */
+  offspringPaid?: boolean;
   /** Whether this planeswalker has already used a loyalty ability this turn. */
   loyaltyUsedThisTurn: boolean;
   /** Time counters, while this card sits suspended in exile. */
@@ -3653,6 +4113,14 @@ export interface StackObject {
   onlyIf?: TriggerCondition;
   /** What to put in the yes/no prompt for an `optional` trigger. */
   prompt?: string;
+  /**
+   * A copy of a spell (Storm, Sword of Wealth and Power), not a real card on the
+   * stack. It resolves like the spell it copies but ceases to exist afterwards
+   * rather than going to a graveyard - so `finishResolution` must not move the
+   * card `sourceInstanceId` still points at, which for a Storm copy is the
+   * original spell sitting lower on the same stack.
+   */
+  isCopy?: boolean;
 }
 
 /**
@@ -3780,6 +4248,9 @@ export interface PendingCardChoice {
     | "sacrifice"
     | "cast-free"
     | "to-hand"
+    /** `"to-library-top"` (Brainstorm) and `"to-battlefield"` (Emergent Ultimatum's free-cast siblings) - Dan's Felix cards. */
+    | "to-library-top"
+    | "to-battlefield"
     | "exile-imprint"
     | "discard-to-enter"
     | "begin-on-battlefield"
@@ -3811,6 +4282,23 @@ export interface PendingCardChoice {
   effectControllerId: string;
   /** The rest of a `sequence` this interrupted - see `PendingSearch.followUp`. */
   followUp?: Effect[];
+  /**
+   * Cards to move to the bottom of the library once the choice is made -
+   * everything looked at but not taken (Thundertrap Trainer's "put the rest on
+   * the bottom"). The taken card is filtered out when this is applied.
+   */
+  restToBottom?: string[];
+  /** The to-battlefield chosen cards arrive tapped - Rampant Frogantua's lands. */
+  toBattlefieldTapped?: boolean;
+  /** "up to three ... with different names" - the chosen must have distinct names (Emergent Ultimatum). */
+  distinctNames?: boolean;
+  /**
+   * Which half of Emergent Ultimatum this choice is: "search" is the caster
+   * exiling up to three cards, "opponent-pick" is the opponent choosing one of
+   * them to shuffle back (the rest are then cast for free). Drives the bespoke
+   * follow-on in `resolveCardChoice`.
+   */
+  emergentStep?: "search" | "opponent-pick";
   /**
    * Devour and Braids both count the chosen cards afterwards - one to place
    * counters, one to decide who was punished - so the source is carried rather
@@ -4011,6 +4499,42 @@ export interface PendingSearch {
 }
 
 /**
+ * The top N cards of a library, shown to one player, waiting on the order they
+ * go back on top - Halimar Depths and Ponder.
+ *
+ * Like `PendingSearch` this stops resolution: while it is set nobody gets
+ * priority and no step advances, because the game is mid-spell showing a player
+ * hidden information. The cards never leave the library, so putting them back is
+ * a reorder, not a zone change - no triggers, no counters cleared. Identified by
+ * instance id, so an opponent's view of them is already the hidden-card
+ * placeholder. Cleared by `resolveArrange`.
+ */
+/**
+ * A modal triggered/activated ability shown to its controller, waiting on which
+ * mode to take. The chosen mode's effect is applied by `resolveModal`, which
+ * auto-targets it (a simplification of the player's target choice).
+ */
+export interface PendingModal {
+  playerId: string;
+  controllerId: string;
+  sourceInstanceId: string;
+  modes: Array<{ label: string; effect: Effect }>;
+}
+
+export interface PendingArrange {
+  playerId: string;
+  sourceInstanceId: string;
+  /** The top cards, in their current top-to-bottom order. */
+  cardInstanceIds: string[];
+  /** Ponder's "You may shuffle your library" - offered only when set. */
+  mayShuffle: boolean;
+  /** Printed wording, for the picker's heading. */
+  prompt: string;
+  /** The rest of a `sequence` this interrupted - Ponder's "Then draw a card". */
+  followUp?: Effect[];
+}
+
+/**
  * Whose opening hand is being decided, and how far into it they are.
  *
  * Players are taken one at a time. The real rule has everyone decide together
@@ -4160,6 +4684,13 @@ export interface Player {
    * you control ten permanents".
    */
   hasCitysBlessing: boolean;
+  /**
+   * "When you next cast an instant or sorcery spell this turn, copy that spell."
+   * - Sword of Wealth and Power. A count of pending next-cast copies, each
+   * spent (as a copy on the stack) by the next instant or sorcery this player
+   * casts. Reset in cleanup - "this turn" is its whole life.
+   */
+  copyNextInstantOrSorcery: number;
 }
 
 export type Phase = "beginning" | "precombat-main" | "combat" | "postcombat-main" | "ending";
@@ -4251,6 +4782,31 @@ export interface GameState {
    */
   pendingSearch: PendingSearch | null;
   /**
+   * A modal ability waiting on its controller to choose a mode - Glissa
+   * Sunslayer. Only from triggered/activated abilities: a modal spell has its
+   * mode chosen as it is cast. Gated like `pendingSearch`. Cleared by
+   * `resolveModal`.
+   */
+  pendingModal: PendingModal | null;
+  /**
+   * Extra turns queued to happen before the turn order rotates on - Time
+   * Stretch. Each entry is the id of the player who takes that turn, drained
+   * front-first in `startNextTurn`.
+   */
+  extraTurns: string[];
+  /**
+   * Effects queued for "the beginning of the next turn's upkeep" - Arcane
+   * Denial, Mishra's Bauble. Each fires (as `controllerId`) at the first upkeep
+   * whose turn number is at least `fireAtTurn`, then is removed.
+   */
+  delayedUpkeepEffects: Array<{ controllerId: string; effect: Effect; fireAtTurn: number }>;
+  /**
+   * The top N cards of a library shown to a player, waiting on the order they
+   * go back. Gated exactly like `pendingSearch`: no priority, no step advance.
+   * Cleared by `resolveArrange`. See `PendingArrange`.
+   */
+  pendingArrange: PendingArrange | null;
+  /**
    * A "you may" trigger waiting on a yes or no. Gated exactly like
    * `pendingSearch`: no priority, no step advance. Cleared by
    * `resolveConfirmation`.
@@ -4290,6 +4846,13 @@ export interface GameState {
    * need the whole thing rewritten.
    */
   creatureDeathsThisTurn: number;
+  /**
+   * How many spells have been cast so far this turn, by anyone - Storm counts
+   * "each spell cast before it this turn". Incremented as each spell goes on the
+   * stack and reset in cleanup; the Storm spell reads it *before* its own cast
+   * bumps the count, so "before it" falls out for free.
+   */
+  spellsCastThisTurn: number;
   /**
    * A fog in force for the rest of this turn - Arachnogenesis. Null when there
    * is none, which is almost always. Cleared in the cleanup step.

@@ -278,6 +278,23 @@ export function checkStateBasedActions(state: GameState): void {
         continue;
       }
       if (player.attemptedDrawFromEmptyLibrary) {
+        // Laboratory Maniac turns the empty-library draw from a loss into a win:
+        // the drawing player wins instead, which in this engine means every
+        // other player loses. Checked here because this is where the loss it
+        // replaces already lives.
+        const winsInstead = player.battlefield.some(
+          (i) => state.cardDefinitions[i.definitionId]?.staticRules?.winInsteadOfEmptyDraw,
+        );
+        if (winsInstead) {
+          player.attemptedDrawFromEmptyLibrary = false;
+          for (const other of state.players) {
+            if (other === player || other.hasLost) continue;
+            other.hasLost = true;
+            other.lossReason = `${player.id} won the game with Laboratory Maniac`;
+          }
+          changed = true;
+          continue;
+        }
         player.hasLost = true;
         player.lossReason = "attempted to draw from an empty library";
         changed = true;

@@ -122,6 +122,10 @@ export function resolveAmounts(effect: Effect, values: AmountContext): Effect {
       return { ...effect, amount: value(effect.amount, values) };
     case "draw":
       return { ...effect, amount: value(effect.amount, values) };
+    case "millThenPlayLands":
+      // "mill *that many* cards" - the combat damage dealt, carried as an
+      // event-amount and settled here as the trigger goes on the stack.
+      return { ...effect, amount: value(effect.amount, values) };
     case "sacrificeChosen":
       /*
        * The "if you do" half is *not* substituted here, and that is the point

@@ -16383,6 +16383,1350 @@ export const BOROMIR_WARDEN_OF_THE_TOWER: CardDefinition = {
   tier: "weird",
 };
 
+
+
+// --- Merged from felix-five-boots: Felix Five-Boots deck cards ---
+
+export const HINTERLAND_HARBOR: CardDefinition = {
+  id: "hinterland-harbor",
+  name: "Hinterland Harbor",
+  scryfallId: "892451a1-5527-4857-84f8-62028d147489",
+  types: ["Land"],
+  colorIdentity: ["G", "U"],
+  entersTapped: true,
+  entersTappedUnless: { kind: "controls-subtype", subtypes: ["Forest", "Island"] },
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const OPULENT_PALACE: CardDefinition = {
+  id: "opulent-palace",
+  name: "Opulent Palace",
+  scryfallId: "f0001153-dbcb-44e5-99be-2c186c9b10b0",
+  types: ["Land"],
+  colorIdentity: ["B", "G", "U"],
+  entersTapped: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const FABRICATE: CardDefinition = {
+  id: "fabricate",
+  name: "Fabricate",
+  scryfallId: "44e49332-b1e1-4b88-b508-516b55c67a1d",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "searchLibrary", cardType: "Artifact", destination: "hand" },
+  tier: "scripted",
+};
+
+export const BRAINSTORM: CardDefinition = {
+  id: "brainstorm",
+  name: "Brainstorm",
+  scryfallId: "b5545882-6963-4729-b2c6-fb4bdc75ffcc",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "sequence", effects: [{ kind: "draw", amount: 3 }, { kind: "putFromHandOnTop", count: 2 }] },
+  tier: "scripted",
+};
+
+export const PONDER: CardDefinition = {
+  id: "ponder",
+  name: "Ponder",
+  scryfallId: "dc69f960-68ba-4315-8146-6a7a82047503",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "sequence", effects: [{ kind: "lookAndArrange", amount: 3, mayShuffle: true }, { kind: "draw", amount: 1 }] },
+  tier: "scripted",
+};
+
+export const HALIMAR_DEPTHS: CardDefinition = {
+  id: "halimar-depths",
+  name: "Halimar Depths",
+  scryfallId: "63eb18e0-c723-4de4-8498-c5362c75b2b4",
+  types: ["Land"],
+  colorIdentity: ["U"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "lookAndArrange", amount: 3 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const TEMPLE_OF_DECEIT: CardDefinition = {
+  id: "temple-of-deceit",
+  name: "Temple of Deceit",
+  scryfallId: "e18748ce-e52e-4cd1-89d4-cd2578a0d574",
+  types: ["Land"],
+  colorIdentity: ["B", "U"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "scry", amount: 1 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const TEMPLE_OF_MALADY: CardDefinition = {
+  id: "temple-of-malady",
+  name: "Temple of Malady",
+  scryfallId: "1ca36218-db87-4e44-8606-2a516504ed20",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "scry", amount: 1 } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }, { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } }],
+  tier: "vanilla",
+};
+
+export const BALEFUL_STRIX: CardDefinition = {
+  id: "baleful-strix",
+  name: "Baleful Strix",
+  scryfallId: "be8439e6-f779-49f0-806a-b04995697a6a",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Bird"],
+  manaCost: { generic: 0, colors: { U: 1, B: 1 } },
+  colorIdentity: ["B", "U"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying", "Deathtouch"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "draw", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const BOJUKA_BOG: CardDefinition = {
+  id: "bojuka-bog",
+  name: "Bojuka Bog",
+  scryfallId: "55b5b094-9d2d-4d96-b90c-78fecdae725a",
+  types: ["Land"],
+  colorIdentity: ["B"],
+  entersTapped: true,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "exileGraveyard", target: { kind: "player" } } }],
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const SWIFTFOOT_BOOTS: CardDefinition = {
+  id: "swiftfoot-boots",
+  name: "Swiftfoot Boots",
+  scryfallId: "03f7e9fc-8e59-45c1-90fc-1d04d929b292",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 1, colors: {} },
+  staticBuff: { power: 0, toughness: 0, grants: ["Hexproof", "Haste"] },
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 1, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const PROLOGUE_TO_PHYRESIS: CardDefinition = {
+  id: "prologue-to-phyresis",
+  name: "Prologue to Phyresis",
+  scryfallId: "ac625f30-ed91-4b21-ada8-aaa5b2ad79b8",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "poison", who: "each-opponent", amount: 1 },
+      { kind: "draw", amount: 1 },
+    ],
+  },
+  tier: "scripted",
+};
+
+export const DISPEL: CardDefinition = {
+  id: "dispel",
+  name: "Dispel",
+  scryfallId: "bceab6b3-6b64-4964-a501-ce806a6c13ad",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "counter", target: { kind: "spell", spellType: "Instant" } },
+  tier: "scripted",
+};
+
+export const MISHRAS_BAUBLE: CardDefinition = {
+  id: "mishras-bauble",
+  name: "Mishra's Bauble",
+  scryfallId: "45bbbf9b-8fee-4c32-a513-02dac6ac8a39",
+  types: ["Artifact"],
+  colorIdentity: [],
+  manaCost: { generic: 0, colors: {} },
+  // "Look at the top card of target player's library" is purely informational
+  // and is not modelled; the mechanical half is the delayed draw.
+  activatedAbilities: [
+    {
+      cost: { tap: true, sacrificeSelf: true },
+      effect: { kind: "atNextUpkeep", who: "controller", effect: { kind: "draw", amount: 1 } },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const ARCANE_DENIAL: CardDefinition = {
+  id: "arcane-denial",
+  name: "Arcane Denial",
+  scryfallId: "5eb843ef-b223-40d0-a461-54b16d188d0e",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  // "Its controller may draw up to two cards" is modelled as a mandatory two;
+  // the delayed timing (next upkeep) and the card advantage are the point.
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "counter", target: { kind: "spell" } },
+      { kind: "atNextUpkeep", who: "each-opponent", effect: { kind: "draw", amount: 2 } },
+      { kind: "atNextUpkeep", who: "controller", effect: { kind: "draw", amount: 1 } },
+    ],
+  },
+  tier: "scripted",
+};
+
+export const BLASPHEMOUS_EDICT: CardDefinition = {
+  id: "blasphemous-edict",
+  name: "Blasphemous Edict",
+  scryfallId: "11040ecd-3153-4029-b42b-1441bc51ec34",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  alternativeCost: {
+    condition: { kind: "creatures-on-battlefield", count: 13 },
+    label: "Pay {B} rather than pay this spell's mana cost",
+    manaCost: { generic: 0, colors: { B: 1 } },
+  },
+  castEffect: { kind: "eachSacrifices", who: "each-player", count: 13, types: ["Creature"] },
+  tier: "scripted",
+};
+
+export const FLARE_OF_MALICE: CardDefinition = {
+  id: "flare-of-malice",
+  name: "Flare of Malice",
+  scryfallId: "19efb9ce-62eb-4cbf-b01e-979f3fd09ba6",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  alternativeCost: {
+    condition: { kind: "controls-color", color: "B", count: 1 },
+    label: "Sacrifice a nontoken black creature rather than pay this spell's mana cost",
+    sacrifice: { color: "B", nontoken: true },
+  },
+  castEffect: {
+    kind: "eachSacrifices",
+    who: "each-opponent",
+    greatestManaValue: true,
+    types: ["Creature", "Planeswalker"],
+  },
+  tier: "scripted",
+};
+
+export const FLARE_OF_DENIAL: CardDefinition = {
+  id: "flare-of-denial",
+  name: "Flare of Denial",
+  scryfallId: "71a98efb-9b0a-496b-ac21-8d70527ea544",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  alternativeCost: {
+    condition: { kind: "controls-color", color: "U", count: 1 },
+    label: "Sacrifice a nontoken blue creature rather than pay this spell's mana cost",
+    sacrifice: { color: "U", nontoken: true },
+  },
+  castEffect: { kind: "counter", target: { kind: "spell" } },
+  tier: "scripted",
+};
+
+export const PROPAGANDA: CardDefinition = {
+  id: "propaganda",
+  name: "Propaganda",
+  scryfallId: "ac943e31-26bc-4b54-b73f-460e6e402d86",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  attackTax: 2,
+  tier: "scripted",
+};
+
+export const FALLAJI_ARCHAEOLOGIST: CardDefinition = {
+  id: "fallaji-archaeologist",
+  name: "Fallaji Archaeologist",
+  scryfallId: "b0eab397-25a6-4377-8e12-e8acef9675cf",
+  types: ["Creature"],
+  subtypes: ["Human", "Scout"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 0,
+  toughness: 3,
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "millThenMayTake",
+        amount: 3,
+        cost: {},
+        excludeTypes: ["Creature", "Land"],
+        ifDeclined: { kind: "addCounter", amount: 1 },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const TRAVERSE_THE_ULVENWALD: CardDefinition = {
+  id: "traverse-the-ulvenwald",
+  name: "Traverse the Ulvenwald",
+  scryfallId: "77b459cb-994c-430d-b0a6-59a8dd20adbd",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  // Delirium switches the search from a basic land to any creature or land.
+  castEffect: {
+    kind: "conditional",
+    condition: { kind: "card-types-in-graveyard", count: 4 },
+    then: { kind: "searchLibrary", cardTypes: ["Creature", "Land"], destination: "hand" },
+    otherwise: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" },
+  },
+  tier: "scripted",
+};
+
+export const YOU_ARE_ALREADY_DEAD: CardDefinition = {
+  id: "you-are-already-dead",
+  name: "You Are Already Dead",
+  scryfallId: "768727ce-4f84-4527-8d69-3c9b7877b748",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "destroy", target: { kind: "creature", damagedThisTurn: true } },
+      { kind: "draw", amount: 1 },
+    ],
+  },
+  tier: "scripted",
+};
+
+export const STEP_THROUGH: CardDefinition = {
+  id: "step-through",
+  name: "Step Through",
+  scryfallId: "716534cb-aa89-4de7-9aa5-8d8aa4422a6a",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  castEffect: {
+    kind: "returnToHand",
+    target: { kind: "permanent", cardTypes: ["Creature"], count: { min: 2, max: 2 } },
+  },
+  cycling: { cost: { generic: 2, colors: {} }, search: { subtypes: ["Wizard"] } },
+  tier: "scripted",
+};
+
+export const LORIEN_REVEALED: CardDefinition = {
+  id: "lorien-revealed",
+  name: "Lórien Revealed",
+  scryfallId: "209204c7-aae5-4768-91b8-89c8c4d4a97f",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "draw", amount: 3 },
+  cycling: { cost: { generic: 1, colors: {} }, search: { subtypes: ["Island"] } },
+  tier: "scripted",
+};
+
+export const FOREBODING_LANDSCAPE: CardDefinition = {
+  id: "foreboding-landscape",
+  name: "Foreboding Landscape",
+  scryfallId: "cf53f97c-dd4c-44bd-93ba-faa6d64c985a",
+  types: ["Land"],
+  colorIdentity: ["B", "G", "U"],
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } },
+    {
+      cost: { tap: true, sacrificeSelf: true },
+      effect: {
+        kind: "searchLibrary",
+        cardType: "Land",
+        basicLandOnly: true,
+        subtypes: ["Swamp", "Forest", "Island"],
+        destination: "battlefield",
+        tapped: true,
+      },
+    },
+  ],
+  cycling: { cost: { generic: 0, colors: { B: 1, G: 1, U: 1 } } },
+  tier: "scripted",
+};
+
+export const CULTIVATE: CardDefinition = {
+  id: "cultivate",
+  name: "Cultivate",
+  scryfallId: "e60deb92-f7dd-4f4e-9036-e47dd586f985",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  // "Search for up to two basic lands, put one onto the battlefield tapped and
+  // the other into your hand." Two chained searches: the first fills the "onto
+  // the battlefield" role (so finding only one still lands it), the second the
+  // "into your hand" role.
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "battlefield", tapped: true },
+      { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" },
+    ],
+  },
+  tier: "scripted",
+};
+
+export const DIG_UP: CardDefinition = {
+  id: "dig-up",
+  name: "Dig Up",
+  scryfallId: "8f14c947-2452-4fd6-8f1a-391cf5898100",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["B", "G"],
+  // Cleave {1}{B}{B}{G}: the cleave cost widens the tutor from a basic land to any card.
+  alternativeCost: {
+    condition: { kind: "controls-lands", count: 0 },
+    label: "Cast for its cleave cost",
+    manaCost: { generic: 1, colors: { B: 2, G: 1 } },
+  },
+  castEffect: { kind: "searchLibrary", cardType: "Land", basicLandOnly: true, destination: "hand" },
+  cleaveEffect: { kind: "searchLibrary", destination: "hand" },
+  tier: "scripted",
+};
+
+export const DEMONIC_COUNSEL: CardDefinition = {
+  id: "demonic-counsel",
+  name: "Demonic Counsel",
+  scryfallId: "ff79c845-4115-4fbf-b20f-37470f2bf7fb",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  delve: true,
+  // Delirium widens the search from a Demon card to any card.
+  castEffect: {
+    kind: "conditional",
+    condition: { kind: "card-types-in-graveyard", count: 4 },
+    then: { kind: "searchLibrary", destination: "hand" },
+    otherwise: { kind: "searchLibrary", subtypes: ["Demon"], destination: "hand" },
+  },
+  tier: "scripted",
+};
+
+export const DROWN_IN_THE_LOCH: CardDefinition = {
+  id: "drown-in-the-loch",
+  name: "Drown in the Loch",
+  scryfallId: "eb7b9762-740b-4c1c-a411-20dbf023aea5",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { U: 1, B: 1 } },
+  colorIdentity: ["B", "U"],
+  castEffect: {
+    kind: "modal",
+    modes: [
+      {
+        label:
+          "Counter target spell with mana value less than or equal to the number of cards in its controller's graveyard",
+        effect: { kind: "counter", target: { kind: "spell", maxMvFromControllerGraveyard: true } },
+      },
+      {
+        label:
+          "Destroy target creature with mana value less than or equal to the number of cards in its controller's graveyard",
+        effect: { kind: "destroy", target: { kind: "creature", maxMvFromControllerGraveyard: true } },
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+export const DEMONIC_BARGAIN: CardDefinition = {
+  id: "demonic-bargain",
+  name: "Demonic Bargain",
+  scryfallId: "80c3741e-cf04-4aa2-a6a9-ce19f043b22c",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "exileTop", amount: 13 },
+      { kind: "searchLibrary", destination: "hand" },
+    ],
+  },
+  tier: "scripted",
+};
+
+export const RELIQUARY_TOWER: CardDefinition = {
+  id: "reliquary-tower",
+  name: "Reliquary Tower",
+  scryfallId: "e2a27742-08c1-4153-af7f-25a7a98f585e",
+  types: ["Land"],
+  colorIdentity: [],
+  staticRules: { noMaxHandSize: true },
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const TIME_STRETCH: CardDefinition = {
+  id: "time-stretch",
+  name: "Time Stretch",
+  scryfallId: "9dc791fd-d49c-4c66-b8fb-6b54ce842e90",
+  types: ["Sorcery"],
+  manaCost: { generic: 8, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "extraTurn", count: 2, target: { kind: "player" } },
+  tier: "scripted",
+};
+
+export const LABORATORY_MANIAC: CardDefinition = {
+  id: "laboratory-maniac",
+  name: "Laboratory Maniac",
+  scryfallId: "7a5be94c-08b8-4964-a79d-e22ea6e94be8",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 2,
+  toughness: 2,
+  staticRules: { winInsteadOfEmptyDraw: true },
+  tier: "scripted",
+};
+
+export const ZEPHYR_BOOTS: CardDefinition = {
+  id: "zephyr-boots",
+  name: "Zephyr Boots",
+  scryfallId: "4d0566fd-3775-48f1-ba22-6e659558c3d3",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 2, colors: {} },
+  staticBuff: { power: 0, toughness: 0, grants: ["Flying"] },
+  // "Whenever equipped creature deals combat damage to a player, draw a card,
+  // then discard a card." The Equipment watches the creature it is attached to.
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      watchFor: { attachedToThis: true },
+      effect: {
+        kind: "sequence",
+        effects: [{ kind: "draw", amount: 1 }, { kind: "discard", amount: 1, who: "self" }],
+      },
+    },
+  ],
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 2, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const LAVASPUR_BOOTS: CardDefinition = {
+  id: "lavaspur-boots",
+  name: "Lavaspur Boots",
+  scryfallId: "e50709de-e6ef-4dbc-af1e-290fed279f34",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 1, colors: {} },
+  staticBuff: { power: 1, toughness: 0, grants: ["Haste", "Ward"], grantsWardCost: { generic: 1, colors: {} } },
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 1, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const WINGED_BOOTS: CardDefinition = {
+  id: "winged-boots",
+  name: "Winged Boots",
+  scryfallId: "116361c4-fddd-440a-ad02-8d71df733231",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  equipCost: { generic: 1, colors: {} },
+  staticBuff: { power: 0, toughness: 0, grants: ["Flying", "Ward"], grantsWardCost: { generic: 4, colors: {} } },
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 1, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const TRAILBLAZERS_BOOTS: CardDefinition = {
+  id: "trailblazers-boots",
+  name: "Trailblazer's Boots",
+  scryfallId: "aa05985b-e2cb-412f-a2ad-b8d723d9f451",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 2, colors: {} },
+  staticBuff: { power: 0, toughness: 0, grants: ["Nonbasic Landwalk"] },
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 2, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const INUNDATED_ARCHIVE: CardDefinition = {
+  id: "inundated-archive",
+  name: "Inundated Archive",
+  scryfallId: "060f9675-4921-4cbb-bae2-54c85c679fd4",
+  types: ["Land"],
+  colorIdentity: ["B", "U"],
+  entersTapped: true,
+  isBackFace: true,
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "U", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+  ],
+  tier: "vanilla",
+};
+
+export const WATERLOGGED_TEACHINGS: CardDefinition = {
+  id: "waterlogged-teachings",
+  name: "Waterlogged Teachings",
+  scryfallId: "060f9675-4921-4cbb-bae2-54c85c679fd4",
+  types: ["Instant"],
+  manaCost: { generic: 3, colors: {}, hybrid: [["U", "B"]] },
+  colorIdentity: ["B", "U"],
+  backFaceId: "inundated-archive",
+  castEffect: { kind: "searchLibrary", cardType: "Instant", orHasKeyword: "Flash", destination: "hand" },
+  tier: "scripted",
+};
+
+export const MIST_SYNDICATE_NAGA: CardDefinition = {
+  id: "mist-syndicate-naga",
+  name: "Mist-Syndicate Naga",
+  scryfallId: "65c8f074-e260-4f8e-85d1-1904ca928b51",
+  types: ["Creature"],
+  subtypes: ["Snake", "Ninja"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 3,
+  toughness: 1,
+  ninjutsu: { cost: { generic: 2, colors: { U: 1 } } },
+  triggeredAbilities: [{ event: "combat-damage-to-player", effect: { kind: "createCopyToken", of: "self" } }],
+  tier: "scripted",
+};
+
+export const SILENT_HALLCREEPER: CardDefinition = {
+  id: "silent-hallcreeper",
+  name: "Silent Hallcreeper",
+  scryfallId: "aac4f0cc-63be-4f08-956e-39839c9735ba",
+  types: ["Enchantment", "Creature"],
+  subtypes: ["Horror"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Unblockable"],
+  // "choose one that hasn't been chosen" (each mode once per game) is not tracked
+  // - any mode may be taken each time. The copy mode auto-targets a creature.
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      effect: {
+        kind: "modal",
+        modes: [
+          { label: "Put two +1/+1 counters on this creature", effect: { kind: "addCounter", amount: 2 } },
+          { label: "Draw a card", effect: { kind: "draw", amount: 1 } },
+          {
+            label: "This creature becomes a copy of another target creature you control",
+            effect: { kind: "becomeCopy", target: { kind: "creature" } },
+          },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const GITAXIAN_PROBE: CardDefinition = {
+  id: "gitaxian-probe",
+  name: "Gitaxian Probe",
+  scryfallId: "995486ce-58bb-4753-a812-0ca73ef1a235",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: {}, phyrexian: ["U"] },
+  colorIdentity: ["U"],
+  castEffect: {
+    kind: "sequence",
+    effects: [{ kind: "lookAtHand", target: { kind: "player" } }, { kind: "draw", amount: 1 }],
+  },
+  tier: "scripted",
+};
+
+export const GLISSA_SUNSLAYER: CardDefinition = {
+  id: "glissa-sunslayer",
+  name: "Glissa Sunslayer",
+  scryfallId: "682b1b62-338a-49d1-9d4e-2d8ee2e6fc76",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Phyrexian", "Zombie", "Elf"],
+  manaCost: { generic: 1, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 3,
+  toughness: 3,
+  keywords: ["First Strike", "Deathtouch"],
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      effect: {
+        kind: "modal",
+        modes: [
+          {
+            label: "You draw a card and lose 1 life",
+            effect: {
+              kind: "sequence",
+              effects: [{ kind: "draw", amount: 1 }, { kind: "loseLife", amount: 1, who: "self" }],
+            },
+          },
+          {
+            label: "Destroy target enchantment",
+            effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Enchantment"] } },
+          },
+          {
+            label: "Remove up to three counters from target permanent",
+            effect: { kind: "removeCounter", amount: 3, target: { kind: "permanent" } },
+          },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const FELIX_FIVE_BOOTS: CardDefinition = {
+  id: "felix-five-boots",
+  name: "Felix Five-Boots",
+  scryfallId: "6800e935-d327-464c-ab88-7c0193827da3",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Ooze", "Rogue"],
+  manaCost: { generic: 2, colors: { B: 1, G: 1, U: 1 } },
+  colorIdentity: ["B", "G", "U"],
+  power: 5,
+  toughness: 4,
+  keywords: ["Menace", "Ward"],
+  wardCost: { generic: 2, colors: {} },
+  staticRules: { extraCombatDamageToPlayerTrigger: true },
+  canBeCommander: true,
+  tier: "scripted",
+};
+
+export const SHADOWMAGE_INFILTRATOR: CardDefinition = {
+  id: "shadowmage-infiltrator",
+  name: "Shadowmage Infiltrator",
+  scryfallId: "2ac920d7-013f-40ad-b79f-0bb59062d42a",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 1, colors: { U: 1, B: 1 } },
+  colorIdentity: ["B", "U"],
+  power: 1,
+  toughness: 3,
+  keywords: ["Fear"],
+  // "Whenever this creature deals combat damage to a player, you may draw a
+  // card." No `watches`, so it fires only when this creature is the one that
+  // connected; optional, so it can be declined.
+  triggeredAbilities: [{ event: "combat-damage-to-player", optional: true, effect: { kind: "draw", amount: 1 } }],
+  tier: "scripted",
+};
+
+export const NECROPOLIS_REGENT: CardDefinition = {
+  id: "necropolis-regent",
+  name: "Necropolis Regent",
+  scryfallId: "9cd548d5-6162-4eff-adfc-69b7e3b45712",
+  types: ["Creature"],
+  subtypes: ["Vampire"],
+  manaCost: { generic: 3, colors: { B: 3 } },
+  colorIdentity: ["B"],
+  power: 6,
+  toughness: 5,
+  keywords: ["Flying"],
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      watches: "controller",
+      effect: { kind: "addCounter", amount: { kind: "event-amount" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const TOKEN_UB_11_FAERIE_FLYING: CardDefinition = {
+  id: "token-ub-11-faerie-flying",
+  name: "Faerie",
+  types: ["Creature"],
+  subtypes: ["Faerie"],
+  colorIdentity: ["B", "U"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+export const GLEN_ELENDRAS_ANSWER: CardDefinition = {
+  id: "glen-elendras-answer",
+  name: "Glen Elendra's Answer",
+  scryfallId: "fa5bfbf9-dca2-42b7-a431-f9afedb54528",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  cantBeCountered: true,
+  castEffect: { kind: "counterAll", tokenPerCountered: "token-ub-11-faerie-flying" },
+  tier: "scripted",
+};
+
+export const AN_OFFER_YOU_CANT_REFUSE: CardDefinition = {
+  id: "an-offer-you-cant-refuse",
+  name: "An Offer You Can't Refuse",
+  scryfallId: "a829747f-cf9b-4d81-ba66-9f0630ed4565",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "counter", target: { kind: "spell", notSpellType: "Creature" } },
+      { kind: "createToken", count: 2, tokenDefinitionId: "token-treasure", forController: "each-opponent" },
+    ],
+  },
+  tier: "scripted",
+};
+
+export const REVEL_IN_RICHES: CardDefinition = {
+  id: "revel-in-riches",
+  name: "Revel in Riches",
+  scryfallId: "79b0e035-8716-469d-99ae-a530cd96ef09",
+  types: ["Enchantment"],
+  manaCost: { generic: 4, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  triggeredAbilities: [
+    {
+      event: "permanent-dies",
+      watches: "any",
+      watchFor: { type: "Creature", controlledBy: "opponent" },
+      effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-treasure" },
+    },
+    {
+      event: "upkeep",
+      onlyIf: { kind: "board", condition: { kind: "controls-subtype", subtypes: ["Treasure"], count: 10 } },
+      effect: { kind: "winGame" },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const OMNISCIENCE: CardDefinition = {
+  id: "omniscience",
+  name: "Omniscience",
+  scryfallId: "d33d91d0-1506-45e4-9def-975bf901815e",
+  types: ["Enchantment"],
+  manaCost: { generic: 7, colors: { U: 3 } },
+  colorIdentity: ["U"],
+  enablesFreeCastFromHand: true,
+  tier: "scripted",
+};
+
+export const CULLING_RITUAL: CardDefinition = {
+  id: "culling-ritual",
+  name: "Culling Ritual",
+  scryfallId: "abaad8c5-763d-4276-9b19-623cd19f59b9",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  castEffect: {
+    kind: "destroyAll",
+    cardTypes: ["Artifact", "Creature", "Enchantment", "Planeswalker"],
+    maxManaValue: 2,
+    manaPerDestroyed: ["B", "G"],
+  },
+  tier: "scripted",
+};
+
+export const DEATH_BEGETS_LIFE: CardDefinition = {
+  id: "death-begets-life",
+  name: "Death Begets Life",
+  scryfallId: "1faab43d-587d-44f6-9516-c8e3965bbc20",
+  types: ["Sorcery"],
+  manaCost: { generic: 5, colors: { B: 1, G: 1, U: 1 } },
+  colorIdentity: ["B", "G", "U"],
+  castEffect: { kind: "destroyAll", cardTypes: ["Creature", "Enchantment"], thenDraw: true },
+  tier: "scripted",
+};
+
+export const WINDFALL: CardDefinition = {
+  id: "windfall",
+  name: "Windfall",
+  scryfallId: "9ce7113b-08f7-4584-b65f-a7b5caa90c2f",
+  types: ["Sorcery"],
+  manaCost: { generic: 2, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  castEffect: { kind: "windfall" },
+  tier: "scripted",
+};
+
+export const ARBOR_ELF: CardDefinition = {
+  id: "arbor-elf",
+  name: "Arbor Elf",
+  scryfallId: "4b81165e-f091-4211-8b47-5ea6868b0d4c",
+  types: ["Creature"],
+  subtypes: ["Elf", "Druid"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  activatedAbilities: [
+    {
+      cost: { tap: true },
+      effect: { kind: "untap", target: { kind: "permanent", cardTypes: ["Land"], subtypes: ["Forest"] } },
+    },
+  ],
+  tier: "scripted",
+};
+
+export const GROWTH_SPIRAL: CardDefinition = {
+  id: "growth-spiral",
+  name: "Growth Spiral",
+  scryfallId: "1e10e2b4-9639-41ae-8b8e-253224d3d513",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { G: 1, U: 1 } },
+  colorIdentity: ["G", "U"],
+  castEffect: {
+    kind: "sequence",
+    effects: [{ kind: "draw", amount: 1 }, { kind: "putLandFromHand" }],
+  },
+  tier: "scripted",
+};
+
+export const PEER_INTO_THE_ABYSS: CardDefinition = {
+  id: "peer-into-the-abyss",
+  name: "Peer into the Abyss",
+  scryfallId: "aac00055-640e-4749-8d23-d242e6d0b23a",
+  types: ["Sorcery"],
+  manaCost: { generic: 4, colors: { B: 3 } },
+  colorIdentity: ["B"],
+  // One targeted step (the life loss carries the player selector); the draw
+  // reads that same shared target. Both amounts are read against the target at
+  // resolution, rounded up, per "Round up each time."
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "draw", amount: { kind: "count", of: { what: "half-library-round-up" } }, who: "target" },
+      {
+        kind: "loseLife",
+        amount: { kind: "count", of: { what: "half-life-round-up" } },
+        who: "target",
+        target: { kind: "player" },
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+/**
+ * "Your maximum hand size is twenty. Whenever you attack with two or more
+ * creatures, put a +1/+1 counter on this creature and draw a card. Whenever
+ * this creature attacks, you win the game if there are twenty or more counters
+ * on it or you have twenty or more cards in hand." - Twenty-Toed Toad.
+ *
+ * Three lines, three existing bones: a hand-size static (a raise, not the
+ * usual trim), a whole-declaration attack trigger that grows it and refills
+ * your hand, and a self-attack trigger whose intervening-if is the win. Both
+ * paths to twenty are one condition, checked again on resolution so a bounce in
+ * response takes the win with it.
+ */
+export const TWENTY_TOED_TOAD: CardDefinition = {
+  id: "twenty-toed-toad",
+  name: "Twenty-Toed Toad",
+  scryfallId: "1b3de0d8-5911-4743-8623-010f12c2055b",
+  types: ["Creature"],
+  subtypes: ["Frog", "Wizard"],
+  manaCost: { generic: 3, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 3,
+  toughness: 3,
+  staticRules: { setMaxHandSize: 20 },
+  triggeredAbilities: [
+    {
+      event: "attack-with-two-or-more",
+      watches: "controller",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "addCounter", amount: 1 },
+          { kind: "draw", amount: 1 },
+        ],
+      },
+    },
+    {
+      event: "attacks",
+      effect: { kind: "winGame" },
+      onlyIf: { kind: "counters-or-hand-at-least", count: 20 },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "Target creature you control deals damage equal to its power to target
+ * creature you don't control. Each opponent gets a poison counter." - Infectious
+ * Bite.
+ *
+ * The pool's one two-target effect. Its dealer and recipient are opposite
+ * requirements ("you control" / "you don't"), so they are two selectors
+ * validated positionally rather than a count on one; the poison rides along in
+ * the same effect. See the `infectiousBite` effect.
+ */
+export const INFECTIOUS_BITE: CardDefinition = {
+  id: "infectious-bite",
+  name: "Infectious Bite",
+  scryfallId: "83dfb2a5-cd5c-46c6-9bb8-7c5d00f3e003",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: {
+    kind: "infectiousBite",
+    dealer: { kind: "creature", controlledBy: "you" },
+    recipient: { kind: "creature", controlledBy: "opponent" },
+    poisonEachOpponent: 1,
+  },
+  tier: "scripted",
+};
+
+/**
+ * "Whenever a creature you control deals combat damage to a player, you may
+ * draw that many cards. Warp {2}{U}{U}" - Starwinder.
+ *
+ * The combat half is the combat-damage-to-player watcher every Necropolis
+ * Regent-shaped card already uses, here paying out an optional draw of the
+ * amount dealt. The Warp half is the new bone: cast for its warp cost, exiled
+ * at the next end step, castable from exile later for its printed {5}{U}{U}.
+ */
+export const STARWINDER: CardDefinition = {
+  id: "starwinder",
+  name: "Starwinder",
+  scryfallId: "27d1a010-5790-4b35-9fdc-0e366eed021d",
+  types: ["Creature"],
+  subtypes: ["Leviathan"],
+  manaCost: { generic: 5, colors: { U: 2 } },
+  colorIdentity: ["U"],
+  power: 7,
+  toughness: 7,
+  warp: { cost: { generic: 2, colors: { U: 2 } } },
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      watches: "controller",
+      optional: true,
+      effect: { kind: "draw", amount: { kind: "event-amount" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "Whenever this creature deals combat damage to a player or planeswalker, draw
+ * a card. Discard a card: Put a +1/+1 counter on this creature. Exile three
+ * cards from your graveyard: This creature gains flying until end of turn." -
+ * Psychic Frog.
+ *
+ * The draw is the self-scoped combat-damage watcher (the "or planeswalker" half
+ * is the usual documented simplification - the engine's combat damage lands on
+ * players). The two abilities are the new bones: a "discard a card" cost, whose
+ * card is announced with the activation, and an "exile three from your
+ * graveyard" cost, taken from the top the way Delve is. The flying is an
+ * ordinary pump granting a keyword until end of turn.
+ */
+export const PSYCHIC_FROG: CardDefinition = {
+  id: "psychic-frog",
+  name: "Psychic Frog",
+  scryfallId: "68924203-c3d9-41ce-8ca8-c6dd491eb3ca",
+  types: ["Creature"],
+  subtypes: ["Frog"],
+  manaCost: { generic: 0, colors: { U: 1, B: 1 } },
+  colorIdentity: ["B", "U"],
+  power: 1,
+  toughness: 2,
+  triggeredAbilities: [{ event: "combat-damage-to-player", effect: { kind: "draw", amount: 1 } }],
+  activatedAbilities: [
+    { cost: { discard: 1 }, effect: { kind: "addCounter", amount: 1 } },
+    { cost: { exileFromGraveyard: 3 }, effect: { kind: "pump", power: 0, toughness: 0, grants: ["Flying"] } },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "Storm (When you cast this spell, copy it for each spell cast before it this
+ * turn.) Proliferate." - Radstorm.
+ *
+ * Storm is the `storm` flag read at cast time; the copies carry the same
+ * proliferate effect. Proliferate is the new effect, auto-taken over the
+ * beneficial subset of counters.
+ */
+export const RADSTORM: CardDefinition = {
+  id: "radstorm",
+  name: "Radstorm",
+  scryfallId: "d778cdec-8fc7-4174-bae1-4c8e8ccdfab3",
+  types: ["Instant"],
+  manaCost: { generic: 3, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  storm: true,
+  castEffect: { kind: "proliferate" },
+  tier: "scripted",
+};
+
+/**
+ * "Equipped creature gets +2/+2 and has protection from instants and from
+ * sorceries. Whenever equipped creature deals combat damage to a player, create
+ * a Treasure token. When you next cast an instant or sorcery spell this turn,
+ * copy that spell. You may choose new targets for the copy. Equip {2}" - Sword
+ * of Wealth and Power.
+ *
+ * The Equipment shape Zephyr Boots established (staticBuff + an attachedToThis
+ * combat trigger + an equip ability), now with the protection facet on the buff
+ * and, on connect, a Treasure and the armed next-cast copy. The copy reuses the
+ * spell-copy core; new targets for it are the documented simplification.
+ */
+export const SWORD_OF_WEALTH_AND_POWER: CardDefinition = {
+  id: "sword-of-wealth-and-power",
+  name: "Sword of Wealth and Power",
+  scryfallId: "ed9e5041-3c05-4a8a-9f00-081b01685d0c",
+  types: ["Artifact"],
+  subtypes: ["Equipment"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  equipCost: { generic: 2, colors: {} },
+  staticBuff: { power: 2, toughness: 2, grantsProtectionFrom: ["Instant", "Sorcery"] },
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      watchFor: { attachedToThis: true },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "createToken", count: 1, tokenDefinitionId: "token-treasure" },
+          { kind: "copyNextInstantOrSorcery" },
+        ],
+      },
+    },
+  ],
+  activatedAbilities: [
+    {
+      sorcerySpeedOnly: true,
+      cost: { mana: { generic: 2, colors: {} } },
+      effect: { kind: "attach", target: { kind: "creature" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "Offspring {4} ... When this creature enters, look at the top four cards of
+ * your library. You may reveal a noncreature, nonland card from among them and
+ * put it into your hand. Put the rest on the bottom of your library in a random
+ * order." - Thundertrap Trainer.
+ *
+ * Two new bones: Offspring (an optional additional cost that makes a 1/1 token
+ * copy on ETB, via the createCopyToken P/T override) and the lookTopMayTake
+ * impulse (look four, keep one noncreature/nonland, rest to the bottom).
+ */
+export const THUNDERTRAP_TRAINER: CardDefinition = {
+  id: "thundertrap-trainer",
+  name: "Thundertrap Trainer",
+  scryfallId: "9cf3af94-b7c8-415c-a5a1-d89967fd0bba",
+  types: ["Creature"],
+  subtypes: ["Otter", "Wizard"],
+  manaCost: { generic: 1, colors: { U: 1 } },
+  colorIdentity: ["U"],
+  power: 1,
+  toughness: 2,
+  offspring: { cost: { generic: 4, colors: {} } },
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "lookTopMayTake", amount: 4, excludeTypes: ["Creature", "Land"] },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "Trample. This creature gets +10/+10 for each player who has lost the game.
+ * Whenever this creature deals combat damage to a player, you may mill that many
+ * cards. Put any number of land cards from among them onto the battlefield
+ * tapped." - Rampant Frogantua.
+ *
+ * Two new bones: a dynamic `selfBuff` (a count-times-ten read off the board
+ * every time its stats are, so it grows as players fall) and the
+ * millThenPlayLands combat trigger (mill the damage dealt, then put any of the
+ * milled lands out tapped).
+ */
+export const RAMPANT_FROGANTUA: CardDefinition = {
+  id: "rampant-frogantua",
+  name: "Rampant Frogantua",
+  scryfallId: "8549b26f-f1fb-42d2-b20d-987e6461d191",
+  types: ["Creature"],
+  subtypes: ["Frog"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 3,
+  keywords: ["Trample"],
+  selfBuff: {
+    power: { kind: "count", of: { what: "players-who-have-lost" }, times: 10 },
+    toughness: { kind: "count", of: { what: "players-who-have-lost" }, times: 10 },
+  },
+  triggeredAbilities: [
+    {
+      event: "combat-damage-to-player",
+      optional: true,
+      effect: { kind: "millThenPlayLands", amount: { kind: "event-amount" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "Trample. Whenever a creature you control deals combat damage during your
+ * turn, put that many +1/+1 counters on it. You may cast this card from your
+ * graveyard by removing six counters from among creatures you control in
+ * addition to paying its other costs." - Quilled Greatwurm.
+ *
+ * Two new bones: the combat-damage-dealt watcher (any recipient, on your turn,
+ * counters onto the damager) and a cast-from-graveyard door whose additional
+ * cost is removing six +1/+1 counters spread across your creatures.
+ */
+export const QUILLED_GREATWURM: CardDefinition = {
+  id: "quilled-greatwurm",
+  name: "Quilled Greatwurm",
+  scryfallId: "31b60531-3d33-4e66-923a-29008716b15c",
+  types: ["Creature"],
+  subtypes: ["Wurm"],
+  manaCost: { generic: 4, colors: { G: 2 } },
+  colorIdentity: ["G"],
+  power: 7,
+  toughness: 7,
+  keywords: ["Trample"],
+  castFromGraveyard: { removeCounters: 6 },
+  triggeredAbilities: [
+    {
+      event: "combat-damage-dealt",
+      watches: "controller",
+      effect: { kind: "addCounter", amount: { kind: "event-amount" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "Search your library for up to three monocolored cards with different names
+ * and exile them. An opponent chooses one of those cards. Shuffle that card into
+ * your library. You may cast the other cards without paying their mana costs.
+ * Exile Emergent Ultimatum." - the whole card as one bespoke effect, run across
+ * the caster's search and the opponent's pick (see effects.ts).
+ */
+export const EMERGENT_ULTIMATUM: CardDefinition = {
+  id: "emergent-ultimatum",
+  name: "Emergent Ultimatum",
+  scryfallId: "3a6a52ab-6d38-4429-9969-90064e615152",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { B: 2, G: 3, U: 2 } },
+  colorIdentity: ["B", "G", "U"],
+  castEffect: { kind: "emergentUltimatum" },
+  tier: "scripted",
+};
+
+/**
+ * "Hades, Sorcerer of Eld" - Emet-Selch's back face. A 6/6 with vigilance whose
+ * two static lines are the payoff: playing lands from your graveyard on your
+ * turn (the "play cards from your graveyard" clause, modelled for lands - the
+ * documented simplification, since casting nonland spells from the graveyard is
+ * its own subsystem), and the graveyard-to-exile replacement it shares with
+ * Necrodominance. `isBackFace`, so it is never cast or found on its own.
+ */
+export const HADES_SORCERER_OF_ELD: CardDefinition = {
+  id: "hades-sorcerer-of-eld",
+  name: "Hades, Sorcerer of Eld",
+  scryfallId: "75cf4eb8-33e7-4dfc-b890-a7e3b5c1b9d5",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Avatar"],
+  colorIdentity: ["B", "U"],
+  power: 6,
+  toughness: 6,
+  keywords: ["Vigilance"],
+  isBackFace: true,
+  staticRules: { playLandsFromGraveyard: true },
+  replacementEffects: [{ kind: "graveyard-to-exile" }],
+  tier: "scripted",
+};
+
+/**
+ * "Emet-Selch, Unsundered // Hades, Sorcerer of Eld." The front is a 2/4 with
+ * vigilance that loots as it enters or attacks, and transforms in your upkeep
+ * once your graveyard has grown to fourteen. Transform swaps it to `backFaceId`
+ * in place; a one-way flip.
+ */
+export const EMET_SELCH_UNSUNDERED: CardDefinition = {
+  id: "emet-selch-unsundered",
+  name: "Emet-Selch, Unsundered",
+  scryfallId: "75cf4eb8-33e7-4dfc-b890-a7e3b5c1b9d5",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Elder", "Wizard"],
+  manaCost: { generic: 1, colors: { U: 1, B: 1 } },
+  colorIdentity: ["B", "U"],
+  power: 2,
+  toughness: 4,
+  keywords: ["Vigilance"],
+  backFaceId: "hades-sorcerer-of-eld",
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "sequence", effects: [{ kind: "draw", amount: 1 }, { kind: "discard", amount: 1, who: "self" }] },
+    },
+    {
+      event: "attacks",
+      effect: { kind: "sequence", effects: [{ kind: "draw", amount: 1 }, { kind: "discard", amount: 1, who: "self" }] },
+    },
+    {
+      event: "upkeep",
+      watches: "controller",
+      optional: true,
+      onlyIf: { kind: "board", condition: { kind: "cards-in-graveyard", count: 14 } },
+      effect: { kind: "transform" },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -17449,5 +18793,74 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
     ANGRATHS_MARAUDERS,
     EIGANJO_SEAT_OF_THE_EMPIRE,
     SOKENZAN_CRUCIBLE_OF_DEFIANCE,
+  HINTERLAND_HARBOR,
+  OPULENT_PALACE,
+  TEMPLE_OF_DECEIT,
+  TEMPLE_OF_MALADY,
+  BRAINSTORM,
+  FABRICATE,
+  PONDER,
+  HALIMAR_DEPTHS,
+  BALEFUL_STRIX,
+  BOJUKA_BOG,
+  SWIFTFOOT_BOOTS,
+  PROLOGUE_TO_PHYRESIS,
+  DISPEL,
+  DEMONIC_BARGAIN,
+  DIG_UP,
+  DROWN_IN_THE_LOCH,
+  DEMONIC_COUNSEL,
+  RELIQUARY_TOWER,
+  TIME_STRETCH,
+  LABORATORY_MANIAC,
+  PEER_INTO_THE_ABYSS,
+  GROWTH_SPIRAL,
+  WINDFALL,
+  ARBOR_ELF,
+  AN_OFFER_YOU_CANT_REFUSE,
+  TOKEN_UB_11_FAERIE_FLYING,
+  GLEN_ELENDRAS_ANSWER,
+  REVEL_IN_RICHES,
+  OMNISCIENCE,
+  CULLING_RITUAL,
+  DEATH_BEGETS_LIFE,
+  NECROPOLIS_REGENT,
+  SHADOWMAGE_INFILTRATOR,
+  TRAILBLAZERS_BOOTS,
+  LAVASPUR_BOOTS,
+  WINGED_BOOTS,
+  ZEPHYR_BOOTS,
+  CULTIVATE,
+  INUNDATED_ARCHIVE,
+  WATERLOGGED_TEACHINGS,
+  MIST_SYNDICATE_NAGA,
+  TWENTY_TOED_TOAD,
+  INFECTIOUS_BITE,
+  STARWINDER,
+  PSYCHIC_FROG,
+  RADSTORM,
+  SWORD_OF_WEALTH_AND_POWER,
+  THUNDERTRAP_TRAINER,
+  RAMPANT_FROGANTUA,
+  QUILLED_GREATWURM,
+  EMERGENT_ULTIMATUM,
+  EMET_SELCH_UNSUNDERED,
+  HADES_SORCERER_OF_ELD,
+  SILENT_HALLCREEPER,
+  GITAXIAN_PROBE,
+  GLISSA_SUNSLAYER,
+  FELIX_FIVE_BOOTS,
+  YOU_ARE_ALREADY_DEAD,
+  PROPAGANDA,
+  FLARE_OF_DENIAL,
+  FLARE_OF_MALICE,
+  BLASPHEMOUS_EDICT,
+  MISHRAS_BAUBLE,
+  ARCANE_DENIAL,
+  TRAVERSE_THE_ULVENWALD,
+  FALLAJI_ARCHAEOLOGIST,
+  LORIEN_REVEALED,
+  FOREBODING_LANDSCAPE,
+  STEP_THROUGH,
   ].map((def) => [def.id, def]),
 );

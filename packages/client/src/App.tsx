@@ -55,6 +55,7 @@ import { StopSettings } from "./components/StopSettings.js";
 import { AbilityPicker, type AbilityOption } from "./components/AbilityPicker.js";
 import { ConfirmTrigger } from "./components/ConfirmTrigger.js";
 import { describeActivated, describeCard } from "./cardText.js";
+import { castOffer, controlsFreeCastEnabler, hasPlayableBackFace } from "./castOffers.js";
 import { burstsForFlight, spellColor } from "./particles.js";
 import { findInstance } from "./cardLookup.js";
 import { EnterChoicePrompt } from "./components/EnterChoicePrompt.js";
@@ -221,7 +222,13 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     instanceId: string;
     sacrificeInstanceId?: string;
     useAlternativeCost?: boolean;
+    omniscienceFree?: boolean;
+    useWarp?: boolean;
+    payOffspring?: boolean;
   } | null>(null);
+  /** "Cast it for its Warp cost?" (Starwinder) and "Pay {4} for Offspring?" (Thundertrap) - a yes/no before the spell. */
+  const [pendingWarp, setPendingWarp] = useState<{ ownerId: string; instanceId: string } | null>(null);
+  const [pendingOffspring, setPendingOffspring] = useState<{ ownerId: string; instanceId: string } | null>(null);
   /**
    * "As an additional cost to cast this spell, sacrifice a creature" - waiting
    * on which one. Asked before X, a mode or targets, because a cost that
@@ -661,7 +668,12 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
      * back from state - a `setState` in the same tick has not landed yet, so
      * re-entering the flow would ask the same question again forever.
      */
-    already: { sacrificeInstanceId?: string } = {},
+    already: {
+      sacrificeInstanceId?: string;
+      castChoiceAnswered?: boolean;
+      useWarp?: boolean;
+      payOffspring?: boolean;
+    } = {},
     /**
      * Set once the player has already answered the from-hand ability menu, so
      * re-entering the flow plays the card rather than asking again forever - the
@@ -723,6 +735,30 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     }
 
     /*
+     * "You may cast spells from your hand without paying their mana costs." -
+     * Omniscience. Strictly better, so taken automatically like the alternative
+     * free cast above, whenever the player controls a permanent that grants it.
+     */
+    const omniscienceFree =
+      !freeCast && !def.types.includes("Land") && controlsFreeCastEnabler(state!, ownerId);
+    if (omniscienceFree && castExtras?.instanceId !== instanceId) {
+      setCastExtras({ instanceId, omniscienceFree: true });
+    }
+
+    /*
+     * Warp and Offspring are real choices - a different cost, or an extra one -
+     * so they are asked rather than taken. Asked before any of the gates below,
+     * because they change what the spell costs. Skipped once answered
+     * (`already.castChoiceAnswered`).
+     */
+    const offer = castOffer(def);
+    if (offer && !already.castChoiceAnswered && !freeCast && !omniscienceFree) {
+      if (offer === "warp") setPendingWarp({ ownerId, instanceId });
+      else setPendingOffspring({ ownerId, instanceId });
+      return;
+    }
+
+    /*
      * The additional cost comes before everything else, because a cost that
      * cannot be paid means the spell was never cast - not a spell that resolves
      * and does less.
@@ -738,7 +774,11 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
      * the spell if you can afford it, otherwise play the land" would take the
      * land drop away from you on the turn you wanted it.
      */
-    if (def.backFaceId && !pendingFace) {
+    // Only a genuine second face is a choice - a land or a spell with its own
+    // cost (Waterlogged Teachings, Bala Ged Recovery). A transform back like
+    // Hades is reached by transforming, not by casting, so clicking Emet-Selch
+    // must not offer to "cast" it. See hasPlayableBackFace.
+    if (hasPlayableBackFace(state!, def) && !pendingFace) {
       setPendingFace({ ownerId, instanceId });
       return;
     }
@@ -783,7 +823,10 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
       // reaches here in the same tick the free cast was decided.
       justDecided: {
         useAlternativeCost: freeCast || undefined,
+        omniscienceFree: omniscienceFree || undefined,
         sacrificeInstanceId: already.sacrificeInstanceId,
+        useWarp: already.useWarp,
+        payOffspring: already.payOffspring,
       },
     });
   }
@@ -807,7 +850,13 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
        * a `setState` has not landed by the time the cast goes out, so a spell
        * that asked no further question would be cast without them.
        */
-      justDecided?: { sacrificeInstanceId?: string; useAlternativeCost?: boolean };
+      justDecided?: {
+        sacrificeInstanceId?: string;
+        useAlternativeCost?: boolean;
+        omniscienceFree?: boolean;
+        useWarp?: boolean;
+        payOffspring?: boolean;
+      };
     } = {},
   ) {
     const stored = castExtras?.instanceId === instanceId ? castExtras : null;
@@ -817,6 +866,9 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
       ...rest,
       sacrificeInstanceId: justDecided?.sacrificeInstanceId ?? stored?.sacrificeInstanceId,
       useAlternativeCost: justDecided?.useAlternativeCost ?? stored?.useAlternativeCost,
+      omniscienceFree: justDecided?.omniscienceFree ?? stored?.omniscienceFree,
+      useWarp: justDecided?.useWarp ?? stored?.useWarp,
+      payOffspring: justDecided?.payOffspring ?? stored?.payOffspring,
     });
   }
 
@@ -1124,6 +1176,22 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
     // Re-enter the normal path now that the face is settled. `pendingFace` is
     // already cleared, so the guard at the top does not bounce it straight back.
     handleHandCardClick(ownerId, instanceId);
+  }
+
+  /** "Cast it for its Warp cost?" - yes takes the warp cost, no casts it normally. */
+  function handleWarpChoice(useWarp: boolean) {
+    if (!pendingWarp) return;
+    const { ownerId, instanceId } = pendingWarp;
+    setPendingWarp(null);
+    handleHandCardClick(ownerId, instanceId, { castChoiceAnswered: true, useWarp });
+  }
+
+  /** "Pay {4} for Offspring?" - yes adds the cost for a 1/1 token copy, no casts it plainly. */
+  function handleOffspringChoice(payOffspring: boolean) {
+    if (!pendingOffspring) return;
+    const { ownerId, instanceId } = pendingOffspring;
+    setPendingOffspring(null);
+    handleHandCardClick(ownerId, instanceId, { castChoiceAnswered: true, payOffspring });
   }
 
   function handleXChosen(x: number) {
@@ -1658,6 +1726,32 @@ export function App({ controller, modeNotice, artOverrides, revealAllHands }: Ap
             onAnswer={(quality) => controller.resolveColorChoice(pendingColorChoice.playerId, quality)}
           />
         )}
+
+        {pendingWarp && (() => {
+          const card = state.players
+            .find((p) => p.id === pendingWarp.ownerId)
+            ?.hand.find((c) => c.instanceId === pendingWarp.instanceId);
+          const def = card ? state.cardDefinitions[card.definitionId] : undefined;
+          return (
+            <ConfirmTrigger
+              prompt={`Cast ${def?.name ?? "this"} for its Warp cost? It will be exiled at the next end step, and you may cast it from exile on a later turn.`}
+              onAnswer={handleWarpChoice}
+            />
+          );
+        })()}
+
+        {pendingOffspring && (() => {
+          const card = state.players
+            .find((p) => p.id === pendingOffspring.ownerId)
+            ?.hand.find((c) => c.instanceId === pendingOffspring.instanceId);
+          const def = card ? state.cardDefinitions[card.definitionId] : undefined;
+          return (
+            <ConfirmTrigger
+              prompt={`Pay the Offspring cost as well? A 1/1 token copy of ${def?.name ?? "it"} is created when it enters.`}
+              onAnswer={handleOffspringChoice}
+            />
+          );
+        })()}
 
         {pendingConfirmation && (
           <ConfirmTrigger

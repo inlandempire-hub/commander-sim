@@ -72,6 +72,10 @@ function toClientMessage(action: BotAction): ClientMessage | null {
        * to debug than a named error.
        */
       throw new Error("Entry choices are not carried over the network protocol yet");
+    case "resolveModal":
+      return { type: "resolveModal", modeIndex: action.modeIndex };
+    case "resolveArrange":
+      return { type: "resolveArrange", order: action.order, shuffle: action.shuffle };
     case "resolveConfirmation":
       return { type: "resolveConfirmation", accept: action.accept };
     case "chooseTriggerTargets":

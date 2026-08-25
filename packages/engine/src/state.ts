@@ -43,6 +43,7 @@ export function createPlayer(id: string): Player {
     // The Ring is an emblem: nobody has it until something tempts them.
     ringLevel: 0,
     ringBearerInstanceId: null,
+    copyNextInstantOrSorcery: 0,
   };
 }
 
@@ -73,6 +74,10 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     blockers: {},
     blockersDeclared: false,
     pendingSearch: null,
+    pendingModal: null,
+    extraTurns: [],
+    delayedUpkeepEffects: [],
+    pendingArrange: null,
     pendingConfirmation: null,
     pendingTargetChoices: [],
     pendingDiscards: [],
@@ -80,6 +85,7 @@ export function createGameState(playerIds: string[], cardDefinitions: Record<str
     pendingCardChoices: [],
     pendingAmount: null,
     creatureDeathsThisTurn: 0,
+    spellsCastThisTurn: 0,
     combatDamagePrevention: null,
     mulligan: null,
     pendingColorChoice: null,

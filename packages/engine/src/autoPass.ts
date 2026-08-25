@@ -219,6 +219,15 @@ export function hasAnyLegalAction(state: GameState, playerId: string): boolean {
       // Life is a cost like any other: an ability you cannot pay for is not an
       // action, and offering it stops the turn for something you can't do.
       if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) continue;
+      // The same for the two graveyard/hand costs: an ability whose cost cannot
+      // be paid is not an action worth stopping the turn to offer.
+      if (ability.cost.discard !== undefined && player.hand.length < ability.cost.discard) continue;
+      if (
+        ability.cost.exileFromGraveyard !== undefined &&
+        player.graveyard.length < ability.cost.exileFromGraveyard
+      ) {
+        continue;
+      }
       if (hasSomethingToTarget(state, playerId, ability.effect, instance.instanceId)) return true;
     }
   }
@@ -283,6 +292,8 @@ export function mustNotAutoPass(state: GameState, playerId: string): boolean {
   if (state.pendingSearch) return true;
   // And for a permanent that entered and is waiting to be told what it chose.
   if (state.pendingEnterChoice) return true;
+  if (state.pendingModal) return true;
+  if (state.pendingArrange) return true;
   // Same for a "you may" trigger waiting on a yes or no.
   if (state.pendingConfirmation) return true;
   // And for a trigger that has not been pointed at anything yet.

@@ -12,5 +12,13 @@ import react from "@vitejs/plugin-react";
 // far more reliable.
 export default defineConfig({
   plugins: [react()],
-  server: { port: 5180 },
+  // Relative asset paths, so the production build works served from a subpath
+  // like GitHub Pages' https://<org>.github.io/commander-sim/ as well as from
+  // the root in dev.
+  base: "./",
+  // Bind IPv4 explicitly. Left to itself Vite listened on [::1] (IPv6 localhost)
+  // only, and a browser resolving "localhost" to 127.0.0.1 (IPv4) then failed to
+  // connect - "Safari can't connect to the server". 127.0.0.1 makes the address
+  // the browser actually tries the one the server is on.
+  server: { port: 5180, host: "127.0.0.1" },
 });

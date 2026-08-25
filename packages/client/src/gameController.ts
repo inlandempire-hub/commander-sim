@@ -35,6 +35,14 @@ export interface GameController {
       sacrificeInstanceId?: string;
       /** "You may cast this spell without paying its mana cost." */
       useAlternativeCost?: boolean;
+      /** Cast for free via an Omniscience-style permanent you control. */
+      omniscienceFree?: boolean;
+      /** Cast for the Warp cost (Starwinder); the creature leaves at the next end step. */
+      useWarp?: boolean;
+      /** Pay the Offspring cost (Thundertrap Trainer); a 1/1 token copy is made on ETB. */
+      payOffspring?: boolean;
+      /** Creatures the +1/+1 counters come off to cast this from the graveyard (Quilled Greatwurm). */
+      removeCounterFrom?: string[];
     },
   ): void;
   activateAbility(
@@ -43,6 +51,7 @@ export interface GameController {
     abilityIndex: number,
     targets?: StackTarget[],
     chosenMode?: number,
+    options?: { discardInstanceIds?: string[] },
   ): void;
   declareAttackers(playerId: string, declarations: AttackerDeclaration[]): void;
   declareBlockers(playerId: string, declarations: BlockerDeclaration[]): void;
@@ -52,6 +61,18 @@ export interface GameController {
    * while a search is pending.
    */
   resolveSearch(playerId: string, instanceId: string | null): void;
+  /**
+   * Puts the cards a `lookAndArrange` showed back on top in the named order, or
+   * shuffles instead when the card allowed it (Ponder). Gated like
+   * `resolveSearch` - the game is stopped mid-spell until it is answered.
+   */
+  resolveArrange(playerId: string, order: string[], shuffle?: boolean): void;
+  /** Cycle a card from hand: pay its cycling cost, discard it, then draw or tutor. */
+  cycleCard(playerId: string, instanceId: string): void;
+  /** Ninjutsu: return an unblocked attacker to hand and put a Ninja in tapped and attacking. */
+  ninjutsu(playerId: string, ninjaInstanceId: string, returnedAttackerInstanceId: string): void;
+  /** Choose a mode for a modal triggered/activated ability. */
+  resolveModal(playerId: string, modeIndex: number): void;
   /**
    * Answers a "you may" trigger. Gated exactly like `resolveSearch` - the game
    * is mid-resolution and nobody has priority until this comes back.

@@ -38,7 +38,8 @@ MODELLED = {
     "permanent-dies", "permanent-sacrificed", "permanent-attacks", "leaves-battlefield",
     "spell-cast", "damaged", "upkeep", "first-main", "begin-combat", "end-step",
     "land-played", "becomes-tapped",
-    "combat-damage-to-player", "creatures-dealt-combat-damage",
+    "combat-damage-to-player", "creatures-dealt-combat-damage", "combat-damage-dealt",
+    "attack-with-two-or-more",
     "creatures-attack", "library-searched", "draw-step", "creatures-die",
 }
 
@@ -166,7 +167,18 @@ def clauses(card):
                 continue
             if re.match(r"^(When|Whenever|At the beginning|At end of)\b", s, re.I):
                 found.append(s)
-    return found
+    # "Whenever X enters or attacks, ..." is one printed sentence but two
+    # triggers, and the engine models it as two - Emet-Selch. Split it so each
+    # half classifies on its own rather than the pair reading as one wrong event.
+    expanded = []
+    for c in found:
+        m = re.match(r"^(Whenever .*?) enters or attacks(,.*)$", c, re.I)
+        if m:
+            expanded.append("%s enters%s" % (m.group(1), m.group(2)))
+            expanded.append("%s attacks%s" % (m.group(1), m.group(2)))
+        else:
+            expanded.append(c)
+    return expanded
 
 
 def watched_noun(clause):
@@ -198,9 +210,10 @@ def classify(clause, card_name):
     # "Soul Warden" in older templating, "this creature" in newer.
     #
     # A card whose name carries a title says the short half in its own rules
-    # text: "Whenever **Raph & Leo** attack" on a card called "Raph & Leo,
-    # Sibling Rivals". Both halves are accepted, or every legendary written this
-    # way reports its own trigger as invented.
+    # text: "Whenever **Raph & Leo** attack" on "Raph & Leo, Sibling Rivals",
+    # "Whenever Emet-Selch ..." on "Emet-Selch, Unsundered". Both halves are
+    # accepted, or every legendary written this way reports its own trigger as
+    # invented.
     short_name = card_name.split(",")[0].strip().lower()
     self_ref = r"(this creature|this permanent|this artifact|this enchantment|%s|%s)" % (
         re.escape(card_name.lower()),
@@ -271,6 +284,12 @@ def classify(clause, card_name):
         return "damaged", None
     if re.search(r"is dealt damage", c):
         return None, "watches something else being dealt damage - not modelled"
+    # "Whenever a creature you control deals combat damage during your turn" -
+    # Quilled Greatwurm (since 2026-08-22). Wider than the to-a-player ones below
+    # (it counts damage to a blocker too), so it is matched first on its own
+    # distinctive "during your turn" wording.
+    if re.search(r"deals combat damage during your turn", c):
+        return "combat-damage-dealt", None
     # Combat damage to a player became two real events on 2026-08-17, and they
     # are two: "whenever THIS creature deals" fires per creature, and "whenever
     # one or more creatures you control deal" fires once however many connected.
@@ -290,6 +309,13 @@ def classify(clause, card_name):
     # plural is the whole difference: one event for a batch, not one per death.
     if re.search(r"^when(ever)? one or more .* die,", c):
         return "creatures-die", None
+
+    # "Whenever you attack with two or more creatures" - Twenty-Toed Toad (since
+    # 2026-08-22). A controller-side attack event about the whole declaration,
+    # distinct from `attacks` and `permanent-attacks`. Checked before the other
+    # attack regexes so it is not swept up as one of those.
+    if re.search(r"whenever you attack with two or more creatures", c):
+        return "attack-with-two-or-more", None
 
     # "Whenever you attack with one or more non-Gnome creatures" (Anim Pakal),
     # "whenever you attack with this creature and/or your commander" (Ainok
@@ -342,6 +368,15 @@ def classify(clause, card_name):
     # bare search for the word claimed the sentence for the wrong event.
     if re.search(r"^whenever you cast( or copy)? ", c):
         return "spell-cast", None
+
+    # "When you next cast an instant or sorcery spell this turn, copy that spell"
+    # - Sword of Wealth and Power. A delayed triggered ability set up by the
+    # Equipment's combat trigger and modelled as an *effect*
+    # (`copyNextInstantOrSorcery`) on that trigger rather than as a triggered
+    # ability of its own, so there is no fixture trigger for it to match - which
+    # is documented here rather than left as an unrecognised shape.
+    if re.search(r"when you next cast an instant or sorcery spell this turn, copy that spell", c):
+        return None, "delayed spell-copy - modelled as an effect on the combat trigger, not a fixture trigger"
 
     # "Whenever a player sacrifices a nontoken creature" - Fumulus, the
     # Infestation, and a real event since 2026-08-13. Deliberately not folded

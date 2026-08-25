@@ -638,8 +638,64 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return sentence(`Move all counters from this permanent onto ${describeTarget(effect.target)}.`);
     case "mill":
       return `Mill ${countAmount(effect.amount)} ${isOne(effect.amount) ? "card" : "cards"}.`;
+    case "exileTop":
+      return `Exile the top ${countAmount(effect.amount)} ${isOne(effect.amount) ? "card" : "cards"} of your library.`;
+    case "extraTurn":
+      return `Target player takes ${effect.count === 1 ? "an extra turn" : `${effect.count} extra turns`} after this one.`;
+    case "putLandFromHand":
+      return "You may put a land card from your hand onto the battlefield.";
+    case "windfall":
+      return "Each player discards their hand, then draws cards equal to the greatest number discarded this way.";
+    case "winGame":
+      return "You win the game.";
+    case "lookAtHand":
+      return `Look at ${describeTarget(effect.target)}'s hand.`;
+    case "becomeCopy":
+      return `This creature becomes a copy of ${describeTarget(effect.target)}.`;
+    case "counterAll":
+      return `Counter all spells and abilities your opponents control.${
+        effect.tokenPerCountered ? " Create a 1/1 blue and black Faerie creature token with flying for each one countered this way." : ""
+      }`;
+    case "returnToHand":
+      return `Return ${describeTarget(effect.target)} to ${
+        effect.target.kind === "permanent" && effect.target.count && effect.target.count.max !== 1
+          ? "their owners' hands"
+          : "its owner's hand"
+      }.`;
+    case "destroyAll": {
+      const noun = effect.cardTypes.map((t) => `${t.toLowerCase()}s`).join(" and ");
+      const scope = effect.maxManaValue !== undefined ? ` with mana value ${effect.maxManaValue} or less` : "";
+      const nonland = effect.nonland ? "nonland " : "";
+      const draw = effect.thenDraw ? " Draw a card for each permanent destroyed this way." : "";
+      const mana = effect.manaPerDestroyed
+        ? ` Add ${effect.manaPerDestroyed.map((c) => `{${c}}`).join(" or ")} for each permanent destroyed this way.`
+        : "";
+      return `Destroy ${effect.maxManaValue !== undefined ? "each" : "all"} ${nonland}${noun}${scope}.${draw}${mana}`;
+    }
+    case "eachSacrifices": {
+      const who = effect.who === "each-opponent" ? "Each opponent" : "Each player";
+      const noun = (effect.types ?? ["Creature"]).map((t) => t.toLowerCase()).join(" or ");
+      if (effect.greatestManaValue) {
+        return `${who} sacrifices a ${noun} with the greatest mana value among ${noun}s they control.`;
+      }
+      const n = effect.count ?? 1;
+      return `${who} sacrifices ${n === 1 ? `a ${noun}` : `${n} ${noun}s`}.`;
+    }
+    case "atNextUpkeep": {
+      const who = effect.who === "each-opponent" ? "its controller" : "you";
+      return `At the beginning of the next turn's upkeep, ${who} ${describeEffect(effect.effect, definitions)
+        .replace(/\.$/, "")
+        .replace(/^You /, "")
+        .replace(/^Draw/, "draw")}.`;
+    }
     case "scry":
       return `Scry ${effect.amount}.`;
+    case "lookAndArrange": {
+      const look = `Look at the top ${effect.amount} ${effect.amount === 1 ? "card" : "cards"} of your library, then put them back in any order.`;
+      return effect.mayShuffle ? `${look} You may shuffle.` : look;
+    }
+    case "putFromHandOnTop":
+      return `Put ${effect.count} ${effect.count === 1 ? "card" : "cards"} from your hand on top of your library in any order.`;
     case "sacrificeChosen": {
       const what = effect.excludeSelf ? "another creature" : "a creature";
       const head = effect.optional ? `You may sacrifice ${what}.` : sentence(`Sacrifice ${what}.`);
@@ -854,7 +910,11 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       // damage to each opponent" will expect prevention and lifelink to matter.
       return effect.who === "target" && effect.target
         ? sentence(`${describeTarget(effect.target)} loses ${effect.amount} life.`)
-        : `Each opponent loses ${effect.amount} life.`;
+        : effect.who === "self"
+          ? `You lose ${effect.amount} life.`
+          : `Each opponent loses ${effect.amount} life.`;
+    case "removeCounter":
+      return `Remove up to ${effect.amount} counters from ${describeTarget(effect.target)}.`;
     case "counter": {
       const unless = effect.unlessPays
         ? ` unless its controller pays ${formatManaCost(effect.unlessPays)}`
@@ -974,6 +1034,30 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
           : `onto the battlefield${effect.tapped ? " tapped" : ""}`;
       return `${whoSearches(effect)} for ${what}, put it ${where}, then shuffle.`;
     }
+    case "proliferate":
+      return "Proliferate.";
+    case "lookTopMayTake":
+      return `Look at the top ${effect.amount} cards of your library. You may reveal a noncreature, nonland card from among them and put it into your hand. Put the rest on the bottom of your library in a random order.`;
+    case "millThenPlayLands":
+      return "You may mill that many cards. Put any number of land cards from among them onto the battlefield tapped.";
+    case "emergentUltimatum":
+      return "Search your library for up to three monocolored cards with different names and exile them. An opponent chooses one of those cards. Shuffle that card into your library. You may cast the other cards without paying their mana costs. Exile this spell.";
+    case "transform":
+      return "Transform this creature.";
+    case "copyNextInstantOrSorcery":
+      return "When you next cast an instant or sorcery spell this turn, copy that spell.";
+    case "infectiousBite": {
+      const poison =
+        effect.poisonEachOpponent === 1
+          ? "Each opponent gets a poison counter."
+          : `Each opponent gets ${effect.poisonEachOpponent} poison counters.`;
+      return `Target creature you control deals damage equal to its power to target creature an opponent controls. ${poison}`;
+    }
+    // A best-effort renderer: any effect with no explicit clause contributes
+    // nothing rather than breaking the sentence. Every effect the pool actually
+    // uses is handled above (the "never renders an empty clause" test guards it).
+    default:
+      return "";
   }
 }
 
@@ -1067,10 +1151,16 @@ function describeCount(of: Countable): string {
       return "the amount of life you gained this turn";
     case "opponents":
       return "each opponent";
+    case "players-who-have-lost":
+      return "player who has lost the game";
     case "creatures-attacking-you":
       return "creature attacking you";
     case "attacking-creatures":
       return `${of.excludeSource ? "other " : ""}attacking ${of.subtype ?? "creature"}`;
+    case "half-library-round-up":
+      return "half the number of cards in their library, rounded up";
+    case "half-life-round-up":
+      return "half their life, rounded up";
   }
 }
 
@@ -1389,6 +1479,8 @@ function describeTriggerCondition(condition: TriggerCondition): string {
       return `if ${describeCondition(condition.condition)}`;
     case "source-is-tapped":
       return "if it's tapped";
+    case "counters-or-hand-at-least":
+      return `if there are ${condition.count} or more counters on it or you have ${condition.count} or more cards in hand`;
   }
 }
 
@@ -1424,6 +1516,12 @@ function negateCondition(condition: BoardCondition): string {
       return "this permanent is not attached to a creature";
     case "life-at-least":
       return `you have fewer than ${condition.life} life`;
+    case "creatures-on-battlefield":
+      return `there are fewer than ${condition.count} creatures on the battlefield`;
+    case "card-types-in-graveyard":
+      return `there are fewer than ${condition.count} card types among cards in your graveyard`;
+    case "cards-in-graveyard":
+      return `there are fewer than ${condition.count} cards in your graveyard`;
   }
 }
 
@@ -1455,6 +1553,14 @@ function describeTrigger(
       // "this token" on a token, which is the word its creator's card prints -
       // "create a 1/1 Pest with 'Whenever this token attacks...'".
       return `Whenever this ${self.isToken ? "token" : "creature"} attacks, ${tail}`;
+    case "combat-damage-to-player": {
+      const subject = ability.watchFor?.attachedToThis
+        ? "equipped creature"
+        : ability.watches === "controller"
+          ? "a creature you control"
+          : "this creature";
+      return `Whenever ${subject} deals combat damage to a player, ${tail}`;
+    }
     case "dies":
       return `When this ${self.isToken ? "token" : "creature"} dies, ${tail}`;
     case "landfall":
@@ -1501,8 +1607,6 @@ function describeTrigger(
         : `Whenever ${castSubject(ability)} casts ${watchedSpell(ability.watchFor)}, ${tail}`;
     case "damaged":
       return `Whenever this creature is dealt damage, ${tail}`;
-    case "combat-damage-to-player":
-      return `Whenever this creature deals combat damage to a player, ${tail}`;
     case "creatures-dealt-combat-damage":
       // "One or more" is the printed phrase and the rule at once: it fires once
       // however many creatures connected.
@@ -1515,6 +1619,12 @@ function describeTrigger(
       }, ${tail}`;
     case "becomes-tapped":
       return `Whenever this ${selfNoun(self)} becomes tapped, ${tail}`;
+    case "combat-damage-dealt":
+      return `Whenever ${
+        ability.watches === "controller" ? "a creature you control" : "this creature"
+      } deals combat damage during your turn, ${tail}`;
+    case "attack-with-two-or-more":
+      return `Whenever you attack with two or more creatures, ${tail}`;
     case "upkeep":
       return `At the beginning of ${whoseStep} upkeep, ${tail}`;
     case "first-main":
@@ -1632,6 +1742,12 @@ function describeCondition(condition: BoardCondition): string {
       return "this permanent is attached to a creature you control";
     case "life-at-least":
       return `you have ${condition.life} or more life`;
+    case "creatures-on-battlefield":
+      return `there are ${condition.count} or more creatures on the battlefield`;
+    case "card-types-in-graveyard":
+      return `there are ${condition.count} or more card types among cards in your graveyard`;
+    case "cards-in-graveyard":
+      return `there are ${condition.count} or more cards in your graveyard`;
   }
 }
 

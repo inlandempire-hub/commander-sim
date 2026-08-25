@@ -46,7 +46,7 @@ export function applyCommanderTax(cost: ManaCost, timesPreviouslyCast: number): 
  * exact for one symbol and can only ever be wrong in the safe direction - it
  * reports a cost unpayable, never payable when it is not.
  */
-function payColoredPart(pool: ManaPool, cost: ManaCost): ManaPool | null {
+export function payColoredPart(pool: ManaPool, cost: ManaCost): ManaPool | null {
   const remaining = { ...pool };
   for (const color of ALL_COLORS) {
     const need = cost.colors[color] ?? 0;
@@ -162,6 +162,10 @@ export function payManaCost(player: Player, cost: ManaCost): void {
   if (genericRemaining > 0) {
     player.manaPool.generic = (player.manaPool.generic ?? 0) - genericRemaining;
   }
+  // Phyrexian pips were already settled above (`payPhyrexianFromPool` spends a
+  // matching colour when the pool has one, and only what it cannot cover comes
+  // off life). Charging life a second time here was the felix-five-boots merge's
+  // duplicate, and made Skrelv pay {W} *and* 2 life.
 }
 
 /**

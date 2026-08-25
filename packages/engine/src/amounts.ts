@@ -41,7 +41,8 @@ export function evaluateAmount(
   targets?: StackTarget[],
 ): number {
   if (typeof amount === "number") return amount;
-  if (amount.kind === "count") return countOf(state, controllerId, amount.of, sourceInstanceId);
+  // "...times N" (Peer into the Abyss reads the multiplier off the amount).
+  if (amount.kind === "count") return countOf(state, controllerId, amount.of, sourceInstanceId) * (amount.times ?? 1);
   if (amount.kind === "source-power") {
     // "Eomer deals damage equal to **its** power" - the permanent the ability is
     // printed on, read at resolution so a pumped Eomer hits harder.
@@ -109,6 +110,11 @@ function countOf(
       return player.graveyard.filter((card) =>
         requireDefinition(state, card.definitionId).types.includes("Creature"),
       ).length;
+    case "half-library-round-up":
+      return Math.ceil(player.library.length / 2);
+    case "half-life-round-up":
+      // Life can be negative mid-resolution; never ask for negative life loss.
+      return Math.max(0, Math.ceil(player.life / 2));
     case "counters-on-source": {
       // "For each counter on this creature" means every kind at once, which is
       // why this adds the piles rather than reading one of them.
@@ -170,6 +176,8 @@ function countOf(
       }
       return total;
     }
+    case "players-who-have-lost":
+      return state.players.filter((p) => p.hasLost).length;
     case "creatures-attacking-you":
       // `state.attackers` maps an attacker to the player it is attacking, so
       // this is a count of the entries pointed at us - not of our creatures,

@@ -117,6 +117,10 @@ function describe(state: GameState, seat: string, action: BotAction): string | n
       return action.instanceId
         ? `${seat} searches and takes ${nameOf(state, action.instanceId)}.`
         : `${seat} searches and takes nothing.`;
+    case "resolveArrange":
+      return `${seat} looks at the top of their library and puts the cards back.`;
+    case "resolveModal":
+      return `${seat} chooses mode ${action.modeIndex + 1}.`;
     case "resolveConfirmation":
       return action.accept ? `${seat} takes the optional trigger.` : `${seat} declines the optional trigger.`;
     case "chooseTriggerTargets":

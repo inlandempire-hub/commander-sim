@@ -144,12 +144,12 @@ export function canBlock(state: GameState, blocker: CardInstance, attacker: Card
   /*
    * Asked of the engine rather than re-derived.
    *
-   * This used to check flying and nothing else, which was true of every evasive
-   * creature in the demo decks and quietly wrong about the six that arrived
-   * since: protection, Signal Pest's printed restriction, Gingerbrute's granted
-   * one, Skrelv's colour restriction, "this creature can't block", and The Ring
-   * naming a power. A bot that thinks a block is legal and gets refused is a
-   * dead game rather than a misplay, and only a real deck ever finds it.
+   * `blockWouldBeIllegal` runs the engine's own blockProblem, which now covers
+   * flying/reach, protection, printed and granted block restrictions, The Ring's
+   * power clause, and (merged from felix-five-boots) Unblockable, Fear and
+   * Nonbasic Landwalk - so the bot never proposes a block the engine refuses. A
+   * bot that thinks a block is legal and gets refused is a dead game rather than
+   * a misplay, and only a real deck ever finds it.
    *
    * `blockWouldBeIllegal` rather than `blockProblem`, because the bot asks this
    * while deciding what to *attack with* - before anything is declared - and

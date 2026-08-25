@@ -1,5 +1,5 @@
 import type { GameState, StackObject, StackTarget, TargetSelector, Effect } from "./types.js";
-import { findInstance, requireDefinition } from "./state.js";
+import { findInstance, requireDefinition, requirePlayer } from "./state.js";
 import { effectivePower, hasCreatureType, hasKeyword, typesOf } from "./counters.js";
 import { cardColors } from "./conditions.js";
 import { protectionStopsTargeting } from "./protection.js";
@@ -131,6 +131,14 @@ export function isValidTarget(
         }
         if (target.instanceId === sourceInstanceId) return false;
       }
+      // "target creature that was dealt damage this turn" - You Are Already Dead.
+      if (selector.damagedThisTurn && !found.instance.damagedThisTurn) return false;
+      // "with mana value less than or equal to the number of cards in its
+      // controller's graveyard" - Drown in the Loch.
+      if (selector.maxMvFromControllerGraveyard) {
+        const gy = requirePlayer(state, found.instance.controllerId).graveyard.length;
+        if (manaValue(def.manaCost ?? { generic: 0, colors: {} }) > gy) return false;
+      }
       return !isProtectedFromThisSource(state, target.instanceId, controllerId, sourceInstanceId);
     }
     case "permanent": {
@@ -141,6 +149,9 @@ export function isValidTarget(
       // "artifact or enchantment" - any one of the named types qualifies. No
       // list at all means "target permanent", which every battlefield card is.
       if (selector.cardTypes && !selector.cardTypes.some((t) => def.types.includes(t))) return false;
+      // "target Forest" - a subtype restriction, same shape as the creature
+      // selector's. Any one of the named subtypes qualifies.
+      if (selector.subtypes?.length && !selector.subtypes.some((s) => def.subtypes?.includes(s))) return false;
       // "an opponent controls" - your own board is not a legal target, which is
       // the difference between Assassin's Trophy and a spell that can misfire.
       if (selector.controlledBy) {
@@ -209,6 +220,25 @@ export function isValidTarget(
         const card = state.stackCards.find((c) => c.instanceId === obj.sourceInstanceId);
         if (!card) return false;
         if (!cardColors(requireDefinition(state, card.definitionId)).includes(selector.color)) return false;
+      }
+      if (selector.spellType) {
+        // "Target instant spell" - read the spell's own card type off the
+        // object that put it on the stack.
+        const cast = findInstance(state, obj.sourceInstanceId);
+        const def = cast ? requireDefinition(state, cast.instance.definitionId) : undefined;
+        if (!def || !def.types.includes(selector.spellType)) return false;
+      }
+      if (selector.notSpellType) {
+        // "Target noncreature spell" - the spell must not be of this type.
+        const cast = findInstance(state, obj.sourceInstanceId);
+        const def = cast ? requireDefinition(state, cast.instance.definitionId) : undefined;
+        if (def && def.types.includes(selector.notSpellType)) return false;
+      }
+      if (selector.maxMvFromControllerGraveyard) {
+        const cast = findInstance(state, obj.sourceInstanceId);
+        const def = cast ? requireDefinition(state, cast.instance.definitionId) : undefined;
+        const gy = requirePlayer(state, obj.controllerId).graveyard.length;
+        if (def && manaValue(def.manaCost ?? { generic: 0, colors: {} }) > gy) return false;
       }
       return true;
     }
@@ -297,6 +327,21 @@ export function targetCountOf(
   return { min: count.min, max: count.max === "x" ? chosenX : count.max };
 }
 
+/**
+ * Every target selector an effect takes, in the order the targets are given -
+ * one for almost everything, two for Infectious Bite's dealer-and-recipient.
+ *
+ * Separate from `targetSelectorOf` (which stays single-valued so its many
+ * callers are untouched) and read only where the count genuinely matters:
+ * casting, which validates each target against its own selector positionally. A
+ * single-selector effect is a one-element list, and a targetless one is empty.
+ */
+export function targetSelectorsOf(effect: Effect): TargetSelector[] {
+  if (effect.kind === "infectiousBite") return [effect.dealer, effect.recipient];
+  const single = targetSelectorOf(effect);
+  return single ? [single] : [];
+}
+
 export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
   switch (effect.kind) {
     case "damage":
@@ -367,6 +412,14 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
      */
     case "createCopyToken":
       return effect.of === "target" ? effect.target : undefined;
+    /*
+     * The two-target effect's *first* selector, so every single-selector caller
+     * - autoPass's "has any legal target?", the client's target prompt - still
+     * gets a sensible answer. The full pair is read by `targetSelectorsOf`,
+     * which is what casting validates against.
+     */
+    case "infectiousBite":
+      return effect.dealer;
     /*
      * A sequence targets if one of its steps does, and the targets chosen for
      * the whole are handed to every step - which is right while exactly one

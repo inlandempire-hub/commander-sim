@@ -26,7 +26,10 @@ export function resolveTopOfStack(state: GameState): void {
     return;
   }
 
-  log(state, `${obj.controllerId} resolves ${cardName(state, obj.sourceInstanceId)}`);
+  log(
+    state,
+    `${obj.controllerId} resolves ${obj.isCopy ? "a copy of " : ""}${cardName(state, obj.sourceInstanceId)}`,
+  );
 
   /*
    * Rule 603.4's second check. An intervening-if is tested again on resolution,
@@ -125,6 +128,10 @@ export function resolveConfirmation(state: GameState, playerId: string, accept: 
  * causes later.
  */
 function finishResolution(state: GameState, obj: StackObject): void {
+  // A copy is not a card - it simply ceases to exist. Moving the card its
+  // source names would send the *original* spell (still on the stack beneath a
+  // Storm copy) to the graveyard early.
+  if (obj.isCopy) return;
   const source = findInstance(state, obj.sourceInstanceId);
   if (source && source.instance.zone === "stack") {
     moveCard(state, obj.sourceInstanceId, "graveyard");

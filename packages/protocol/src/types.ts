@@ -38,12 +38,32 @@ export type ClientMessage =
        */
       sacrificeInstanceId?: string;
       useAlternativeCost?: boolean;
+      /** Cast for free via an Omniscience-style permanent the caster controls. */
+      omniscienceFree?: boolean;
+      /** Cards to exile from the graveyard to pay for Delve. */
+      delveCount?: number;
+      /** Cast for the warp cost (Starwinder); the creature leaves at the next end step. */
+      useWarp?: boolean;
+      /** Pay the Offspring cost (Thundertrap Trainer); a 1/1 token copy is made on ETB. */
+      payOffspring?: boolean;
+      /** Creatures the +1/+1 counters come off to cast this from the graveyard (Quilled Greatwurm). */
+      removeCounterFrom?: string[];
     }
-  | { type: "activateAbility"; instanceId: string; abilityIndex: number; targets?: StackTarget[]; chosenMode?: number }
+  | {
+      type: "activateAbility";
+      instanceId: string;
+      abilityIndex: number;
+      targets?: StackTarget[];
+      chosenMode?: number;
+      /** Cards discarded to pay a "Discard a card" activation cost - Psychic Frog. */
+      discardInstanceIds?: string[];
+    }
   | { type: "declareAttackers"; declarations: AttackerDeclaration[] }
   | { type: "declareBlockers"; declarations: BlockerDeclaration[] }
   /** Answering a tutor that stopped mid-resolution. Null takes nothing. */
   | { type: "resolveSearch"; instanceId: string | null }
+  | { type: "resolveArrange"; order: string[]; shuffle?: boolean }
+  | { type: "resolveModal"; modeIndex: number }
   /** Answering a "you may" trigger that stopped mid-resolution. */
   | { type: "resolveConfirmation"; accept: boolean }
   /** Pointing a parked triggered ability at one of the targets the engine offered. */
@@ -79,6 +99,8 @@ export type ClientMessage =
   | { type: "takeMulligan" }
   | { type: "keepHand" }
   | { type: "putOnBottom"; instanceIds: string[] }
+  | { type: "cycleCard"; instanceId: string }
+  | { type: "ninjutsu"; ninjaInstanceId: string; returnedAttackerInstanceId: string }
   | { type: "concede" }
   | { type: "passPriority" };
 

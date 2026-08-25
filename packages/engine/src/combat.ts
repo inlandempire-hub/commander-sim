@@ -11,11 +11,14 @@ import {
   typesOf,
 } from "./counters.js";
 import { damageCreature, damagePlayer } from "./damage.js";
+import { canPayManaCost, payManaCost } from "./mana.js";
 import {
   describeSubject,
   fireBecomesBlocked,
+  fireCombatDamageDealt,
   fireCombatDamageToPlayer,
   fireCreaturesAttack,
+  fireCreaturesDealtCombatDamage,
   fireWatchers,
   pushTrigger,
   tapPermanent,
@@ -228,8 +231,35 @@ export function blockWouldBeIllegal(
   const attackerFound = findOnAnyBattlefield(state, attackerInstanceId);
   if (attackerFound) {
     const attackerDef = requireDefinition(state, attackerFound.instance.definitionId);
+    // Flying/reach, ring, protection and granted "can't be blocked except by"
+    // restrictions all live in blockRestrictionProblem.
     const evasion = blockRestrictionProblem(state, attackerFound.instance, blocker);
     if (evasion) return `${blockerDef.name} cannot block ${attackerDef.name} - ${evasion}`;
+    // "This creature can't be blocked."
+    if (hasKeyword(state, attackerFound.instance, "Unblockable")) {
+      return `${blockerDef.name} cannot block ${attackerDef.name} - it can't be blocked`;
+    }
+    // Fear: "can't be blocked except by artifact creatures and/or black creatures."
+    if (hasKeyword(state, attackerFound.instance, "Fear")) {
+      const isArtifact = blockerDef.types.includes("Artifact");
+      const isBlack = (blockerDef.manaCost?.colors?.B ?? 0) > 0;
+      if (!isArtifact && !isBlack) {
+        return `${blockerDef.name} cannot block ${attackerDef.name} - it has fear, and this is neither an artifact nor black`;
+      }
+    }
+    // Nonbasic landwalk: unblockable while the defending player (the blocker's
+    // controller, since you may only block attackers aimed at you) controls a
+    // land that is not Basic.
+    if (hasKeyword(state, attackerFound.instance, "Nonbasic Landwalk")) {
+      const defender = requirePlayer(state, blocker.controllerId);
+      const controlsNonbasic = defender.battlefield.some((c) => {
+        const d = requireDefinition(state, c.definitionId);
+        return d.types.includes("Land") && !(d.supertypes ?? []).includes("Basic");
+      });
+      if (controlsNonbasic) {
+        return `${blockerDef.name} cannot block ${attackerDef.name} - it has nonbasic landwalk and you control a nonbasic land`;
+      }
+    }
   }
   return null;
 }
@@ -255,6 +285,24 @@ export function declareAttackers(state: GameState, playerId: string, declaration
   for (const compelled of compelledAttackers(state, playerId)) {
     if (declared.has(compelled.instanceId)) continue;
     throw new Error(attackRequirement(state, playerId, compelled.instanceId)!);
+  }
+
+  // Propaganda tax: {2} for each attacker aimed at a defender who controls it,
+  // paid up front. An attacking player who cannot pay simply cannot make that
+  // declaration.
+  let attackTax = 0;
+  for (const { defendingPlayerId } of declarations) {
+    const defender = requirePlayer(state, defendingPlayerId);
+    for (const permanent of defender.battlefield) {
+      attackTax += requireDefinition(state, permanent.definitionId).attackTax ?? 0;
+    }
+  }
+  if (attackTax > 0) {
+    const cost = { generic: attackTax, colors: {} };
+    if (!canPayManaCost(player, cost)) {
+      throw new Error(`${playerId} cannot pay the attack tax of ${attackTax}`);
+    }
+    payManaCost(player, cost);
   }
 
   for (const { attackerInstanceId, defendingPlayerId } of declarations) {
@@ -298,6 +346,24 @@ export function declareAttackers(state: GameState, playerId: string, declaration
    * so outside the loop above rather than inside it. See `fireCreaturesAttack`.
    */
   fireCreaturesAttack(state, playerId, declarations.map((d) => d.attackerInstanceId));
+
+  /*
+   * "Whenever you attack with two or more creatures" - Twenty-Toed Toad.
+   *
+   * Once for the whole declaration, not once per attacker, so it is fired here
+   * after the per-attacker loop rather than inside it. Only when two or more
+   * were declared; a lone attacker leaves it silent. It reads the attacking
+   * player's own permanents, which is what "you attack" means.
+   */
+  if (declarations.length >= 2) {
+    for (const instance of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, instance)) {
+        if (trigger.event === "attack-with-two-or-more") {
+          pushTrigger(state, instance.instanceId, playerId, trigger);
+        }
+      }
+    }
+  }
 
   if (declarations.length > 0) {
     log(
@@ -418,13 +484,22 @@ function applyToxic(state: GameState, attacker: CardInstance, defenderId: string
 export function dealCombatDamage(state: GameState, step: DamageStep = "regular"): void {
   /*
    * Every creature that got through to a player this sub-step, collected as the
-   * damage is dealt and handed to the triggers afterwards.
-   *
-   * Afterwards rather than inline, because "one or more creatures you control
-   * deal combat damage" is a single event however many connected - firing as we
-   * went would make Professional Face-Breaker pay out per creature.
+   * damage is dealt. Used for the once-per-step "one or more creatures you
+   * control deal combat damage" aggregate and the monarch crown, both of which
+   * are single events however many connected.
    */
   const hits: Array<{ attackerInstanceId: string; defendingPlayerId: string }> = [];
+  /*
+   * How much combat damage each creature dealt this step, to anything - Quilled
+   * Greatwurm's "deals combat damage during your turn" counts the lot, blockers
+   * included. Tallied across every damage site below and fired once per creature
+   * after the whole combat is worked out, so a trampler's blocker-and-player
+   * damage arrives as one number.
+   */
+  const dealtByCreature = new Map<string, number>();
+  const addDealt = (instanceId: string, n: number): void => {
+    if (n > 0) dealtByCreature.set(instanceId, (dealtByCreature.get(instanceId) ?? 0) + n);
+  };
   const blockersByAttacker = new Map<string, string[]>();
   for (const [blockerInstanceId, attackerInstanceId] of Object.entries(state.blockers)) {
     const list = blockersByAttacker.get(attackerInstanceId) ?? [];
@@ -479,7 +554,11 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
           (defender.commanderDamageTaken[attackerInstanceId] ?? 0) + dealt;
       }
       applyToxic(state, attackerFound.instance, defendingPlayerId, dealt);
-      if (dealt > 0) hits.push({ attackerInstanceId, defendingPlayerId });
+      if (dealt > 0) {
+        hits.push({ attackerInstanceId, defendingPlayerId });
+        fireCombatDamageToPlayer(state, attackerInstanceId, attackerFound.instance.controllerId, dealt, defendingPlayerId);
+      }
+      addDealt(attackerInstanceId, dealt);
       continue;
     }
 
@@ -508,11 +587,13 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
         // trample does not get to carry the prevented damage through to the
         // player (rule 702.19b assigns against toughness, not against what
         // survives prevention).
-        preventedByBlockers += damageCreature(state, blockerFound.instance, assign, {
+        const toBlocker = damageCreature(state, blockerFound.instance, assign, {
           sourceInstanceId: attackerInstanceId,
           infect: hasKeyword(state, attackerFound.instance, "Infect"),
           deathtouch: attackerHasDeathtouch,
-        }).prevented;
+        });
+        preventedByBlockers += toBlocker.prevented;
+        addDealt(attackerInstanceId, toBlocker.dealt);
         remainingPower -= assign;
       }
 
@@ -531,6 +612,7 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       if (blockerHasLifelink && dealtToAttacker > 0) {
         gainLife(state, blockerFound.instance.controllerId, dealtToAttacker);
       }
+      addDealt(blockerFound.instance.instanceId, dealtToAttacker);
     }
     if (anyBlockerDeathtouchDamage) attackerFound.instance.deathtouchDamage = true;
 
@@ -548,7 +630,11 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
       // Damage that trampled through is combat damage to a player like any
       // other, which is why this is here and not only on the unblocked path.
       applyToxic(state, attackerFound.instance, defendingPlayerId, trampledThrough);
-      if (trampledThrough > 0) hits.push({ attackerInstanceId, defendingPlayerId });
+      if (trampledThrough > 0) {
+        hits.push({ attackerInstanceId, defendingPlayerId });
+        fireCombatDamageToPlayer(state, attackerInstanceId, attackerFound.instance.controllerId, trampledThrough, defendingPlayerId);
+      }
+      addDealt(attackerInstanceId, trampledThrough);
     }
 
     if (attackerStrikesNow && attackerHasLifelink && power > 0) {
@@ -580,8 +666,20 @@ export function dealCombatDamage(state: GameState, step: DamageStep = "regular")
     log(state, `${found.instance.controllerId} takes the crown`);
   }
 
-  // Everything that connected, in one event - see `fireCombatDamageToPlayer`.
-  if (hits.length > 0) fireCombatDamageToPlayer(state, hits);
+  // The once-per-step "one or more creatures you control deal combat damage to a
+  // player" aggregate. The per-creature combat-damage-to-player event already
+  // fired inline as each creature connected.
+  if (hits.length > 0) fireCreaturesDealtCombatDamage(state, hits);
+
+  /*
+   * "Whenever a creature you control deals combat damage during your turn" -
+   * fired once per damaging creature now that the totals are in, so a trampler
+   * that hit a blocker and a player grows by the sum rather than twice.
+   */
+  for (const [instanceId, total] of dealtByCreature) {
+    const found = findOnAnyBattlefield(state, instanceId);
+    if (found) fireCombatDamageDealt(state, instanceId, found.instance.controllerId, total);
+  }
 }
 
 function findOnAnyBattlefield(state: GameState, instanceId: string) {

@@ -9,6 +9,11 @@ import {
   declareBlockers,
   resolveSearch,
   chooseTriggerTargets,
+  resolveArrange,
+  cycleCard,
+  ninjutsu,
+  resolveModal,
+  chooseTriggerTarget,
   resolveDiscard,
   activateLoyaltyAbility,
   unlockDoor,
@@ -101,11 +106,15 @@ export function useLocalGameController({
     // turns out to be illegal. Clicking a card you can afford just plays it.
     castSpell: (playerId, instanceId, targets = [], options = {}) =>
       act((s) => castSpellWithAutoTap(s, playerId, instanceId, targets, options)),
-    activateAbility: (playerId, instanceId, abilityIndex, targets = [], chosenMode) =>
-      act((s) => activateAbilityWithAutoTap(s, playerId, instanceId, abilityIndex, targets, chosenMode)),
+    activateAbility: (playerId, instanceId, abilityIndex, targets = [], chosenMode, options = {}) =>
+      act((s) => activateAbilityWithAutoTap(s, playerId, instanceId, abilityIndex, targets, chosenMode, options)),
     declareAttackers: (playerId, declarations) => act((s) => declareAttackers(s, playerId, declarations)),
     declareBlockers: (playerId, declarations) => act((s) => declareBlockers(s, playerId, declarations)),
     resolveSearch: (playerId, instanceId) => act((s) => resolveSearch(s, playerId, instanceId)),
+    resolveArrange: (playerId, order, shuffle) => act((s) => resolveArrange(s, playerId, order, shuffle)),
+    cycleCard: (playerId, instanceId) => act((s) => cycleCard(s, playerId, instanceId)),
+    ninjutsu: (playerId, ninjaId, attackerId) => act((s) => ninjutsu(s, playerId, ninjaId, attackerId)),
+    resolveModal: (playerId, modeIndex) => act((s) => resolveModal(s, playerId, modeIndex)),
     resolveConfirmation: (playerId, accept) => act((s) => resolveConfirmation(s, playerId, accept)),
     chooseTriggerTargets: (playerId, targets) => act((s) => chooseTriggerTargets(s, playerId, targets)),
     resolveDiscard: (playerId, instanceId) => act((s) => resolveDiscard(s, playerId, instanceId)),

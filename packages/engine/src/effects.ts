@@ -130,7 +130,16 @@ export function applyEffect(
       // drawCard logs this itself now, so that the draw step logs too.
       // The amount is counted at resolution for the cards that read the board
       // - Inspiring Call draws one card fewer if you kill a creature first.
-      drawCard(state, controllerId, evaluateAmount(state, controllerId, effect.amount, "draw amount"));
+      //
+      // "Target player draws" (Peer into the Abyss) reads the target, and the
+      // amount is evaluated against that same player so "half their library"
+      // means the drawer's library, not the caster's.
+      let drawer = controllerId;
+      if (effect.who === "target") {
+        const tp = targets.find((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player");
+        if (tp) drawer = tp.playerId;
+      }
+      drawCard(state, drawer, evaluateAmount(state, drawer, effect.amount, "draw amount"));
       return;
     }
     case "addMana": {
@@ -284,6 +293,215 @@ export function applyEffect(
       }
       return;
     }
+    case "exileTop": {
+      /*
+       * The top N cards of the library into exile - mill, one zone over. Takes
+       * whatever is there and stops; a library shorter than N is not a loss.
+       */
+      const count = evaluateAmount(state, controllerId, effect.amount, "exile amount");
+      const exiled = controller.library.slice(0, count).map((card) => card.instanceId);
+      for (const instanceId of exiled) moveCard(state, instanceId, "exile");
+      if (exiled.length > 0) {
+        log(state, `${controllerId} exiles ${exiled.length} card${exiled.length === 1 ? "" : "s"} from the top of their library`);
+      }
+      return;
+    }
+    case "extraTurn": {
+      /*
+       * "Target player takes N extra turns after this one." The turns are queued
+       * front of the current one's successor: whoever is taking extra turns keeps
+       * going before the order rotates on. See `startNextTurn`.
+       */
+      const targetPlayer = targets.find((t) => t.kind === "player");
+      const beneficiary = targetPlayer?.kind === "player" ? targetPlayer.playerId : controllerId;
+      for (let i = 0; i < effect.count; i++) state.extraTurns.push(beneficiary);
+      log(state, `${beneficiary} will take ${effect.count} extra turn${effect.count === 1 ? "" : "s"}`);
+      return;
+    }
+    case "windfall": {
+      /*
+       * Each player discards their hand, then everyone draws the greatest number
+       * anybody discarded. The count is read before anyone discards, so a player
+       * who was holding the most sets the draw for the whole table.
+       */
+      const greatest = Math.max(0, ...state.players.map((p) => p.hand.length));
+      for (const p of state.players) {
+        for (const card of [...p.hand]) moveCard(state, card.instanceId, "graveyard");
+      }
+      if (greatest === 0) return;
+      for (const p of state.players) drawCard(state, p.id, greatest);
+      return;
+    }
+    case "destroyAll": {
+      // Snapshot first - destroying mutates the battlefields being scanned. Then
+      // each victim goes through the same destroy path as single-target removal,
+      // so indestructible, regeneration and dies triggers all apply.
+      const victims: string[] = [];
+      for (const p of state.players) {
+        for (const inst of p.battlefield) {
+          const def = requireDefinition(state, inst.definitionId);
+          if (!effect.cardTypes.some((t) => def.types.includes(t))) continue;
+          if (effect.nonland && def.types.includes("Land")) continue;
+          if (
+            effect.maxManaValue !== undefined &&
+            manaValue(def.manaCost ?? { generic: 0, colors: {} }) > effect.maxManaValue
+          ) {
+            continue;
+          }
+          victims.push(inst.instanceId);
+        }
+      }
+      let destroyed = 0;
+      for (const id of victims) {
+        const found = findInstance(state, id);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        if (hasKeyword(state, found.instance, "Indestructible")) continue;
+        if (useRegenerationShield(state, found.instance)) continue;
+        log(state, `${cardName(state, id)} is destroyed`);
+        destroyPermanent(state, id);
+        destroyed += 1;
+      }
+      if (effect.thenDraw && destroyed > 0) drawCard(state, controllerId, destroyed);
+      if (effect.manaPerDestroyed && effect.manaPerDestroyed.length > 0) {
+        // One mana per permanent destroyed, spread round-robin across the colours.
+        for (let i = 0; i < destroyed; i++) {
+          addMana(controller.manaPool, effect.manaPerDestroyed[i % effect.manaPerDestroyed.length]!, 1);
+        }
+      }
+      return;
+    }
+    case "atNextUpkeep": {
+      // Queued for the next turn's upkeep. "each-opponent" is Arcane Denial's
+      // "its controller", which in a two-player game is the one opponent.
+      const recipients =
+        effect.who === "each-opponent"
+          ? state.players.filter((p) => p.id !== controllerId).map((p) => p.id)
+          : [controllerId];
+      for (const rid of recipients) {
+        state.delayedUpkeepEffects.push({
+          controllerId: rid,
+          effect: effect.effect,
+          fireAtTurn: state.turnNumber + 1,
+        });
+      }
+      return;
+    }
+    case "eachSacrifices": {
+      const affected =
+        effect.who === "each-opponent"
+          ? state.players.filter((p) => p.id !== controllerId)
+          : state.players;
+      const wantedTypes = effect.types ?? ["Creature"];
+      for (const p of affected) {
+        if (p.hasLost) continue;
+        const eligible = p.battlefield.filter((c) =>
+          wantedTypes.some((t) => requireDefinition(state, c.definitionId).types.includes(t)),
+        );
+        const mv = (c: (typeof eligible)[number]) =>
+          manaValue(requireDefinition(state, c.definitionId).manaCost ?? { generic: 0, colors: {} });
+        let victims: typeof eligible;
+        if (effect.greatestManaValue) {
+          if (eligible.length === 0) continue;
+          const top = Math.max(...eligible.map(mv));
+          victims = eligible.filter((c) => mv(c) === top).slice(0, 1);
+        } else {
+          victims = [...eligible].sort((a, b) => mv(a) - mv(b)).slice(0, effect.count ?? 1);
+        }
+        for (const c of victims) sacrificePermanent(state, c.instanceId);
+      }
+      return;
+    }
+    case "counterAll": {
+      // Every stack object an opponent controls that can be countered is removed;
+      // a countered spell's card goes to its owner's graveyard (or the command
+      // zone). Abilities have no card and just cease. Count what was countered.
+      let countered = 0;
+      for (const obj of [...state.stack]) {
+        if (obj.controllerId === controllerId || obj.cantBeCountered) continue;
+        const index = state.stack.findIndex((o) => o.id === obj.id);
+        if (index < 0) continue;
+        state.stack.splice(index, 1);
+        const found = findInstance(state, obj.sourceInstanceId);
+        if (found?.instance.zone === "stack") {
+          moveCard(state, obj.sourceInstanceId, found.instance.isCommander ? "command" : "graveyard");
+        }
+        countered += 1;
+      }
+      if (countered > 0) {
+        log(state, `${controllerId} counters ${countered} opposing spell${countered === 1 ? "" : "s"} and abilit${countered === 1 ? "y" : "ies"}`);
+      }
+      if (effect.tokenPerCountered) {
+        for (let i = 0; i < countered; i++) {
+          const token = createCardInstance(state, effect.tokenPerCountered, controllerId, "battlefield");
+          enteredBattlefield(state, token);
+        }
+      }
+      return;
+    }
+    case "becomeCopy": {
+      // The source permanent takes on the printed characteristics of the target
+      // by adopting its definition. A copy of a card, so counters and marked
+      // damage on the source are left as they are (they belong to the object).
+      const t = targets.find((x): x is Extract<StackTarget, { kind: "card" }> => x.kind === "card");
+      const source = findInstance(state, sourceInstanceId);
+      if (!t || !source) return;
+      const copyOf = findInstance(state, t.instanceId);
+      if (!copyOf || copyOf.instance.zone !== "battlefield") return;
+      source.instance.definitionId = copyOf.instance.definitionId;
+      log(state, `${cardName(state, sourceInstanceId)} becomes a copy of ${cardName(state, t.instanceId)}`);
+      return;
+    }
+    case "lookAtHand": {
+      // Information only - the hand is revealed to the controller and nothing
+      // in the game state changes. The redacted view already hides it from
+      // everyone else, so there is nothing to move.
+      const t = targets.find((x): x is Extract<StackTarget, { kind: "player" }> => x.kind === "player");
+      if (t) log(state, `${controllerId} looks at ${t.playerId}'s hand`);
+      return;
+    }
+    case "winGame": {
+      // The controller wins, which in this engine means every other player loses.
+      for (const p of state.players) {
+        if (p.id === controllerId || p.hasLost) continue;
+        p.hasLost = true;
+        p.lossReason = `${controllerId} won the game`;
+      }
+      log(state, `${controllerId} wins the game`);
+      return;
+    }
+    case "returnToHand": {
+      // "Return ... to their owners' hands." moveCard sends each to its owner's
+      // hand; a target already gone is simply skipped.
+      for (const t of targets) {
+        if (t.kind !== "card") continue;
+        const found = findInstance(state, t.instanceId);
+        if (found && found.instance.zone === "battlefield") {
+          log(state, `${cardName(state, t.instanceId)} is returned to its owner's hand`);
+          moveCard(state, t.instanceId, "hand");
+        }
+      }
+      return;
+    }
+    case "putLandFromHand": {
+      // "You may put a land card from your hand onto the battlefield." Optional,
+      // and not the turn's land drop - it goes straight onto the battlefield.
+      const lands = controller.hand.filter((card) =>
+        requireDefinition(state, card.definitionId).types.includes("Land"),
+      );
+      if (lands.length === 0) return;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: lands.map((c) => c.instanceId),
+        min: 0,
+        max: 1,
+        mode: "to-battlefield",
+        prompt: `${cardName(state, sourceInstanceId)}: you may put a land from your hand onto the battlefield`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
     case "scry": {
       /*
        * Look at the top card and choose whether it goes to the bottom.
@@ -304,6 +522,62 @@ export function applyEffect(
         prompt: `Scry ${effect.amount}: you may put this card on the bottom of your library`,
         followUp: pendingFollowUp,
       };
+      return;
+    }
+    case "lookAndArrange": {
+      /*
+       * "Look at the top N cards of your library, then put them back in any
+       * order" - Halimar Depths, Ponder. Unlike scry no card leaves the top, so
+       * the only decision is the ordering; `resolveArrange` applies it. Stops
+       * resolution and asks, holding on to anything printed after it.
+       *
+       * A library shorter than N is fine: show whatever is there. An empty one
+       * has nothing to arrange, so the follow-up (Ponder's draw) runs straight
+       * away rather than stranding on a picker with no cards.
+       */
+      const top = controller.library.slice(0, effect.amount).map((card) => card.instanceId);
+      if (top.length === 0) {
+        if (pendingFollowUp?.length) {
+          for (const next of pendingFollowUp) applyEffect(state, controllerId, sourceInstanceId, next, targets);
+        }
+        return;
+      }
+      state.pendingArrange = {
+        playerId: controllerId,
+        sourceInstanceId,
+        cardInstanceIds: top,
+        mayShuffle: effect.mayShuffle ?? false,
+        prompt: `Look at the top ${top.length} card${top.length === 1 ? "" : "s"} of your library, then put them back in any order`,
+        followUp: pendingFollowUp,
+      };
+      return;
+    }
+    case "putFromHandOnTop": {
+      /*
+       * "Put N cards from your hand on top of your library in any order" -
+       * Brainstorm, after its draw. The choice is which cards and in what
+       * order, so it rides on `PendingCardChoice` with the `to-library-top`
+       * mode; `resolveCardChoice` does the moving. An empty hand has nothing to
+       * put back, so the rest of the card (there is none on Brainstorm) runs on.
+       */
+      const count = Math.min(effect.count, controller.hand.length);
+      if (count === 0) {
+        if (pendingFollowUp?.length) {
+          for (const next of pendingFollowUp) applyEffect(state, controllerId, sourceInstanceId, next, targets);
+        }
+        return;
+      }
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: controller.hand.map((card) => card.instanceId),
+        min: count,
+        max: count,
+        mode: "to-library-top",
+        prompt: `Put ${count} card${count === 1 ? "" : "s"} from your hand on top of your library`,
+        followUp: pendingFollowUp,
+      });
       return;
     }
     case "conditional": {
@@ -359,7 +633,7 @@ export function applyEffect(
       const made = tokensCreated(state, controllerId, wanted);
       const tokens: CardInstance[] = [];
       for (let i = 0; i < made; i++) {
-        tokens.push(makeCopyToken(state, controllerId, copied.definitionId, effect.grants));
+        tokens.push(makeCopyToken(state, controllerId, copied.definitionId, effect.grants, effect.ptOverride));
       }
       log(
         state,
@@ -562,17 +836,130 @@ export function applyEffect(
       if (milled.length > 0) {
         log(state, `${controllerId} mills ${milled.length} card${milled.length === 1 ? "" : "s"}`);
       }
-      if (milled.length === 0) return;
+      // "a noncreature, nonland card from among them" - only milled cards of none
+      // of the excluded types may be taken (Fallaji Archaeologist).
+      const takeable = effect.excludeTypes
+        ? milled.filter((id) => {
+            const types = requireDefinition(state, findInstance(state, id)!.instance.definitionId).types;
+            return !effect.excludeTypes!.some((t) => types.includes(t));
+          })
+        : milled;
+      if (takeable.length === 0) {
+        // Nothing to take - the "if you don't" half happens right away.
+        if (effect.ifDeclined) applyEffect(state, controllerId, sourceInstanceId, effect.ifDeclined, []);
+        return;
+      }
       state.pendingCardChoices.push({
         playerId: controllerId,
         effectControllerId: controllerId,
         sourceInstanceId,
-        candidateInstanceIds: milled,
+        candidateInstanceIds: takeable,
         min: 0,
         max: 1,
         mode: "to-hand",
         cost: effect.cost,
-        prompt: `${cardName(state, sourceInstanceId)}: you may pay to take one of the milled cards`,
+        ifDeclined: effect.ifDeclined,
+        prompt: `${cardName(state, sourceInstanceId)}: you may take one of the milled cards`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
+    case "lookTopMayTake": {
+      /*
+       * "Look at the top four cards. You may reveal a noncreature, nonland card
+       * and put it into your hand. Put the rest on the bottom." Nothing moves
+       * yet - the looked-at cards stay on top until the choice resolves, which
+       * is where the taken one goes to hand and the rest go to the bottom.
+       */
+      const looked = controller.library.slice(0, effect.amount).map((c) => c.instanceId);
+      if (looked.length === 0) return;
+      const takeable = effect.excludeTypes
+        ? looked.filter((id) => {
+            const types = requireDefinition(state, findInstance(state, id)!.instance.definitionId).types;
+            return !effect.excludeTypes!.some((t) => types.includes(t));
+          })
+        : looked;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: takeable,
+        min: 0,
+        max: 1,
+        mode: "to-hand",
+        restToBottom: looked,
+        prompt: `${cardName(state, sourceInstanceId)}: you may reveal a noncreature, nonland card to put into your hand`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
+    case "millThenPlayLands": {
+      /*
+       * Mill that many, then offer the milled *lands* to put onto the
+       * battlefield tapped - Rampant Frogantua. The cards are in the graveyard
+       * by the time the choice is made, which is where "from among them" points.
+       */
+      const n = evaluateAmount(state, controllerId, effect.amount, "mill amount", sourceInstanceId);
+      const milled = controller.library.slice(0, n).map((c) => c.instanceId);
+      for (const id of milled) moveCard(state, id, "graveyard");
+      if (milled.length > 0) {
+        log(state, `${controllerId} mills ${milled.length} card${milled.length === 1 ? "" : "s"}`);
+      }
+      const lands = milled.filter((id) =>
+        requireDefinition(state, findInstance(state, id)!.instance.definitionId).types.includes("Land"),
+      );
+      if (lands.length === 0) return;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: lands,
+        min: 0,
+        max: lands.length,
+        mode: "to-battlefield",
+        toBattlefieldTapped: true,
+        prompt: `${cardName(state, sourceInstanceId)}: you may put any number of the milled lands onto the battlefield tapped`,
+        followUp: pendingFollowUp,
+      });
+      return;
+    }
+    case "transform": {
+      // "you may transform Emet-Selch." Flip the source to its back face in
+      // place - same instance, so counters and damage are untouched; only the
+      // definition it points at changes.
+      const source = findInstance(state, sourceInstanceId);
+      if (!source || source.instance.zone !== "battlefield") return;
+      const front = requireDefinition(state, source.instance.definitionId);
+      if (!front.backFaceId) return;
+      source.instance.definitionId = front.backFaceId;
+      log(state, `${controllerId} transforms ${front.name} into ${requireDefinition(state, front.backFaceId).name}`);
+      return;
+    }
+    case "emergentUltimatum": {
+      /*
+       * "Exile Emergent Ultimatum." Done first so the sorcery lands in exile
+       * rather than the graveyard finishResolution would otherwise send it to -
+       * it is off the stack either way, and this is the zone the card names.
+       */
+      moveCard(state, sourceInstanceId, "exile");
+      // "up to three monocolored cards" - exactly one colour in the mana cost;
+      // colourless and multicolour cards need not apply.
+      const candidates = controller.library.filter((card) => {
+        const colors = requireDefinition(state, card.definitionId).manaCost?.colors ?? {};
+        return Object.values(colors).filter((n) => (n ?? 0) > 0).length === 1;
+      });
+      if (candidates.length === 0) return;
+      state.pendingCardChoices.push({
+        playerId: controllerId,
+        effectControllerId: controllerId,
+        sourceInstanceId,
+        candidateInstanceIds: candidates.map((c) => c.instanceId),
+        min: 0,
+        max: 3,
+        mode: "exile",
+        distinctNames: true,
+        emergentStep: "search",
+        prompt: `${cardName(state, sourceInstanceId)}: search for up to three monocolored cards with different names and exile them`,
         followUp: pendingFollowUp,
       });
       return;
@@ -1191,6 +1578,30 @@ export function applyEffect(
       // per token - "would create one or more tokens" is a single event, so
       // two Doubling Seasons make four Insects rather than compounding oddly
       // inside the loop.
+      // "Its controller creates two Treasure tokens" (An Offer You Can't Refuse)
+      // makes them for the opponents rather than the caster - in a two-player
+      // game, the one whose spell was just countered. This per-opponent path is
+      // plain: none of the attacking/grant machinery below applies to it.
+      if (effect.forController === "each-opponent") {
+        const recipients = state.players.filter((p) => p.id !== controllerId).map((p) => p.id);
+        for (const rid of recipients) {
+          const perOpp = tokensCreated(
+            state,
+            rid,
+            evaluateAmount(state, rid, effect.count, "createToken count", sourceInstanceId),
+          );
+          for (let i = 0; i < perOpp; i++) {
+            const token = createCardInstance(state, effect.tokenDefinitionId, rid, "battlefield");
+            /*
+             * A token enters the battlefield like anything else, so it goes
+             * through the same arrival path - haste, and every trigger that
+             * cares that a creature arrived.
+             */
+            enteredBattlefield(state, token);
+          }
+        }
+        return;
+      }
       const count = tokensCreated(
         state,
         controllerId,
@@ -1522,13 +1933,100 @@ export function applyEffect(
             targets
               .filter((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player")
               .map((t) => requirePlayer(state, t.playerId))
-          : state.players.filter((p) => p.id !== controllerId);
-      const lost = evaluateAmount(state, controllerId, effect.amount, "loseLife amount", sourceInstanceId);
-      if (lost <= 0) return;
+          : effect.who === "self"
+            ? [requirePlayer(state, controllerId)]
+            : state.players.filter((p) => p.id !== controllerId);
       for (const player of losers) {
         if (player.hasLost) continue;
+        // Evaluated per loser when the loser is the reference: "loses half their
+        // life" (Peer into the Abyss) is read against each target, not the
+        // caster. A static amount reads the same against anyone, so existing
+        // cards are unaffected.
+        const ref = effect.who === "target" ? player.id : controllerId;
+        const lost = evaluateAmount(state, ref, effect.amount, "loseLife amount", sourceInstanceId);
+        if (lost <= 0) continue;
         player.life -= lost;
         log(state, `${player.id} loses ${lost} life`);
+      }
+      return;
+    }
+    case "poison": {
+      /*
+       * Poison counters as an effect, not as Infect damage. Straight to the
+       * counter total, which a state-based action turns into a loss at ten.
+       */
+      const poisoned =
+        effect.who === "target"
+          ? targets
+              .filter((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player")
+              .map((t) => requirePlayer(state, t.playerId))
+          : state.players.filter((p) => p.id !== controllerId);
+      const n = evaluateAmount(state, controllerId, effect.amount, "poison amount", sourceInstanceId);
+      if (n <= 0) return;
+      for (const player of poisoned) {
+        if (player.hasLost) continue;
+        player.poisonCounters += n;
+        log(state, `${player.id} gets ${n} poison counter${n === 1 ? "" : "s"}`);
+      }
+      return;
+    }
+    case "copyNextInstantOrSorcery": {
+      // Arms the delayed copy; castSpell spends it on the controller's next
+      // instant or sorcery. A count, so two of them copy the next two spells.
+      controller.copyNextInstantOrSorcery += 1;
+      log(state, `${controllerId} will copy their next instant or sorcery spell this turn`);
+      return;
+    }
+    case "proliferate": {
+      /*
+       * "Give each another counter of each kind already there." Auto-taken over
+       * the beneficial subset: the controller's own permanents that carry
+       * +1/+1, loyalty or other counters, and poison on opponents. A -1/-1
+       * counter on your own creature is never a counter you would choose to add,
+       * so it is left alone; opponents' +1/+1 counters likewise.
+       */
+      for (const instance of controller.battlefield) {
+        if (instance.plusOneCounters > 0) instance.plusOneCounters += countersPlaced(state, instance, 1);
+        if (instance.loyalty > 0) instance.loyalty += 1;
+        if (instance.otherCounters > 0) instance.otherCounters += 1;
+      }
+      for (const player of state.players) {
+        if (player.id === controllerId || player.hasLost) continue;
+        if (player.poisonCounters > 0) {
+          player.poisonCounters += 1;
+          log(state, `${player.id} gets another poison counter (proliferate)`);
+        }
+      }
+      return;
+    }
+    case "infectiousBite": {
+      /*
+       * targets[0] is the dealer (a creature you control), targets[1] the
+       * recipient (one you don't). The dealer deals damage equal to its power,
+       * routed through the ordinary creature-damage door so its deathtouch, a
+       * shield, and any "is dealt damage" trigger all apply exactly as they
+       * would in a fight. Its power is read now, at resolution.
+       */
+      const dealerT = targets[0];
+      const recipientT = targets[1];
+      if (dealerT?.kind === "card" && recipientT?.kind === "card") {
+        const dealer = findInstance(state, dealerT.instanceId);
+        const recipient = findInstance(state, recipientT.instanceId);
+        if (dealer && recipient && recipient.instance.zone === "battlefield") {
+          const power = effectivePower(state, dealer.instance);
+          const deathtouch = hasKeyword(state, dealer.instance, "Deathtouch");
+          const dealt = damageCreature(state, recipient.instance, power, { deathtouch }).dealt;
+          if (dealt > 0) {
+            log(state, `${cardName(state, dealerT.instanceId)} deals ${dealt} damage to ${cardName(state, recipientT.instanceId)}`);
+          }
+        }
+      }
+      // "Each opponent gets a poison counter" - folded in, so the whole card is
+      // one effect. Happens whether or not the fight found a legal recipient.
+      for (const player of state.players) {
+        if (player.id === controllerId || player.hasLost) continue;
+        player.poisonCounters += effect.poisonEachOpponent;
+        log(state, `${player.id} gets ${effect.poisonEachOpponent} poison counter${effect.poisonEachOpponent === 1 ? "" : "s"}`);
       }
       return;
     }
@@ -1557,6 +2055,21 @@ export function applyEffect(
        * A player with an empty hand is not queued at all: there is nothing to
        * choose, and asking would stop the game on a question with no answers.
        */
+      if (effect.who === "self") {
+        // "then discard a card" - the controller loots. Same picker, aimed at
+        // the controller rather than the opponents.
+        if (controller.hand.length === 0) return;
+        state.pendingDiscards.push({
+          playerId: controllerId,
+          sourceInstanceId,
+          remaining: effect.amount,
+          prompt:
+            effect.amount === 1
+              ? `${cardName(state, sourceInstanceId)}: discard a card`
+              : `${cardName(state, sourceInstanceId)}: discard ${effect.amount} cards`,
+        });
+        return;
+      }
       for (const player of state.players) {
         if (player.id === controllerId) continue; // "each opponent"
         if (player.hasLost || player.hand.length === 0) continue;
@@ -1851,6 +2364,9 @@ export function applyEffect(
         // Both of the steps that stop and ask. A sacrifice choice suspends the
         // rest of the card exactly as a search does, for the same reason.
         if (state.pendingSearch) return;
+        // A look-at-top (Ponder) stops the same way - it has already taken the
+        // rest as its follow-up, so carrying on here would run it twice.
+        if (state.pendingArrange) return;
         if (state.pendingSacrifice) {
           state.pendingSacrifice.followUp = rest;
           return;
@@ -1866,11 +2382,35 @@ export function applyEffect(
       return;
     }
     case "modal": {
-      // castSpell unwraps the chosen mode before the spell reaches the stack,
-      // so getting here means something built a modal triggered or activated
-      // ability - which nothing chooses a mode for yet. Loud rather than
-      // silently picking one.
-      throw new Error("Modal effects are only supported on cast spells");
+      // A modal *cast spell* is unwrapped before it reaches the stack, so
+      // reaching here means a modal triggered/activated ability is resolving.
+      // Stop and ask which mode; `resolveModal` applies it.
+      state.pendingModal = {
+        playerId: controllerId,
+        controllerId,
+        sourceInstanceId,
+        modes: effect.modes,
+      };
+      return;
+    }
+    case "removeCounter": {
+      // "Remove up to N counters from target permanent." Takes +1/+1 counters
+      // first, then other counters - a simplification where the player would
+      // choose which kinds and how many.
+      const t = targets.find((x): x is Extract<StackTarget, { kind: "card" }> => x.kind === "card");
+      if (!t) return;
+      const found = findInstance(state, t.instanceId);
+      if (!found) return;
+      let toRemove = effect.amount;
+      const fromPlus = Math.min(toRemove, found.instance.plusOneCounters);
+      found.instance.plusOneCounters -= fromPlus;
+      toRemove -= fromPlus;
+      const fromOther = Math.min(toRemove, found.instance.otherCounters);
+      found.instance.otherCounters -= fromOther;
+      if (fromPlus + fromOther > 0) {
+        log(state, `${controllerId} removes ${fromPlus + fromOther} counter${fromPlus + fromOther === 1 ? "" : "s"} from ${cardName(state, t.instanceId)}`);
+      }
+      return;
     }
   }
 }
@@ -1997,10 +2537,17 @@ function matchesSearch(
   if (!definition) return false;
   if (effect.basicLandOnly && !definition.supertypes?.includes("Basic")) return false;
   // "An artifact or enchantment card" - any one of the listed types qualifies.
+  // `cardType` may be one type (with an optional `orHasKeyword` fallback, e.g.
+  // "an instant card or a card with flash") or a list; `cardTypes` is the
+  // separate list form. Any of them can be set.
   if (effect.cardType) {
     const wanted = Array.isArray(effect.cardType) ? effect.cardType : [effect.cardType];
-    if (!wanted.some((type) => definition.types.includes(type))) return false;
+    if (!wanted.some((type) => definition.types.includes(type))) {
+      // "...or a card with flash" - a fallback keyword still qualifies it.
+      if (!(effect.orHasKeyword && definition.keywords?.includes(effect.orHasKeyword))) return false;
+    }
   }
+  if (effect.cardTypes?.length && !effect.cardTypes.some((t) => definition.types.includes(t))) return false;
   /*
    * The recruiters. Printed characteristics only: a card in a library is not
    * on the battlefield, so nothing is buffing it and there is nothing to read
@@ -2152,6 +2699,55 @@ export function resolveSearch(state: GameState, playerId: string, instanceId: st
   }
 }
 
+/**
+ * Puts the looked-at cards back on top of the library in the order the player
+ * named - Halimar Depths, Ponder. Ponder may instead shuffle, throwing the look
+ * away.
+ *
+ * Re-checked against the pending entry rather than trusted, like every other
+ * mid-resolution answer: the order must be exactly the cards that were shown,
+ * so a client cannot smuggle in a card it was never allowed to see. The cards
+ * never left the library, so this is a reorder, not a zone change - no triggers
+ * fire and no counters clear. Nothing else can have happened since they were
+ * shown (priority is held), so the top N slots still hold exactly those cards.
+ */
+export function resolveArrange(
+  state: GameState,
+  playerId: string,
+  orderedInstanceIds: string[],
+  shuffle = false,
+): void {
+  const pending = state.pendingArrange;
+  if (!pending) throw new Error("No arrangement is waiting to be resolved");
+  if (pending.playerId !== playerId) throw new Error(`The arrangement belongs to ${pending.playerId}`);
+
+  const shown = pending.cardInstanceIds;
+  const sameSet =
+    orderedInstanceIds.length === shown.length &&
+    shown.every((id) => orderedInstanceIds.includes(id));
+  if (!sameSet) throw new Error("The order must be exactly the cards you were shown");
+
+  const followUp = pending.followUp;
+  const sourceInstanceId = pending.sourceInstanceId;
+  const doShuffle = shuffle && pending.mayShuffle;
+  state.pendingArrange = null;
+
+  const library = requirePlayer(state, playerId).library;
+  if (doShuffle) {
+    shuffleLibrary(state, playerId);
+  } else {
+    const byId = new Map(library.slice(0, shown.length).map((card) => [card.instanceId, card]));
+    for (let i = 0; i < orderedInstanceIds.length; i++) {
+      const card = byId.get(orderedInstanceIds[i]!);
+      if (card) library[i] = card;
+    }
+  }
+
+  if (followUp?.length) {
+    applyEffect(state, playerId, sourceInstanceId, { kind: "sequence", effects: followUp }, []);
+  }
+}
+
 
 /**
  * Puts one card from the discarding player's own hand into their graveyard.
@@ -2280,6 +2876,11 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
   for (const id of instanceIds) {
     if (!pending.candidateInstanceIds.includes(id)) throw new Error("That card was not offered");
   }
+  // "with different names" - Emergent Ultimatum's search may not take two copies.
+  if (pending.distinctNames) {
+    const names = instanceIds.map((id) => requireDefinition(state, findInstance(state, id)!.instance.definitionId).name);
+    if (new Set(names).size !== names.length) throw new Error("The chosen cards must have different names");
+  }
 
   const player = requirePlayer(state, playerId);
   let chosen = [...instanceIds];
@@ -2404,14 +3005,37 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
     return;
   }
 
+  /*
+   * Emergent Ultimatum's second half: the opponent has chosen one of the exiled
+   * cards. Shuffle it into the caster's library, then the caster casts the rest
+   * for free. Handled here, ahead of the generic mode loop, because none of the
+   * exiled cards move the way any mode would - one goes to a library, the others
+   * to the stack from exile.
+   */
+  if (pending.emergentStep === "opponent-pick") {
+    const casterId = pending.effectControllerId;
+    const picked = chosen[0];
+    if (picked) {
+      moveCard(state, picked, "library");
+      shuffleLibrary(state, casterId);
+      log(state, `${playerId} shuffles ${cardName(state, picked)} into ${casterId}'s library`);
+    }
+    for (const id of pending.candidateInstanceIds) {
+      if (id === picked) continue;
+      castFromExileForFree(state, casterId, id);
+    }
+    return;
+  }
+
   for (const id of chosen) {
     if (pending.mode === "sacrifice") sacrificePermanent(state, id);
+    else if (pending.mode === "exile") {
+      moveCard(state, id, "exile");
+      log(state, `${playerId} exiles ${cardName(state, id)}`);
+    }
     else if (pending.mode === "to-hand") {
       moveCard(state, id, "hand");
       log(state, `${playerId} takes ${cardName(state, id)}`);
-    } else if (pending.mode === "exile") {
-      log(state, `${playerId} exiles ${cardName(state, id)}`);
-      moveCard(state, id, "exile");
     } else if (pending.mode === "exile-imprint") {
       /*
        * The card is exiled *and* remembered, and the second half is the whole
@@ -2427,13 +3051,74 @@ export function resolveCardChoice(state: GameState, playerId: string, instanceId
       const source = findInstance(state, pending.sourceInstanceId);
       if (source) source.instance.imprintedInstanceId = id;
       log(state, `${playerId} imprints ${name} on ${cardName(state, pending.sourceInstanceId)}`);
+    } else if (pending.mode === "to-battlefield") {
+      putOntoBattlefield(state, id, { tapped: pending.toBattlefieldTapped });
+      log(
+        state,
+        `${playerId} puts ${cardName(state, id)} onto the battlefield${pending.toBattlefieldTapped ? " tapped" : ""}`,
+      );
     }
     // "cast-free" is handled below: it needs the caster, not the chooser, and
     // casting is not a zone move this function should be doing by hand.
   }
 
+  /*
+   * Brainstorm's second half. moveCard drops each card at the bottom of the
+   * library, so pull them straight back to the top afterwards - in reverse of
+   * the named order, so the first card named ends up on top and is drawn next.
+   */
+  if (pending.mode === "to-library-top" && chosen.length > 0) {
+    for (const id of chosen) moveCard(state, id, "library");
+    const library = player.library;
+    for (let i = chosen.length - 1; i >= 0; i--) {
+      const idx = library.findIndex((card) => card.instanceId === chosen[i]);
+      if (idx >= 0) library.unshift(...library.splice(idx, 1));
+    }
+    log(state, `${playerId} puts ${chosen.length} card${chosen.length === 1 ? "" : "s"} on top of their library`);
+  }
+
   if (pending.mode === "cast-free" && chosen.length > 0) {
     castForFree(state, playerId, chosen[0]!);
+  }
+
+  /*
+   * "Put the rest on the bottom of your library" - Thundertrap Trainer. The
+   * looked-at cards minus whatever was taken, moved to the bottom in library
+   * order (the fresh random shuffle is the documented simplification). `moveCard`
+   * to "library" drops each at the bottom, so a same-zone move re-files it there.
+   */
+  if (pending.restToBottom) {
+    const rest = pending.restToBottom.filter((id) => !chosen.includes(id));
+    for (const id of rest) moveCard(state, id, "library");
+    if (rest.length > 0) {
+      log(state, `${playerId} puts ${rest.length} card${rest.length === 1 ? "" : "s"} on the bottom of their library`);
+    }
+  }
+
+  /*
+   * Emergent Ultimatum's first half is done: the searched cards are exiled.
+   * Searching shuffles the library, and then an opponent is asked to choose one
+   * of the exiled cards to shuffle back. Nothing more to do if the caster took
+   * nothing.
+   */
+  if (pending.emergentStep === "search") {
+    shuffleLibrary(state, pending.effectControllerId);
+    if (chosen.length > 0) {
+      const opponent = state.players.find((p) => p.id !== pending.effectControllerId && !p.hasLost);
+      if (opponent) {
+        state.pendingCardChoices.unshift({
+          playerId: opponent.id,
+          effectControllerId: pending.effectControllerId,
+          sourceInstanceId: pending.sourceInstanceId,
+          candidateInstanceIds: chosen,
+          min: 1,
+          max: 1,
+          mode: "exile",
+          emergentStep: "opponent-pick",
+          prompt: `${cardName(state, pending.sourceInstanceId)}: choose a card to shuffle into ${pending.effectControllerId}'s library`,
+        });
+      }
+    }
   }
 
   /*
@@ -2578,6 +3263,32 @@ function castForFree(state: GameState, playerId: string, instanceId: string): vo
   }
 }
 
+/**
+ * "You may cast the other cards without paying their mana costs." - Emergent
+ * Ultimatum, casting from exile. Moved to hand first (the suspend trick) because
+ * `castSpell`'s free path starts there; timing is ignored, since this is part of
+ * a resolution rather than a fresh priority window.
+ */
+function castFromExileForFree(state: GameState, playerId: string, instanceId: string): void {
+  const found = findInstance(state, instanceId);
+  if (!found || found.instance.zone !== "exile") return;
+  const def = requireDefinition(state, found.instance.definitionId);
+  const selector = targetSelectorOf(def.castEffect ?? { kind: "draw", amount: 0 });
+  const targets = selector ? legalTargetsFor(state, selector, playerId).slice(0, 1) : [];
+  if (selector && targets.length === 0) return;
+  // A land is not cast; it is simply left in exile (the card says "cast", and a
+  // land among the exiled ones has no way to be played from here).
+  if (def.types.includes("Land")) return;
+  moveCard(state, instanceId, "hand");
+  const priorityBefore = state.priorityPlayerIndex;
+  state.priorityPlayerIndex = state.players.findIndex((p) => p.id === playerId);
+  try {
+    castSpell(state, playerId, instanceId, targets, { free: true, ignoreTiming: true });
+  } finally {
+    state.priorityPlayerIndex = priorityBefore;
+  }
+}
+
 /** "{1}{G} and 3 life" - the price on an optional payment, for its prompt. */
 function describePrice(cost: { mana?: ManaCost; life?: number }): string {
   const parts: string[] = [];
@@ -2664,9 +3375,17 @@ function makeCopyToken(
   controllerId: string,
   definitionId: string,
   grants?: Keyword[],
+  ptOverride?: { power: number; toughness: number },
 ): CardInstance {
   const token = createCardInstance(state, definitionId, controllerId, "battlefield");
   token.isTokenCopy = true;
+  // "a 1/1 token copy" - Offspring stamps the copy's printed P/T over the
+  // original's, everything else copied. Set before it enters so its own arrival
+  // reads the right size.
+  if (ptOverride) {
+    token.basePowerOverride = ptOverride.power;
+    token.baseToughnessOverride = ptOverride.toughness;
+  }
   /*
    * A copy enters the battlefield like anything else, so it goes through the
    * same arrival path - its own enters-the-battlefield triggers included. A
@@ -2709,4 +3428,62 @@ function scheduleDelayedRemoval(
     at,
     readyOnTurn: state.turnNumber + (alreadyPastIt ? 1 : 0),
   });
+}
+
+/**
+ * Cycling: "{cost}, Discard this card: Draw a card" - or, with `search`, a
+ * typecycling that tutors the named card to hand instead of drawing. Activated
+ * from the hand; the discard is part of the cost, so it happens whether or not
+ * a search finds anything.
+ */
+export function cycleCard(state: GameState, playerId: string, instanceId: string): void {
+  const player = requirePlayer(state, playerId);
+  const card = player.hand.find((c) => c.instanceId === instanceId);
+  if (!card) throw new Error("That card is not in hand");
+  const def = requireDefinition(state, card.definitionId);
+  if (!def.cycling) throw new Error(`${def.name} has no cycling ability`);
+  if (!canPayManaCost(player, def.cycling.cost)) {
+    throw new Error(`${playerId} cannot pay the cycling cost of ${def.name}`);
+  }
+  payManaCost(player, def.cycling.cost);
+  moveCard(state, instanceId, "graveyard");
+  log(state, `${playerId} cycles ${def.name}`);
+  if (def.cycling.search) {
+    applyEffect(
+      state,
+      playerId,
+      instanceId,
+      {
+        kind: "searchLibrary",
+        cardType: def.cycling.search.cardType,
+        subtypes: def.cycling.search.subtypes,
+        destination: "hand",
+      },
+      [],
+    );
+  } else {
+    drawCard(state, playerId, 1);
+  }
+}
+
+/**
+ * Applies the mode a player chose for a modal triggered/activated ability (see
+ * the `modal` effect). The chosen mode is auto-targeted - a simplification of
+ * the player's target choice - which is enough for the cards that use this.
+ */
+export function resolveModal(state: GameState, playerId: string, modeIndex: number): void {
+  const pending = state.pendingModal;
+  if (!pending) throw new Error("No modal choice is waiting to be resolved");
+  if (pending.playerId !== playerId) throw new Error(`The modal choice belongs to ${pending.playerId}`);
+  const mode = pending.modes[modeIndex];
+  if (!mode) throw new Error(`There is no mode ${modeIndex}`);
+  state.pendingModal = null;
+  log(state, `${playerId} chooses "${mode.label}"`);
+  const selector = targetSelectorOf(mode.effect);
+  let targets: StackTarget[] = [];
+  if (selector) {
+    const legal = legalTargetsFor(state, selector, pending.controllerId);
+    if (legal.length > 0) targets = [legal[0]!];
+  }
+  applyEffect(state, pending.controllerId, pending.sourceInstanceId, mode.effect, targets);
 }

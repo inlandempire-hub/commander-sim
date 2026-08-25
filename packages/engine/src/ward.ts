@@ -48,6 +48,8 @@ export function attemptWardPayments(state: GameState, casterId: string, targets:
       log(state, `${casterId} pays ${ward.life} life for ward`);
       continue;
     }
+    // `ward.mana` already folds in a creature's own ward cost and one granted by
+    // an attached Equipment (Lavaspur/Winged Boots) - see effectiveWard.
     const cost = ward.mana ?? { generic: 0, colors: {} };
     if (!canPayManaCost(caster, cost)) return false;
     payManaCost(caster, cost);

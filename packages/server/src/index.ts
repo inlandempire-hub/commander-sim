@@ -10,6 +10,11 @@ import {
   declareBlockers,
   resolveSearch,
   chooseTriggerTargets,
+  resolveArrange,
+  cycleCard,
+  ninjutsu,
+  resolveModal,
+  chooseTriggerTarget,
   resolveDiscard,
   activateLoyaltyAbility,
   unlockDoor,
@@ -73,6 +78,11 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
         damageSplit: message.damageSplit,
         sacrificeInstanceId: message.sacrificeInstanceId,
         useAlternativeCost: message.useAlternativeCost,
+        omniscienceFree: message.omniscienceFree,
+        delveCount: message.delveCount,
+        useWarp: message.useWarp,
+        payOffspring: message.payOffspring,
+        removeCounterFrom: message.removeCounterFrom,
       });
       return;
     case "activateAbility":
@@ -83,6 +93,7 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
         message.abilityIndex,
         message.targets ?? [],
         message.chosenMode,
+        { discardInstanceIds: message.discardInstanceIds },
       );
       return;
     case "declareAttackers":
@@ -105,6 +116,18 @@ function dispatch(state: GameState, playerId: string, message: ClientMessage): v
       return;
     case "resolveSearch":
       resolveSearch(state, playerId, message.instanceId);
+      return;
+    case "cycleCard":
+      cycleCard(state, playerId, message.instanceId);
+      return;
+    case "ninjutsu":
+      ninjutsu(state, playerId, message.ninjaInstanceId, message.returnedAttackerInstanceId);
+      return;
+    case "resolveModal":
+      resolveModal(state, playerId, message.modeIndex);
+      return;
+    case "resolveArrange":
+      resolveArrange(state, playerId, message.order, message.shuffle ?? false);
       return;
     case "resolveConfirmation":
       resolveConfirmation(state, playerId, message.accept);

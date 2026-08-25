@@ -77,6 +77,24 @@ export function meetsBoardCondition(
      */
     case "life-at-least":
       return player.life >= condition.life;
+    case "creatures-on-battlefield": {
+      let creatures = 0;
+      for (const p of state.players) {
+        for (const c of p.battlefield) {
+          if (state.cardDefinitions[c.definitionId]?.types.includes("Creature")) creatures += 1;
+        }
+      }
+      return creatures >= condition.count;
+    }
+    case "card-types-in-graveyard": {
+      const types = new Set<string>();
+      for (const card of player?.graveyard ?? []) {
+        for (const t of state.cardDefinitions[card.definitionId]?.types ?? []) types.add(t);
+      }
+      return types.size >= condition.count;
+    }
+    case "cards-in-graveyard":
+      return (player?.graveyard.length ?? 0) >= condition.count;
     case "controls-subtype": {
       // "a Swamp or a Forest" - any one of them will do, and a dual counts for
       // both at once because this reads the type line rather than card names.

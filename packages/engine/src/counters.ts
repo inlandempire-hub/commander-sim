@@ -136,6 +136,19 @@ interface ReachingBuff {
   source: CardInstance;
 }
 
+/**
+ * The card types a spell may not target this creature with - "protection from
+ * instants and from sorceries", gathered from every buff reaching it (Sword of
+ * Wealth and Power). Empty for almost everything.
+ */
+export function protectionFrom(state: GameState, instance: CardInstance): CardType[] {
+  const types: CardType[] = [];
+  for (const { buff } of buffsReaching(state, instance)) {
+    for (const t of buff.grantsProtectionFrom ?? []) if (!types.includes(t)) types.push(t);
+  }
+  return types;
+}
+
 /** The total power/toughness bonus from the "anthem"/"lord" pattern. */
 function staticBuffFor(state: GameState, instance: CardInstance): { power: number; toughness: number } {
   const total = { power: 0, toughness: 0 };
@@ -309,6 +322,9 @@ export function effectiveWard(
   if (instance.zone !== "battlefield") return null;
   for (const { buff } of buffsReaching(state, instance)) {
     if (buff.grantsWardLife !== undefined) return { life: buff.grantsWardLife };
+    // Ward granted with a mana cost by an attached Equipment - Lavaspur Boots'
+    // "ward {1}", Winged Boots' "ward {4}".
+    if (buff.grantsWardCost !== undefined) return { mana: buff.grantsWardCost };
   }
   return null;
 }
@@ -429,16 +445,30 @@ function baseStatsFor(state: GameState, instance: CardInstance): number | undefi
 export function effectivePower(state: GameState, instance: CardInstance): number {
   const def = requireDefinition(state, instance.definitionId);
   return (
-    // An animated land's printed power is nothing at all; the animation is where
-    // its 1/1 comes from.
-    // Layer 7b before 7c and 7d: a base-setting effect replaces the printed
-    // figure, and counters and anthems then apply on top of the new one.
-    (baseStatsFor(state, instance) ?? instance.animation?.power ?? def.power ?? 0) +
+    // Offspring's "1/1 token copy" sets the copy's base P/T outright, over
+    // everything below. Otherwise: an animated land's printed power is nothing
+    // at all (the animation is where its 1/1 comes from), and layer 7b - a
+    // base-setting effect - replaces the printed figure before counters/anthems.
+    (instance.basePowerOverride ?? baseStatsFor(state, instance) ?? instance.animation?.power ?? def.power ?? 0) +
     instance.plusOneCounters -
     instance.minusOneCounters +
     instance.temporaryPowerBonus +
-    staticBuffFor(state, instance).power
+    staticBuffFor(state, instance).power +
+    selfBuffAmount(state, instance, "power")
   );
+}
+
+/**
+ * The dynamic self-buff (Rampant Frogantua's "+10/+10 for each player who has
+ * lost"), evaluated fresh against the board every time stats are read - which is
+ * the whole point, so it grows and shrinks as players do. Zero off the
+ * battlefield and for every creature without one.
+ */
+function selfBuffAmount(state: GameState, instance: CardInstance, which: "power" | "toughness"): number {
+  if (instance.zone !== "battlefield") return 0;
+  const buff = requireDefinition(state, instance.definitionId).selfBuff;
+  if (!buff) return 0;
+  return evaluateAmount(state, instance.controllerId, buff[which], "selfBuff", instance.instanceId);
 }
 
 /**
@@ -452,10 +482,11 @@ export function effectivePower(state: GameState, instance: CardInstance): number
 export function effectiveToughness(state: GameState, instance: CardInstance): number {
   const def = requireDefinition(state, instance.definitionId);
   return (
-    (baseStatsFor(state, instance) ?? instance.animation?.toughness ?? def.toughness ?? 0) +
+    (instance.baseToughnessOverride ?? baseStatsFor(state, instance) ?? instance.animation?.toughness ?? def.toughness ?? 0) +
     instance.plusOneCounters -
     instance.minusOneCounters +
     instance.temporaryToughnessBonus +
-    staticBuffFor(state, instance).toughness
+    staticBuffFor(state, instance).toughness +
+    selfBuffAmount(state, instance, "toughness")
   );
 }

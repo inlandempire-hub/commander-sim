@@ -62,12 +62,33 @@ export function castingCostOf(
   instanceId: string,
   fromCommandZone = false,
   chosenX = 0,
+  useWarp = false,
+  payOffspring = false,
+  useAlternativeCost = false,
 ): ManaCost {
   const player = requirePlayer(state, playerId);
   const found = findInstance(state, instanceId);
   if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
-  const printed = requireDefinition(state, found.instance.definitionId).manaCost ?? EMPTY_COST;
-  const cost = costWithX(printed, chosenX);
+  const def = requireDefinition(state, found.instance.definitionId);
+  // Warp pays its own cost, so that is what auto-tap must reach for - the
+  // printed cost would tap far too much and refuse an affordable warp.
+  if (useWarp && def.warp) return def.warp.cost;
+  // The alternative cost replaces the mana cost outright - Dig Up's cleave
+  // {1}{B}{B}{G}, or a truly free one ({0}). Without this, auto-tap reached for
+  // the printed cost instead and left the alternative unpayable.
+  if (useAlternativeCost && def.alternativeCost) {
+    return def.alternativeCost.manaCost ?? EMPTY_COST;
+  }
+  const printed = def.manaCost ?? EMPTY_COST;
+  let cost = costWithX(printed, chosenX);
+  // Offspring stacks its cost on top, so auto-tap has to reach for both.
+  if (payOffspring && def.offspring) {
+    const colors = { ...cost.colors };
+    for (const [color, count] of Object.entries(def.offspring.cost.colors ?? {})) {
+      colors[color as keyof typeof colors] = (colors[color as keyof typeof colors] ?? 0) + (count ?? 0);
+    }
+    cost = { ...cost, generic: cost.generic + (def.offspring.cost.generic ?? 0), colors };
+  }
   if (!fromCommandZone) return cost;
   return applyCommanderTax(cost, player.commanderCastCount[instanceId] ?? 0);
 }
@@ -183,7 +204,16 @@ export function castSpellWithAutoTap(
   targets: StackTarget[] = [],
   options: CastOptions = {},
 ): void {
-  const cost = castingCostOf(state, playerId, instanceId, options.fromCommandZone, options.chosenX ?? 0);
+  const cost = castingCostOf(
+    state,
+    playerId,
+    instanceId,
+    options.fromCommandZone,
+    options.chosenX ?? 0,
+    options.useWarp,
+    options.payOffspring,
+    options.useAlternativeCost,
+  );
   withAutoTap(state, playerId, cost, (tappingBrokeTheWindow) =>
     castSpell(state, playerId, instanceId, targets, {
       ...options,
@@ -203,12 +233,13 @@ export function activateAbilityWithAutoTap(
   targets: StackTarget[] = [],
   /** "Choose one -" on an ability, carried through untouched. */
   chosenMode?: number,
+  options: { discardInstanceIds?: string[] } = {},
 ): void {
   const found = findInstance(state, instanceId);
   const ability = found
     ? requireDefinition(state, found.instance.definitionId).activatedAbilities?.[abilityIndex]
     : undefined;
-  const run = (): void => activateAbility(state, playerId, instanceId, abilityIndex, targets, chosenMode);
+  const run = (): void => activateAbility(state, playerId, instanceId, abilityIndex, targets, chosenMode, options);
   if (!ability?.cost.mana) {
     run();
     return;

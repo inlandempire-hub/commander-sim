@@ -3,6 +3,7 @@ import { drawCard, findInstance, log, moveCard, requireDefinition } from "./stat
 import { emptyManaPool } from "./mana.js";
 import { combatHasFirstStrike, dealCombatDamage } from "./combat.js";
 import { castSuspended } from "./casting.js";
+import { applyEffect } from "./effects.js";
 import { moveControl, pushOntoStack, pushTrigger } from "./permanents.js";
 import { effectiveTriggers } from "./counters.js";
 
@@ -131,7 +132,15 @@ function startNextTurn(state: GameState): void {
   // the game ended in it, or the permanent left - is not owed to anybody else.
   state.extraCombatPhases = 0;
   state.combatPhasesThisTurn = 0;
-  state.activePlayerIndex = (state.activePlayerIndex + 1) % state.players.length;
+  // An extra turn queued by Time Stretch is taken before the order rotates on;
+  // only when the queue is empty does the next player in turn order get theirs.
+  const extra = state.extraTurns.shift();
+  if (extra !== undefined) {
+    const idx = state.players.findIndex((p) => p.id === extra);
+    if (idx >= 0) state.activePlayerIndex = idx;
+  } else {
+    state.activePlayerIndex = (state.activePlayerIndex + 1) % state.players.length;
+  }
   // "your first, second, or third turn of the game" - counted here, where a turn
   // begins, so it stays right through extra turns and any number of players.
   state.players[state.activePlayerIndex]!.turnsTaken += 1;
@@ -190,6 +199,13 @@ function runAutomaticStepActions(state: GameState): void {
 
   switch (state.step) {
     case "upkeep": {
+      // Delayed "at the beginning of the next turn's upkeep" effects - Arcane
+      // Denial, Mishra's Bauble. Fired for any turn number now reached.
+      const due = state.delayedUpkeepEffects.filter((d) => d.fireAtTurn <= state.turnNumber);
+      state.delayedUpkeepEffects = state.delayedUpkeepEffects.filter((d) => d.fireAtTurn > state.turnNumber);
+      for (const d of due) {
+        applyEffect(state, d.controllerId, d.controllerId, d.effect, []);
+      }
       /*
        * Suspend: "At the beginning of your upkeep, remove a time counter. When
        * the last is removed, cast it without paying its mana cost."
@@ -293,6 +309,25 @@ function runAutomaticStepActions(state: GameState): void {
       dealCombatDamage(state, "regular");
       break;
     }
+    case "end": {
+      /*
+       * Warp: "Exile this creature at the beginning of the next end step, then
+       * you may cast it from exile on a later turn." - Starwinder. A turn-based
+       * action rather than a trigger, scanned off the battlefield so a warped
+       * creature that has already died or left takes nothing with it. Marked
+       * `warpedInExile` on the way so `castSpell` will let its owner recast it.
+       */
+      for (const player of state.players) {
+        for (const instance of [...player.battlefield]) {
+          if (!instance.exileAtNextEndStep) continue;
+          instance.exileAtNextEndStep = false;
+          log(state, `${requireDefinition(state, instance.definitionId).name} is exiled (warp)`);
+          moveCard(state, instance.instanceId, "exile");
+          instance.warpedInExile = true;
+        }
+      }
+      break;
+    }
     case "end-combat": {
       state.attackers = {};
       state.blockers = {};
@@ -336,10 +371,19 @@ function runAutomaticStepActions(state: GameState): void {
        */
       for (const player of state.players) {
         let limit = 7;
+        let unlimited = false;
+        // "Your maximum hand size is twenty." - a set rather than a reduction, so
+        // it overrides the seven-and-min logic below. A later one on the
+        // battlefield wins, standing in for the timestamp rule.
+        let override: number | undefined;
         for (const instance of player.battlefield) {
-          const rule = state.cardDefinitions[instance.definitionId]?.staticRules?.maxHandSize;
-          if (rule !== undefined) limit = Math.min(limit, rule);
+          const rules = state.cardDefinitions[instance.definitionId]?.staticRules;
+          if (rules?.noMaxHandSize) unlimited = true;
+          if (rules?.maxHandSize !== undefined) limit = Math.min(limit, rules.maxHandSize);
+          if (rules?.setMaxHandSize !== undefined) override = rules.setMaxHandSize;
         }
+        if (override !== undefined) limit = override;
+        if (unlimited) continue;
         while (player.hand.length > limit) {
           const last = player.hand[player.hand.length - 1]!;
           log(state, `${player.id} discards ${requireDefinition(state, last.definitionId).name} to hand size`);
@@ -352,6 +396,7 @@ function runAutomaticStepActions(state: GameState): void {
       for (const player of state.players) {
         for (const instance of player.battlefield) {
           instance.damageMarked = 0;
+          instance.damagedThisTurn = false;
           instance.deathtouchDamage = false;
           instance.grantedKeywords = []; // Heroic Intervention's hexproof wears off with everything else
           instance.protectionFrom = []; // "until end of turn" - Mother of Runes and the rest
@@ -374,12 +419,14 @@ function runAutomaticStepActions(state: GameState): void {
         // the tally does. Cleanup rather than untap, because Iridescent
         // Hornbeetle reads it during the end step, which is still this turn.
         player.plusOneCountersPlacedThisTurn = 0;
+        player.copyNextInstantOrSorcery = 0;
         emptyManaPool(player);
       }
       // "If a creature died *this turn*" - the turn ends here, so the count
       // does too. Cleanup rather than untap because a card could ask about it
       // during an opponent's end step, which is still this turn.
       state.creatureDeathsThisTurn = 0;
+      state.spellsCastThisTurn = 0;
       // "Prevent all combat damage ... this turn" ends with the turn.
       state.combatDamagePrevention = null;
       returnTemporaryControl(state);

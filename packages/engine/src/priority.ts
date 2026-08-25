@@ -33,6 +33,12 @@ export function passPriority(state: GameState, playerId: string): void {
   if (state.pendingSearch) {
     throw new Error(`${state.pendingSearch.playerId} must finish searching first`);
   }
+  if (state.pendingModal) {
+    throw new Error(`${state.pendingModal.playerId} must choose a mode first`);
+  }
+  if (state.pendingArrange) {
+    throw new Error(`${state.pendingArrange.playerId} must arrange their library first`);
+  }
   if (state.pendingConfirmation) {
     throw new Error(`${state.pendingConfirmation.playerId} must answer their trigger first`);
   }

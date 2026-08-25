@@ -10,10 +10,10 @@ import {
   spendablePool,
 } from "./mana.js";
 import { controllerMeets } from "./conditions.js";
-import { effectivePower } from "./counters.js";
+import { effectivePower, protectionFrom } from "./counters.js";
 import { sacrificePermanent } from "./sba.js";
-import { describeSubject, fireLandPlayed, fireWatchers, pushOntoStack, putOntoBattlefield } from "./permanents.js";
-import { isValidTarget, legalTargetsFor, targetCountOf, targetSelectorOf } from "./targeting.js";
+import { describeSubject, fireLandPlayed, fireWatchers, pushOntoStack, pushSpellCopyOntoStack, putOntoBattlefield } from "./permanents.js";
+import { isValidTarget, legalTargetsFor, targetCountOf, targetSelectorOf, targetSelectorsOf } from "./targeting.js";
 import { attemptWardPayments } from "./ward.js";
 import { costWithX, requiresX, resolveAmounts } from "./x.js";
 
@@ -107,6 +107,34 @@ export interface CastOptions {
    * something else has no condition of its own to meet.
    */
   free?: boolean;
+  /**
+   * The player chose to cast this without paying, using an Omniscience-style
+   * permanent they control. Validated against a permanent whose definition sets
+   * `enablesFreeCastFromHand`; unlike `free`, which internal effects set, this
+   * one is a player's choice and so is checked.
+   */
+  omniscienceFree?: boolean;
+  /** How many cards to exile from the graveyard to pay for this spell's Delve. */
+  delveCount?: number;
+  /**
+   * Cast this for its warp cost - Starwinder. Pays `def.warp.cost` in place of
+   * the mana cost and marks the creature to be exiled at the next end step. Only
+   * from hand; a warp-exiled card cast from exile later pays its ordinary cost
+   * and takes none of this.
+   */
+  useWarp?: boolean;
+  /**
+   * Pay the Offspring cost (Thundertrap Trainer) - an additional cost on top of
+   * the mana cost that makes a 1/1 token copy of the creature as it enters.
+   */
+  payOffspring?: boolean;
+  /**
+   * Which creatures the +1/+1 counters come off to cast this from the graveyard
+   * (Quilled Greatwurm) - one instance id per counter removed, so a creature
+   * giving up two counters appears twice. Length must equal the card's
+   * `castFromGraveyard.removeCounters`.
+   */
+  removeCounterFrom?: string[];
   /**
    * Cast this as a bestowed Aura for its bestow cost, attached to the creature
    * handed in as the target. It is still a creature card - it is simply not a
@@ -216,8 +244,26 @@ export function castSpell(
    * this path.
    */
   const fromExile = mayPlayFromExile(state, playerId, instance);
+  /*
+   * "...then you may cast it from exile on a later turn." - a warp-exiled card
+   * is cast from exile for its ordinary cost, which is the one door into
+   * `castSpell` that does not start in hand or the command zone. Only that card,
+   * only cast normally: a warp cast itself and a command-zone cast go the usual
+   * way.
+   */
+  const castingFromWarpExile =
+    instance.zone === "exile" &&
+    instance.warpedInExile === true &&
+    !options.fromCommandZone &&
+    !options.useWarp;
+  const def0 = requireDefinition(state, instance.definitionId);
+  // "You may cast this card from your graveyard by removing six counters..." -
+  // Quilled Greatwurm's own door into the graveyard, distinct from Warp's exile
+  // one and gated on the card carrying the permission.
+  const castingFromGraveyard =
+    instance.zone === "graveyard" && def0.castFromGraveyard !== undefined && !options.fromCommandZone;
   const expectedZone = options.fromCommandZone ? "command" : "hand";
-  if (!fromExile && instance.zone !== expectedZone) {
+  if (!fromExile && !castingFromWarpExile && !castingFromGraveyard && instance.zone !== expectedZone) {
     throw new Error(`${instanceId} is not in ${playerId}'s ${expectedZone} zone`);
   }
   if (!fromExile && instance.ownerId !== playerId) {
@@ -226,6 +272,10 @@ export function castSpell(
 
   const def = requireDefinition(state, instance.definitionId);
   const isPermanentSpell = def.types.some((t) => PERMANENT_TYPES.has(t));
+  if (options.useWarp) {
+    if (!def.warp) throw new Error(`${def.name} has no warp cost`);
+    if (instance.zone !== "hand") throw new Error(`${def.name} can only be warped from hand`);
+  }
 
   if (isSorcerySpeedOnly(def) && !options.ignoreTiming && !canCastAtSorcerySpeed(state, playerId)) {
     throw new Error(`${def.name} can only be cast at sorcery speed`);
@@ -281,6 +331,13 @@ export function castSpell(
   // "You may cast this spell for its dash cost" - a price, not a discount, and
   // the two riders that come with it are applied as the permanent arrives.
   if (options.useDashCost && !def.dashCost) throw new Error(`${def.name} has no dash cost`);
+  if (options.omniscienceFree) {
+    // "You may cast spells from your hand without paying their mana costs."
+    const enabled = player.battlefield.some(
+      (c) => requireDefinition(state, c.definitionId).enablesFreeCastFromHand,
+    );
+    if (!enabled) throw new Error(`${playerId} controls nothing that lets them cast ${def.name} for free`);
+  }
   /*
    * "You may cast either half." - a Room, whose two doors have two costs.
    *
@@ -292,17 +349,68 @@ export function castSpell(
   const roomBack = roomDoor === "back" && def.backFaceId ? state.cardDefinitions[def.backFaceId] : undefined;
   const printedCost = roomBack?.manaCost ?? def.manaCost ?? { generic: 0, colors: {} };
 
-  const free = alternative !== undefined || options.free === true;
-  let cost: ManaCost = free
-    ? { generic: 0, colors: {} }
-    : options.useDashCost
-      ? def.dashCost!
-      : options.bestowOnto
-        ? def.bestowCost!
-        : costWithX(printedCost, chosenX);
+  // `free` gates only commander tax below; the amount actually paid is `cost`,
+  // so an alternative with a real price (Blasphemous Edict's {B}) still pays it.
+  const free = alternative !== undefined || options.free === true || options.omniscienceFree === true;
+  let cost: ManaCost = alternative
+    ? // Blasphemous Edict pays a reduced {B}; every other alternative is free of
+      // mana (paid by a sacrifice, or by nothing).
+      (alternative.manaCost ?? { generic: 0, colors: {} })
+    : options.free === true || options.omniscienceFree === true
+      ? { generic: 0, colors: {} }
+      : options.useWarp
+        ? // Warp replaces the mana cost with its own, like an alternative cost -
+          // but it is not "free", so it stays out of the free branch above.
+          def.warp!.cost
+        : options.useDashCost
+          ? def.dashCost!
+          : options.bestowOnto
+            ? def.bestowCost!
+            : costWithX(printedCost, chosenX);
   if (options.fromCommandZone && !free) {
     const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
     cost = applyCommanderTax(cost, timesCast);
+  }
+
+  // Offspring: an additional cost stacked on top of the mana cost. Refused if
+  // the card has none, so a client cannot conjure a token copy for free.
+  if (options.payOffspring) {
+    if (!def.offspring) throw new Error(`${def.name} has no Offspring cost`);
+    const merged = { ...cost.colors };
+    for (const [color, count] of Object.entries(def.offspring.cost.colors ?? {})) {
+      merged[color as keyof typeof merged] = (merged[color as keyof typeof merged] ?? 0) + (count ?? 0);
+    }
+    cost = { ...cost, generic: cost.generic + (def.offspring.cost.generic ?? 0), colors: merged };
+  }
+
+  /*
+   * Quilled Greatwurm's graveyard cost: remove N +1/+1 counters from among your
+   * creatures, one per entry in `removeCounterFrom`. Validated whole here, paid
+   * with the mana below - so an unaffordable cast takes no counters off first.
+   */
+  const removeCounterFrom = options.removeCounterFrom ?? [];
+  if (castingFromGraveyard) {
+    const need = def.castFromGraveyard!.removeCounters;
+    if (removeCounterFrom.length !== need) {
+      throw new Error(`${def.name} needs ${need} counters removed to cast from the graveyard`);
+    }
+    const perCreature = new Map<string, number>();
+    for (const id of removeCounterFrom) perCreature.set(id, (perCreature.get(id) ?? 0) + 1);
+    for (const [id, count] of perCreature) {
+      const creature = player.battlefield.find((c) => c.instanceId === id);
+      if (!creature) throw new Error(`${playerId} does not control ${id}`);
+      if (!requireDefinition(state, creature.definitionId).types.includes("Creature")) {
+        throw new Error(`${id} is not a creature`);
+      }
+      if (creature.plusOneCounters < count) throw new Error(`${id} does not have ${count} +1/+1 counters`);
+    }
+  }
+
+  // Delve: each card exiled from the graveyard pays for {1} of the generic cost.
+  let delved: string[] = [];
+  if (def.delve && options.delveCount && options.delveCount > 0) {
+    delved = player.graveyard.slice(0, options.delveCount).map((c) => c.instanceId);
+    cost = { ...cost, generic: Math.max(0, cost.generic - delved.length) };
   }
 
   /*
@@ -328,11 +436,29 @@ export function castSpell(
     }
     sacrificedPower = effectivePower(state, victim);
   }
+  if (alternative?.sacrifice) {
+    // Flare of Denial's alternative cost: the sacrifice *is* the cost, in place
+    // of mana. Validated here, performed below with everything else.
+    const altSacId = options.sacrificeInstanceId;
+    if (!altSacId) throw new Error(`${def.name}'s alternative cost requires a creature to sacrifice`);
+    const victim = player.battlefield.find((c) => c.instanceId === altSacId);
+    if (!victim) throw new Error(`${playerId} does not control ${altSacId}`);
+    const vdef = requireDefinition(state, victim.definitionId);
+    if (!vdef.types.includes("Creature")) throw new Error(`${vdef.name} is not a creature`);
+    if (alternative.sacrifice.color && (vdef.manaCost?.colors?.[alternative.sacrifice.color] ?? 0) <= 0) {
+      throw new Error(`${vdef.name} is not the required colour`);
+    }
+    if (alternative.sacrifice.nontoken && vdef.isToken) throw new Error(`${vdef.name} is a token`);
+    sacrificeId = altSacId;
+  }
 
   // A mode is chosen as the spell is cast, so the modal wrapper is unwrapped
   // here and never reaches the stack. Everything downstream - targeting,
   // resolution, the bot, the client - sees a plain single effect.
-  let effect: Effect = def.castEffect ?? { kind: "draw", amount: 0 };
+  // Cleave (Dig Up): casting for the alternative (cleave) cost swaps in the
+  // bracket-removed effect.
+  let effect: Effect =
+    (options.useAlternativeCost && def.cleaveEffect) || def.castEffect || { kind: "draw", amount: 0 };
   if (effect.kind === "modal") {
     const modes = effect.modes;
     const chosen = options.chosenMode;
@@ -384,8 +510,24 @@ export function castSpell(
   // would otherwise leave the game half-cast - mana spent and the card sitting
   // on the stack - and an illegal target is the easy way to hit that now that
   // targets can disappear in response to a spell.
-  const selector = targetSelectorOf(effect);
-  if (selector) {
+  const selectors = targetSelectorsOf(effect);
+  if (selectors.length > 1) {
+    /*
+     * Two selectors of different kinds - Infectious Bite's "creature you
+     * control" and "creature you don't control" - validated positionally: one
+     * target apiece, each against its own selector, in order. Neither is "up to"
+     * so the count is exact.
+     */
+    if (targets.length !== selectors.length) {
+      throw new Error(`${def.name} requires ${selectors.length} targets`);
+    }
+    selectors.forEach((sel, i) => {
+      if (!isValidTarget(state, sel, targets[i]!, playerId)) {
+        throw new Error(`Illegal target for ${def.name}`);
+      }
+    });
+  } else if (selectors.length === 1) {
+    const selector = selectors[0]!;
     /*
      * How many, not merely whether. "Up to X target artifacts" with X = 2 is a
      * legal cast for nought, one or two of them and an illegal cast for three -
@@ -405,6 +547,21 @@ export function castSpell(
     }
   }
 
+  /*
+   * "protection from instants and from sorceries" - Sword of Wealth and Power.
+   * A creature with protection from this spell's type is not a legal target for
+   * it, whichever selector matched above. Checked here rather than in
+   * `isValidTarget` because that is asked for abilities too, and this is a
+   * property of being targeted by a *spell* of the named type.
+   */
+  for (const target of targets) {
+    if (target.kind !== "card") continue;
+    const found = findInstance(state, target.instanceId);
+    if (found && protectionFrom(state, found.instance).some((t) => def.types.includes(t))) {
+      throw new Error(`Illegal target for ${def.name} - protection`);
+    }
+  }
+
   // Restricted mana counts here and nowhere else: this is the only place that
   // knows *what* is being cast, which is the whole question its restriction
   // asks. See spendablePool in mana.ts.
@@ -413,6 +570,9 @@ export function castSpell(
   }
   const payment = payManaCostFor(player, cost, def);
   const restrictionsUsed = payment.restrictions;
+  // Delve's exiles are paid in the same breath as the mana.
+  for (const id of delved) moveCard(state, id, "exile");
+  if (delved.length > 0) log(state, `${playerId} delves, exiling ${delved.length} card${delved.length === 1 ? "" : "s"}`);
 
   /*
    * The rest of the cost, paid in the same breath as the mana (rule 601.2h).
@@ -425,6 +585,13 @@ export function castSpell(
     const life = typeof def.additionalCost.amount === "number" ? def.additionalCost.amount : chosenX;
     player.life -= life;
     log(state, `${playerId} pays ${life} life`);
+  }
+  if (castingFromGraveyard && removeCounterFrom.length > 0) {
+    for (const id of removeCounterFrom) {
+      const creature = player.battlefield.find((c) => c.instanceId === id);
+      if (creature) creature.plusOneCounters -= 1;
+    }
+    log(state, `${playerId} removes ${removeCounterFrom.length} +1/+1 counters to cast ${def.name} from their graveyard`);
   }
   if (sacrificeId) sacrificePermanent(state, sacrificeId);
   /*
@@ -446,9 +613,17 @@ export function castSpell(
   // Dash, for the same reason: the haste and the return home are applied as the
   // creature arrives, not while it is a spell.
   instance.dashed = options.useDashCost === true;
-  // Dash, for the same reason: the haste and the return home are applied as the
-  // creature arrives, not while it is a spell.
-  instance.dashed = options.useDashCost === true;
+  /*
+   * Warp: the creature this becomes leaves at the next end step. Marked on the
+   * card now, read off the battlefield then. Cast from its warp-exile the flag
+   * is cleared - a card cast for its ordinary cost is just a creature, and it is
+   * no longer the warped copy waiting in exile either.
+   */
+  if (options.useWarp) instance.exileAtNextEndStep = true;
+  instance.warpedInExile = false;
+  // Offspring: remembered on the card so the token copy is made as it enters,
+  // long after the stack object has gone.
+  if (options.payOffspring) instance.offspringPaid = true;
 
   moveCard(state, instanceId, "stack");
   log(state, `${playerId} casts ${def.name}`);
@@ -523,6 +698,36 @@ export function castSpell(
       [],
       false,
     );
+  }
+
+  /*
+   * Storm: "copy it for each spell cast before it this turn." The count is read
+   * before this cast bumps it, so "before it" is exactly the current tally. The
+   * copies go on top of the spell, so they resolve first, carrying the same
+   * effect and targets - Storm gives no choice of new targets (that is Sword).
+   */
+  const priorSpells = state.spellsCastThisTurn;
+  state.spellsCastThisTurn += 1;
+  if (def.storm && priorSpells > 0) {
+    for (let i = 0; i < priorSpells; i++) {
+      pushSpellCopyOntoStack(state, instanceId, playerId, effect, targets);
+    }
+    log(state, `Storm: ${def.name} is copied ${priorSpells} time${priorSpells === 1 ? "" : "s"}`);
+  }
+
+  /*
+   * "When you next cast an instant or sorcery spell this turn, copy that spell."
+   * - Sword of Wealth and Power, armed by its combat trigger. Spent here on the
+   * caster's next instant or sorcery: one copy on the stack, same targets (new
+   * targets are the documented simplification), the pending count decremented.
+   */
+  if (
+    player.copyNextInstantOrSorcery > 0 &&
+    (def.types.includes("Instant") || def.types.includes("Sorcery"))
+  ) {
+    player.copyNextInstantOrSorcery -= 1;
+    pushSpellCopyOntoStack(state, instanceId, playerId, effect, targets);
+    log(state, `${playerId} copies ${def.name}`);
   }
 
   state.passesInSuccession = 0;
@@ -817,4 +1022,39 @@ export function unlockDoor(
   instance.unlockedDoors.push(door);
   log(state, `${playerId} unlocks ${side.name}`);
   state.passesInSuccession = 0;
+}
+
+/**
+ * Ninjutsu: return an unblocked attacker you control to hand and pay the cost to
+ * put a Ninja from your hand onto the battlefield tapped and attacking the same
+ * player. Used during the declare-blockers step, once blocks are in.
+ */
+export function ninjutsu(
+  state: GameState,
+  playerId: string,
+  ninjaInstanceId: string,
+  returnedAttackerInstanceId: string,
+): void {
+  const player = requirePlayer(state, playerId);
+  const ninja = player.hand.find((c) => c.instanceId === ninjaInstanceId);
+  if (!ninja) throw new Error("That card is not in hand");
+  const def = requireDefinition(state, ninja.definitionId);
+  if (!def.ninjutsu) throw new Error(`${def.name} has no ninjutsu ability`);
+  const defendingPlayerId = state.attackers[returnedAttackerInstanceId];
+  if (defendingPlayerId === undefined) throw new Error("That creature is not attacking");
+  if (!player.battlefield.some((c) => c.instanceId === returnedAttackerInstanceId)) {
+    throw new Error(`${playerId} does not control that attacker`);
+  }
+  if (Object.values(state.blockers).includes(returnedAttackerInstanceId)) {
+    throw new Error("That attacker is blocked");
+  }
+  if (!canPayManaCostFromPool(player.manaPool, def.ninjutsu.cost)) {
+    throw new Error(`${playerId} cannot pay the ninjutsu cost of ${def.name}`);
+  }
+  payManaCostFor(player, def.ninjutsu.cost);
+  delete state.attackers[returnedAttackerInstanceId];
+  moveCard(state, returnedAttackerInstanceId, "hand");
+  putOntoBattlefield(state, ninjaInstanceId, { tapped: true });
+  state.attackers[ninjaInstanceId] = defendingPlayerId;
+  log(state, `${playerId} ninjutsus ${def.name} in`);
 }

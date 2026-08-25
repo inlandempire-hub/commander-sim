@@ -4,12 +4,14 @@ import {
   resolveEnterChoice,
   declareAttackers,
   declareBlockers,
+  resolveCardChoice,
+  resolveDiscard,
   resolveSearch,
+  resolveArrange,
+  resolveModal,
   resolveConfirmation,
   chooseTriggerTargets,
-  resolveDiscard,
   resolveSacrificeChoice,
-  resolveCardChoice,
   resolveAmountChoice,
   resolveColorChoice,
   takeMulligan,
@@ -41,8 +43,9 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
     // bot had to tap its own lands - so the tests could have gone on passing
     // after a change that left the bot unable to cast anything in a browser.
     case "castSpell":
-      // Every field the action carries - see `castOptionsFor`, which exists
-      // because this line used to carry one of the four.
+      // Every field the action carries - see `castOptionsFor`, which maps them
+      // all (fromCommandZone, chosenX, damageSplit, sacrificeInstanceId,
+      // useAlternativeCost) so a bot's cast choices are never dropped.
       castSpellWithAutoTap(state, playerId, action.instanceId, action.targets, castOptionsFor(action));
       return;
     case "activateAbility":
@@ -75,6 +78,12 @@ export function applyBotAction(state: GameState, playerId: string, action: BotAc
       return;
     case "chooseOnEntry":
       resolveEnterChoice(state, playerId, action.answer);
+      return;
+    case "resolveModal":
+      resolveModal(state, playerId, action.modeIndex);
+      return;
+    case "resolveArrange":
+      resolveArrange(state, playerId, action.order, action.shuffle ?? false);
       return;
     case "resolveConfirmation":
       resolveConfirmation(state, playerId, action.accept);

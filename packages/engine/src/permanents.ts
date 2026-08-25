@@ -72,6 +72,35 @@ export function pushOntoStack(
 }
 
 /**
+ * Puts a copy of a spell on the stack - Storm, Sword of Wealth and Power.
+ *
+ * A copy is not a card, so nothing moves zones and no cast triggers fire: it
+ * carries the same effect and (possibly new) targets, resolves like the spell it
+ * copies, and ceases to exist afterwards. `isCopy` is what keeps
+ * `finishResolution` from moving the card `sourceInstanceId` names, which for a
+ * Storm copy is the original spell still on the stack beneath it.
+ */
+export function pushSpellCopyOntoStack(
+  state: GameState,
+  sourceInstanceId: string,
+  controllerId: string,
+  effect: Effect,
+  targets: StackTarget[],
+): StackObject {
+  const obj: StackObject = {
+    id: `s${state.nextStackObjectId++}`,
+    sourceInstanceId,
+    controllerId,
+    effect,
+    targets,
+    isPermanentSpell: false,
+    isCopy: true,
+  };
+  state.stack.push(obj);
+  return obj;
+}
+
+/**
  * Puts a card onto the battlefield and fires its enters-the-battlefield
  * triggers. Used by a resolving permanent spell, by reanimation out of a
  * graveyard, and by a tutor that finds a land - all of which are genuinely the
@@ -423,6 +452,24 @@ export function enteredBattlefield(
   }
 
   /*
+   * Offspring: "when this creature enters, create a 1/1 token copy of it." Only
+   * when the Offspring cost was paid; the token itself never sets this, so it
+   * makes no copy of its own. Put on the stack like the printed ETB triggers
+   * above so it resolves in step with them.
+   */
+  if (instance.offspringPaid) {
+    instance.offspringPaid = false;
+    pushOntoStack(
+      state,
+      instance.instanceId,
+      instance.controllerId,
+      { kind: "createCopyToken", of: "self", ptOverride: { power: 1, toughness: 1 } },
+      [],
+      false,
+    );
+  }
+
+  /*
    * Triggers printed on permanents that were already here, watching for
    * something to arrive - the "Whenever another creature you control enters"
    * family. The same shape as landfall, which scans the battlefield rather
@@ -587,6 +634,92 @@ export function fireWatchers(
 }
 
 /**
+ * "Whenever a creature you control deals combat damage to a player."
+ *
+ * The trigger is pushed with the *damaging creature* as its source, not the
+ * watcher, so "put that many +1/+1 counters on it" and any other self-referring
+ * effect lands on the attacker that dealt the damage. `amount` is the damage
+ * dealt, handed on as the event's number. `watches: "controller"` (the default)
+ * means "a creature you control"; "any" watches every player's creatures.
+ */
+export function fireCombatDamageToPlayer(
+  state: GameState,
+  damagerInstanceId: string,
+  damagerControllerId: string,
+  amount: number,
+  /** Which player was hit, passed on to the trigger for the cards that read it. */
+  defendingPlayerId?: string,
+): void {
+  if (amount <= 0) return;
+  for (const player of state.players) {
+    for (const watcher of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "combat-damage-to-player") continue;
+        if (trigger.watchFor?.attachedToThis) {
+          // "Whenever equipped creature deals combat damage" - Zephyr Boots. The
+          // watcher is the Equipment; it fires when the creature it is on is the
+          // one that connected.
+          if (watcher.attachedTo !== damagerInstanceId) continue;
+        } else {
+          // No `watches` means "this creature" (self, like the `attacks` event);
+          // "controller" means "a creature you control"; "any" watches everyone's.
+          const scope = trigger.watches;
+          if (scope === undefined && watcher.instanceId !== damagerInstanceId) continue;
+          if (scope === "controller" && watcher.controllerId !== damagerControllerId) continue;
+        }
+        // Felix Five-Boots: when the creature dealing the damage and the
+        // triggering permanent share a controller ("a creature you control ...
+        // a permanent you control"), each Felix that player controls makes the
+        // ability trigger one additional time.
+        let times = 1;
+        if (watcher.controllerId === damagerControllerId) {
+          const owner = state.players.find((p) => p.id === watcher.controllerId);
+          if (owner) {
+            times += owner.battlefield.filter(
+              (c) => requireDefinition(state, c.definitionId).staticRules?.extraCombatDamageToPlayerTrigger,
+            ).length;
+          }
+        }
+        for (let i = 0; i < times; i++) {
+          pushTrigger(state, damagerInstanceId, watcher.controllerId, trigger, amount, defendingPlayerId);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * "Whenever a creature you control deals combat damage during your turn, put
+ * that many +1/+1 counters on it." - Quilled Greatwurm.
+ *
+ * Fired once per damaging creature with the total it dealt this step, after the
+ * whole combat has been worked out. "During your turn" is the guard at the top:
+ * blockers deal their damage on the attacker's turn, so a defending player's
+ * Greatwurm never sees it. Felix's doubling is deliberately left off this one -
+ * it doubles triggers from combat damage *to a player*, and this event is wider.
+ */
+export function fireCombatDamageDealt(
+  state: GameState,
+  damagerInstanceId: string,
+  damagerControllerId: string,
+  amount: number,
+): void {
+  if (amount <= 0) return;
+  if (state.players[state.activePlayerIndex]?.id !== damagerControllerId) return;
+  for (const player of state.players) {
+    for (const watcher of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "combat-damage-dealt") continue;
+        const scope = trigger.watches;
+        if (scope === undefined && watcher.instanceId !== damagerInstanceId) continue;
+        if (scope === "controller" && watcher.controllerId !== damagerControllerId) continue;
+        pushTrigger(state, damagerInstanceId, watcher.controllerId, trigger, amount);
+      }
+    }
+  }
+}
+
+/**
  * "Whenever a land enters" - fired both by a land played for the turn and by
  * one put onto the battlefield some other way (a fetchland, a ramp spell).
  *
@@ -604,35 +737,18 @@ export function fireWatchers(
  * for it, the same way it does for every other watcher.
  */
 /**
- * "Whenever this creature deals combat damage to a player", and its once-per-step
- * twin "whenever one or more creatures you control deal combat damage to a
- * player".
+ * "Whenever one or more creatures you control deal combat damage to a player" -
+ * the once-per-step aggregate twin of `fireCombatDamageToPlayer` (which fires the
+ * per-creature "combat-damage-to-player" event inline as each creature connects).
  *
  * Called from the combat damage step with everything that connected this
- * sub-step, so the "one or more" half can fire exactly once however many
- * creatures got through - which is what the words say and is the difference
- * between one Treasure and three.
+ * sub-step, so the "one or more" half fires exactly once however many creatures
+ * got through - the difference between one Treasure and three.
  */
-export function fireCombatDamageToPlayer(
+export function fireCreaturesDealtCombatDamage(
   state: GameState,
   hits: Array<{ attackerInstanceId: string; defendingPlayerId: string }>,
 ): void {
-  for (const { attackerInstanceId, defendingPlayerId } of hits) {
-    const found = findInstance(state, attackerInstanceId);
-    if (!found) continue;
-    for (const trigger of effectiveTriggers(state, found.instance)) {
-      if (trigger.event !== "combat-damage-to-player") continue;
-      pushTrigger(
-        state,
-        attackerInstanceId,
-        found.instance.controllerId,
-        trigger,
-        undefined,
-        defendingPlayerId,
-      );
-    }
-  }
-
   /*
    * "One or more creatures **you control**" - once per controller who connected,
    * not once per creature. A set of controllers rather than a loop over the hits
@@ -1185,6 +1301,16 @@ export function triggerConditionMet(
       return state.combatPhasesThisTurn <= 1;
     case "not":
       return !meetsBoardCondition(state, controllerId, condition.condition);
+    case "counters-or-hand-at-least": {
+      // Either threshold on its own wins the game for the toad. Hand size is
+      // asked first because it needs no source; the counters are read off the
+      // trigger's own permanent, and every kind of counter counts.
+      if (requirePlayer(state, controllerId).hand.length >= condition.count) return true;
+      if (!sourceInstanceId) return false;
+      const found = findInstance(state, sourceInstanceId);
+      if (!found || found.instance.zone !== "battlefield") return false;
+      return found.instance.plusOneCounters + found.instance.otherCounters >= condition.count;
+    }
   }
 }
 

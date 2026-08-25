@@ -89,6 +89,20 @@ def load_scryfall():
     return by_name
 
 
+def _normalize_mana(s):
+    """Sort the single-colour pips into WUBRG so cosmetic colour order never
+    reads as a mismatch. {X} and generic keep their leading position; hybrid
+    pips keep theirs after the colours."""
+    import re
+
+    tokens = re.findall(r"\{[^}]+\}", s or "")
+    order = {"{W}": 0, "{U}": 1, "{B}": 2, "{R}": 3, "{G}": 4}
+    lead = [t for t in tokens if t == "{X}" or re.fullmatch(r"\{\d+\}", t)]
+    colors = sorted([t for t in tokens if t in order], key=lambda t: order[t])
+    rest = [t for t in tokens if t not in order and t != "{X}" and not re.fullmatch(r"\{\d+\}", t)]
+    return "".join(lead + colors + rest)
+
+
 def mana_cost_to_string(cost):
     """Render the engine's {generic, colors} mana cost the way Scryfall does."""
     if cost is None:
@@ -108,6 +122,9 @@ def mana_cost_to_string(cost):
     # activation cost, which this never looked at.
     for pair in cost.get("hybrid", []) or []:
         parts.append("{%s}" % "/".join(pair))
+    # "{U/P}" - a Phyrexian pip, paid with the colour or 2 life.
+    for pip in cost.get("phyrexian", []) or []:
+        parts.append("{%s/P}" % pip)
     # A genuinely free spell is written "{0}", not "" - "" means "no mana cost
     # at all", which is a different thing (lands, most tokens).
     return "".join(parts) or "{0}"
@@ -148,14 +165,12 @@ def audit(fixtures, by_name):
         if not fixture.get("types", []) == [] and "Land" not in fixture.get("types", []):
             expected = card.get("mana_cost") or ""
             actual = mana_cost_to_string(fixture.get("manaCost"))
-            # Compared as a bag of symbols rather than as a string, because a
-            # fixture's `colors` is a map and a map has no order. This renders
-            # in WUBRG order; Winota prints {2}{R}{W}, because a card's pips
-            # follow the colour wheel and not the WUBRG canon. As a string
-            # comparison that reported the first correct Boros spell in the pool
-            # as broken, and would have done the same to every gold card whose
-            # printed order is not WUBRG.
-            if sorted(symbols(expected)) != sorted(symbols(actual)):
+            # Colour order within a cost is cosmetic - Scryfall keeps each card's
+            # printed order (Winota prints {2}{R}{W}, a Sultai card {B}{G}{U})
+            # while the fixture renders WUBRG - and the engine pays mana
+            # order-independently. `_normalize_mana` sorts the pips (phyrexian
+            # included) on both sides so only a genuinely different cost is flagged.
+            if _normalize_mana(expected) != _normalize_mana(actual):
                 issues.append("mana cost: fixture %s, Scryfall %s" % (actual or "(none)", expected or "(none)"))
 
         if card.get("power") is not None:
@@ -175,6 +190,10 @@ def audit(fixtures, by_name):
 
         expected_keywords = scryfall_keywords(card)
         actual_keywords = {k.lower() for k in fixture.get("keywords") or []}
+        # The engine models a few printed *abilities* as keywords for convenience -
+        # "can't be blocked" and "nonbasic landwalk" are written out on the card,
+        # not as keyword lines, so they never appear in Scryfall's keyword list.
+        actual_keywords -= {"unblockable", "nonbasic landwalk"}
         invented = actual_keywords - expected_keywords
         if invented:
             issues.append("keywords on fixture but not on the real card: %s" % ", ".join(sorted(invented)))

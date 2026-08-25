@@ -47,6 +47,8 @@ export type BotAction =
    * not a missing feature.
    */
   | { kind: "chooseOnEntry"; answer: ChosenOnEntry }
+  | { kind: "resolveArrange"; order: string[]; shuffle?: boolean }
+  | { kind: "resolveModal"; modeIndex: number }
   /** Answering a "you may" trigger that stopped mid-resolution. */
   | { kind: "resolveConfirmation"; accept: boolean }
   /** Pointing a triggered ability at one or more things before it goes on the stack. */
