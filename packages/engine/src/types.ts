@@ -723,6 +723,14 @@ export type Effect =
       amountFrom?: "source-power" | "x" | { kind: "count"; of: Countable };
       target: TargetSelector;
       /**
+       * "deals 1 damage to **that player**" - Spiteful Visions. The damaged
+       * player is the event's payload (the one who drew), attached to the
+       * trigger by `pushTrigger`; with this set the effect selects nothing of
+       * its own (`targetSelectorOf` returns undefined) and `target` is an inert
+       * placeholder the type still requires.
+       */
+      toEventPlayer?: boolean;
+      /**
        * "X damage **divided as you choose** among up to two target creatures
        * and/or planeswalkers." - Shatterskull Smashing.
        *

@@ -350,6 +350,11 @@ export function targetSelectorsOf(effect: Effect): TargetSelector[] {
 export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
   switch (effect.kind) {
     case "damage":
+      // "deals 1 damage to **that player**" - Spiteful Visions. The player is
+      // the event's own payload, attached by pushTrigger, so the trigger chooses
+      // nothing and has no selector to offer.
+      if (effect.toEventPlayer) return undefined;
+      return effect.target;
     case "destroy":
     case "exile":
     case "counter":

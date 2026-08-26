@@ -331,6 +331,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       if (typeof effect.amountFrom === "object") {
         return `Deal damage equal to ${describeCount(effect.amountFrom.of)} to ${describeTarget(effect.target)}.`;
       }
+      // "deals 1 damage to that player" - Spiteful Visions, aimed at the drawer.
+      if (effect.toEventPlayer) return `Deal ${effect.amount} damage to that player.`;
       if (effect.amountFrom === "source-power") {
         return `Deal damage equal to its power to ${describeTarget(effect.target)}.`;
       }
