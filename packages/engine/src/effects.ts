@@ -134,6 +134,20 @@ export function applyEffect(
       // "Target player draws" (Peer into the Abyss) reads the target, and the
       // amount is evaluated against that same player so "half their library"
       // means the drawer's library, not the caster's.
+      if (effect.who === "each-player") {
+        // "Each player draws two cards" - Winter, Howling Mine, Scrawling
+        // Crawler. Turn order from the controller, and the amount is read against
+        // each drawer so a "half your library" symmetric draw stays per-player.
+        const order = [
+          ...state.players.slice(state.players.findIndex((p) => p.id === controllerId)),
+          ...state.players.slice(0, state.players.findIndex((p) => p.id === controllerId)),
+        ];
+        for (const player of order) {
+          if (player.hasLost) continue;
+          drawCard(state, player.id, evaluateAmount(state, player.id, effect.amount, "draw amount"));
+        }
+        return;
+      }
       let drawer = controllerId;
       if (effect.who === "target") {
         const tp = targets.find((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player");
@@ -1935,7 +1949,10 @@ export function applyEffect(
               .map((t) => requirePlayer(state, t.playerId))
           : effect.who === "self"
             ? [requirePlayer(state, controllerId)]
-            : state.players.filter((p) => p.id !== controllerId);
+            : effect.who === "each-player"
+              ? // "Each player ... loses 1 life" - the controller included.
+                [...state.players]
+              : state.players.filter((p) => p.id !== controllerId);
       for (const player of losers) {
         if (player.hasLost) continue;
         // Evaluated per loser when the loser is the reference: "loses half their

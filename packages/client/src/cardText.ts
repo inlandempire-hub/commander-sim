@@ -344,6 +344,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
           ? `Draw cards equal to ${describeCount(effect.amount.of)}.`
           : `Draw a card for each ${describeCount(effect.amount.of)}.`;
       }
+      // "Each player draws two cards" - Winter's symmetric draw.
+      if (effect.who === "each-player") {
+        return effect.amount === 1 ? "Each player draws a card." : `Each player draws ${effect.amount} cards.`;
+      }
       // "Draw a card", not "Draw 1 card" - no printed card says the latter.
       return effect.amount === 1 ? "Draw a card." : `Draw ${effect.amount} cards.`;
     }
@@ -912,7 +916,9 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         ? sentence(`${describeTarget(effect.target)} loses ${effect.amount} life.`)
         : effect.who === "self"
           ? `You lose ${effect.amount} life.`
-          : `Each opponent loses ${effect.amount} life.`;
+          : effect.who === "each-player"
+            ? `Each player loses ${plainAmount(effect.amount)} life.`
+            : `Each opponent loses ${plainAmount(effect.amount)} life.`;
     case "removeCounter":
       return `Remove up to ${effect.amount} counters from ${describeTarget(effect.target)}.`;
     case "counter": {

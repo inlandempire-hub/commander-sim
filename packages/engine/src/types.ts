@@ -748,7 +748,12 @@ export type Effect =
    * resolve - "draw cards equal to the greatest power among non-Human
    * creatures you control".
    */
-  | { kind: "draw"; amount: Amount; who?: "target" }
+  /**
+   * `who: "each-player"` is the symmetric draw a chaos deck runs on - Winter's
+   * "each player draws two cards", Howling Mine, Scrawling Crawler. Every player
+   * draws the same amount, in turn order starting from the controller.
+   */
+  | { kind: "draw"; amount: Amount; who?: "target" | "each-player" }
   /**
    * "... at the beginning of the next turn's upkeep" - Arcane Denial, Mishra's
    * Bauble. Queues `effect` to run then, for the controller or for each
@@ -1320,9 +1325,10 @@ export type Effect =
        * Who loses it. `"each-opponent"` is The Meathook Massacre;
        * `"target"` is Blood Artist's "**target player** loses 1 life", where
        * the player is chosen when the ability goes on the stack and may
-       * legally be yourself.
+       * legally be yourself. `"each-player"` is Stormfist Crusader's symmetric
+       * "each player ... loses 1 life", the controller included.
        */
-      who: "each-opponent" | "target" | "self";
+      who: "each-opponent" | "each-player" | "target" | "self";
       /** Required when `who` is `"target"`, and meaningless otherwise. */
       target?: TargetSelector;
     }
