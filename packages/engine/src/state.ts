@@ -1,4 +1,5 @@
 import { mayDraw } from "./restrictions.js";
+import { fireCardDrawn } from "./permanents.js";
 import type {
   CardDefinition,
   CardInstance,
@@ -360,6 +361,14 @@ export function drawCard(
     player.hand.push(top);
     player.cardsDrawnThisTurn += 1;
     drawn += 1;
+    /*
+     * "Whenever a player draws a card" - fired here, per card, because this is
+     * the one door every draw goes through. Imported lazily to keep the
+     * state<->permanents cycle to a function body (see fireCardDrawn); nothing
+     * at either module's top level runs the other, so the binding is live by
+     * the time a draw ever happens.
+     */
+    fireCardDrawn(state, playerId);
   }
   if (drawn > 0 && !options.silent) {
     log(state, `${playerId} draws ${drawn} card${drawn === 1 ? "" : "s"}`);

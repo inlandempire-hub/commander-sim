@@ -111,6 +111,11 @@ export function isValidTarget(
       if (selector.subtypes?.length && !selector.subtypes.some((s) => hasCreatureType(state, found.instance, s))) {
         return false;
       }
+      // "target **non-Elf** creature" - Eyeblight's Ending. The mirror of
+      // `subtypes`: any listed subtype disqualifies rather than qualifies.
+      if (selector.excludeSubtypes?.length && selector.excludeSubtypes.some((s) => hasCreatureType(state, found.instance, s))) {
+        return false;
+      }
       if (selector.controlledBy) {
         const mine = found.instance.controllerId === controllerId;
         if (selector.controlledBy === "you" && !mine) return false;

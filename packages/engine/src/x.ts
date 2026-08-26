@@ -89,7 +89,8 @@ function value(amount: Amount, values: AmountContext): number | Amount {
   // Read at resolution off the effect's own target, so it is left alone here for
   // the same reason `count` is - see evaluateAmount.
   if (amount.kind === "target-power") return amount;
-  // Likewise read at resolution, off the permanent the ability belongs to.
+  // Likewise read at resolution, off the effect's target and its own source.
+  if (amount.kind === "target-toughness") return amount;
   if (amount.kind === "source-power") return amount;
   // "Create **twice X**" - Pest Infestation. Declared on the Amount and, until
   // this line, quietly ignored: the card made X tokens instead of 2X.

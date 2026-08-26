@@ -364,6 +364,12 @@ export type Amount =
    */
   | { kind: "target-power" }
   /**
+   * "You gain life equal to **its toughness**" - Noxious Gearhulk, whose ETB
+   * destroys a creature and pays out its toughness. The twin of `target-power`,
+   * reading the first card target's effective toughness at resolution.
+   */
+  | { kind: "target-toughness" }
+  /**
    * "**Eomer deals damage equal to its power** to any target."
    *
    * The power of the permanent the ability is printed on, read when the effect
@@ -494,6 +500,8 @@ export type TargetSelector =
   | {
       kind: "creature";
       subtypes?: string[];
+      /** "target **non-Elf** creature" - Eyeblight's Ending. Any listed subtype disqualifies. */
+      excludeSubtypes?: string[];
       /**
        * "target creature **you control**" - Kiki-Jiki and Rionya; also
        * "**you don't control**" - Infectious Bite names one of each. Omitted
@@ -753,7 +761,7 @@ export type Effect =
    * "each player draws two cards", Howling Mine, Scrawling Crawler. Every player
    * draws the same amount, in turn order starting from the controller.
    */
-  | { kind: "draw"; amount: Amount; who?: "target" | "each-player" }
+  | { kind: "draw"; amount: Amount; who?: "target" | "each-player" | "active-player" }
   /**
    * "... at the beginning of the next turn's upkeep" - Arcane Denial, Mishra's
    * Bauble. Queues `effect` to run then, for the controller or for each
@@ -910,6 +918,8 @@ export type Effect =
       cardTypes: CardType[];
       nonland?: boolean;
       maxManaValue?: number;
+      /** "Destroy all **non-Zombie** creatures" - Liliana, Death's Majesty. Spares creatures of this subtype. */
+      excludeSubtype?: string;
       thenDraw?: boolean;
       /**
        * "Add {B} or {G} for each permanent destroyed this way" - Culling Ritual.
@@ -1505,6 +1515,27 @@ export type Effect =
    * fires enters-the-battlefield triggers exactly as casting it would.
    */
   | { kind: "returnFromGraveyard"; destination: "hand" | "battlefield"; target: TargetSelector }
+  /**
+   * "Return **all** land cards from your graveyard to the battlefield tapped" -
+   * Aftermath Analyst. Untargeted mass reanimation of one card type from the
+   * controller's own graveyard, so it needs no target and cannot fizzle.
+   */
+  | { kind: "returnAllFromGraveyard"; cardType: CardType; destination: "battlefield" | "hand"; tapped?: boolean }
+  /**
+   * "deals N damage to each creature" - Blasphemous Act. Real damage, not a
+   * -N/-N: indestructible survives it, deathtouch would be lethal, and it feeds
+   * nothing that watches for life loss. Each creature goes through the same
+   * `damageCreature` door as a burn spell.
+   */
+  | { kind: "damageAll"; amount: number }
+  /**
+   * "Each opponent loses X life. You gain life equal to the life lost this way."
+   * - Exsanguinate. One effect rather than a `loseLife`/`gainLife` pair because
+   * the gain is the *sum actually lost*, which neither half records on its own:
+   * each opponent loses `amount`, and the controller gains that times the number
+   * of opponents who were around to lose it.
+   */
+  | { kind: "drain"; amount: Amount }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -2127,8 +2158,23 @@ export type BoardCondition =
    * "If you control six or more lands" - Scute Swarm. Counts every land,
    * unlike `controls-other-lands`, which exists to let a land ask about the
    * board *without* counting itself as it arrives.
+   *
+   * `basic` narrows it to basic lands only - "unless you control two or more
+   * basic lands", the battle-land tapland condition (Cinder Glade, Smoldering
+   * Marsh). Read off the Basic supertype, so a dual land does not count.
    */
-  | { kind: "controls-lands"; count: number }
+  | { kind: "controls-lands"; count: number; basic?: boolean }
+  /**
+   * "unless a player has 13 or less life" - Strangled Cemetery, and the
+   * horror-land cycle. Any player at all, the controller included, which is
+   * why it is not `life-at-least` negated: that reads only the controller.
+   */
+  | { kind: "any-player-life-at-most"; life: number }
+  /**
+   * "if you have four or more creature cards in your graveyard" - Oversold
+   * Cemetery. Counts creature cards specifically, unlike `cards-in-graveyard`.
+   */
+  | { kind: "creature-cards-in-graveyard"; count: number }
   /** "if this permanent is attached to a creature you control" - Springheart Nantuko. */
   | { kind: "attached-to-a-creature" }
   /**
@@ -2156,7 +2202,9 @@ export type BoardCondition =
    * every other condition here, so the creature grows and shrinks as the total
    * crosses the line rather than being latched at the moment it entered.
    */
-  | { kind: "life-at-least"; life: number };
+  | { kind: "life-at-least"; life: number }
+  /** "if you gained life this turn" - Mortality Spear's cost reduction. The board twin of the intervening-if of the same name. */
+  | { kind: "gained-life-this-turn" };
 
 /**
  * "If an effect would X instead" - a replacement effect.
@@ -2395,6 +2443,14 @@ export type TriggerEvent =
    */
   | "draw-step"
   /**
+   * "Whenever a player draws a card" (Spiteful Visions), "whenever an opponent
+   * draws a card" (Scrawling Crawler). A watcher event whose subject is the
+   * *player* who drew, handed to the ability as its player target. Fired from
+   * `drawCard`, once per card, so every route into a draw sets it off.
+   * `watchFor.controlledBy` chooses whose draws count.
+   */
+  | "card-drawn"
+  /**
    * "Whenever you attack with **one or more** non-Gnome creatures" - Anim Pakal;
    * "whenever you attack with **this creature and/or your commander**" - Ainok
    * Strike Leader.
@@ -2518,6 +2574,8 @@ export type TriggerCondition =
    * and the damage never happens.
    */
   | { kind: "source-is-tapped" }
+  /** "if this artifact is **untapped**" - Howling Mine. The mirror of `source-is-tapped`. */
+  | { kind: "source-untapped" }
   /**
    * "if there are twenty or more counters on it or you have twenty or more
    * cards in hand" - Twenty-Toed Toad's win condition. Two thresholds at once,
@@ -2694,6 +2752,13 @@ export interface ActivatedAbilityCost {
    * work at all.
    */
   sacrificeSelf?: boolean;
+  /**
+   * "**Exile this creature**: ..." - Nyx Weaver's graveyard-recursion ability.
+   * Like `sacrificeSelf`, the source pays for the ability by leaving the
+   * battlefield - to exile rather than the graveyard - so the ability still
+   * resolves from a source that is already gone.
+   */
+  exileSelf?: boolean;
   /**
    * "**Sacrifice a Treasure**: ..." - Professional Face-Breaker, the first cost
    * in the pool that gives up a permanent other than the source.
@@ -3578,6 +3643,28 @@ export interface CardDefinition {
    * spell. This one is always available and rewrites what you get.
    */
   dashCost?: ManaCost;
+  /**
+   * "This spell costs {N} less to cast ..." - the generic cost reduction family.
+   *
+   * Reduces the generic part only, floored at zero, so a coloured pip always
+   * survives (rule 601.2f). Two shapes, and a card prints one:
+   *
+   * - `per` is "for each ...": {1} less per creature on the battlefield
+   *   (Blasphemous Act), or per creature card in your graveyard (Overwhelming
+   *   Remorse). `generic` is the per-thing amount.
+   * - `onlyIf` is a condition: {2} less if you gained life this turn (Mortality
+   *   Spear), or with delirium (Drag to the Roots). `generic` is removed once
+   *   when the condition holds.
+   *
+   * Applied through `castCostReduction`, the one door every cost site goes
+   * through, so the offer, the auto-tapper and the payment agree - the same
+   * discipline `abilityManaCost` keeps for activated abilities.
+   */
+  costReduction?: {
+    generic: number;
+    per?: "creatures-on-battlefield" | "creature-cards-in-your-graveyard";
+    onlyIf?: BoardCondition;
+  };
   /** "As an additional cost to cast this spell, ..." - paid at cast time. */
   additionalCost?: AdditionalCost;
   /** "You may cast this spell without paying its mana cost" - offered at cast time. */

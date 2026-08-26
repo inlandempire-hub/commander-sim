@@ -77,6 +77,8 @@ export function meetsBoardCondition(
      */
     case "life-at-least":
       return player.life >= condition.life;
+    case "gained-life-this-turn":
+      return player.lifeGainedThisTurn > 0;
     case "creatures-on-battlefield": {
       let creatures = 0;
       for (const p of state.players) {
@@ -111,16 +113,33 @@ export function meetsBoardCondition(
       });
       return matching.length >= condition.count;
     }
-    case "controls-lands":
+    case "controls-lands": {
       /*
        * Every land, including the one that just arrived - which is why this
        * reads the whole battlefield rather than `others`. Scute Swarm's
        * landfall counts the land that set it off, and excluding it would make
        * the card switch on one land later than it does.
+       *
+       * `basic` narrows to basic lands - the battle-land taplands ask "two or
+       * more basic lands", and a dual land must not count towards it.
        */
       return (
-        player.battlefield.filter((card) => state.cardDefinitions[card.definitionId]?.types.includes("Land"))
-          .length >= condition.count
+        player.battlefield.filter((card) => {
+          const def = state.cardDefinitions[card.definitionId];
+          if (!def?.types.includes("Land")) return false;
+          return condition.basic ? (def.supertypes?.includes("Basic") ?? false) : true;
+        }).length >= condition.count
+      );
+    }
+    case "any-player-life-at-most":
+      // "unless a player has 13 or less life" - Strangled Cemetery. Any player,
+      // the controller included.
+      return state.players.some((p) => p.life <= condition.life);
+    case "creature-cards-in-graveyard":
+      return (
+        (player?.graveyard.filter((card) =>
+          state.cardDefinitions[card.definitionId]?.types.includes("Creature"),
+        ).length ?? 0) >= condition.count
       );
     case "citys-blessing":
       /*

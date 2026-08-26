@@ -452,6 +452,12 @@ export function activateAbility(
   if (ability.onlyOncePerGame) instance.abilitiesUsedThisGame.push(abilityIndex);
   const sourceCounters = instance.plusOneCounters + instance.otherCounters;
   if (ability.cost.sacrificeSelf) sacrificePermanent(state, instanceId);
+  // "Exile this creature" as a cost - Nyx Weaver. Gone to exile before the
+  // ability resolves, exactly as the sacrifice above.
+  if (ability.cost.exileSelf) {
+    log(state, `${playerId} exiles ${def.name}`);
+    moveCard(state, instanceId, "exile");
+  }
   /*
    * "Sacrifice a Treasure" - paid here with the rest of the cost, so the
    * Treasure is gone before the ability resolves and the mana it could have made

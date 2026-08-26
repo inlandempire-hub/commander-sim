@@ -24,6 +24,41 @@ function isSorcerySpeedOnly(def: CardDefinition): boolean {
   return !def.types.includes("Instant") && !(def.keywords?.includes("Flash") ?? false);
 }
 
+/**
+ * "This spell costs {N} less to cast ..." - the one door for spell cost
+ * reductions, used by the offer, the auto-tapper and the payment alike so they
+ * cannot disagree. Reduces the generic part only, floored at zero (rule
+ * 601.2f), so a coloured pip always survives.
+ */
+export function castCostReduction(
+  state: GameState,
+  playerId: string,
+  def: CardDefinition,
+  cost: ManaCost,
+): ManaCost {
+  const rule = def.costReduction;
+  if (!rule) return cost;
+  let reduction = 0;
+  if (rule.per) {
+    let count = 0;
+    if (rule.per === "creatures-on-battlefield") {
+      for (const p of state.players) {
+        for (const c of p.battlefield) {
+          if (requireDefinition(state, c.definitionId).types.includes("Creature")) count += 1;
+        }
+      }
+    } else {
+      const player = requirePlayer(state, playerId);
+      count = player.graveyard.filter((c) => requireDefinition(state, c.definitionId).types.includes("Creature")).length;
+    }
+    reduction = rule.generic * count;
+  } else if (!rule.onlyIf || controllerMeets(state, playerId, rule.onlyIf)) {
+    reduction = rule.generic;
+  }
+  if (reduction <= 0) return cost;
+  return { ...cost, generic: Math.max(0, cost.generic - reduction) };
+}
+
 /** Sorcery-speed casting requires: you're the active player, it's a main phase, and the stack is empty. */
 export function canCastAtSorcerySpeed(state: GameState, playerId: string): boolean {
   const isMainPhase = state.phase === "precombat-main" || state.phase === "postcombat-main";
@@ -367,6 +402,12 @@ export function castSpell(
           : options.bestowOnto
             ? def.bestowCost!
             : costWithX(printedCost, chosenX);
+  // "This spell costs {N} less" - applied to an ordinary cast only. An
+  // alternative/free/warp/dash/bestow cast has replaced the mana cost outright,
+  // and none of those printings carry a generic reduction on top.
+  if (!free && !options.useWarp && !options.useDashCost && !options.bestowOnto) {
+    cost = castCostReduction(state, playerId, def, cost);
+  }
   if (options.fromCommandZone && !free) {
     const timesCast = player.commanderCastCount[instance.instanceId] ?? 0;
     cost = applyCommanderTax(cost, timesCast);

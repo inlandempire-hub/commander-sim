@@ -4,7 +4,7 @@ import { castRestrictionProblem } from "./restrictions.js";
 import type { Effect, GameState, ManaCost } from "./types.js";
 import { requireDefinition, requirePlayer } from "./state.js";
 import { applyCommanderTax, canPayManaCostFromPool, couldAfford } from "./mana.js";
-import { canCastAtSorcerySpeed, canPayAdditionalCost, landDropsAllowed } from "./casting.js";
+import { canCastAtSorcerySpeed, canPayAdditionalCost, castCostReduction, landDropsAllowed } from "./casting.js";
 import { controllerMeets } from "./conditions.js";
 import { legalTargetsFor, targetSelectorOf } from "./targeting.js";
 import { costWithX, requiresX } from "./x.js";
@@ -101,7 +101,9 @@ export function canPlayCardNow(state: GameState, playerId: string, instanceId: s
 
   // Planned rather than summed: a pool counts a dual land once per colour it
   // makes, so this used to light up cards the engine would then refuse.
-  if (!couldAfford(state, playerId, def.manaCost ?? EMPTY_COST)) return false;
+  // Cost reductions apply first, or a Blasphemous Act stays greyed out on a
+  // full board it can actually afford.
+  if (!couldAfford(state, playerId, castCostReduction(state, playerId, def, def.manaCost ?? EMPTY_COST))) return false;
   return hasSomethingToTarget(state, playerId, def.castEffect);
 }
 

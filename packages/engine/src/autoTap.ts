@@ -9,7 +9,7 @@ import {
 } from "./mana.js";
 import { activateAbility } from "./abilities.js";
 import { costWithX } from "./x.js";
-import { canCastAtSorcerySpeed, castSpell, type CastOptions } from "./casting.js";
+import { canCastAtSorcerySpeed, castCostReduction, castSpell, type CastOptions } from "./casting.js";
 
 /**
  * Tapping lands to pay for a spell.
@@ -89,6 +89,9 @@ export function castingCostOf(
     }
     cost = { ...cost, generic: cost.generic + (def.offspring.cost.generic ?? 0), colors };
   }
+  // "This spell costs {N} less" - reduce before commander tax stacks on, exactly
+  // as castSpell does, so the auto-tapper reaches for the same reduced figure.
+  cost = castCostReduction(state, playerId, def, cost);
   if (!fromCommandZone) return cost;
   return applyCommanderTax(cost, player.commanderCastCount[instanceId] ?? 0);
 }

@@ -1,6 +1,6 @@
 import type { Amount, Countable, GameState, StackTarget } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
-import { effectivePower, hasCreatureType } from "./counters.js";
+import { effectivePower, effectiveToughness, hasCreatureType } from "./counters.js";
 
 /**
  * Numbers an effect reads off the game when it resolves.
@@ -56,6 +56,14 @@ export function evaluateAmount(
     if (!first || first.kind !== "card") return 0;
     const found = findInstance(state, first.instanceId);
     return found ? effectivePower(state, found.instance) : 0;
+  }
+  if (amount.kind === "target-toughness") {
+    // "you gain life equal to **its toughness**" - Noxious Gearhulk, read off the
+    // creature it destroyed while that creature is still captured as the target.
+    const first = (targets ?? []).find((t) => t.kind === "card");
+    if (!first || first.kind !== "card") return 0;
+    const found = findInstance(state, first.instanceId);
+    return found ? effectiveToughness(state, found.instance) : 0;
   }
   /*
    * An unresolved X or event-amount reaching here means a fire site skipped

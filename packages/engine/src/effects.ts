@@ -152,6 +152,11 @@ export function applyEffect(
       if (effect.who === "target") {
         const tp = targets.find((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player");
         if (tp) drawer = tp.playerId;
+      } else if (effect.who === "active-player") {
+        // "At the beginning of each player's draw step, **that player** draws an
+        // additional card" - Howling Mine, Spiteful Visions. The recipient is
+        // whoever's step it is, not the source's controller.
+        drawer = state.players[state.activePlayerIndex]?.id ?? controllerId;
       }
       drawCard(state, drawer, evaluateAmount(state, drawer, effect.amount, "draw amount"));
       return;
@@ -356,6 +361,8 @@ export function applyEffect(
           const def = requireDefinition(state, inst.definitionId);
           if (!effect.cardTypes.some((t) => def.types.includes(t))) continue;
           if (effect.nonland && def.types.includes("Land")) continue;
+          // "Destroy all **non-Zombie** creatures" - Liliana, Death's Majesty.
+          if (effect.excludeSubtype && hasCreatureType(state, inst, effect.excludeSubtype)) continue;
           if (
             effect.maxManaValue !== undefined &&
             manaValue(def.manaCost ?? { generic: 0, colors: {} }) > effect.maxManaValue
@@ -1934,6 +1941,23 @@ export function applyEffect(
       log(state, `${controllerId} regenerates each creature they control`);
       return;
     }
+    case "drain": {
+      // "Each opponent loses X life. You gain life equal to the life lost this
+      // way." - Exsanguinate. Sum what each living opponent actually lost, then
+      // gain it through the one life-gain door so lifegain watchers fire.
+      const amount = evaluateAmount(state, controllerId, effect.amount, "drain amount", sourceInstanceId);
+      if (amount > 0) {
+        let totalLost = 0;
+        for (const player of state.players) {
+          if (player.id === controllerId || player.hasLost) continue;
+          player.life -= amount;
+          totalLost += amount;
+          log(state, `${player.id} loses ${amount} life`);
+        }
+        if (totalLost > 0) gainLife(state, controllerId, totalLost);
+      }
+      return;
+    }
     case "loseLife": {
       /*
        * Life loss, which is not damage. Nothing is dealt by a source, so no
@@ -2273,6 +2297,45 @@ export function applyEffect(
         } else {
           moveCard(state, target.instanceId, "hand");
         }
+      }
+      return;
+    }
+    case "returnAllFromGraveyard": {
+      // "Return all land cards from your graveyard to the battlefield tapped" -
+      // Aftermath Analyst. Snapshot first: putOntoBattlefield mutates the
+      // graveyard being scanned.
+      const player = requirePlayer(state, controllerId);
+      const ids = player.graveyard
+        .filter((c) => requireDefinition(state, c.definitionId).types.includes(effect.cardType))
+        .map((c) => c.instanceId);
+      for (const id of ids) {
+        const found = findInstance(state, id);
+        if (!found || found.instance.zone !== "graveyard") continue;
+        if (effect.destination === "battlefield") {
+          putOntoBattlefield(state, id);
+          if (effect.tapped) {
+            const back = findInstance(state, id);
+            if (back && back.instance.zone === "battlefield") back.instance.tapped = true;
+          }
+        } else {
+          moveCard(state, id, "hand");
+        }
+      }
+      return;
+    }
+    case "damageAll": {
+      // "deals N damage to each creature" - Blasphemous Act. Snapshot, then each
+      // through the ordinary damage door so deathtouch and prevention apply.
+      const ids: string[] = [];
+      for (const p of state.players) {
+        for (const c of p.battlefield) {
+          if (requireDefinition(state, c.definitionId).types.includes("Creature")) ids.push(c.instanceId);
+        }
+      }
+      for (const id of ids) {
+        const found = findInstance(state, id);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        damageCreature(state, found.instance, effect.amount, {});
       }
       return;
     }

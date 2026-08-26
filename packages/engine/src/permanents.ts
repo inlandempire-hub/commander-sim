@@ -634,6 +634,34 @@ export function fireWatchers(
 }
 
 /**
+ * "Whenever a player draws a card" (Spiteful Visions) and "whenever an opponent
+ * draws a card" (Scrawling Crawler).
+ *
+ * Fired from `drawCard`, the one door every draw goes through, once per card
+ * actually drawn - so Howling Mine's extra draw and a hard-cast draw spell both
+ * set it off. The drawing player rides along as the trigger's player target, so
+ * "**that player** loses 1 life" and "deals 1 damage to **that player**" land on
+ * whoever drew, exactly as Ragavan's combat-damage trigger reads its victim.
+ *
+ * `watchFor.controlledBy` reads relative to the watcher's controller: "you" is
+ * the watcher's own draws, "opponent" is Scrawling Crawler's, and omitted is
+ * every player's.
+ */
+export function fireCardDrawn(state: GameState, drawingPlayerId: string): void {
+  for (const player of state.players) {
+    for (const watcher of [...player.battlefield]) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "card-drawn") continue;
+        const scope = trigger.watchFor?.controlledBy;
+        if (scope === "you" && drawingPlayerId !== watcher.controllerId) continue;
+        if (scope === "opponent" && drawingPlayerId === watcher.controllerId) continue;
+        pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger, undefined, drawingPlayerId);
+      }
+    }
+  }
+}
+
+/**
  * "Whenever a creature you control deals combat damage to a player."
  *
  * The trigger is pushed with the *damaging creature* as its source, not the
@@ -1296,6 +1324,14 @@ export function triggerConditionMet(
       if (!sourceInstanceId) return false;
       const found = findInstance(state, sourceInstanceId);
       return found?.instance.zone === "battlefield" && found.instance.tapped;
+    }
+    case "source-untapped": {
+      // "if this artifact is **untapped**" - Howling Mine. The mirror of the
+      // above, and an intervening-if for the same reason: tap the Mine in
+      // response and the extra draw never happens.
+      if (!sourceInstanceId) return false;
+      const found = findInstance(state, sourceInstanceId);
+      return found?.instance.zone === "battlefield" && !found.instance.tapped;
     }
     case "first-combat-phase":
       return state.combatPhasesThisTurn <= 1;

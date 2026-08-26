@@ -48,13 +48,17 @@ export function describeTarget(selector: TargetSelector): string {
       const another = selector.excludeSource ? "another " : "";
       // "target **nonlegendary** creature you control" - Kiki-Jiki.
       const legend = selector.nonlegendary ? "nonlegendary " : "";
+      // "target **non-Elf** creature" - Eyeblight's Ending.
+      const except = selector.excludeSubtypes?.length
+        ? selector.excludeSubtypes.map((s) => `non-${s} `).join("")
+        : "";
       const whose =
         selector.controlledBy === "you"
           ? " you control"
           : selector.controlledBy === "opponent"
             ? " an opponent controls"
             : "";
-      return `${another}target ${legend}creature${whose}`;
+      return `${another}target ${legend}${except}creature${whose}`;
     }
     case "player":
       return `${countPrefix(selector.count)}target player${
@@ -205,6 +209,7 @@ function signedAmount(amount: Amount): string {
   // counts tokens on Tend the Pests and cards on Disciple of Freyalise.
   if (amount.kind === "sacrificed-power") return "that creature's power";
   if (amount.kind === "target-power") return "its power";
+  if (amount.kind === "target-toughness") return "its toughness";
   if (amount.kind === "source-power") return "its power";
   return amount.negate ? "-X" : "+X";
 }
@@ -222,6 +227,8 @@ function countAmount(amount: Amount): string {
   if (amount.kind === "sacrificed-power") return "X";
   // "life equal to **its power**" - Swords to Plowshares.
   if (amount.kind === "target-power") return "its power";
+  // "life equal to **its toughness**" - Noxious Gearhulk.
+  if (amount.kind === "target-toughness") return "its toughness";
   // "damage equal to **its power**" - Eomer, reading its own.
   if (amount.kind === "source-power") return "its power";
   // "Create **twice X**" - Pest Infestation, whose {X}{X} cost charges X twice
@@ -290,6 +297,8 @@ function plainAmount(amount: Amount): string {
   if (amount.kind === "event-amount") return "that much";
   if (amount.kind === "count") return describeCount(amount.of);
   if (amount.kind === "sacrificed-power") return "X";
+  if (amount.kind === "target-power") return "its power";
+  if (amount.kind === "target-toughness") return "its toughness";
   return "X";
 }
 
@@ -347,6 +356,13 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       // "Each player draws two cards" - Winter's symmetric draw.
       if (effect.who === "each-player") {
         return effect.amount === 1 ? "Each player draws a card." : `Each player draws ${effect.amount} cards.`;
+      }
+      // "That player draws an additional card" - Howling Mine, Spiteful Visions,
+      // on each player's draw step.
+      if (effect.who === "active-player") {
+        return effect.amount === 1
+          ? "That player draws an additional card."
+          : `That player draws ${effect.amount} additional cards.`;
       }
       // "Draw a card", not "Draw 1 card" - no printed card says the latter.
       return effect.amount === 1 ? "Draw a card." : `Draw ${effect.amount} cards.`;
@@ -670,11 +686,20 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       const noun = effect.cardTypes.map((t) => `${t.toLowerCase()}s`).join(" and ");
       const scope = effect.maxManaValue !== undefined ? ` with mana value ${effect.maxManaValue} or less` : "";
       const nonland = effect.nonland ? "nonland " : "";
+      const except = effect.excludeSubtype ? `non-${effect.excludeSubtype} ` : "";
       const draw = effect.thenDraw ? " Draw a card for each permanent destroyed this way." : "";
       const mana = effect.manaPerDestroyed
         ? ` Add ${effect.manaPerDestroyed.map((c) => `{${c}}`).join(" or ")} for each permanent destroyed this way.`
         : "";
-      return `Destroy ${effect.maxManaValue !== undefined ? "each" : "all"} ${nonland}${noun}${scope}.${draw}${mana}`;
+      return `Destroy ${effect.maxManaValue !== undefined ? "each" : "all"} ${nonland}${except}${noun}${scope}.${draw}${mana}`;
+    }
+    case "damageAll":
+      return `Deal ${effect.amount} damage to each creature.`;
+    case "drain":
+      return `Each opponent loses ${plainAmount(effect.amount)} life. You gain life equal to the life lost this way.`;
+    case "returnAllFromGraveyard": {
+      const dest = effect.destination === "battlefield" ? `the battlefield${effect.tapped ? " tapped" : ""}` : "your hand";
+      return `Return all ${effect.cardType.toLowerCase()} cards from your graveyard to ${dest}.`;
     }
     case "eachSacrifices": {
       const who = effect.who === "each-opponent" ? "Each opponent" : "Each player";
@@ -1485,6 +1510,8 @@ function describeTriggerCondition(condition: TriggerCondition): string {
       return `if ${describeCondition(condition.condition)}`;
     case "source-is-tapped":
       return "if it's tapped";
+    case "source-untapped":
+      return "if it's untapped";
     case "counters-or-hand-at-least":
       return `if there are ${condition.count} or more counters on it or you have ${condition.count} or more cards in hand`;
   }
@@ -1528,6 +1555,12 @@ function negateCondition(condition: BoardCondition): string {
       return `there are fewer than ${condition.count} card types among cards in your graveyard`;
     case "cards-in-graveyard":
       return `there are fewer than ${condition.count} cards in your graveyard`;
+    case "any-player-life-at-most":
+      return `no player has ${condition.life} or less life`;
+    case "creature-cards-in-graveyard":
+      return `you have fewer than ${condition.count} creature cards in your graveyard`;
+    case "gained-life-this-turn":
+      return "you didn't gain life this turn";
   }
 }
 
@@ -1680,6 +1713,15 @@ function describeTrigger(
         who === "opponent" ? ["an opponent", "searches"] : who === "you" ? ["you", "search"] : ["a player", "searches"];
       return `Whenever ${subject} ${verb} their library, ${tail}`;
     }
+    case "card-drawn": {
+      // "Whenever an opponent draws a card" (Scrawling Crawler) / "a player
+      // draws a card" (Spiteful Visions). Whose draw counts is read the same
+      // way the search watcher reads it.
+      const who = ability.watchFor?.controlledBy;
+      const [subject, verb] =
+        who === "opponent" ? ["an opponent", "draws"] : who === "you" ? ["you", "draw"] : ["a player", "draws"];
+      return `Whenever ${subject} ${verb} a card, ${tail}`;
+    }
   }
 }
 
@@ -1743,7 +1785,13 @@ function describeCondition(condition: BoardCondition): string {
     case "controls-commander":
       return "you control a commander";
     case "controls-lands":
-      return `you control ${condition.count} or more lands`;
+      return `you control ${condition.count} or more ${condition.basic ? "basic " : ""}lands`;
+    case "any-player-life-at-most":
+      return `a player has ${condition.life} or less life`;
+    case "creature-cards-in-graveyard":
+      return `you have ${condition.count} or more creature cards in your graveyard`;
+    case "gained-life-this-turn":
+      return "you gained life this turn";
     case "attached-to-a-creature":
       return "this permanent is attached to a creature you control";
     case "life-at-least":
