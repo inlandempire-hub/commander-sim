@@ -17727,6 +17727,151 @@ export const EMET_SELCH_UNSUNDERED: CardDefinition = {
   tier: "scripted",
 };
 
+/* ==========================================================================
+ * The Winter list (Winter, Misanthropic Guide - Jund chaos), built batch by
+ * batch. See ROADMAP.md "The Winter list" and docs/BRANCHING.md. Card data only;
+ * the engine capabilities each batch needs land on main first.
+ * ========================================================================== */
+
+// --- Batch 1: cards the engine already supported (plus the each-player draw) ---
+
+/**
+ * "Menace. At the beginning of your upkeep, each player draws a card and loses
+ * 1 life." - the symmetric-draw payoff, on the new `who: "each-player"`.
+ */
+export const STORMFIST_CRUSADER: CardDefinition = {
+  id: "stormfist-crusader",
+  name: "Stormfist Crusader",
+  scryfallId: "0b420ce8-3dd1-430b-a090-4b4e8dcb6aa9",
+  types: ["Creature"],
+  subtypes: ["Human", "Knight"],
+  manaCost: { generic: 0, colors: { B: 1, R: 1 } },
+  colorIdentity: ["B", "R"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Menace"],
+  triggeredAbilities: [
+    {
+      event: "upkeep",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "draw", amount: 1, who: "each-player" },
+          { kind: "loseLife", amount: 1, who: "each-player" },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/** "Search your library for a Plains, Island, Swamp, or Mountain card, put it onto the battlefield tapped." */
+export const FARSEEK: CardDefinition = {
+  id: "farseek",
+  name: "Farseek",
+  scryfallId: "c1aac0f5-1d01-4673-b8d3-878d9a1d423c",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: {
+    kind: "searchLibrary",
+    cardType: "Land",
+    subtypes: ["Plains", "Island", "Swamp", "Mountain"],
+    destination: "battlefield",
+    tapped: true,
+  },
+  tier: "scripted",
+};
+
+/** "Search your library for a basic land card, put that card onto the battlefield tapped." */
+export const RAMPANT_GROWTH: CardDefinition = {
+  id: "rampant-growth",
+  name: "Rampant Growth",
+  scryfallId: "b7c47024-5e08-4b17-b41a-7647f8b814b9",
+  types: ["Sorcery"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: {
+    kind: "searchLibrary",
+    cardType: "Land",
+    basicLandOnly: true,
+    destination: "battlefield",
+    tapped: true,
+  },
+  tier: "scripted",
+};
+
+/** "{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle." */
+export const EVOLVING_WILDS: CardDefinition = {
+  id: "evolving-wilds",
+  name: "Evolving Wilds",
+  scryfallId: "c0318a48-30e4-4ef7-be3d-5e561c5ce428",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [
+    {
+      cost: { tap: true, sacrificeSelf: true },
+      effect: {
+        kind: "searchLibrary",
+        cardType: "Land",
+        basicLandOnly: true,
+        destination: "battlefield",
+        tapped: true,
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/** The same fetch as Evolving Wilds; a second copy of the effect on a different name. */
+export const TERRAMORPHIC_EXPANSE: CardDefinition = {
+  id: "terramorphic-expanse",
+  name: "Terramorphic Expanse",
+  scryfallId: "a81f924b-0527-4311-8120-9bfff71524f6",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [
+    {
+      cost: { tap: true, sacrificeSelf: true },
+      effect: {
+        kind: "searchLibrary",
+        cardType: "Land",
+        basicLandOnly: true,
+        destination: "battlefield",
+        tapped: true,
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/** "Deathtouch. When this creature enters, mill two cards and you gain 2 life." */
+export const MIRE_TRITON: CardDefinition = {
+  id: "mire-triton",
+  name: "Mire Triton",
+  scryfallId: "a070b7af-7c85-4129-81ca-e2ec0540085e",
+  types: ["Creature"],
+  subtypes: ["Zombie", "Merfolk"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 1,
+  keywords: ["Deathtouch"],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "mill", amount: 2 },
+          { kind: "gainLife", amount: 2 },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -18862,5 +19007,12 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   LORIEN_REVEALED,
   FOREBODING_LANDSCAPE,
   STEP_THROUGH,
+  // Winter list, batch 1
+  STORMFIST_CRUSADER,
+  FARSEEK,
+  RAMPANT_GROWTH,
+  EVOLVING_WILDS,
+  TERRAMORPHIC_EXPANSE,
+  MIRE_TRITON,
   ].map((def) => [def.id, def]),
 );
