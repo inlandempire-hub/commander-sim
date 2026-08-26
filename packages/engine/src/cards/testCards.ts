@@ -17872,6 +17872,409 @@ export const MIRE_TRITON: CardDefinition = {
   tier: "scripted",
 };
 
+/* ---------------------------------------------------------------------------
+ * Winter, Misanthropic Guide - chaos deck, batch 2 (2026-08-26)
+ *
+ * Card data only; every engine capability these lean on landed on main first
+ * (see docs/BRANCHING.md). All transcribed from the cached Scryfall bulk data.
+ * ------------------------------------------------------------------------- */
+
+// "This land enters tapped unless you control two or more other lands." R/G.
+export const ROCKFALL_VALE: CardDefinition = {
+  id: "rockfall-vale",
+  name: "Rockfall Vale",
+  scryfallId: "dcdea659-ecaf-4abe-be0f-64e105abb104",
+  types: ["Land"],
+  colorIdentity: ["R", "G"],
+  entersTapped: true,
+  entersTappedUnless: { kind: "controls-other-lands", count: 2 },
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "vanilla",
+};
+
+// "This land enters tapped unless you control two or more basic lands." R/G.
+export const CINDER_GLADE: CardDefinition = {
+  id: "cinder-glade",
+  name: "Cinder Glade",
+  scryfallId: "ec93087a-5728-40e8-8625-a1d175d5252c",
+  types: ["Land"],
+  subtypes: ["Mountain", "Forest"],
+  colorIdentity: ["R", "G"],
+  entersTapped: true,
+  entersTappedUnless: { kind: "controls-lands", count: 2, basic: true },
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "vanilla",
+};
+
+// "This land enters tapped unless you control two or more basic lands." B/R.
+export const SMOLDERING_MARSH: CardDefinition = {
+  id: "smoldering-marsh",
+  name: "Smoldering Marsh",
+  scryfallId: "d707c477-440f-417c-970a-0e7426a58045",
+  types: ["Land"],
+  subtypes: ["Swamp", "Mountain"],
+  colorIdentity: ["B", "R"],
+  entersTapped: true,
+  entersTappedUnless: { kind: "controls-lands", count: 2, basic: true },
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+  ],
+  tier: "vanilla",
+};
+
+// "This land enters tapped unless a player has 13 or less life." B/G.
+export const STRANGLED_CEMETERY: CardDefinition = {
+  id: "strangled-cemetery",
+  name: "Strangled Cemetery",
+  scryfallId: "c1ce9250-bdbe-4c77-9243-6db9ffffe69b",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  entersTappedUnless: { kind: "any-player-life-at-most", life: 13 },
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } },
+  ],
+  tier: "vanilla",
+};
+
+// Swamp Mountain, enters tapped, Cycling {2}. B/R.
+export const CANYON_SLOUGH: CardDefinition = {
+  id: "canyon-slough",
+  name: "Canyon Slough",
+  scryfallId: "587cc3ba-75c2-46a0-bd44-6f953fe1eb01",
+  types: ["Land"],
+  subtypes: ["Swamp", "Mountain"],
+  colorIdentity: ["B", "R"],
+  entersTapped: true,
+  cycling: { cost: { generic: 2, colors: {} } },
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+  ],
+  tier: "vanilla",
+};
+
+// {C}; {T},Sac: fetch a basic Swamp/Mountain/Forest tapped; Cycling {B}{R}{G}.
+export const TWISTED_LANDSCAPE: CardDefinition = {
+  id: "twisted-landscape",
+  name: "Twisted Landscape",
+  scryfallId: "d0e3e7b3-7ba9-47a2-b46c-a40bffb445e2",
+  types: ["Land"],
+  colorIdentity: ["B", "R", "G"],
+  cycling: { cost: { generic: 0, colors: { B: 1, R: 1, G: 1 } } },
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } },
+    {
+      cost: { tap: true, sacrificeSelf: true },
+      effect: {
+        kind: "searchLibrary",
+        cardType: "Land",
+        basicLandOnly: true,
+        subtypes: ["Swamp", "Mountain", "Forest"],
+        destination: "battlefield",
+        tapped: true,
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+// ETB: search a basic land to the battlefield tapped. Dies: you may draw a card.
+export const SOLEMN_SIMULACRUM: CardDefinition = {
+  id: "solemn-simulacrum",
+  name: "Solemn Simulacrum",
+  scryfallId: "daafd816-f7c1-4630-9e5c-a1e5db570a35",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Golem"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "searchLibrary",
+        cardType: "Land",
+        basicLandOnly: true,
+        destination: "battlefield",
+        tapped: true,
+      },
+    },
+    { event: "dies", optional: true, effect: { kind: "draw", amount: 1 } },
+  ],
+  tier: "scripted",
+};
+
+// Mana dork with a self-mill ability: {T}: Add {B}/{G}; {T}: Mill two.
+export const SKULL_PROPHET: CardDefinition = {
+  id: "skull-prophet",
+  name: "Skull Prophet",
+  scryfallId: "ea53e2c9-0a3f-4fda-a6ab-9a558bb8f126",
+  types: ["Creature"],
+  subtypes: ["Human", "Druid"],
+  manaCost: { generic: 0, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 3,
+  toughness: 1,
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "mill", amount: 2 } },
+  ],
+  tier: "scripted",
+};
+
+// Upkeep: mill two. {1}{B}{G}, Exile this: return a card from your graveyard.
+export const NYX_WEAVER: CardDefinition = {
+  id: "nyx-weaver",
+  name: "Nyx Weaver",
+  scryfallId: "26c4c471-f79f-4ca4-acc7-852cdc14e726",
+  types: ["Enchantment", "Creature"],
+  subtypes: ["Spider"],
+  manaCost: { generic: 1, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 2,
+  toughness: 3,
+  keywords: ["Reach"],
+  triggeredAbilities: [{ event: "upkeep", watches: "controller", effect: { kind: "mill", amount: 2 } }],
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: { B: 1, G: 1 } }, exileSelf: true },
+      effect: {
+        kind: "returnFromGraveyard",
+        destination: "hand",
+        target: { kind: "card-in-your-graveyard" },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Menace. ETB: you may destroy another target creature; if you do, gain life
+// equal to its toughness.
+export const NOXIOUS_GEARHULK: CardDefinition = {
+  id: "noxious-gearhulk",
+  name: "Noxious Gearhulk",
+  scryfallId: "289c11b7-a460-4a2f-b11a-e1ba54bd1f34",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Construct"],
+  manaCost: { generic: 4, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 5,
+  toughness: 4,
+  keywords: ["Menace"],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      optional: true,
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "destroy", target: { kind: "creature", excludeSource: true } },
+          { kind: "gainLife", amount: { kind: "target-toughness" }, who: "controller" },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+// ETB: mill three. {3}{G}, Sac: return all land cards from your graveyard tapped.
+export const AFTERMATH_ANALYST: CardDefinition = {
+  id: "aftermath-analyst",
+  name: "Aftermath Analyst",
+  scryfallId: "66f135b4-8cb3-4a4e-86ae-81a3cf4b7259",
+  types: ["Creature"],
+  subtypes: ["Elf", "Detective"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 3,
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "mill", amount: 3 } }],
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 3, colors: { G: 1 } }, sacrificeSelf: true },
+      effect: { kind: "returnAllFromGraveyard", cardType: "Land", destination: "battlefield", tapped: true },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Upkeep: each player draws a card. Whenever an opponent draws, they lose 1 life.
+export const SCRAWLING_CRAWLER: CardDefinition = {
+  id: "scrawling-crawler",
+  name: "Scrawling Crawler",
+  scryfallId: "a1176dcf-40ee-4342-aa74-791b8352e99a",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Phyrexian", "Construct"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  power: 3,
+  toughness: 2,
+  triggeredAbilities: [
+    { event: "upkeep", watches: "controller", effect: { kind: "draw", amount: 1, who: "each-player" } },
+    {
+      event: "card-drawn",
+      watchFor: { controlledBy: "opponent" },
+      // The drawing player is attached as the effect's target, so who:"target"
+      // with no selector drains whoever drew.
+      effect: { kind: "loseLife", amount: 1, who: "target" },
+    },
+  ],
+  tier: "scripted",
+};
+
+// At the beginning of each player's draw step, if untapped, that player draws an
+// additional card.
+export const HOWLING_MINE: CardDefinition = {
+  id: "howling-mine",
+  name: "Howling Mine",
+  scryfallId: "cdae9939-03a4-4561-92cd-01f498d29a7a",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  triggeredAbilities: [
+    {
+      event: "draw-step",
+      watches: "any",
+      onlyIf: { kind: "source-untapped" },
+      effect: { kind: "draw", amount: 1, who: "active-player" },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Each player's draw step: that player draws an extra card. Whenever a player
+// draws, deal 1 damage to them.
+export const SPITEFUL_VISIONS: CardDefinition = {
+  id: "spiteful-visions",
+  name: "Spiteful Visions",
+  scryfallId: "3be610eb-790f-4f47-a92a-34fe704cc8e0",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: {}, hybrid: [["B", "R"], ["B", "R"]] },
+  colorIdentity: ["B", "R"],
+  triggeredAbilities: [
+    { event: "draw-step", watches: "any", effect: { kind: "draw", amount: 1, who: "active-player" } },
+    {
+      event: "card-drawn",
+      effect: { kind: "damage", amount: 1, target: { kind: "player" }, toEventPlayer: true },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Upkeep, if 4+ creature cards in your graveyard: you may return one to hand.
+export const OVERSOLD_CEMETERY: CardDefinition = {
+  id: "oversold-cemetery",
+  name: "Oversold Cemetery",
+  scryfallId: "06b7312a-c775-4fa8-ba62-c84ff38459e8",
+  types: ["Enchantment"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  triggeredAbilities: [
+    {
+      event: "upkeep",
+      watches: "controller",
+      optional: true,
+      onlyIf: { kind: "board", condition: { kind: "creature-cards-in-graveyard", count: 4 } },
+      effect: {
+        kind: "returnFromGraveyard",
+        destination: "hand",
+        target: { kind: "card-in-your-graveyard", cardType: "Creature" },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+// {X}{B}{B}: each opponent loses X life, you gain the total lost.
+export const EXSANGUINATE: CardDefinition = {
+  id: "exsanguinate",
+  name: "Exsanguinate",
+  scryfallId: "f11d7311-4066-4a5d-ba28-9857fa707a0b",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { B: 2 }, x: 1 },
+  colorIdentity: ["B"],
+  castEffect: { kind: "drain", amount: { kind: "x" } },
+  tier: "scripted",
+};
+
+// Costs {2} less if you gained life this turn. Destroy target nonland permanent.
+export const MORTALITY_SPEAR: CardDefinition = {
+  id: "mortality-spear",
+  name: "Mortality Spear",
+  scryfallId: "f6cdff9b-bb09-45b9-aa3c-16a3136d183c",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  costReduction: { generic: 2, onlyIf: { kind: "gained-life-this-turn" } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", nonland: true } },
+  tier: "scripted",
+};
+
+// Delirium: costs {2} less with 4+ card types in your graveyard. Destroy a
+// nonland permanent.
+export const DRAG_TO_THE_ROOTS: CardDefinition = {
+  id: "drag-to-the-roots",
+  name: "Drag to the Roots",
+  scryfallId: "46f46095-6479-46b0-9e59-194d83f86a46",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  costReduction: { generic: 2, onlyIf: { kind: "card-types-in-graveyard", count: 4 } },
+  castEffect: { kind: "destroy", target: { kind: "permanent", nonland: true } },
+  tier: "scripted",
+};
+
+// Costs {1} less per creature card in your graveyard. Exile target creature or
+// planeswalker.
+export const OVERWHELMING_REMORSE: CardDefinition = {
+  id: "overwhelming-remorse",
+  name: "Overwhelming Remorse",
+  scryfallId: "202cbfa4-3b3d-47fd-84a6-892692c906d6",
+  types: ["Instant"],
+  manaCost: { generic: 4, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  costReduction: { generic: 1, per: "creature-cards-in-your-graveyard" },
+  castEffect: { kind: "exile", target: { kind: "permanent", cardTypes: ["Creature", "Planeswalker"] } },
+  tier: "scripted",
+};
+
+// Costs {1} less per creature on the battlefield. Deals 13 damage to each creature.
+export const BLASPHEMOUS_ACT: CardDefinition = {
+  id: "blasphemous-act",
+  name: "Blasphemous Act",
+  scryfallId: "7d4b1d44-126e-4987-9a9f-f0f9627a09cb",
+  types: ["Sorcery"],
+  manaCost: { generic: 8, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  costReduction: { generic: 1, per: "creatures-on-battlefield" },
+  castEffect: { kind: "damageAll", amount: 13 },
+  tier: "scripted",
+};
+
+// Destroy target non-Elf creature.
+export const EYEBLIGHTS_ENDING: CardDefinition = {
+  id: "eyeblights-ending",
+  name: "Eyeblight's Ending",
+  scryfallId: "6738c356-734a-4930-acd3-31dead241bea",
+  types: ["Instant"],
+  subtypes: ["Elf"],
+  manaCost: { generic: 2, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  castEffect: { kind: "destroy", target: { kind: "creature", excludeSubtypes: ["Elf"] } },
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -19014,5 +19417,27 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   EVOLVING_WILDS,
   TERRAMORPHIC_EXPANSE,
   MIRE_TRITON,
+  // Winter list, batch 2
+  ROCKFALL_VALE,
+  CINDER_GLADE,
+  SMOLDERING_MARSH,
+  STRANGLED_CEMETERY,
+  CANYON_SLOUGH,
+  TWISTED_LANDSCAPE,
+  SOLEMN_SIMULACRUM,
+  SKULL_PROPHET,
+  NYX_WEAVER,
+  NOXIOUS_GEARHULK,
+  AFTERMATH_ANALYST,
+  SCRAWLING_CRAWLER,
+  HOWLING_MINE,
+  SPITEFUL_VISIONS,
+  OVERSOLD_CEMETERY,
+  EXSANGUINATE,
+  MORTALITY_SPEAR,
+  DRAG_TO_THE_ROOTS,
+  OVERWHELMING_REMORSE,
+  BLASPHEMOUS_ACT,
+  EYEBLIGHTS_ENDING,
   ].map((def) => [def.id, def]),
 );
