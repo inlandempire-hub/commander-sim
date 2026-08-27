@@ -18889,6 +18889,126 @@ export const RESTLESS_COTTAGE: CardDefinition = {
   tier: "scripted",
 };
 
+/* ---------------------------------------------------------------------------
+ * Winter chaos deck - batch 7 (2026-08-27), on the round-4a engine capabilities.
+ * ------------------------------------------------------------------------- */
+
+// 5/5 black Demon with flying - Demonic Covenant's token.
+export const TOKEN_B_55_DEMON_FLYING: CardDefinition = {
+  id: "token-b-55-demon-flying",
+  name: "Demon",
+  types: ["Creature"],
+  subtypes: ["Demon"],
+  colorIdentity: ["B"],
+  power: 5,
+  toughness: 5,
+  keywords: ["Flying"],
+  isToken: true,
+  tier: "vanilla",
+};
+
+// Search a land onto the battlefield; opponents may too, and you match them.
+export const TEMPT_WITH_DISCOVERY: CardDefinition = {
+  id: "tempt-with-discovery",
+  name: "Tempt with Discovery",
+  scryfallId: "79248b68-4fab-46da-ab15-5c71c1f68d4b",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: { kind: "temptWithDiscovery" },
+  tier: "scripted",
+};
+
+// Attacking Demons draw and drain you; end step spawns a Demon and self-mills.
+export const DEMONIC_COVENANT: CardDefinition = {
+  id: "demonic-covenant",
+  name: "Demonic Covenant",
+  scryfallId: "90e9b488-37fd-42db-b0f2-b6c5a15a6e36",
+  types: ["Enchantment"],
+  subtypes: ["Demon"],
+  manaCost: { generic: 4, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  triggeredAbilities: [
+    {
+      event: "creatures-attack",
+      watches: "controller",
+      watchFor: { subtype: "Demon" },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "draw", amount: 1 },
+          { kind: "loseLife", amount: 1, who: "self" },
+        ],
+      },
+    },
+    {
+      event: "end-step",
+      watches: "controller",
+      effect: { kind: "demonicCovenantEndStep", tokenDefinitionId: "token-b-55-demon-flying", millAmount: 2 },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Each upkeep the counters and the payout grow: Treasures for all, damage for all.
+export const DESCENT_INTO_AVERNUS: CardDefinition = {
+  id: "descent-into-avernus",
+  name: "Descent into Avernus",
+  scryfallId: "faadf72f-b2d5-4271-8d5c-a586acf63453",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  triggeredAbilities: [
+    {
+      event: "upkeep",
+      watches: "controller",
+      effect: { kind: "descentAvernus", countersPerUpkeep: 2, treasureTokenId: "token-treasure" },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Everyone reshuffles their board into their deck and floods it back out.
+export const WARP_WORLD: CardDefinition = {
+  id: "warp-world",
+  name: "Warp World",
+  scryfallId: "aa6e1fb5-a06b-4e10-8cc7-785e0f0b298e",
+  types: ["Sorcery"],
+  manaCost: { generic: 5, colors: { R: 3 } },
+  colorIdentity: ["R"],
+  castEffect: { kind: "warpWorld" },
+  tier: "scripted",
+};
+
+// ETB surveil-and-dig; a Descend 8 drain whenever you draw.
+export const STARVING_REVENANT: CardDefinition = {
+  id: "starving-revenant",
+  name: "Starving Revenant",
+  scryfallId: "f25ea466-eb48-4c4c-b5d4-35f58e46ebe1",
+  types: ["Creature"],
+  subtypes: ["Spirit", "Horror"],
+  manaCost: { generic: 2, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 4,
+  toughness: 4,
+  triggeredAbilities: [
+    { event: "enters-battlefield", effect: { kind: "surveilThenDrawLose", surveil: 2, lifePerCard: 3 } },
+    {
+      event: "card-drawn",
+      watchFor: { controlledBy: "you" },
+      onlyIf: { kind: "board", condition: { kind: "permanent-cards-in-graveyard", count: 8 } },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "loseLife", amount: 1, who: "each-opponent" },
+          { kind: "gainLife", amount: 1, who: "controller" },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -20084,5 +20204,12 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   OVER_THE_TOP,
   RESTLESS_VENTS,
   RESTLESS_COTTAGE,
+  // Winter list, batch 7
+  TOKEN_B_55_DEMON_FLYING,
+  TEMPT_WITH_DISCOVERY,
+  DEMONIC_COVENANT,
+  DESCENT_INTO_AVERNUS,
+  WARP_WORLD,
+  STARVING_REVENANT,
   ].map((def) => [def.id, def]),
 );
