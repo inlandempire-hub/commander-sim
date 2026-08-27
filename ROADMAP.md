@@ -4849,9 +4849,26 @@ Boros basics, attack with a non-Human, be offered the Humans from the top six.
 
 ## The Winter list: the roadmap (2026-08-21)
 
-The third decklist through the deck-led loop, on branch `deck/winter-chaos`.
-Nothing is built yet; this section is the plan, written before any code so the
-shape of the work is arguable while it is still cheap.
+The third decklist through the deck-led loop, on branch `deck/winter-chaos-v2`.
+
+**Status 2026-08-27: 63 / 100 implemented** (batches 1-3). Every engine
+capability landed on `main` first (per docs/BRANCHING.md), the card data on the
+branch. Done so far: the commander itself (Ward {2}, symmetric upkeep draw, the
+Delirium max-hand-size static), the tapland/dual/fetch base, the ramp and
+graveyard-recursion creatures, the draw-matters chaos pieces (Scrawling Crawler,
+Spiteful Visions, Howling Mine), and the cost-reduced removal (Blasphemous Act,
+Mortality Spear, Drag to the Roots, Overwhelming Remorse). The remaining ~37 are
+the tier-3 "weird" tail, each a deliberate bespoke feature: adventure, kicker,
+convoke, retrace, channel, demonstrate, transform DFC + discover, planeswalker
+type-changing reanimation, a single discard door (Sangromancer), nth-draw
+triggers (Gixian Puppeteer), reveal-to-graveyard choice flows (Grisly Salvage),
+each-player multi-basic search, symmetric extra-land, manlands, control-changing
+artifacts, impulse-from-exile, and the group-choice board resets (Thieves'
+Auction, Warp World, Over the Top). WINTER_DECK is registered into
+`archetypes.ts` only once all 100 are in.
+
+The original plan, written before any code so the shape of the work was arguable
+while it was still cheap:
 
 Winter, Misanthropic Guide - Jund, `{B}{R}{G}`. A chaos deck: symmetrical draw,
 group-sacrifice, graveyard recursion, and several cards that hand an opponent a
