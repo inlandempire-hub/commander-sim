@@ -418,6 +418,8 @@ export type Countable =
   | { what: "creatures-attacking-you" }
   /** "equal to the number of creature cards in your graveyard" - Grist. */
   | { what: "creature-cards-in-your-graveyard" }
+  /** "where X is the number of land cards in your graveyard" - Cavalier of Flame. */
+  | { what: "land-cards-in-your-graveyard" }
   /**
    * "half the number of cards in their library ... round up" - Peer into the
    * Abyss. Counts the reference player's library, which for a `who: "target"`
@@ -1590,6 +1592,38 @@ export type Effect =
    * the engine resolves for every player, taking up to N basics apiece.
    */
   | { kind: "eachPlayerFetchBasics"; count: number; tapped?: boolean }
+  /**
+   * "It deals X damage to each opponent and each planeswalker they control." -
+   * Cavalier of Flame's death trigger. Real damage, through the ordinary door.
+   */
+  | { kind: "damageEachOpponentAndPlaneswalkers"; amount: Amount }
+  /**
+   * "Each opponent may sacrifice a nonland permanent of their choice or discard
+   * a card. Then this creature deals damage equal to its power to each opponent
+   * who didn't." - Osseous Sticktwister. The engine takes the cheapest avoidance
+   * available to each opponent (sacrifice, else discard); one who can do neither
+   * takes the damage.
+   */
+  | { kind: "eachOpponentSacOrDiscardElseDamage"; amount: Amount }
+  /**
+   * "You and target opponent each reveal the top card of your library. You each
+   * lose life equal to the mana value of the card revealed by the other player.
+   * You each put the card you revealed into your hand." - Keen Duelist.
+   */
+  | { kind: "keenDuel" }
+  /**
+   * "Starting with you, each player may choose an artifact or enchantment you
+   * don't control. Destroy each permanent chosen this way." - Druid of
+   * Purification. The engine picks, per player, one of `cardTypes` the effect's
+   * controller does not control, and destroys the chosen set.
+   */
+  | { kind: "destroyChosenNotYours"; cardTypes: CardType[] }
+  /**
+   * "Each opponent may search their library for up to N basic land cards. They
+   * each put one onto the battlefield tapped under your control and the rest
+   * under their own, then shuffle." - Rootweaver Druid.
+   */
+  | { kind: "eachOpponentFetchBasicsSplit"; count: number }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -2507,6 +2541,12 @@ export type TriggerEvent =
    */
   | "card-drawn"
   /**
+   * "Whenever an opponent discards a card" - Sangromancer. A watcher event whose
+   * subject is the discarding player, fired from the one `discardCard` door.
+   * `watchFor.controlledBy` chooses whose discards count.
+   */
+  | "card-discarded"
+  /**
    * "Whenever you attack with **one or more** non-Gnome creatures" - Anim Pakal;
    * "whenever you attack with **this creature and/or your commander**" - Ainok
    * Strike Leader.
@@ -3182,6 +3222,8 @@ export interface StaticRules {
   yourSpellsCantBeCountered?: boolean;
   /** "You may play an additional land on each of your turns" - Icetill Explorer. */
   extraLandDrops?: number;
+  /** "**Each player** may play an additional land on each of their turns" - Rites of Flourishing. Symmetric, so read off any player's battlefield. */
+  extraLandDropsAllPlayers?: number;
   /** "You may play lands from your graveyard" - Icetill Explorer's second line. */
   playLandsFromGraveyard?: boolean;
   /** "Skip your draw step." - Necrodominance. */

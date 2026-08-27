@@ -265,6 +265,8 @@ function perThing(of: Countable): string | undefined {
       return "counter on this creature";
     case "creature-cards-in-your-graveyard":
       return "creature card in your graveyard";
+    case "land-cards-in-your-graveyard":
+      return "land card in your graveyard";
     case "creatures-attacking-you":
       return "creature attacking you";
     case "attacking-creatures":
@@ -713,6 +715,16 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return "Mill a card. Create a Treasure token if it's a land, a 1/1 green Insect if it's a creature, or a Blood token otherwise.";
     case "eachPlayerFetchBasics":
       return `Each player may search their library for up to ${effect.count} basic land cards, put them onto the battlefield${effect.tapped ? " tapped" : ""}, then shuffle.`;
+    case "damageEachOpponentAndPlaneswalkers":
+      return `Deal ${plainAmount(effect.amount)} damage to each opponent and each planeswalker they control.`;
+    case "eachOpponentSacOrDiscardElseDamage":
+      return `Each opponent may sacrifice a nonland permanent of their choice or discard a card. Then this creature deals damage equal to its power to each opponent who didn't.`;
+    case "keenDuel":
+      return "You and target opponent each reveal the top card of your library. You each lose life equal to the mana value of the card revealed by the other player. You each put the card you revealed into your hand.";
+    case "destroyChosenNotYours":
+      return `Starting with you, each player may choose ${listOr(effect.cardTypes.map((t) => `an ${t.toLowerCase()}`))} you don't control. Destroy each permanent chosen this way.`;
+    case "eachOpponentFetchBasicsSplit":
+      return `Each opponent may search their library for up to ${effect.count} basic land cards, put one onto the battlefield tapped under your control and the rest tapped under their own, then shuffle.`;
     case "drain":
       return `Each opponent loses ${plainAmount(effect.amount)} life. You gain life equal to the life lost this way.`;
     case "returnAllFromGraveyard": {
@@ -1198,6 +1210,8 @@ function describeCount(of: Countable): string {
       return "+1/+1 counter you've put on creatures under your control this turn";
     case "creature-cards-in-your-graveyard":
       return "the number of creature cards in your graveyard";
+    case "land-cards-in-your-graveyard":
+      return "the number of land cards in your graveyard";
     case "counters-on-source":
       return "the number of counters on this creature";
     case "life-gained-this-turn":
@@ -1749,6 +1763,12 @@ function describeTrigger(
         const ord = ability.nthDrawThisTurn === 2 ? "second" : ability.nthDrawThisTurn === 3 ? "third" : `${ability.nthDrawThisTurn}th`;
         return `Whenever ${subject} ${verb} your ${ord} card each turn, ${tail}`;
       }
+      return `Whenever ${subject} ${verb} a card, ${tail}`;
+    }
+    case "card-discarded": {
+      const who = ability.watchFor?.controlledBy;
+      const [subject, verb] =
+        who === "opponent" ? ["an opponent", "discards"] : who === "you" ? ["you", "discard"] : ["a player", "discards"];
       return `Whenever ${subject} ${verb} a card, ${tail}`;
     }
   }

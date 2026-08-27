@@ -118,6 +118,10 @@ function countOf(
       return player.graveyard.filter((card) =>
         requireDefinition(state, card.definitionId).types.includes("Creature"),
       ).length;
+    case "land-cards-in-your-graveyard":
+      return player.graveyard.filter((card) =>
+        requireDefinition(state, card.definitionId).types.includes("Land"),
+      ).length;
     case "half-library-round-up":
       return Math.ceil(player.library.length / 2);
     case "half-life-round-up":

@@ -1,5 +1,5 @@
 import { mayDraw } from "./restrictions.js";
-import { fireCardDrawn } from "./permanents.js";
+import { fireCardDrawn, fireCardDiscarded } from "./permanents.js";
 import type {
   CardDefinition,
   CardInstance,
@@ -322,6 +322,19 @@ export function shuffleLibrary(state: GameState, playerId: string): void {
     const j = Math.floor(Math.random() * (i + 1));
     [library[i], library[j]] = [library[j]!, library[i]!];
   }
+}
+
+/**
+ * The one door every discard goes through: a card leaves a hand for its owner's
+ * graveyard, and the "whenever a player discards" watchers fire once for it.
+ * Every discard site - the discard effect, a random discard, an activation
+ * cost, the hand-size cleanup - calls this rather than `moveCard` directly, so
+ * Sangromancer sees them all. The fire is imported lazily to keep the
+ * state<->permanents cycle inside a function body, exactly as `drawCard` does.
+ */
+export function discardCard(state: GameState, playerId: string, instanceId: string): void {
+  moveCard(state, instanceId, "graveyard");
+  fireCardDiscarded(state, playerId);
 }
 
 /**

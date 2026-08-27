@@ -201,6 +201,13 @@ export function landDropsAllowed(state: GameState, playerId: string): number {
   for (const instance of player.battlefield) {
     allowed += state.cardDefinitions[instance.definitionId]?.staticRules?.extraLandDrops ?? 0;
   }
+  // "Each player may play an additional land on each of their turns" - Rites of
+  // Flourishing, a symmetric static read off whoever controls it.
+  for (const p of state.players) {
+    for (const instance of p.battlefield) {
+      allowed += state.cardDefinitions[instance.definitionId]?.staticRules?.extraLandDropsAllPlayers ?? 0;
+    }
+  }
   return allowed;
 }
 

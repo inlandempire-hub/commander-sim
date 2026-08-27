@@ -15,6 +15,7 @@ import { ALL_COLORS } from "./types.js";
 import {
   cardName,
   createCardInstance,
+  discardCard,
   drawCard,
   findInstance,
   log,
@@ -345,7 +346,7 @@ export function applyEffect(
        */
       const greatest = Math.max(0, ...state.players.map((p) => p.hand.length));
       for (const p of state.players) {
-        for (const card of [...p.hand]) moveCard(state, card.instanceId, "graveyard");
+        for (const card of [...p.hand]) discardCard(state, p.id, card.instanceId);
       }
       if (greatest === 0) return;
       for (const p of state.players) drawCard(state, p.id, greatest);
@@ -1180,7 +1181,7 @@ export function applyEffect(
         if (hand.length === 0) return;
         const victim = hand[Math.floor(Math.random() * hand.length)]!;
         log(state, `${controllerId} discards ${cardName(state, victim.instanceId)} at random`);
-        moveCard(state, victim.instanceId, "graveyard");
+        discardCard(state, controllerId, victim.instanceId);
       }
       return;
     }
@@ -2041,6 +2042,111 @@ export function applyEffect(
         }
         if (basics.length > 0) log(state, `${player.id} fetches ${basics.length} basic land${basics.length === 1 ? "" : "s"}`);
         shuffleLibrary(state, player.id);
+      }
+      return;
+    }
+    case "damageEachOpponentAndPlaneswalkers": {
+      // "Deals X damage to each opponent and each planeswalker they control." -
+      // Cavalier of Flame's death trigger.
+      const amount = evaluateAmount(state, controllerId, effect.amount, "damage amount", sourceInstanceId);
+      if (amount <= 0) return;
+      for (const p of state.players) {
+        if (p.id === controllerId || p.hasLost) continue;
+        damagePlayer(state, p, amount, { sourceInstanceId });
+        for (const perm of [...p.battlefield]) {
+          if (requireDefinition(state, perm.definitionId).types.includes("Planeswalker")) {
+            damageCreature(state, perm, amount, { sourceInstanceId });
+          }
+        }
+      }
+      return;
+    }
+    case "eachOpponentSacOrDiscardElseDamage": {
+      // "Each opponent may sacrifice a nonland permanent or discard a card. Then
+      // this deals damage to each who didn't." - Osseous Sticktwister. The engine
+      // takes the cheapest avoidance for each opponent.
+      const amount = evaluateAmount(state, controllerId, effect.amount, "damage amount", sourceInstanceId);
+      for (const p of state.players) {
+        if (p.id === controllerId || p.hasLost) continue;
+        const nonland = p.battlefield.find((c) => !requireDefinition(state, c.definitionId).types.includes("Land"));
+        if (nonland) {
+          log(state, `${p.id} sacrifices ${cardName(state, nonland.instanceId)}`);
+          sacrificePermanent(state, nonland.instanceId);
+        } else if (p.hand.length > 0) {
+          const card = p.hand[p.hand.length - 1]!;
+          log(state, `${p.id} discards ${cardName(state, card.instanceId)}`);
+          discardCard(state, p.id, card.instanceId);
+        } else if (amount > 0) {
+          damagePlayer(state, p, amount, { sourceInstanceId });
+        }
+      }
+      return;
+    }
+    case "keenDuel": {
+      // "You and target opponent each reveal the top card. You each lose life
+      // equal to the mana value of the card revealed by the other. You each put
+      // your revealed card into your hand." - Keen Duelist.
+      const opp = targets.find((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player");
+      if (!opp) return;
+      const you = controller;
+      const them = requirePlayer(state, opp.playerId);
+      const yourTop = you.library[0];
+      const theirTop = them.library[0];
+      const yourMv = yourTop ? manaValue(requireDefinition(state, yourTop.definitionId).manaCost ?? { generic: 0, colors: {} }) : 0;
+      const theirMv = theirTop ? manaValue(requireDefinition(state, theirTop.definitionId).manaCost ?? { generic: 0, colors: {} }) : 0;
+      you.life -= theirMv; // you lose life equal to THEIR card's value
+      them.life -= yourMv;
+      if (theirMv > 0) log(state, `${you.id} loses ${theirMv} life`);
+      if (yourMv > 0) log(state, `${them.id} loses ${yourMv} life`);
+      if (yourTop) moveCard(state, yourTop.instanceId, "hand");
+      if (theirTop) moveCard(state, theirTop.instanceId, "hand");
+      return;
+    }
+    case "destroyChosenNotYours": {
+      // "Starting with you, each player may choose an artifact or enchantment you
+      // don't control. Destroy each chosen." - Druid of Purification. The engine
+      // picks, per player, one qualifying permanent the effect's controller does
+      // not control.
+      const victims = new Set<string>();
+      const pool = state.players
+        .flatMap((p) => p.battlefield)
+        .filter((c) => {
+          const def = requireDefinition(state, c.definitionId);
+          return c.controllerId !== controllerId && effect.cardTypes.some((t) => def.types.includes(t));
+        });
+      for (let i = 0; i < state.players.length; i++) {
+        const pick = pool.find((c) => !victims.has(c.instanceId));
+        if (pick) victims.add(pick.instanceId);
+      }
+      for (const id of victims) {
+        const found = findInstance(state, id);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        if (hasKeyword(state, found.instance, "Indestructible")) continue;
+        log(state, `${cardName(state, id)} is destroyed`);
+        destroyPermanent(state, id);
+      }
+      return;
+    }
+    case "eachOpponentFetchBasicsSplit": {
+      // "Each opponent may search for up to N basics; one onto the battlefield
+      // tapped under your control, the rest under theirs; then shuffle." -
+      // Rootweaver Druid.
+      for (const p of state.players) {
+        if (p.id === controllerId || p.hasLost) continue;
+        const basics = p.library
+          .filter((c) => requireDefinition(state, c.definitionId).supertypes?.includes("Basic"))
+          .slice(0, effect.count)
+          .map((c) => c.instanceId);
+        basics.forEach((id, index) => {
+          moveCard(state, id, "battlefield");
+          const found = findInstance(state, id);
+          if (!found) return;
+          found.instance.tapped = true;
+          // The first goes to the effect's controller; the rest stay with the searcher.
+          found.instance.controllerId = index === 0 ? controllerId : p.id;
+        });
+        if (basics.length > 0) log(state, `${p.id} fetches ${basics.length} basic land${basics.length === 1 ? "" : "s"}`);
+        shuffleLibrary(state, p.id);
       }
       return;
     }
@@ -2961,7 +3067,7 @@ export function resolveDiscard(state: GameState, playerId: string, instanceId: s
   if (!card) throw new Error("That card is not in your hand");
 
   log(state, `${playerId} discards ${cardName(state, instanceId)}`);
-  moveCard(state, instanceId, "graveyard");
+  discardCard(state, playerId, instanceId);
 
   pending.remaining -= 1;
   // Out of cards counts as paid: you discard as much as you can and no more.

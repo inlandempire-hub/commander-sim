@@ -1,5 +1,5 @@
 import type { GameState, Phase, StackTarget, Step, TriggerEvent } from "./types.js";
-import { drawCard, findInstance, log, moveCard, requireDefinition } from "./state.js";
+import { discardCard, drawCard, findInstance, log, moveCard, requireDefinition } from "./state.js";
 import { emptyManaPool } from "./mana.js";
 import { combatHasFirstStrike, dealCombatDamage } from "./combat.js";
 import { castSuspended } from "./casting.js";
@@ -401,7 +401,7 @@ function runAutomaticStepActions(state: GameState): void {
         while (player.hand.length > limit) {
           const last = player.hand[player.hand.length - 1]!;
           log(state, `${player.id} discards ${requireDefinition(state, last.definitionId).name} to hand size`);
-          moveCard(state, last.instanceId, "graveyard");
+          discardCard(state, player.id, last.instanceId);
         }
       }
       for (const player of state.players) {

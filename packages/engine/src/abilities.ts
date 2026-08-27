@@ -1,6 +1,6 @@
 import { activateRestrictionProblem } from "./restrictions.js";
 import type { ActivatedAbility, CardInstance, Effect, GameState, ManaCost, StackTarget } from "./types.js";
-import { findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
+import { discardCard, findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import {
   canPayManaCost,
   canPayManaCostFromPool,
@@ -424,7 +424,7 @@ export function activateAbility(
     for (const id of discardIds) {
       const discarded = findInstance(state, id)!;
       log(state, `${playerId} discards ${requireDefinition(state, discarded.instance.definitionId).name}`);
-      moveCard(state, id, "graveyard");
+      discardCard(state, playerId, id);
     }
   }
   if (ability.cost.exileFromGraveyard !== undefined) {

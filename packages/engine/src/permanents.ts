@@ -668,6 +668,26 @@ export function fireCardDrawn(state: GameState, drawingPlayerId: string): void {
 }
 
 /**
+ * "Whenever an opponent discards a card" - Sangromancer. Fired from the one
+ * discard door (`discardCard`) so every route into a discard - the discard
+ * effect, a random discard, an activation cost, the hand-size cleanup - sets it
+ * off. The discarding player rides along as the trigger's player target.
+ */
+export function fireCardDiscarded(state: GameState, discardingPlayerId: string): void {
+  for (const player of state.players) {
+    for (const watcher of [...player.battlefield]) {
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "card-discarded") continue;
+        const scope = trigger.watchFor?.controlledBy;
+        if (scope === "you" && discardingPlayerId !== watcher.controllerId) continue;
+        if (scope === "opponent" && discardingPlayerId === watcher.controllerId) continue;
+        pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger, undefined, discardingPlayerId);
+      }
+    }
+  }
+}
+
+/**
  * "Whenever a creature you control deals combat damage to a player."
  *
  * The trigger is pushed with the *damaging creature* as its source, not the

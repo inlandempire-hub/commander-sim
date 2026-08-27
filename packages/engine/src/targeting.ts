@@ -357,6 +357,9 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
       // nothing and has no selector to offer.
       if (effect.toEventPlayer) return undefined;
       return effect.target;
+    case "keenDuel":
+      // "you and **target opponent** each reveal" - Keen Duelist.
+      return { kind: "opponent-of-controller" };
     case "destroy":
     case "exile":
     case "counter":
