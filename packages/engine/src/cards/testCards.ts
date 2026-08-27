@@ -19009,6 +19009,55 @@ export const STARVING_REVENANT: CardDefinition = {
   tier: "scripted",
 };
 
+/* ---------------------------------------------------------------------------
+ * Winter chaos deck - batch 8 (2026-08-27): kicker and convoke.
+ * ------------------------------------------------------------------------- */
+
+// Kicker {1}{G}: return a creature (and, kicked, another permanent) and gain 2.
+export const URBORG_REPOSSESSION: CardDefinition = {
+  id: "urborg-repossession",
+  name: "Urborg Repossession",
+  scryfallId: "ecb8dab0-ecce-4321-b382-c58b296c2fd3",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { B: 1 } },
+  colorIdentity: ["B", "G"],
+  kicker: {
+    cost: { generic: 1, colors: { G: 1 } },
+    effect: {
+      kind: "returnFromGraveyardAuto",
+      cardTypes: ["Creature", "Artifact", "Enchantment", "Planeswalker", "Land"],
+      destination: "hand",
+    },
+  },
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard", cardType: "Creature" } },
+      { kind: "gainLife", amount: 2 },
+    ],
+  },
+  tier: "scripted",
+};
+
+// Convoke; destroy a creature or planeswalker, then Surveil 2.
+export const PILE_ON: CardDefinition = {
+  id: "pile-on",
+  name: "Pile On",
+  scryfallId: "570b56ff-b25a-43e4-927b-99dba542be5e",
+  types: ["Instant"],
+  manaCost: { generic: 3, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  convoke: true,
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "destroy", target: { kind: "permanent", cardTypes: ["Creature", "Planeswalker"] } },
+      { kind: "surveilN", amount: 2 },
+    ],
+  },
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -20211,5 +20260,8 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   DESCENT_INTO_AVERNUS,
   WARP_WORLD,
   STARVING_REVENANT,
+  // Winter list, batch 8
+  URBORG_REPOSSESSION,
+  PILE_ON,
   ].map((def) => [def.id, def]),
 );
