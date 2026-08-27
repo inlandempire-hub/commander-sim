@@ -667,6 +667,8 @@ export type TargetSelector =
   | {
       kind: "card-in-your-graveyard";
       cardType?: CardType;
+      /** "target creature **or land** card" - Pulse of Murasa. Any one of these types qualifies. */
+      cardTypes?: CardType[];
       /**
        * "Target card **from a graveyard**" - Feral Appetite, which reaches into
        * anybody's. Off by default, because every other card of this shape says
@@ -1544,6 +1546,12 @@ export type Effect =
    * of opponents who were around to lose it.
    */
   | { kind: "drain"; amount: Amount }
+  /**
+   * "Each creature deals 1 damage to its controller." - Rakdos Charm's third
+   * mode. Every creature on the battlefield is the source, dealing to whoever
+   * controls it, so it goes through the ordinary damage door per creature.
+   */
+  | { kind: "eachCreatureDamagesController"; amount: number }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -3130,6 +3138,18 @@ export interface StaticRules {
   skipDrawStep?: boolean;
   /** "Your maximum hand size is five." - Necrodominance. */
   maxHandSize?: number;
+  /**
+   * "Delirium - As long as there are four or more card types among cards in your
+   * graveyard, **each opponent's maximum hand size is equal to seven minus the
+   * number of those card types.**" - Winter, Misanthropic Guide.
+   *
+   * A cross-player static: it reads this permanent's *controller's* graveyard
+   * and imposes a limit on every *other* player. So unlike the hand-size rules
+   * above - which a player reads off their own battlefield - this one is found
+   * by scanning opponents' battlefields, and is why the cleanup loop grew a
+   * second pass. Off below four card types; at four it is 3, at seven it is 0.
+   */
+  opponentHandSizeIsSevenMinusControllerGraveyardTypes?: boolean;
   /**
    * "**Other Goblin creatures you control attack each combat if able.**" -
    * Goblin Rabblemaster.

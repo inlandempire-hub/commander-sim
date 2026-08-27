@@ -382,6 +382,20 @@ function runAutomaticStepActions(state: GameState): void {
           if (rules?.maxHandSize !== undefined) limit = Math.min(limit, rules.maxHandSize);
           if (rules?.setMaxHandSize !== undefined) override = rules.setMaxHandSize;
         }
+        // Winter, Misanthropic Guide: an opponent's permanent imposes a limit
+        // read off *its* controller's graveyard, only while that controller has
+        // delirium. Scanned across the other players for that reason.
+        for (const other of state.players) {
+          if (other.id === player.id) continue;
+          for (const instance of other.battlefield) {
+            if (!state.cardDefinitions[instance.definitionId]?.staticRules?.opponentHandSizeIsSevenMinusControllerGraveyardTypes) continue;
+            const types = new Set<string>();
+            for (const card of other.graveyard) {
+              for (const t of state.cardDefinitions[card.definitionId]?.types ?? []) types.add(t);
+            }
+            if (types.size >= 4) limit = Math.min(limit, Math.max(0, 7 - types.size));
+          }
+        }
         if (override !== undefined) limit = override;
         if (unlimited) continue;
         while (player.hand.length > limit) {

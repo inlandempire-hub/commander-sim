@@ -101,9 +101,13 @@ export function describeTarget(selector: TargetSelector): string {
       return `${countPrefix(selector.count)}target ${attacking}${noun}${many}${whose}${lesser}`;
     }
     case "card-in-your-graveyard": {
-      const noun = selector.cardType
-        ? `${selector.cardType.toLowerCase()} card in your graveyard`
-        : "card in your graveyard";
+      const where = selector.anyGraveyard ? "a graveyard" : "your graveyard";
+      const typeWord = selector.cardTypes?.length
+        ? `${listOr(selector.cardTypes.map((t) => t.toLowerCase()))} card`
+        : selector.cardType
+          ? `${selector.cardType.toLowerCase()} card`
+          : "card";
+      const noun = `${typeWord} in ${where}`;
       // "with mana value X or less" - the cap is a phrase, not a number: it is
       // read when the ability goes on the stack, not when the card was written.
       const cap = selector.maxManaValue !== undefined ? " with mana value X or less" : "";
@@ -697,6 +701,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
     }
     case "damageAll":
       return `Deal ${effect.amount} damage to each creature.`;
+    case "eachCreatureDamagesController":
+      return `Each creature deals ${effect.amount} damage to its controller.`;
     case "drain":
       return `Each opponent loses ${plainAmount(effect.amount)} life. You gain life equal to the life lost this way.`;
     case "returnAllFromGraveyard": {

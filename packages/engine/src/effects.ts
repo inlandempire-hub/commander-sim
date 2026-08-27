@@ -1941,6 +1941,24 @@ export function applyEffect(
       log(state, `${controllerId} regenerates each creature they control`);
       return;
     }
+    case "eachCreatureDamagesController": {
+      // "Each creature deals 1 damage to its controller." - Rakdos Charm. Each
+      // creature is its own source, dealing to whoever controls it.
+      const shots: Array<{ id: string; controller: string }> = [];
+      for (const p of state.players) {
+        for (const c of p.battlefield) {
+          if (requireDefinition(state, c.definitionId).types.includes("Creature")) {
+            shots.push({ id: c.instanceId, controller: c.controllerId });
+          }
+        }
+      }
+      for (const shot of shots) {
+        const found = findInstance(state, shot.id);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        damagePlayer(state, requirePlayer(state, shot.controller), effect.amount, { sourceInstanceId: shot.id });
+      }
+      return;
+    }
     case "drain": {
       // "Each opponent loses X life. You gain life equal to the life lost this
       // way." - Exsanguinate. Sum what each living opponent actually lost, then

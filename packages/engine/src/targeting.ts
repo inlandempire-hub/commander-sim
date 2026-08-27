@@ -256,6 +256,8 @@ export function isValidTarget(
       if (!selector.anyGraveyard && found.instance.ownerId !== controllerId) return false;
       const graveDef = requireDefinition(state, found.instance.definitionId);
       if (selector.cardType && !graveDef.types.includes(selector.cardType)) return false;
+      // "a creature or land card" - any one of the listed types qualifies.
+      if (selector.cardTypes?.length && !selector.cardTypes.some((t) => graveDef.types.includes(t))) return false;
       /*
        * "with mana value X or less", where X is the life gained this turn -
        * Moseo. Evaluated here rather than baked into the selector, because the

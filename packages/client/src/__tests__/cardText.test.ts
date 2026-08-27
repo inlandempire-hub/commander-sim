@@ -653,7 +653,10 @@ describe("no fixture carries a clause the panel never mentions", () => {
             n.kind === "creature" &&
             (n.nonlegendary === true || n.excludeSource === true || n.controlledBy !== undefined),
         ),
-      expect: /target (nonlegendary )?creature (you control|an opponent controls)/,
+      // Any of the three narrowings has to surface: "another" (excludeSource,
+      // e.g. Noxious Gearhulk's "another target creature"), "nonlegendary", or a
+      // control restriction.
+      expect: /another target creature|target nonlegendary creature|target (nonlegendary )?creature (you control|an opponent controls)/,
     },
     {
       field: "effect.gainControl",
