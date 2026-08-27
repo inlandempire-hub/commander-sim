@@ -729,6 +729,16 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Starting with you, each player may choose ${listOr(effect.cardTypes.map((t) => `an ${t.toLowerCase()}`))} you don't control. Destroy each permanent chosen this way.`;
     case "eachOpponentFetchBasicsSplit":
       return `Each opponent may search their library for up to ${effect.count} basic land cards, put one onto the battlefield tapped under your control and the rest tapped under their own, then shuffle.`;
+    case "temptWithDiscovery":
+      return "Search your library for a land card and put it onto the battlefield. Each opponent may search their library for a land card and put it onto the battlefield. For each opponent who does, search your library for a land card and put it onto the battlefield. Then shuffle.";
+    case "demonicCovenantEndStep":
+      return `Create a 5/5 black Demon creature token with flying, then mill ${effect.millAmount} cards. If two cards that share all their card types were milled this way, sacrifice this enchantment.`;
+    case "descentAvernus":
+      return `Put ${effect.countersPerUpkeep} descent counters on this enchantment. Then each player creates X Treasure tokens and this enchantment deals X damage to each player, where X is the number of descent counters on this enchantment.`;
+    case "warpWorld":
+      return "Each player shuffles all permanents they own into their library, then reveals that many cards from the top of their library and puts all permanent cards revealed this way onto the battlefield.";
+    case "surveilThenDrawLose":
+      return `Surveil ${effect.surveil}. Then for each card you put on top of your library, you draw a card and you lose ${effect.lifePerCard} life.`;
     case "loot":
       return effect.amount === 1 ? "You may discard a card. If you do, draw a card." : `You may discard up to ${effect.amount} cards. If you do, draw that many cards.`;
     case "exileGraveyardCard":
@@ -1603,6 +1613,8 @@ function negateCondition(condition: BoardCondition): string {
       return `there are fewer than ${condition.count} card types among cards in your graveyard`;
     case "cards-in-graveyard":
       return `there are fewer than ${condition.count} cards in your graveyard`;
+    case "permanent-cards-in-graveyard":
+      return `there are fewer than ${condition.count} permanent cards in your graveyard`;
     case "any-player-life-at-most":
       return `no player has ${condition.life} or less life`;
     case "creature-cards-in-graveyard":
@@ -1863,6 +1875,8 @@ function describeCondition(condition: BoardCondition): string {
       return `there are ${condition.count} or more card types among cards in your graveyard`;
     case "cards-in-graveyard":
       return `there are ${condition.count} or more cards in your graveyard`;
+    case "permanent-cards-in-graveyard":
+      return `there are ${condition.count} or more permanent cards in your graveyard`;
   }
 }
 

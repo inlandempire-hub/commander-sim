@@ -97,6 +97,14 @@ export function meetsBoardCondition(
     }
     case "cards-in-graveyard":
       return (player?.graveyard.length ?? 0) >= condition.count;
+    case "permanent-cards-in-graveyard": {
+      const PERMANENT = ["Creature", "Artifact", "Enchantment", "Planeswalker", "Land", "Battle"];
+      return (
+        (player?.graveyard.filter((card) =>
+          state.cardDefinitions[card.definitionId]?.types.some((t) => PERMANENT.includes(t)),
+        ).length ?? 0) >= condition.count
+      );
+    }
     case "controls-subtype": {
       // "a Swamp or a Forest" - any one of them will do, and a dual counts for
       // both at once because this reads the type line rather than card names.

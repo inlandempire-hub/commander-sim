@@ -1650,6 +1650,35 @@ export type Effect =
    * which takes a whole graveyard.
    */
   | { kind: "exileGraveyardCard"; target: TargetSelector }
+  /**
+   * "Search your library for a land and put it onto the battlefield. Each
+   * opponent may do the same; for each who does, search again." - Tempt with
+   * Discovery. The engine takes every offer (a ramp deck always wants the land).
+   */
+  | { kind: "temptWithDiscovery" }
+  /**
+   * "Create a 5/5 Demon, mill two, and if the two milled cards share all their
+   * card types, sacrifice this." - Demonic Covenant's end step.
+   */
+  | { kind: "demonicCovenantEndStep"; tokenDefinitionId: string; millAmount: number }
+  /**
+   * "Put two descent counters on this. Then each player creates X Treasures and
+   * this deals X damage to each player, where X is the descent counters." -
+   * Descent into Avernus.
+   */
+  | { kind: "descentAvernus"; countersPerUpkeep: number; treasureTokenId: string }
+  /**
+   * "Each player shuffles all permanents they own into their library, then
+   * reveals that many, putting all permanent cards onto the battlefield and the
+   * rest on the bottom." - Warp World.
+   */
+  | { kind: "warpWorld" }
+  /**
+   * "Surveil 2. Then for each card you put on top, draw a card and lose 3 life."
+   * - Starving Revenant. The engine takes the safe surveil (both to graveyard),
+   * so no forced draw-and-loss; the descend payoff is the card's engine.
+   */
+  | { kind: "surveilThenDrawLose"; surveil: number; lifePerCard: number }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -2250,6 +2279,8 @@ export type BoardCondition =
   | { kind: "card-types-in-graveyard"; count: number }
   /** "if there are fourteen or more cards in your graveyard" - Emet-Selch. A plain count of your graveyard. */
   | { kind: "cards-in-graveyard"; count: number }
+  /** "if there are eight or more permanent cards in your graveyard" - Starving Revenant's Descend 8. */
+  | { kind: "permanent-cards-in-graveyard"; count: number }
   /**
    * "you control a Swamp or a Forest" - Woodland Cemetery, Wastewood Verge.
    * `count` defaults to 1, and any one of the listed subtypes qualifies.

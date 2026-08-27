@@ -2159,6 +2159,91 @@ export function applyEffect(
       }
       return;
     }
+    case "temptWithDiscovery": {
+      // "Search for a land onto the battlefield. Each opponent may too; for each
+      // who does, search again." - Tempt with Discovery. The engine takes every
+      // offer.
+      const fetchLand = (playerId: string): boolean => {
+        const player = requirePlayer(state, playerId);
+        const land = player.library.find((c) => requireDefinition(state, c.definitionId).types.includes("Land"));
+        if (!land) return false;
+        moveCard(state, land.instanceId, "battlefield");
+        log(state, `${playerId} searches for a land`);
+        return true;
+      };
+      fetchLand(controllerId);
+      let extra = 0;
+      for (const p of state.players) {
+        if (p.id === controllerId || p.hasLost) continue;
+        if (fetchLand(p.id)) extra += 1;
+      }
+      for (let i = 0; i < extra; i++) fetchLand(controllerId);
+      for (const p of state.players) shuffleLibrary(state, p.id);
+      return;
+    }
+    case "demonicCovenantEndStep": {
+      // "Create a 5/5 Demon, mill two, and sacrifice this if two milled cards
+      // share all their card types." - Demonic Covenant.
+      enteredBattlefield(state, createCardInstance(state, effect.tokenDefinitionId, controllerId, "battlefield"));
+      const milled = controller.library.slice(0, effect.millAmount).map((c) => c.instanceId);
+      for (const id of milled) moveCard(state, id, "graveyard");
+      if (milled.length >= 2) {
+        const typeSets = milled.map((id) => new Set(requireDefinition(state, findInstance(state, id)!.instance.definitionId).types));
+        const [a, b] = typeSets;
+        const shareAll = a!.size === b!.size && [...a!].every((t) => b!.has(t));
+        if (shareAll) {
+          log(state, `two milled cards share all their card types - ${cardName(state, sourceInstanceId)} is sacrificed`);
+          sacrificePermanent(state, sourceInstanceId);
+        }
+      }
+      return;
+    }
+    case "descentAvernus": {
+      // "Put two descent counters on this. Each player makes X Treasures and
+      // this deals X damage to each player, X = descent counters." - Descent
+      // into Avernus.
+      const source = findInstance(state, sourceInstanceId);
+      if (!source || source.instance.zone !== "battlefield") return;
+      source.instance.otherCounters += effect.countersPerUpkeep;
+      const x = source.instance.otherCounters;
+      for (const p of state.players) {
+        if (p.hasLost) continue;
+        for (let i = 0; i < x; i++) enteredBattlefield(state, createCardInstance(state, effect.treasureTokenId, p.id, "battlefield"));
+        damagePlayer(state, p, x, { sourceInstanceId });
+      }
+      return;
+    }
+    case "warpWorld": {
+      // "Each player shuffles all permanents they own into their library, reveals
+      // that many, and puts all permanent cards onto the battlefield." - Warp
+      // World. The rest go on the bottom (kept in order, a documented shortcut).
+      for (const p of state.players) {
+        if (p.hasLost) continue;
+        const permanents = [...p.battlefield].filter((c) => c.ownerId === p.id).map((c) => c.instanceId);
+        const count = permanents.length;
+        for (const id of permanents) moveCard(state, id, "library");
+        shuffleLibrary(state, p.id);
+        const revealed = p.library.slice(0, count).map((c) => c.instanceId);
+        const rest: string[] = [];
+        for (const id of revealed) {
+          const def = requireDefinition(state, findInstance(state, id)!.instance.definitionId);
+          if (def.types.some((t) => PERMANENT_TYPES_FOR_REVEAL.has(t))) putOntoBattlefield(state, id);
+          else rest.push(id);
+        }
+        for (const id of rest) moveCard(state, id, "library"); // to the bottom
+        log(state, `${p.id} warps ${count} cards`);
+      }
+      return;
+    }
+    case "surveilThenDrawLose": {
+      // "Surveil N, then draw and lose life for each card kept on top." - Starving
+      // Revenant. The engine takes the safe surveil (all to graveyard), so no
+      // forced life loss; the descend payoff carries the card.
+      const top = controller.library.slice(0, effect.surveil).map((c) => c.instanceId);
+      for (const id of top) moveCard(state, id, "graveyard");
+      if (top.length > 0) log(state, `${controllerId} surveils ${top.length}`);
+      return;
+    }
     case "loot": {
       // "You may discard a card. If you do, draw a card." - Restless Vents. The
       // engine takes the loot: discard from the back of hand, then draw as many.
