@@ -365,6 +365,7 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "counter":
     case "returnFromGraveyard":
     case "returnFromExile":
+    case "exileGraveyardCard":
     case "preventDamage":
     case "regenerate":
     /*

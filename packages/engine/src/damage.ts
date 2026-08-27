@@ -70,12 +70,27 @@ export function dealsInfect(state: GameState, sourceInstanceId: string | undefin
 /**
  * Damage to a player, prevention applied.
  */
+/**
+ * "Prevent all damage that would be dealt this turn by creatures your opponents
+ * control." - Obscuring Haze. Prevents damage whose source is a creature
+ * controlled by an opponent of the player who set the fog.
+ */
+function fogFromOpponentCreatures(state: GameState, sourceInstanceId: string | undefined): boolean {
+  const protectedId = state.preventCreatureDamageFromOpponentsOf;
+  if (!protectedId || !sourceInstanceId) return false;
+  const source = findInstance(state, sourceInstanceId);
+  if (!source) return false;
+  if (!requireDefinition(state, source.instance.definitionId).types.includes("Creature")) return false;
+  return source.instance.controllerId !== protectedId;
+}
+
 export function damagePlayer(
   state: GameState,
   player: Player,
   amount: number,
   options: { infect?: boolean; sourceInstanceId?: string } = {},
 ): DamageResult {
+  if (fogFromOpponentCreatures(state, options.sourceInstanceId)) return { dealt: 0, prevented: amount };
   /*
    * "It deals double that damage instead" - Angrath's Marauders, applied before
    * the shield.
@@ -134,6 +149,7 @@ export function damageCreature(
   if (protectionStopsDamage(state, instance, options.sourceInstanceId)) {
     return { dealt: 0, prevented: amount };
   }
+  if (fogFromOpponentCreatures(state, options.sourceInstanceId)) return { dealt: 0, prevented: amount };
   // Doubled before the shield, for the reason set out in damagePlayer.
   const result = applyShield(instance, damageDealt(state, amount, options.sourceInstanceId));
   /*

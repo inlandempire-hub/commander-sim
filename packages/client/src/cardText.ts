@@ -372,6 +372,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
           ? "That player draws an additional card."
           : `That player draws ${effect.amount} additional cards.`;
       }
+      // "an opponent draws a card" - Baleful Mastery's rider.
+      if (effect.who === "an-opponent") {
+        return effect.amount === 1 ? "An opponent draws a card." : `An opponent draws ${effect.amount} cards.`;
+      }
       // "Draw a card", not "Draw 1 card" - no printed card says the latter.
       return effect.amount === 1 ? "Draw a card." : `Draw ${effect.amount} cards.`;
     }
@@ -725,6 +729,14 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Starting with you, each player may choose ${listOr(effect.cardTypes.map((t) => `an ${t.toLowerCase()}`))} you don't control. Destroy each permanent chosen this way.`;
     case "eachOpponentFetchBasicsSplit":
       return `Each opponent may search their library for up to ${effect.count} basic land cards, put one onto the battlefield tapped under your control and the rest tapped under their own, then shuffle.`;
+    case "loot":
+      return effect.amount === 1 ? "You may discard a card. If you do, draw a card." : `You may discard up to ${effect.amount} cards. If you do, draw that many cards.`;
+    case "exileGraveyardCard":
+      return `Exile up to one ${describeTarget(effect.target)}.`;
+    case "preventDamageFromOpponentCreatures":
+      return "Prevent all damage that would be dealt this turn by creatures your opponents control.";
+    case "revealTopPermanentsToBattlefield":
+      return "Each player reveals a number of cards from the top of their library equal to the number of nonland permanents they control, puts all permanent cards revealed this way onto the battlefield, and puts the rest into their graveyard.";
     case "drain":
       return `Each opponent loses ${plainAmount(effect.amount)} life. You gain life equal to the life lost this way.`;
     case "returnAllFromGraveyard": {

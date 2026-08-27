@@ -12,6 +12,9 @@ import type {
   StackTarget,
 } from "./types.js";
 import { ALL_COLORS } from "./types.js";
+
+/** The types that go onto the battlefield when a reveal-and-deploy effect (Over the Top, Warp World) sorts cards. */
+const PERMANENT_TYPES_FOR_REVEAL = new Set(["Creature", "Artifact", "Enchantment", "Planeswalker", "Land", "Battle"]);
 import {
   cardName,
   createCardInstance,
@@ -158,6 +161,10 @@ export function applyEffect(
         // additional card" - Howling Mine, Spiteful Visions. The recipient is
         // whoever's step it is, not the source's controller.
         drawer = state.players[state.activePlayerIndex]?.id ?? controllerId;
+      } else if (effect.who === "an-opponent") {
+        // "an opponent draws a card" - Baleful Mastery's rider. The first
+        // opponent; the controller's choice among several, engine-picked.
+        drawer = state.players.find((p) => p.id !== controllerId && !p.hasLost)?.id ?? controllerId;
       }
       drawCard(state, drawer, evaluateAmount(state, drawer, effect.amount, "draw amount"));
       return;
@@ -1662,6 +1669,8 @@ export function applyEffect(
          * that arrive in a combat already under way.
          */
         if (effect.mustAttack) token.mustAttackThisCombat = true;
+        // "Create a **tapped** Treasure token" - Gala Greeters.
+        if (effect.tapped && aim === null) token.tapped = true;
         /*
          * "It gains lifelink and haste **until end of turn**" - Windcrag
          * Siege's Goblin. Granted to the instance rather than printed on the
@@ -2147,6 +2156,55 @@ export function applyEffect(
         });
         if (basics.length > 0) log(state, `${p.id} fetches ${basics.length} basic land${basics.length === 1 ? "" : "s"}`);
         shuffleLibrary(state, p.id);
+      }
+      return;
+    }
+    case "loot": {
+      // "You may discard a card. If you do, draw a card." - Restless Vents. The
+      // engine takes the loot: discard from the back of hand, then draw as many.
+      const n = Math.min(effect.amount, controller.hand.length);
+      for (let i = 0; i < n; i++) {
+        const card = controller.hand[controller.hand.length - 1]!;
+        log(state, `${controllerId} discards ${cardName(state, card.instanceId)}`);
+        discardCard(state, controllerId, card.instanceId);
+      }
+      if (n > 0) drawCard(state, controllerId, n);
+      return;
+    }
+    case "exileGraveyardCard": {
+      // "Exile up to one target card from a graveyard." - Restless Cottage.
+      for (const target of targets) {
+        if (target.kind !== "card") continue;
+        const found = findInstance(state, target.instanceId);
+        if (!found || found.instance.zone !== "graveyard") continue;
+        log(state, `${cardName(state, target.instanceId)} is exiled`);
+        moveCard(state, target.instanceId, "exile");
+      }
+      return;
+    }
+    case "preventDamageFromOpponentCreatures": {
+      state.preventCreatureDamageFromOpponentsOf = controllerId;
+      log(state, `all damage from ${controllerId}'s opponents' creatures is prevented this turn`);
+      return;
+    }
+    case "revealTopPermanentsToBattlefield": {
+      // "Each player reveals [nonland permanents they control] cards; permanent
+      // cards onto the battlefield, the rest into the graveyard." - Over the Top.
+      const order = [
+        ...state.players.slice(state.players.findIndex((p) => p.id === controllerId)),
+        ...state.players.slice(0, state.players.findIndex((p) => p.id === controllerId)),
+      ];
+      for (const player of order) {
+        if (player.hasLost) continue;
+        const n = player.battlefield.filter((c) => !requireDefinition(state, c.definitionId).types.includes("Land")).length;
+        const revealed = player.library.slice(0, n).map((c) => c.instanceId);
+        for (const id of revealed) {
+          const def = requireDefinition(state, findInstance(state, id)!.instance.definitionId);
+          const isPermanent = def.types.some((t) => PERMANENT_TYPES_FOR_REVEAL.has(t));
+          if (isPermanent) putOntoBattlefield(state, id);
+          else moveCard(state, id, "graveyard");
+        }
+        if (revealed.length > 0) log(state, `${player.id} reveals ${revealed.length} cards from the top of their library`);
       }
       return;
     }

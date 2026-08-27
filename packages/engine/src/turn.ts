@@ -446,6 +446,7 @@ function runAutomaticStepActions(state: GameState): void {
       state.spellsCastThisTurn = 0;
       // "Prevent all combat damage ... this turn" ends with the turn.
       state.combatDamagePrevention = null;
+      state.preventCreatureDamageFromOpponentsOf = null;
       returnTemporaryControl(state);
       // "Your opponents can't cast spells **this turn**" - Silence. Ends here
       // rather than when its spell left the stack, which is the whole point of

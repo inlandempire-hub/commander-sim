@@ -773,7 +773,7 @@ export type Effect =
    * "each player draws two cards", Howling Mine, Scrawling Crawler. Every player
    * draws the same amount, in turn order starting from the controller.
    */
-  | { kind: "draw"; amount: Amount; who?: "target" | "each-player" | "active-player" }
+  | { kind: "draw"; amount: Amount; who?: "target" | "each-player" | "active-player" | "an-opponent" }
   /**
    * "... at the beginning of the next turn's upkeep" - Arcane Denial, Mishra's
    * Bauble. Queues `effect` to run then, for the controller or for each
@@ -1156,6 +1156,8 @@ export type Effect =
        * their own.
        */
       attacking?: boolean | "each-opponent";
+      /** "Create a **tapped** Treasure token" - Gala Greeters. Ignored for tokens made attacking, which are tapped anyway. */
+      tapped?: boolean;
       /**
        * "That token ... **attacks this combat if able**" - Legion Warboss.
        *
@@ -1624,6 +1626,30 @@ export type Effect =
    * under their own, then shuffle." - Rootweaver Druid.
    */
   | { kind: "eachOpponentFetchBasicsSplit"; count: number }
+  /**
+   * "Prevent all damage that would be dealt this turn by creatures your
+   * opponents control." - Obscuring Haze. Sets the turn-long fog on the state.
+   */
+  | { kind: "preventDamageFromOpponentCreatures" }
+  /**
+   * "Each player reveals a number of cards from the top of their library equal
+   * to the number of nonland permanents they control, puts all permanent cards
+   * revealed this way onto the battlefield, and puts the rest into their
+   * graveyard." - Over the Top.
+   */
+  | { kind: "revealTopPermanentsToBattlefield" }
+  /**
+   * "You may discard a card. If you do, draw a card." - Restless Vents. The
+   * engine takes the loot (a card-neutral filter), discarding from the back of
+   * hand and drawing the same number; a documented auto-yes.
+   */
+  | { kind: "loot"; amount: number }
+  /**
+   * "Exile up to one target card from a graveyard." - Restless Cottage. A
+   * targeted exile of a single graveyard card, as opposed to `exileGraveyard`
+   * which takes a whole graveyard.
+   */
+  | { kind: "exileGraveyardCard"; target: TargetSelector }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -3144,6 +3170,12 @@ export interface AlternativeCost {
    * the alternative is free (paid only by `sacrifice`, or by nothing).
    */
   manaCost?: ManaCost;
+  /**
+   * "If the {1}{B} cost was paid, **an opponent draws a card**." - Baleful
+   * Mastery. An extra effect that runs, before the spell's own, only when the
+   * alternative cost was taken - the drawback that pays for the discount.
+   */
+  riderEffect?: Effect;
 }
 
 /**
@@ -5077,6 +5109,8 @@ export interface GameState {
    * is none, which is almost always. Cleared in the cleanup step.
    */
   combatDamagePrevention: { exceptSubtype?: string } | null;
+  /** Obscuring Haze: the id of the player who prevented all damage from their opponents' creatures this turn, or null. */
+  preventCreatureDamageFromOpponentsOf: string | null;
   /**
    * Opening hands still being decided. Null for the whole of a normal game -
    * it is only ever set between dealing and the first untap step, and clearing

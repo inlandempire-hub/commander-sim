@@ -507,6 +507,11 @@ export function castSpell(
   // bracket-removed effect.
   let effect: Effect =
     (options.useAlternativeCost && def.cleaveEffect) || def.castEffect || { kind: "draw", amount: 0 };
+  // "If the {1}{B} cost was paid, an opponent draws a card." - Baleful Mastery.
+  // The rider runs first, then the spell's own effect.
+  if (options.useAlternativeCost && def.alternativeCost?.riderEffect) {
+    effect = { kind: "sequence", effects: [def.alternativeCost.riderEffect, effect] };
+  }
   if (effect.kind === "modal") {
     const modes = effect.modes;
     const chosen = options.chosenMode;
