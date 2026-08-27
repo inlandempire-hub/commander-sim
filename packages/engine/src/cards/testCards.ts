@@ -19058,6 +19058,70 @@ export const PILE_ON: CardDefinition = {
   tier: "scripted",
 };
 
+/* ---------------------------------------------------------------------------
+ * Winter chaos deck - batch 9 (2026-08-27), on the round-5 engine capabilities.
+ * ------------------------------------------------------------------------- */
+
+// Enters with three wish counters; a tutor that then hands itself to an opponent.
+export const WISHCLAW_TALISMAN: CardDefinition = {
+  id: "wishclaw-talisman",
+  name: "Wishclaw Talisman",
+  scryfallId: "69d0f5bd-ccea-49b2-bd79-ad5e4d850cf5",
+  types: ["Artifact"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  triggeredAbilities: [{ event: "enters-battlefield", effect: { kind: "addOtherCounter", amount: 3 } }],
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: {} }, tap: true, removeOtherCounter: 1 },
+      onlyOnYourTurn: true,
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "searchLibrary", destination: "hand" },
+          { kind: "giveControlToOpponent" },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Demonstrate; return a card from your graveyard and gain its mana value in life.
+export const HEALING_TECHNIQUE: CardDefinition = {
+  id: "healing-technique",
+  name: "Healing Technique",
+  scryfallId: "33897125-a1df-4d7a-a45a-9c049cb662f6",
+  types: ["Sorcery"],
+  manaCost: { generic: 3, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  demonstrate: true,
+  exileAfterResolving: true,
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "returnFromGraveyard", destination: "hand", target: { kind: "card-in-your-graveyard" } },
+      { kind: "gainLife", amount: { kind: "target-mana-value" } },
+    ],
+  },
+  tier: "scripted",
+};
+
+// Enters under an opponent's control; its taps ramp and draw for both players.
+export const PENDANT_OF_PROSPERITY: CardDefinition = {
+  id: "pendant-of-prosperity",
+  name: "Pendant of Prosperity",
+  scryfallId: "a0a34d52-cbab-4d81-8e10-2597a2e25696",
+  types: ["Artifact"],
+  manaCost: { generic: 3, colors: {} },
+  colorIdentity: [],
+  entersUnderOpponentControl: true,
+  activatedAbilities: [
+    { cost: { mana: { generic: 2, colors: {} }, tap: true }, effect: { kind: "pendantDraw" } },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -20263,5 +20327,9 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   // Winter list, batch 8
   URBORG_REPOSSESSION,
   PILE_ON,
+  // Winter list, batch 9
+  WISHCLAW_TALISMAN,
+  HEALING_TECHNIQUE,
+  PENDANT_OF_PROSPERITY,
   ].map((def) => [def.id, def]),
 );
