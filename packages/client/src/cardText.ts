@@ -758,6 +758,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `If you descended this turn, put a bore counter on this. Then if there are ${effect.boreToTransform} or more bore counters on it, remove those counters and transform it.`;
     case "discover":
       return `Discover ${plainAmount(effect.amount)}.`;
+    case "shareTheSpoilsExile":
+      return "Exile the top card of each player's library.";
     case "millTakeLandToHand":
       return `Mill ${effect.amount} cards. You may put a land card from among them into your hand.`;
     case "pendantDraw":
@@ -1823,6 +1825,8 @@ function describeTrigger(
         who === "opponent" ? ["an opponent", "discards"] : who === "you" ? ["you", "discard"] : ["a player", "discards"];
       return `Whenever ${subject} ${verb} a card, ${tail}`;
     }
+    case "opponent-lost":
+      return `Whenever an opponent loses the game, ${tail}`;
   }
 }
 

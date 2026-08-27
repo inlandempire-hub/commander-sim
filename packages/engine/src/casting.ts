@@ -769,10 +769,23 @@ export function castSpell(
   // "if you didn't cast it from your hand" - Chainer. Remembered before the card
   // leaves for the stack, so the permanent it becomes knows how it was cast.
   const castFromHand = instance.zone === "hand";
+  // Share the Spoils: casting a card from the shared pile refills it with the
+  // top of the caster's library.
+  const refillSharePile = instance.shareTheSpoilsExiled === true;
+  instance.shareTheSpoilsExiled = false;
 
   moveCard(state, instanceId, "stack");
   instance.wasCastFromHand = castFromHand;
   log(state, `${playerId} casts ${def.name}`);
+  if (refillSharePile) {
+    const top = player.library[0];
+    if (top) {
+      moveCard(state, top.instanceId, "exile");
+      const t = findInstance(state, top.instanceId);
+      if (t) t.instance.shareTheSpoilsExiled = true;
+      log(state, `${playerId} exiles the top card of their library (Share the Spoils)`);
+    }
+  }
 
   if (options.fromCommandZone) {
     player.commanderCastCount[instance.instanceId] = (player.commanderCastCount[instance.instanceId] ?? 0) + 1;
@@ -1037,6 +1050,14 @@ export function castPreparedSpell(state: GameState, playerId: string, instanceId
  * begins without anything having to remember to sweep it.
  */
 export function mayPlayFromExile(state: GameState, playerId: string, instance: CardInstance): boolean {
+  // Share the Spoils: the active player may play any card in the shared pile.
+  if (
+    instance.shareTheSpoilsExiled &&
+    instance.zone === "exile" &&
+    state.players[state.activePlayerIndex]?.id === playerId
+  ) {
+    return true;
+  }
   const permission = instance.playableFromExile;
   if (!permission || instance.zone !== "exile") return false;
   if (permission.playerId !== playerId) return false;

@@ -1737,6 +1737,8 @@ export type Effect =
    * takes the hand (rather than a free cast), its documented choice posture.
    */
   | { kind: "discover"; amount: Amount }
+  /** "Exile the top card of each player's library." - Share the Spoils, into the shared impulse pile. */
+  | { kind: "shareTheSpoilsExile" }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -2661,6 +2663,8 @@ export type TriggerEvent =
    * `watchFor.controlledBy` chooses whose discards count.
    */
   | "card-discarded"
+  /** "Whenever an opponent loses the game" - Share the Spoils. Fired once as a player loses. */
+  | "opponent-lost"
   /**
    * "Whenever you attack with **one or more** non-Gnome creatures" - Anim Pakal;
    * "whenever you attack with **this creature and/or your commander**" - Ainok
@@ -4326,6 +4330,8 @@ export interface CardInstance {
    * which includes a land drop, and Ragavan says "cast", which does not.
    */
   playableFromExile?: { playerId: string; untilTurn: number; lands: boolean };
+  /** Exiled with Share the Spoils: the active player may play or cast it from exile any turn, and it re-fills the pile when played. */
+  shareTheSpoilsExiled?: boolean;
   /**
    * Cast for its dash cost - Ragavan.
    *

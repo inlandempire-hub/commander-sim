@@ -1,7 +1,7 @@
 import type { GameState } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition } from "./state.js";
 import type { TriggerSubject } from "./permanents.js";
-import { describeSubject, fireCreaturesDie, fireWatchers, pushTrigger } from "./permanents.js";
+import { describeSubject, fireCreaturesDie, fireOpponentLost, fireWatchers, pushTrigger } from "./permanents.js";
 import { effectiveToughness, effectiveTriggers, hasKeyword, typesOf } from "./counters.js";
 import { useRegenerationShield } from "./regeneration.js";
 
@@ -263,6 +263,7 @@ export function checkStateBasedActions(state: GameState): void {
       }
     }
 
+    const lostBefore = new Set(state.players.filter((p) => p.hasLost).map((p) => p.id));
     for (const player of state.players) {
       if (player.hasLost) continue;
       if (player.life <= 0) {
@@ -308,6 +309,12 @@ export function checkStateBasedActions(state: GameState): void {
           break;
         }
       }
+    }
+    // "Whenever an opponent loses the game" - Share the Spoils. Fired for each
+    // player who newly lost this pass, after the loop for the same reason the
+    // death sweep fires after it.
+    for (const p of state.players) {
+      if (p.hasLost && !lostBefore.has(p.id)) fireOpponentLost(state, p.id);
     }
   }
 

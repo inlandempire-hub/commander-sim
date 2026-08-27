@@ -60,6 +60,21 @@ import { legalTargetsFor, targetCountOf, targetSelectorOf } from "./targeting.js
  * damage effect, not just combat damage - a card just declares the
  * keyword, no per-card scripting needed.
  */
+/**
+ * "Exile the top card of their library." into the Share the Spoils pile - used
+ * both by the enchantment's own exile effect and after a card is played from the
+ * pile, which is what keeps the pile refilling.
+ */
+export function shareTheSpoilsRefill(state: GameState, playerId: string): void {
+  const player = requirePlayer(state, playerId);
+  const top = player.library[0];
+  if (!top) return;
+  moveCard(state, top.instanceId, "exile");
+  const found = findInstance(state, top.instanceId);
+  if (found) found.instance.shareTheSpoilsExiled = true;
+  log(state, `${playerId} exiles the top card of their library (Share the Spoils)`);
+}
+
 export function applyEffect(
   state: GameState,
   controllerId: string,
@@ -2405,6 +2420,14 @@ export function applyEffect(
       }
       // The rest go on the bottom of the library, in the order they were exiled.
       for (const id of bottom) moveCard(state, id, "library");
+      return;
+    }
+    case "shareTheSpoilsExile": {
+      // "Exile the top card of each player's library." - Share the Spoils.
+      for (const p of state.players) {
+        if (p.hasLost) continue;
+        shareTheSpoilsRefill(state, p.id);
+      }
       return;
     }
     case "loot": {

@@ -682,6 +682,22 @@ export function fireCardDrawn(state: GameState, drawingPlayerId: string): void {
  * effect, a random discard, an activation cost, the hand-size cleanup - sets it
  * off. The discarding player rides along as the trigger's player target.
  */
+/**
+ * "Whenever an opponent loses the game" - Share the Spoils. Fired once as a
+ * player loses, for every watcher whose controller is not the loser.
+ */
+export function fireOpponentLost(state: GameState, loserId: string): void {
+  for (const player of state.players) {
+    for (const watcher of [...player.battlefield]) {
+      if (watcher.controllerId === loserId) continue;
+      for (const trigger of effectiveTriggers(state, watcher)) {
+        if (trigger.event !== "opponent-lost") continue;
+        pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger);
+      }
+    }
+  }
+}
+
 export function fireCardDiscarded(state: GameState, discardingPlayerId: string): void {
   for (const player of state.players) {
     for (const watcher of [...player.battlefield]) {
