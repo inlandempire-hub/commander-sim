@@ -2166,8 +2166,9 @@ export function applyEffect(
           const found = findInstance(state, id);
           if (!found) return;
           found.instance.tapped = true;
-          // The first goes to the effect's controller; the rest stay with the searcher.
-          found.instance.controllerId = index === 0 ? controllerId : p.id;
+          // The first goes to the effect's controller; the rest stay with the
+          // searcher. Control is a move between battlefields, not a field set.
+          if (index === 0) moveControl(state, found.instance, controllerId);
         });
         if (basics.length > 0) log(state, `${p.id} fetches ${basics.length} basic land${basics.length === 1 ? "" : "s"}`);
         shuffleLibrary(state, p.id);

@@ -18566,6 +18566,182 @@ export const OLD_RUTSTEIN: CardDefinition = {
   tier: "scripted",
 };
 
+/* ---------------------------------------------------------------------------
+ * Winter chaos deck - batch 5 (2026-08-27), on the round-2 engine capabilities.
+ * ------------------------------------------------------------------------- */
+
+// Team haste-pump; rummage on arrival; a land-fuelled burn on death.
+export const CAVALIER_OF_FLAME: CardDefinition = {
+  id: "cavalier-of-flame",
+  name: "Cavalier of Flame",
+  scryfallId: "0c18c541-758b-4237-9961-9637e996e8a5",
+  types: ["Creature"],
+  subtypes: ["Elemental", "Knight"],
+  manaCost: { generic: 2, colors: { R: 3 } },
+  colorIdentity: ["R"],
+  power: 6,
+  toughness: 5,
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: { R: 1 } } },
+      effect: { kind: "pumpAll", power: 1, toughness: 0, scope: "controller", grants: ["Haste"] },
+    },
+  ],
+  triggeredAbilities: [
+    { event: "enters-battlefield", effect: { kind: "discardAnyNumberDrawThatMany" } },
+    {
+      event: "dies",
+      effect: { kind: "damageEachOpponentAndPlaneswalkers", amount: { kind: "count", of: { what: "land-cards-in-your-graveyard" } } },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Flying. Gains 3 life when an opponent's creature dies or an opponent discards.
+export const SANGROMANCER: CardDefinition = {
+  id: "sangromancer",
+  name: "Sangromancer",
+  scryfallId: "59f7f84c-d0a8-4204-a68e-93075f2a96b0",
+  types: ["Creature"],
+  subtypes: ["Vampire", "Shaman"],
+  manaCost: { generic: 2, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 3,
+  toughness: 3,
+  keywords: ["Flying"],
+  triggeredAbilities: [
+    {
+      event: "permanent-dies",
+      watches: "any",
+      watchFor: { type: "Creature", controlledBy: "opponent" },
+      optional: true,
+      effect: { kind: "gainLife", amount: 3, who: "controller" },
+    },
+    {
+      event: "card-discarded",
+      watchFor: { controlledBy: "opponent" },
+      optional: true,
+      // who:"controller" - the discarding player rides along as a target, but the
+      // life goes to Sangromancer's controller ("you gain 3 life").
+      effect: { kind: "gainLife", amount: 3, who: "controller" },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Whenever another nontoken creature enters, you may pay {1}{G} to copy it.
+export const BRAMBLE_SOVEREIGN: CardDefinition = {
+  id: "bramble-sovereign",
+  name: "Bramble Sovereign",
+  scryfallId: "0fae6a19-6a16-443e-adae-78a7380ee012",
+  types: ["Creature"],
+  subtypes: ["Dryad"],
+  manaCost: { generic: 2, colors: { G: 2 } },
+  colorIdentity: ["G"],
+  power: 4,
+  toughness: 4,
+  triggeredAbilities: [
+    {
+      event: "permanent-enters",
+      watches: "any",
+      watchFor: { type: "Creature", nontoken: true },
+      effect: {
+        kind: "mayPay",
+        cost: { mana: { generic: 1, colors: { G: 1 } } },
+        then: { kind: "createCopyToken", of: "target" },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Lifelink. Delirium end step: each opponent sacrifices, discards, or is burned.
+export const OSSEOUS_STICKTWISTER: CardDefinition = {
+  id: "osseous-sticktwister",
+  name: "Osseous Sticktwister",
+  scryfallId: "4f43473e-1302-4543-b331-1a86cfbc3ced",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Scarecrow"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Lifelink"],
+  triggeredAbilities: [
+    {
+      event: "end-step",
+      watches: "controller",
+      onlyIf: { kind: "board", condition: { kind: "card-types-in-graveyard", count: 4 } },
+      effect: { kind: "eachOpponentSacOrDiscardElseDamage", amount: { kind: "source-power" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Upkeep: you and an opponent trade the top of your libraries and the life it costs.
+export const KEEN_DUELIST: CardDefinition = {
+  id: "keen-duelist",
+  name: "Keen Duelist",
+  scryfallId: "0446a3df-6f77-4b86-b694-ce99feb3d9ab",
+  types: ["Creature"],
+  subtypes: ["Human", "Wizard"],
+  manaCost: { generic: 1, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [{ event: "upkeep", watches: "controller", effect: { kind: "keenDuel" } }],
+  tier: "scripted",
+};
+
+// ETB: everyone helps blow up your opponents' artifacts and enchantments.
+export const DRUID_OF_PURIFICATION: CardDefinition = {
+  id: "druid-of-purification",
+  name: "Druid of Purification",
+  scryfallId: "096c2b28-3e29-4c27-998d-51bff0ba96c5",
+  types: ["Creature"],
+  subtypes: ["Human", "Druid"],
+  manaCost: { generic: 3, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 3,
+  triggeredAbilities: [
+    { event: "enters-battlefield", effect: { kind: "destroyChosenNotYours", cardTypes: ["Artifact", "Enchantment"] } },
+  ],
+  tier: "scripted",
+};
+
+// ETB: each opponent fetches basics, one of which lands under your control.
+export const ROOTWEAVER_DRUID: CardDefinition = {
+  id: "rootweaver-druid",
+  name: "Rootweaver Druid",
+  scryfallId: "987e0ffe-ea75-4985-b6a3-b874bef78719",
+  types: ["Creature"],
+  subtypes: ["Elf", "Druid"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 1,
+  triggeredAbilities: [
+    { event: "enters-battlefield", effect: { kind: "eachOpponentFetchBasicsSplit", count: 3 } },
+  ],
+  tier: "scripted",
+};
+
+// Each draw step everyone draws extra; everyone gets an extra land drop.
+export const RITES_OF_FLOURISHING: CardDefinition = {
+  id: "rites-of-flourishing",
+  name: "Rites of Flourishing",
+  scryfallId: "ab014d5a-aec5-4ea8-bfb4-1392f43c1b30",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  triggeredAbilities: [
+    { event: "draw-step", watches: "any", effect: { kind: "draw", amount: 1, who: "active-player" } },
+  ],
+  staticRules: { extraLandDropsAllPlayers: 1 },
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -19744,5 +19920,14 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   GRISLY_SALVAGE,
   VETERAN_EXPLORER,
   OLD_RUTSTEIN,
+  // Winter list, batch 5
+  CAVALIER_OF_FLAME,
+  SANGROMANCER,
+  BRAMBLE_SOVEREIGN,
+  OSSEOUS_STICKTWISTER,
+  KEEN_DUELIST,
+  DRUID_OF_PURIFICATION,
+  ROOTWEAVER_DRUID,
+  RITES_OF_FLOURISHING,
   ].map((def) => [def.id, def]),
 );
