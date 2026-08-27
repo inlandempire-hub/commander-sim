@@ -19122,6 +19122,80 @@ export const PENDANT_OF_PROSPERITY: CardDefinition = {
   tier: "scripted",
 };
 
+/* ---------------------------------------------------------------------------
+ * Winter chaos deck - batch 10 (2026-08-27): retrace, graveyard casting, channel.
+ * ------------------------------------------------------------------------- */
+
+// Reach; attacks to mill and dig; grants retrace to your graveyard's spells.
+export const SIX: CardDefinition = {
+  id: "six",
+  name: "Six",
+  scryfallId: "f9246b68-580f-4f53-883d-7900880e4b0d",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Treefolk"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 2,
+  toughness: 4,
+  keywords: ["Reach"],
+  grantsRetrace: true,
+  triggeredAbilities: [{ event: "attacks", effect: { kind: "millTakeLandToHand", amount: 3 } }],
+  tier: "scripted",
+};
+
+// Reanimate on a budget; the creatures you loop back gain haste.
+export const CHAINER_NIGHTMARE_ADEPT: CardDefinition = {
+  id: "chainer-nightmare-adept",
+  name: "Chainer, Nightmare Adept",
+  scryfallId: "d8089e7f-7619-43fe-8e0b-31ce5d988a1b",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Human", "Minion"],
+  manaCost: { generic: 2, colors: { B: 1, R: 1 } },
+  colorIdentity: ["B", "R"],
+  power: 3,
+  toughness: 2,
+  activatedAbilities: [
+    { cost: { discard: 1 }, onlyOncePerTurn: true, effect: { kind: "enableCastCreatureFromGraveyard" } },
+  ],
+  triggeredAbilities: [
+    {
+      event: "permanent-enters",
+      watches: "controller",
+      watchFor: { type: "Creature", nontoken: true, notCastFromHand: true },
+      effect: { kind: "grantHasteToEventPermanent" },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Return-to-hand to dig for lands; Channel to buy back your graveyard.
+export const SHIGEKI_JUKAI_VISIONARY: CardDefinition = {
+  id: "shigeki-jukai-visionary",
+  name: "Shigeki, Jukai Visionary",
+  scryfallId: "ed8ea0da-c9d4-4158-aaa7-ebe2fe2b1e15",
+  types: ["Enchantment", "Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Snake", "Druid"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 3,
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: { G: 1 } }, tap: true, returnSelfToHand: true },
+      effect: { kind: "revealPutLandRestGraveyard", amount: 4 },
+    },
+    {
+      // Channel {X}{X}{G}{G}, Discard this card.
+      cost: { mana: { generic: 0, colors: { G: 2 }, x: 2 }, fromHand: "discard" },
+      effect: { kind: "returnManyFromGraveyard", max: { kind: "x" }, nonlegendaryOnly: true },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -20331,5 +20405,9 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   WISHCLAW_TALISMAN,
   HEALING_TECHNIQUE,
   PENDANT_OF_PROSPERITY,
+  // Winter list, batch 10
+  SIX,
+  CHAINER_NIGHTMARE_ADEPT,
+  SHIGEKI_JUKAI_VISIONARY,
   ].map((def) => [def.id, def]),
 );
