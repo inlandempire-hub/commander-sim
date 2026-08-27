@@ -7,6 +7,7 @@ import { applyEffect } from "../effects.js";
 import { isValidTarget } from "../targeting.js";
 import { checkStateBasedActions } from "../sba.js";
 import { resolveTopOfStack } from "../stack.js";
+import { advanceStep } from "../turn.js";
 import { TEST_CARD_DEFINITIONS } from "../cards/testCards.js";
 import type { GameState } from "../types.js";
 
@@ -180,6 +181,61 @@ describe("Winter batch 2: draw watchers", () => {
     const before = requirePlayer(state, bob).hand.length;
     applyEffect(state, alice, mine.instanceId, { kind: "draw", amount: 1, who: "active-player" }, []);
     expect(requirePlayer(state, bob).hand.length).toBe(before + 1);
+  });
+});
+
+describe("Winter batch 3: commander and spells", () => {
+  it("Winter's delirium shrinks each opponent's max hand size in cleanup", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!.id;
+    const bob = state.players[1]!.id;
+    createCardInstance(state, "winter-misanthropic-guide", alice, "battlefield");
+    // Four card types in Winter's controller's graveyard -> opponent limit 3.
+    createCardInstance(state, "willow-elf", alice, "graveyard"); // Creature
+    createCardInstance(state, "swamp", alice, "graveyard"); // Land
+    createCardInstance(state, "rakdos-charm", alice, "graveyard"); // Instant
+    createCardInstance(state, "spiteful-visions", alice, "graveyard"); // Enchantment
+    for (let i = 0; i < 6; i++) createCardInstance(state, "swamp", bob, "hand");
+    for (let i = 0; i < 6; i++) createCardInstance(state, "swamp", alice, "hand");
+    // Advance from the end step into cleanup, which runs the discard-to-hand-
+    // size pass as it is entered.
+    state.phase = "ending";
+    state.step = "end";
+    advanceStep(state);
+    // Bob is trimmed to 3 by Winter's delirium; Winter's own controller keeps 6.
+    expect(requirePlayer(state, bob).hand.length).toBe(3);
+    expect(requirePlayer(state, alice).hand.length).toBe(6);
+  });
+
+  it("Rakdos Charm's third mode pings every creature's controller", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!.id;
+    const bob = state.players[1]!.id;
+    createCardInstance(state, "willow-elf", alice, "battlefield");
+    createCardInstance(state, "willow-elf", alice, "battlefield");
+    createCardInstance(state, "willow-elf", bob, "battlefield");
+    const src = createCardInstance(state, "rakdos-charm", alice, "graveyard");
+    applyEffect(state, alice, src.instanceId, { kind: "eachCreatureDamagesController", amount: 1 }, []);
+    expect(requirePlayer(state, alice).life).toBe(38); // two creatures
+    expect(requirePlayer(state, bob).life).toBe(39); // one creature
+  });
+
+  it("Pulse of Murasa can return a land or a creature, from any graveyard", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!.id;
+    const bob = state.players[1]!.id;
+    const land = createCardInstance(state, "swamp", alice, "graveyard");
+    const oppCreature = createCardInstance(state, "willow-elf", bob, "graveyard");
+    const selector = {
+      kind: "card-in-your-graveyard" as const,
+      cardTypes: ["Creature", "Land"] as ("Creature" | "Land")[],
+      anyGraveyard: true,
+    };
+    expect(isValidTarget(state, selector, { kind: "card", instanceId: land.instanceId }, alice)).toBe(true);
+    expect(isValidTarget(state, selector, { kind: "card", instanceId: oppCreature.instanceId }, alice)).toBe(true);
+    // An instant in the graveyard is not a legal target.
+    const inst = createCardInstance(state, "rakdos-charm", alice, "graveyard");
+    expect(isValidTarget(state, selector, { kind: "card", instanceId: inst.instanceId }, alice)).toBe(false);
   });
 });
 

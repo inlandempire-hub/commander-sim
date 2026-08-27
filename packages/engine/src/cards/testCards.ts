@@ -18275,6 +18275,79 @@ export const EYEBLIGHTS_ENDING: CardDefinition = {
   tier: "scripted",
 };
 
+/* ---------------------------------------------------------------------------
+ * Winter, Misanthropic Guide - chaos deck, batch 3 (2026-08-27): the commander
+ * and two more spells, on the batch-3 engine capabilities from main.
+ * ------------------------------------------------------------------------- */
+
+// The commander. Ward {2}; upkeep each player draws two; Delirium shrinks every
+// opponent's maximum hand size to seven minus the card types in your graveyard.
+export const WINTER_MISANTHROPIC_GUIDE: CardDefinition = {
+  id: "winter-misanthropic-guide",
+  name: "Winter, Misanthropic Guide",
+  scryfallId: "e9b81421-44cb-440f-a6ac-3ddf620f1989",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Human", "Warlock"],
+  manaCost: { generic: 1, colors: { B: 1, R: 1, G: 1 } },
+  colorIdentity: ["B", "R", "G"],
+  power: 3,
+  toughness: 4,
+  keywords: ["Ward"],
+  wardCost: { generic: 2, colors: {} },
+  canBeCommander: true,
+  triggeredAbilities: [
+    { event: "upkeep", watches: "controller", effect: { kind: "draw", amount: 2, who: "each-player" } },
+  ],
+  staticRules: { opponentHandSizeIsSevenMinusControllerGraveyardTypes: true },
+  tier: "weird",
+};
+
+// Modal: exile a graveyard / destroy an artifact / each creature pings its
+// controller.
+export const RAKDOS_CHARM: CardDefinition = {
+  id: "rakdos-charm",
+  name: "Rakdos Charm",
+  scryfallId: "64b67170-1602-4050-80c0-ade2a6cac211",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { B: 1, R: 1 } },
+  colorIdentity: ["B", "R"],
+  castEffect: {
+    kind: "modal",
+    modes: [
+      { label: "Exile target player's graveyard", effect: { kind: "exileGraveyard", target: { kind: "player" } } },
+      { label: "Destroy target artifact", effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact"] } } },
+      {
+        label: "Each creature deals 1 damage to its controller",
+        effect: { kind: "eachCreatureDamagesController", amount: 1 },
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+// Return a creature or land from a graveyard to hand; gain 6 life.
+export const PULSE_OF_MURASA: CardDefinition = {
+  id: "pulse-of-murasa",
+  name: "Pulse of Murasa",
+  scryfallId: "a4b9f8f4-d704-4f16-8495-cf8185285859",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      {
+        kind: "returnFromGraveyard",
+        destination: "hand",
+        target: { kind: "card-in-your-graveyard", cardTypes: ["Creature", "Land"], anyGraveyard: true },
+      },
+      { kind: "gainLife", amount: 6 },
+    ],
+  },
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -19439,5 +19512,9 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   OVERWHELMING_REMORSE,
   BLASPHEMOUS_ACT,
   EYEBLIGHTS_ENDING,
+  // Winter list, batch 3
+  WINTER_MISANTHROPIC_GUIDE,
+  RAKDOS_CHARM,
+  PULSE_OF_MURASA,
   ].map((def) => [def.id, def]),
 );
