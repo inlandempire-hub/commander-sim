@@ -173,6 +173,7 @@ export function activatableAbilities(
 
     // "Activate each power-up ability only once." Not offered a second time.
     if (ability.onlyOncePerGame && instance.abilitiesUsedThisGame.includes(index)) return;
+    if (ability.onlyOncePerTurn && (instance.abilitiesUsedThisTurn ?? []).includes(index)) return;
     if (!controllerMeets(state, playerId, ability.activateOnlyIf)) return;
     // An ability that needs a target and has none is not a usable ability - it
     // would only walk the player into a targeting prompt with nothing to click.
@@ -358,6 +359,9 @@ export function activateAbility(
   if (ability.onlyOncePerGame && instance.abilitiesUsedThisGame.includes(abilityIndex)) {
     throw new Error(`${def.name} has already used that ability`);
   }
+  if (ability.onlyOncePerTurn && (instance.abilitiesUsedThisTurn ?? []).includes(abilityIndex)) {
+    throw new Error(`${def.name} can only use that ability once each turn`);
+  }
   const baseManaCost = abilityManaCost(state, playerId, ability, instance);
   // Channel and the other {X} abilities: X is announced with the activation, and
   // each {X} symbol adds X generic - Shigeki's {X}{X}{G}{G}.
@@ -467,6 +471,7 @@ export function activateAbility(
   // want of a target has still been used. That is the rule and it is also the
   // safe direction.
   if (ability.onlyOncePerGame) instance.abilitiesUsedThisGame.push(abilityIndex);
+  if (ability.onlyOncePerTurn) (instance.abilitiesUsedThisTurn ??= []).push(abilityIndex);
   const sourceCounters = instance.plusOneCounters + instance.otherCounters;
   if (ability.cost.sacrificeSelf) sacrificePermanent(state, instanceId);
   // "Exile this creature" as a cost - Nyx Weaver. Gone to exile before the

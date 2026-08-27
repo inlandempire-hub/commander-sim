@@ -3127,6 +3127,8 @@ export interface ActivatedAbility {
    * `CardInstance.abilitiesUsedThisGame`.
    */
   onlyOncePerGame?: boolean;
+  /** "Activate only once each turn." - Chainer, Nightmare Adept. Tracked in `CardInstance.abilitiesUsedThisTurn`, cleared each cleanup. */
+  onlyOncePerTurn?: boolean;
   /**
    * "**Reduce the cost by his mana cost if he entered this turn.**" -
    * Quicksilver, whose power-up costs {4}{R} and {3}{R} less on the turn he
@@ -4266,6 +4268,8 @@ export interface CardInstance {
    * turn machine sweeps what belongs to a turn, and this belongs to the object.
    */
   abilitiesUsedThisGame: number[];
+  /** Ability indices used this turn - Chainer's "activate only once each turn". Cleared each cleanup. */
+  abilitiesUsedThisTurn?: number[];
   toxicThisTurn: number;
   /**
    * "...and **hexproof from that color** until end of turn." - Skrelv.
