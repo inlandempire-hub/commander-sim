@@ -135,8 +135,10 @@ function finishResolution(state: GameState, obj: StackObject): void {
   const source = findInstance(state, obj.sourceInstanceId);
   if (source && source.instance.zone === "stack") {
     // "Exile Healing Technique." - a spell that exiles itself as it resolves,
-    // rather than going to the graveyard.
-    const exiles = state.cardDefinitions[source.instance.definitionId]?.exileAfterResolving;
+    // rather than going to the graveyard. An adventure half likewise exiles the
+    // card (to be cast later as the creature/enchantment).
+    const exiles =
+      state.cardDefinitions[source.instance.definitionId]?.exileAfterResolving || source.instance.adventuredInExile;
     moveCard(state, obj.sourceInstanceId, exiles ? "exile" : "graveyard");
   }
 }

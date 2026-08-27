@@ -206,6 +206,14 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   // "Cast from hand" is a property of this cast; a card that leaves for anywhere
   // but the stack or battlefield (dying, being tucked) is no longer one.
   if (destination !== "battlefield" && destination !== "stack") instance.wasCastFromHand = false;
+  // "You descended if a permanent card was put into your graveyard from
+  // anywhere." - Brass's Tunnel-Grinder.
+  if (destination === "graveyard" && instance.zone !== "graveyard") {
+    const permTypes = ["Creature", "Artifact", "Enchantment", "Planeswalker", "Land", "Battle"];
+    if (state.cardDefinitions[instance.definitionId]?.types.some((t) => permTypes.includes(t))) {
+      owner.descendedThisTurn = true;
+    }
+  }
 
   if (instance.zone === "stack") {
     const idx = state.stackCards.indexOf(instance);

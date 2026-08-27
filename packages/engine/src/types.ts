@@ -1726,6 +1726,17 @@ export type Effect =
    * about - Chainer's arrival trigger, aimed at the creature that just entered.
    */
   | { kind: "grantHasteToEventPermanent" }
+  /**
+   * "If you descended this turn, put a bore counter on this. If there are three
+   * or more, remove them and transform it." - Brass's Tunnel-Grinder's end step.
+   */
+  | { kind: "brassEndStep"; boreToTransform: number }
+  /**
+   * "Discover X" - exile cards from the top until a nonland card with mana value
+   * X or less, then put it into your hand; the rest go on the bottom. The engine
+   * takes the hand (rather than a free cast), its documented choice posture.
+   */
+  | { kind: "discover"; amount: Amount }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -3274,10 +3285,13 @@ export interface AlternativeCost {
  * at all, and writing it as a restriction would forbid the very plays the card
  * allows. What it carries is a *marking*, not a limit. See `ManaMark`.
  */
-export type ManaSpendRider = {
-  kind: "scry-on-creature-sharing-commander-type";
-  amount: 1;
-};
+export type ManaSpendRider =
+  | {
+      kind: "scry-on-creature-sharing-commander-type";
+      amount: 1;
+    }
+  /** "Whenever you cast a permanent spell using mana produced by Tecutlan, discover X, where X is that spell's mana value." */
+  | { kind: "discover-on-permanent-spell" };
 
 /**
  * One lump of mana in the ordinary pool that remembers where it came from.
@@ -3915,6 +3929,12 @@ export interface CardDefinition {
   additionalCost?: AdditionalCost;
   /** "Kicker {1}{G} ... If this spell was kicked, ..." - Urborg Repossession. An optional extra cost that runs an extra effect. */
   kicker?: { cost: ManaCost; effect: Effect };
+  /**
+   * The Adventure half of a card - Locthwain Scorn on Virtue of Persistence.
+   * Cast for `cost`, its `effect` resolves, and the card is exiled to be cast
+   * later as the creature/enchantment for its ordinary cost.
+   */
+  adventure?: { name: string; cost: ManaCost; effect: Effect };
   /** "Convoke" - creatures may be tapped to help pay, each for {1} or one mana of its colour (Pile On). */
   convoke?: boolean;
   /** "You may cast this spell without paying its mana cost" - offered at cast time. */
@@ -4075,6 +4095,8 @@ export interface CardInstance {
   loyalty: number;
   /** Whether this permanent was cast from its owner's hand - Chainer reads it to decide haste. */
   wasCastFromHand?: boolean;
+  /** In exile as an Adventure, castable later as the creature/enchantment - Virtue of Persistence. */
+  adventuredInExile?: boolean;
   /** Modal-trigger modes already taken on this permanent this turn - Gala Greeters' "hasn't been chosen this turn". Cleared each cleanup. */
   modesChosenThisTurn: string[];
   /** Creature subtypes granted on the battlefield - Liliana's "that creature is a black Zombie". Cleared on any zone change. */
@@ -4989,6 +5011,8 @@ export interface Player {
   cardsDrawnThisTurn: number;
   /** "You may cast a creature spell from your graveyard this turn." - Chainer. Cleared each cleanup. */
   mayCastCreatureFromGraveyardThisTurn?: boolean;
+  /** "You descended if a permanent card was put into your graveyard from anywhere." - Brass's Tunnel-Grinder. Cleared each cleanup. */
+  descendedThisTurn?: boolean;
   /**
    * Poison counters. Ten of them loses the game, checked as a state-based
    * action beside the life total.

@@ -359,6 +359,7 @@ function runAutomaticStepActions(state: GameState): void {
         player.spellTypesCastThisTurn = [];
         player.cardsDrawnThisTurn = 0;
         player.mayCastCreatureFromGraveyardThisTurn = false; // Chainer's permission is "this turn"
+        player.descendedThisTurn = false; // Brass's Tunnel-Grinder checks it at end step
       }
       /*
        * "Your maximum hand size is five." - Necrodominance, and the ordinary

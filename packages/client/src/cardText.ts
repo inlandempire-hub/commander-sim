@@ -754,6 +754,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Return ${plainAmount(effect.max)} target ${effect.nonlegendaryOnly ? "nonlegendary " : ""}cards from your graveyard to your hand.`;
     case "grantHasteToEventPermanent":
       return "It gains haste until your next turn.";
+    case "brassEndStep":
+      return `If you descended this turn, put a bore counter on this. Then if there are ${effect.boreToTransform} or more bore counters on it, remove those counters and transform it.`;
+    case "discover":
+      return `Discover ${plainAmount(effect.amount)}.`;
     case "millTakeLandToHand":
       return `Mill ${effect.amount} cards. You may put a land card from among them into your hand.`;
     case "pendantDraw":
@@ -2046,9 +2050,11 @@ export function describeActivated(
   // type with your commander, scry 1" - Path of Ancestry. The rider follows the
   // mana rather than the spell, which is exactly the part a player gets wrong
   // if the panel does not mention it at all.
-  const mark = ability.marksMana
-    ? ` When that mana is spent to cast a creature spell that shares a creature type with your commander, scry ${ability.marksMana.amount}.`
-    : "";
+  const mark = !ability.marksMana
+    ? ""
+    : ability.marksMana.kind === "discover-on-permanent-spell"
+      ? " Whenever you cast a permanent spell using this mana, discover X, where X is that spell's mana value."
+      : ` When that mana is spent to cast a creature spell that shares a creature type with your commander, scry ${ability.marksMana.amount}.`;
   // Last, as the cards print it: "Equip {1}" ends with "Equip only as a
   // sorcery", not the other way round.
   const timing = ability.sorcerySpeedOnly ? " Activate only as a sorcery." : "";

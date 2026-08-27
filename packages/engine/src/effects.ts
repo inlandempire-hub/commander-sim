@@ -2363,6 +2363,50 @@ export function applyEffect(
       }
       return;
     }
+    case "brassEndStep": {
+      // "If you descended this turn, put a bore counter on this. Then if there
+      // are three or more, remove them and transform it." - Brass's Tunnel-Grinder.
+      const source = findInstance(state, sourceInstanceId);
+      if (!source || source.instance.zone !== "battlefield") return;
+      if (!controller.descendedThisTurn) return;
+      source.instance.otherCounters += 1;
+      log(state, `${cardName(state, sourceInstanceId)} gets a bore counter`);
+      if (source.instance.otherCounters >= effect.boreToTransform) {
+        source.instance.otherCounters = 0;
+        const front = requireDefinition(state, source.instance.definitionId);
+        const back = front.transformsInto;
+        if (back) {
+          source.instance.definitionId = back;
+          log(state, `${front.name} transforms into ${requireDefinition(state, back).name}`);
+        }
+      }
+      return;
+    }
+    case "discover": {
+      // "Discover X" - exile from the top until a nonland card with mana value X
+      // or less, put it into your hand, and the rest go on the bottom.
+      const x = evaluateAmount(state, controllerId, effect.amount, "discover", sourceInstanceId);
+      const bottom: string[] = [];
+      let found: string | undefined;
+      while (controller.library.length > 0) {
+        const top = controller.library[0]!;
+        const def = requireDefinition(state, top.definitionId);
+        const isHit = !def.types.includes("Land") && manaValue(def.manaCost ?? { generic: 0, colors: {} }) <= x;
+        moveCard(state, top.instanceId, "exile");
+        if (isHit) {
+          found = top.instanceId;
+          break;
+        }
+        bottom.push(top.instanceId);
+      }
+      if (found) {
+        moveCard(state, found, "hand");
+        log(state, `${controllerId} discovers ${cardName(state, found)}`);
+      }
+      // The rest go on the bottom of the library, in the order they were exiled.
+      for (const id of bottom) moveCard(state, id, "library");
+      return;
+    }
     case "loot": {
       // "You may discard a card. If you do, draw a card." - Restless Vents. The
       // engine takes the loot: discard from the back of hand, then draw as many.

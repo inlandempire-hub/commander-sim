@@ -167,6 +167,8 @@ export interface CastOptions {
   kicked?: boolean;
   /** The land discarded to retrace a permanent card from the graveyard - Six. */
   retraceDiscard?: string;
+  /** Cast the card's Adventure half (Locthwain Scorn) rather than the card itself - Virtue of Persistence. */
+  useAdventure?: boolean;
   /** Creatures tapped to help pay for a convoke spell - Pile On. Each pays {1} or one mana of its colour. */
   convokeCreatures?: string[];
   /**
@@ -301,9 +303,8 @@ export function castSpell(
    */
   const castingFromWarpExile =
     instance.zone === "exile" &&
-    instance.warpedInExile === true &&
-    !options.fromCommandZone &&
-    !options.useWarp;
+    ((instance.warpedInExile === true && !options.useWarp) || instance.adventuredInExile === true) &&
+    !options.fromCommandZone;
   const def0 = requireDefinition(state, instance.definitionId);
   const isYourTurn = state.players[state.activePlayerIndex]?.id === playerId;
   const def0IsPermanent = def0.types.some((t) => PERMANENT_TYPES.has(t));
@@ -341,7 +342,9 @@ export function castSpell(
   }
 
   const def = requireDefinition(state, instance.definitionId);
-  const isPermanentSpell = def.types.some((t) => PERMANENT_TYPES.has(t));
+  // The adventure half is an instant or sorcery even though the card itself is a
+  // permanent - Locthwain Scorn resolves and goes away, not onto the battlefield.
+  const isPermanentSpell = !options.useAdventure && def.types.some((t) => PERMANENT_TYPES.has(t));
   if (options.useWarp) {
     if (!def.warp) throw new Error(`${def.name} has no warp cost`);
     if (instance.zone !== "hand") throw new Error(`${def.name} can only be warped from hand`);
@@ -436,7 +439,11 @@ export function castSpell(
           ? def.dashCost!
           : options.bestowOnto
             ? def.bestowCost!
-            : costWithX(printedCost, chosenX);
+            : options.useAdventure
+              ? // Adventure (Virtue of Persistence's Locthwain Scorn) - cast the
+                // adventure half for its own cost; the card then waits in exile.
+                def.adventure!.cost
+              : costWithX(printedCost, chosenX);
   // "This spell costs {N} less" - applied to an ordinary cast only. An
   // alternative/free/warp/dash/bestow cast has replaced the mana cost outright,
   // and none of those printings carry a generic reduction on top.
@@ -564,7 +571,10 @@ export function castSpell(
   // Cleave (Dig Up): casting for the alternative (cleave) cost swaps in the
   // bracket-removed effect.
   let effect: Effect =
-    (options.useAlternativeCost && def.cleaveEffect) || def.castEffect || { kind: "draw", amount: 0 };
+    (options.useAdventure && def.adventure?.effect) ||
+    (options.useAlternativeCost && def.cleaveEffect) ||
+    def.castEffect ||
+    { kind: "draw", amount: 0 };
   // "If the {1}{B} cost was paid, an opponent draws a card." - Baleful Mastery.
   // The rider runs first, then the spell's own effect.
   if (options.useAlternativeCost && def.alternativeCost?.riderEffect) {
@@ -748,6 +758,11 @@ export function castSpell(
    */
   if (options.useWarp) instance.exileAtNextEndStep = true;
   instance.warpedInExile = false;
+  // Adventure (Virtue of Persistence): the adventure half exiles the card as it
+  // resolves, and it waits there to be cast later as the creature/enchantment.
+  // Casting the main card from exile clears the mark.
+  if (options.useAdventure) instance.adventuredInExile = true;
+  else if (instance.zone === "exile" && instance.adventuredInExile) instance.adventuredInExile = false;
   // Offspring: remembered on the card so the token copy is made as it enters,
   // long after the stack object has gone.
   if (options.payOffspring) instance.offspringPaid = true;
@@ -817,6 +832,20 @@ export function castSpell(
    * question about both cards at once.
    */
   for (const mark of payment.marks) {
+    if (mark.rider.kind === "discover-on-permanent-spell") {
+      // "Whenever you cast a permanent spell using mana produced by Tecutlan,
+      // discover X, where X is that spell's mana value."
+      if (!isPermanentSpell) continue;
+      pushOntoStack(
+        state,
+        mark.sourceInstanceId,
+        playerId,
+        { kind: "discover", amount: manaValue(def.manaCost ?? { generic: 0, colors: {} }) },
+        [],
+        false,
+      );
+      continue;
+    }
     if (mark.rider.kind !== "scry-on-creature-sharing-commander-type") continue;
     if (!def.types.includes("Creature")) continue;
     const shared = commanderCreatureTypes(state, playerId);
