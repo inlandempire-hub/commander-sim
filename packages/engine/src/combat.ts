@@ -323,7 +323,7 @@ export function declareAttackers(state: GameState, playerId: string, declaration
     const instance = player.battlefield.find((c) => c.instanceId === attackerInstanceId);
     if (!instance) continue;
     for (const trigger of effectiveTriggers(state, instance)) {
-      if (trigger.event === "attacks") {
+      if (trigger.event === "attacks" || trigger.event === "attacks-or-blocks") {
         pushTrigger(state, instance.instanceId, playerId, trigger);
       }
     }
@@ -410,6 +410,15 @@ export function declareBlockers(state: GameState, playerId: string, declarations
    */
   for (const { blockerInstanceId, attackerInstanceId } of declarations) {
     fireBecomesBlocked(state, attackerInstanceId, blockerInstanceId);
+  }
+  // "Whenever this creature attacks or blocks" - Elder Gargaroth. The block half,
+  // fired once per creature that blocked (its attack half is in declareAttackers).
+  for (const { blockerInstanceId } of declarations) {
+    const blocker = player.battlefield.find((c) => c.instanceId === blockerInstanceId);
+    if (!blocker) continue;
+    for (const trigger of effectiveTriggers(state, blocker)) {
+      if (trigger.event === "attacks-or-blocks") pushTrigger(state, blocker.instanceId, playerId, trigger);
+    }
   }
 
   const blockCount = declarations.length;

@@ -1524,7 +1524,13 @@ export type Effect =
    * battlefield, for the reanimation spells. Entering the battlefield this way
    * fires enters-the-battlefield triggers exactly as casting it would.
    */
-  | { kind: "returnFromGraveyard"; destination: "hand" | "battlefield"; target: TargetSelector }
+  | {
+      kind: "returnFromGraveyard";
+      destination: "hand" | "battlefield";
+      target: TargetSelector;
+      /** "That creature is a black Zombie in addition to its other colors and types" - Liliana, on a battlefield return. */
+      alsoType?: { subtypes: string[]; colors: Color[] };
+    }
   /**
    * "Return **all** land cards from your graveyard to the battlefield tapped" -
    * Aftermath Analyst. Untargeted mass reanimation of one card type from the
@@ -1552,6 +1558,38 @@ export type Effect =
    * controls it, so it goes through the ordinary damage door per creature.
    */
   | { kind: "eachCreatureDamagesController"; amount: number }
+  /**
+   * "Discard any number of cards, then draw that many cards [plus one]." - the
+   * rummage on Cavalier of Flame and Brass's Tunnel-Grinder. With no UI to value
+   * a discard, the engine takes the safe zero (draw only the `plusOne`, if any),
+   * the same documented posture `searchLibrary` takes for the card it finds.
+   */
+  | { kind: "discardAnyNumberDrawThatMany"; plusOne?: boolean }
+  /**
+   * "Reveal the top card of your library and put it into your hand. Each
+   * opponent loses X life and you gain X life, where X is that card's mana
+   * value." - Twilight Prophet.
+   */
+  | { kind: "revealTopDrainByManaValue" }
+  /**
+   * "Reveal the top N cards of your library. You may put a [creature or land]
+   * card from among them into your hand. Put the rest into your graveyard." -
+   * Grisly Salvage. The engine takes the first eligible card, its documented
+   * search posture.
+   */
+  | { kind: "revealToHandRestToGraveyard"; amount: number; cardTypes: CardType[] }
+  /**
+   * "Mill a card. If a land is milled, make a Treasure; a creature, a 1/1
+   * Insect; a noncreature nonland, a Blood." - Old Rutstein. One token id per
+   * branch.
+   */
+  | { kind: "millAndBranchToken"; landToken: string; creatureToken: string; otherToken: string }
+  /**
+   * "Each player may search their library for up to N basic land cards, put
+   * them onto the battlefield, then shuffle." - Veteran Explorer. Symmetric ramp
+   * the engine resolves for every player, taking up to N basics apiece.
+   */
+  | { kind: "eachPlayerFetchBasics"; count: number; tapped?: boolean }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -2304,6 +2342,8 @@ export type EntersUntappedCondition = BoardCondition;
 export type TriggerEvent =
   | "enters-battlefield"
   | "attacks"
+  /** "Whenever this creature attacks or blocks" - Elder Gargaroth. A self event fired from both declarations. */
+  | "attacks-or-blocks"
   | "dies"
   | "landfall"
   | "permanent-enters"
@@ -2749,6 +2789,16 @@ export interface TriggeredAbility {
   optional?: boolean;
   /** Rule 603.4's intervening-if. See `TriggerCondition`. */
   onlyIf?: TriggerCondition;
+  /**
+   * "Alliance - choose one **that hasn't been chosen this turn**" - Gala
+   * Greeters. A modal trigger whose engine-picked mode rotates: each firing this
+   * turn takes the first mode not yet used on this source, tracked in
+   * `CardInstance.modesChosenThisTurn`. Absent, a modal trigger simply takes its
+   * first mode every time (Elder Gargaroth).
+   */
+  modalOncePerTurn?: boolean;
+  /** "Whenever you draw your **second** card each turn" - Gixian Puppeteer. `card-drawn` only; fires only on the drawer's Nth draw. */
+  nthDrawThisTurn?: number;
 }
 
 export interface ActivatedAbilityCost {
@@ -3849,6 +3899,12 @@ export interface CardInstance {
   otherCounters: number;
   /** Loyalty on a planeswalker. Zero on everything else. */
   loyalty: number;
+  /** Modal-trigger modes already taken on this permanent this turn - Gala Greeters' "hasn't been chosen this turn". Cleared each cleanup. */
+  modesChosenThisTurn: string[];
+  /** Creature subtypes granted on the battlefield - Liliana's "that creature is a black Zombie". Cleared on any zone change. */
+  grantedSubtypes?: string[];
+  /** Colors granted on the battlefield - the "black" half of the same reanimation. Cleared on any zone change. */
+  grantedColors?: Color[];
   /**
    * The creature this was cast to bestow onto, remembered from the cast until
    * the permanent arrives - the stack object is long gone by then.

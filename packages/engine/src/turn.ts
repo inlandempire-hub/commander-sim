@@ -405,7 +405,10 @@ function runAutomaticStepActions(state: GameState): void {
         }
       }
       for (const player of state.players) {
-        for (const instance of player.battlefield) instance.loyaltyUsedThisTurn = false;
+        for (const instance of player.battlefield) {
+          instance.loyaltyUsedThisTurn = false;
+          instance.modesChosenThisTurn = [];
+        }
       }
       for (const player of state.players) {
         for (const instance of player.battlefield) {

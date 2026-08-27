@@ -271,6 +271,9 @@ export function hasCreatureType(state: GameState, instance: CardInstance, subtyp
   // "a 1/1 **Blinkmoth** artifact creature" - the types an animated land gains,
   // which is what makes Blinkmoth Nexus able to pump itself.
   if (instance.animation?.subtypes.includes(subtype)) return true;
+  // "That creature is a black **Zombie** in addition to its other types" -
+  // Liliana, Death's Majesty, granted as it is reanimated so her -7 spares it.
+  if (instance.grantedSubtypes?.includes(subtype)) return true;
   return requireDefinition(state, instance.definitionId).subtypes?.includes(subtype) ?? false;
 }
 

@@ -152,6 +152,7 @@ export function createCardInstance(
     otherCounters: 0,
     loyalty: 0,
     loyaltyUsedThisTurn: false,
+    modesChosenThisTurn: [],
     timeCounters: 0,
     prepared: false,
     isTokenCopy: false,
@@ -265,6 +266,8 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   // it fires after this has run, so resetting here would wipe the board for 0.
   instance.grantedKeywords = []; // an until-end-of-turn grant belongs to the object it was given to, not to the card
   instance.grantedTriggers = []; // likewise for a granted ability - Root Manipulation's does not follow the card out
+  instance.grantedSubtypes = undefined; // Liliana's reanimation grant belongs to that object, not the card
+  instance.grantedColors = undefined;
   instance.minusOneCounters = 0; // a zone change makes a new object, counters and all
   instance.otherCounters = 0;
   instance.loyaltyUsedThisTurn = false;

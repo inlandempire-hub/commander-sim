@@ -655,6 +655,12 @@ export function fireCardDrawn(state: GameState, drawingPlayerId: string): void {
         const scope = trigger.watchFor?.controlledBy;
         if (scope === "you" && drawingPlayerId !== watcher.controllerId) continue;
         if (scope === "opponent" && drawingPlayerId === watcher.controllerId) continue;
+        // "Whenever you draw your **second** card each turn" - Gixian Puppeteer.
+        // drawCard has already counted this draw, so the count is inclusive.
+        if (trigger.nthDrawThisTurn !== undefined) {
+          const drawer = state.players.find((p) => p.id === drawingPlayerId);
+          if ((drawer?.cardsDrawnThisTurn ?? 0) !== trigger.nthDrawThisTurn) continue;
+        }
         pushTrigger(state, watcher.instanceId, watcher.controllerId, trigger, undefined, drawingPlayerId);
       }
     }
@@ -1121,7 +1127,24 @@ function pushTriggerOnce(
    * one shape: by the time anything downstream sees the effect, X is a number.
    */
   const chosenX = findInstance(state, sourceInstanceId)?.instance.chosenX ?? 0;
-  const effect = resolveAmounts(trigger.effect, { x: chosenX, eventAmount });
+  let effect = resolveAmounts(trigger.effect, { x: chosenX, eventAmount });
+
+  /*
+   * A modal trigger's mode is chosen as it goes on the stack (rule 603.3c). No
+   * UI to ask, so the engine takes the first mode - or, for Gala Greeters'
+   * Alliance, the first mode not already taken on this source this turn, which
+   * is what "hasn't been chosen this turn" means. Same documented posture the
+   * search and edict effects take.
+   */
+  if (effect.kind === "modal") {
+    const src = findInstance(state, sourceInstanceId)?.instance;
+    const taken = src?.modesChosenThisTurn ?? [];
+    const mode =
+      (trigger.modalOncePerTurn ? effect.modes.find((m) => !taken.includes(m.label)) : undefined) ??
+      effect.modes[0]!;
+    if (src && trigger.modalOncePerTurn) src.modesChosenThisTurn.push(mode.label);
+    effect = mode.effect;
+  }
 
   /*
    * A trigger that targets is pointed at something before it goes on the

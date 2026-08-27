@@ -703,6 +703,16 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Deal ${effect.amount} damage to each creature.`;
     case "eachCreatureDamagesController":
       return `Each creature deals ${effect.amount} damage to its controller.`;
+    case "discardAnyNumberDrawThatMany":
+      return `Discard any number of cards, then draw that many cards${effect.plusOne ? " plus one" : ""}.`;
+    case "revealTopDrainByManaValue":
+      return "Reveal the top card of your library and put it into your hand. Each opponent loses X life and you gain X life, where X is that card's mana value.";
+    case "revealToHandRestToGraveyard":
+      return `Reveal the top ${effect.amount} cards of your library. You may put a ${listOr(effect.cardTypes.map((t) => t.toLowerCase()))} card from among them into your hand. Put the rest into your graveyard.`;
+    case "millAndBranchToken":
+      return "Mill a card. Create a Treasure token if it's a land, a 1/1 green Insect if it's a creature, or a Blood token otherwise.";
+    case "eachPlayerFetchBasics":
+      return `Each player may search their library for up to ${effect.count} basic land cards, put them onto the battlefield${effect.tapped ? " tapped" : ""}, then shuffle.`;
     case "drain":
       return `Each opponent loses ${plainAmount(effect.amount)} life. You gain life equal to the life lost this way.`;
     case "returnAllFromGraveyard": {
@@ -963,7 +973,11 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
     case "returnFromGraveyard":
     case "returnFromExile": {
       const where = effect.destination === "hand" ? "to your hand" : "to the battlefield";
-      return `Return ${describeTarget(effect.target)} ${where}.`;
+      const also =
+        effect.kind === "returnFromGraveyard" && effect.alsoType
+          ? ` That permanent is ${effect.alsoType.colors.map((c) => colorWord(c)).join(" and ")} ${effect.alsoType.subtypes.join(" ")} in addition to its other colors and types.`
+          : "";
+      return `Return ${describeTarget(effect.target)} ${where}.${also}`;
     }
     case "modal": {
       // The printed wording: "Choose one - A; or B."
@@ -1600,6 +1614,8 @@ function describeTrigger(
       // "this token" on a token, which is the word its creator's card prints -
       // "create a 1/1 Pest with 'Whenever this token attacks...'".
       return `Whenever this ${self.isToken ? "token" : "creature"} attacks, ${tail}`;
+    case "attacks-or-blocks":
+      return `Whenever this creature attacks or blocks, ${tail}`;
     case "combat-damage-to-player": {
       const subject = ability.watchFor?.attachedToThis
         ? "equipped creature"
@@ -1728,6 +1744,11 @@ function describeTrigger(
       const who = ability.watchFor?.controlledBy;
       const [subject, verb] =
         who === "opponent" ? ["an opponent", "draws"] : who === "you" ? ["you", "draw"] : ["a player", "draws"];
+      // "Whenever you draw your second card each turn" - Gixian Puppeteer.
+      if (ability.nthDrawThisTurn !== undefined) {
+        const ord = ability.nthDrawThisTurn === 2 ? "second" : ability.nthDrawThisTurn === 3 ? "third" : `${ability.nthDrawThisTurn}th`;
+        return `Whenever ${subject} ${verb} your ${ord} card each turn, ${tail}`;
+      }
       return `Whenever ${subject} ${verb} a card, ${tail}`;
     }
   }

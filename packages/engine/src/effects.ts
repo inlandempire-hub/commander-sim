@@ -1959,6 +1959,91 @@ export function applyEffect(
       }
       return;
     }
+    case "discardAnyNumberDrawThatMany": {
+      // Rummage. No UI values a discard, so the engine takes the safe zero and
+      // draws only the guaranteed extra, if any (Brass's "plus one").
+      if (effect.plusOne) drawCard(state, controllerId, 1);
+      return;
+    }
+    case "revealTopDrainByManaValue": {
+      // "Reveal the top card, put it into your hand. Each opponent loses X, you
+      // gain X, where X is that card's mana value." - Twilight Prophet.
+      const top = controller.library[0];
+      if (!top) return;
+      const x = manaValue(requireDefinition(state, top.definitionId).manaCost ?? { generic: 0, colors: {} });
+      log(state, `${controllerId} reveals ${cardName(state, top.instanceId)} (mana value ${x})`);
+      moveCard(state, top.instanceId, "hand");
+      if (x > 0) {
+        for (const p of state.players) {
+          if (p.id === controllerId || p.hasLost) continue;
+          p.life -= x;
+          log(state, `${p.id} loses ${x} life`);
+        }
+        gainLife(state, controllerId, x);
+      }
+      return;
+    }
+    case "revealToHandRestToGraveyard": {
+      // "Reveal the top N. You may put a [creature or land] into your hand. Put
+      // the rest into your graveyard." - Grisly Salvage. Engine takes the first
+      // eligible card, its documented search posture.
+      const looked = controller.library.slice(0, effect.amount).map((c) => c.instanceId);
+      const taken = looked.find((id) => {
+        const def = requireDefinition(state, findInstance(state, id)!.instance.definitionId);
+        return effect.cardTypes.some((t) => def.types.includes(t));
+      });
+      for (const id of looked) {
+        if (id === taken) {
+          moveCard(state, id, "hand");
+          log(state, `${controllerId} puts ${cardName(state, id)} into their hand`);
+        } else {
+          moveCard(state, id, "graveyard");
+        }
+      }
+      return;
+    }
+    case "millAndBranchToken": {
+      // "Mill a card; a Treasure for a land, a 1/1 Insect for a creature, a Blood
+      // for anything else." - Old Rutstein.
+      const top = controller.library[0];
+      if (!top) return;
+      const def = requireDefinition(state, top.definitionId);
+      moveCard(state, top.instanceId, "graveyard");
+      log(state, `${controllerId} mills ${def.name}`);
+      const tokenId = def.types.includes("Land")
+        ? effect.landToken
+        : def.types.includes("Creature")
+          ? effect.creatureToken
+          : effect.otherToken;
+      enteredBattlefield(state, createCardInstance(state, tokenId, controllerId, "battlefield"));
+      return;
+    }
+    case "eachPlayerFetchBasics": {
+      // "Each player may search for up to N basic lands, put them onto the
+      // battlefield, then shuffle." - Veteran Explorer. The engine fetches up to
+      // N basics for every player, in turn order from the controller.
+      const order = [
+        ...state.players.slice(state.players.findIndex((p) => p.id === controllerId)),
+        ...state.players.slice(0, state.players.findIndex((p) => p.id === controllerId)),
+      ];
+      for (const player of order) {
+        if (player.hasLost) continue;
+        const basics = player.library
+          .filter((c) => requireDefinition(state, c.definitionId).supertypes?.includes("Basic"))
+          .slice(0, effect.count)
+          .map((c) => c.instanceId);
+        for (const id of basics) {
+          moveCard(state, id, "battlefield");
+          if (effect.tapped) {
+            const found = findInstance(state, id);
+            if (found) found.instance.tapped = true;
+          }
+        }
+        if (basics.length > 0) log(state, `${player.id} fetches ${basics.length} basic land${basics.length === 1 ? "" : "s"}`);
+        shuffleLibrary(state, player.id);
+      }
+      return;
+    }
     case "drain": {
       // "Each opponent loses X life. You gain life equal to the life lost this
       // way." - Exsanguinate. Sum what each living opponent actually lost, then
@@ -2312,6 +2397,15 @@ export function applyEffect(
         if (effect.destination === "battlefield") {
           // Reanimation is a genuine enters-the-battlefield event, triggers and all.
           putOntoBattlefield(state, target.instanceId);
+          // "That creature is a black Zombie in addition to its other colors and
+          // types" - Liliana, stamped on the new permanent so her -7 spares it.
+          if (effect.alsoType) {
+            const back = findInstance(state, target.instanceId);
+            if (back && back.instance.zone === "battlefield") {
+              back.instance.grantedSubtypes = [...effect.alsoType.subtypes];
+              back.instance.grantedColors = [...effect.alsoType.colors];
+            }
+          }
         } else {
           moveCard(state, target.instanceId, "hand");
         }
