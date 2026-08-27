@@ -1707,6 +1707,25 @@ export type Effect =
    * symmetric ability, run for the controller and the owner in turn.
    */
   | { kind: "pendantDraw" }
+  /** "You may cast a creature spell from your graveyard this turn." - Chainer's discard ability. */
+  | { kind: "enableCastCreatureFromGraveyard" }
+  /**
+   * "Reveal the top N cards. You may put a land card from among them onto the
+   * battlefield tapped. Put the rest into your graveyard." - Shigeki's first
+   * ability. The engine takes the first revealed land.
+   */
+  | { kind: "revealPutLandRestGraveyard"; amount: number }
+  /**
+   * "Return X target nonlegendary cards from your graveyard to your hand." -
+   * Shigeki's Channel. The engine takes the X most valuable, its documented
+   * search posture.
+   */
+  | { kind: "returnManyFromGraveyard"; max: Amount; nonlegendaryOnly?: boolean }
+  /**
+   * "It gains haste until your next turn." granted to the permanent the event was
+   * about - Chainer's arrival trigger, aimed at the creature that just entered.
+   */
+  | { kind: "grantHasteToEventPermanent" }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -2889,6 +2908,8 @@ export interface TriggeredAbility {
      * against its own `attachedTo` rather than against a class of permanents.
      */
     attachedToThis?: boolean;
+    /** "if you didn't cast it from your hand" - Chainer, on a creature that entered another way. */
+    notCastFromHand?: boolean;
     /**
      * Whose permanent it has to be, relative to the watcher's controller.
      *
@@ -2988,6 +3009,8 @@ export interface ActivatedAbilityCost {
   exileFromGraveyard?: number;
   /** "Remove a wish counter from this artifact" as a cost - Wishclaw Talisman. */
   removeOtherCounter?: number;
+  /** "Return Shigeki to its owner's hand" as a cost - Shigeki, Jukai Visionary. */
+  returnSelfToHand?: boolean;
 }
 
 /**
@@ -3946,6 +3969,8 @@ export interface CardDefinition {
    * widens from a basic land to any card. Used in place of `castEffect`.
    */
   cleaveEffect?: Effect;
+  /** "During your turn, nonland permanent cards in your graveyard have retrace." - Six. */
+  grantsRetrace?: boolean;
   /** Whether this card can legally be someone's commander (legendary creature, or explicitly says so). */
   canBeCommander?: boolean;
   tier: "vanilla" | "scripted" | "weird";
@@ -4046,6 +4071,8 @@ export interface CardInstance {
   otherCounters: number;
   /** Loyalty on a planeswalker. Zero on everything else. */
   loyalty: number;
+  /** Whether this permanent was cast from its owner's hand - Chainer reads it to decide haste. */
+  wasCastFromHand?: boolean;
   /** Modal-trigger modes already taken on this permanent this turn - Gala Greeters' "hasn't been chosen this turn". Cleared each cleanup. */
   modesChosenThisTurn: string[];
   /** Creature subtypes granted on the battlefield - Liliana's "that creature is a black Zombie". Cleared on any zone change. */
@@ -4956,6 +4983,8 @@ export interface Player {
   spellTypesCastThisTurn: CardType[][];
   /** Cards drawn this turn - Spirit of the Labyrinth's limit is checked against it. */
   cardsDrawnThisTurn: number;
+  /** "You may cast a creature spell from your graveyard this turn." - Chainer. Cleared each cleanup. */
+  mayCastCreatureFromGraveyardThisTurn?: boolean;
   /**
    * Poison counters. Ten of them loses the game, checked as a state-based
    * action beside the life total.

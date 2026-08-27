@@ -534,6 +534,8 @@ export interface TriggerSubject {
    * resolved and gone.
    */
   freeSpell?: boolean;
+  /** Whether the permanent was cast from its owner's hand - Chainer's "if you didn't cast it from your hand". */
+  wasCastFromHand?: boolean;
 }
 
 export function describeSubject(
@@ -550,6 +552,7 @@ export function describeSubject(
     counters: instance.plusOneCounters,
     isToken: definition.isToken === true,
     tapped: instance.tapped,
+    wasCastFromHand: instance.wasCastFromHand === true,
   };
 }
 
@@ -1044,6 +1047,9 @@ export function matchesWatchFor(
    */
   if (watchFor.freeSpell && !subject.freeSpell) return false;
   if (watchFor.nontoken && subject.isToken) return false;
+  // "if you didn't cast it from your hand" - Chainer, on a creature that arrived
+  // by any route other than a hand cast (reanimation, a token, a graveyard cast).
+  if (watchFor.notCastFromHand && subject.wasCastFromHand) return false;
   if (watchFor.controlledBy) {
     if (!watcherControllerId) return false;
     const mine = subject.controllerId === watcherControllerId;

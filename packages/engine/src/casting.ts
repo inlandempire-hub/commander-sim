@@ -165,6 +165,8 @@ export interface CastOptions {
   payOffspring?: boolean;
   /** "You may pay an additional {1}{G} as you cast this spell." - the kicker on Urborg Repossession. */
   kicked?: boolean;
+  /** The land discarded to retrace a permanent card from the graveyard - Six. */
+  retraceDiscard?: string;
   /** Creatures tapped to help pay for a convoke spell - Pile On. Each pays {1} or one mana of its colour. */
   convokeCreatures?: string[];
   /**
@@ -303,11 +305,33 @@ export function castSpell(
     !options.fromCommandZone &&
     !options.useWarp;
   const def0 = requireDefinition(state, instance.definitionId);
+  const isYourTurn = state.players[state.activePlayerIndex]?.id === playerId;
+  const def0IsPermanent = def0.types.some((t) => PERMANENT_TYPES.has(t));
+  // "Retrace - cast permanent cards from your graveyard by discarding a land." -
+  // Six grants it to every nonland permanent card in your graveyard on your turn.
+  const castingViaRetrace =
+    instance.zone === "graveyard" &&
+    isYourTurn &&
+    def0IsPermanent &&
+    !def0.types.includes("Land") &&
+    options.retraceDiscard !== undefined &&
+    state.players.some((p) =>
+      p.id === playerId &&
+      p.battlefield.some((c) => state.cardDefinitions[c.definitionId]?.grantsRetrace),
+    );
+  // "You may cast a creature spell from your graveyard this turn." - Chainer,
+  // whose activated ability set the flag.
+  const castingViaChainer =
+    instance.zone === "graveyard" &&
+    def0.types.includes("Creature") &&
+    requirePlayer(state, playerId).mayCastCreatureFromGraveyardThisTurn === true;
   // "You may cast this card from your graveyard by removing six counters..." -
   // Quilled Greatwurm's own door into the graveyard, distinct from Warp's exile
   // one and gated on the card carrying the permission.
   const castingFromGraveyard =
-    instance.zone === "graveyard" && def0.castFromGraveyard !== undefined && !options.fromCommandZone;
+    instance.zone === "graveyard" &&
+    (def0.castFromGraveyard !== undefined || castingViaRetrace || castingViaChainer) &&
+    !options.fromCommandZone;
   const expectedZone = options.fromCommandZone ? "command" : "hand";
   if (!fromExile && !castingFromWarpExile && !castingFromGraveyard && instance.zone !== expectedZone) {
     throw new Error(`${instanceId} is not in ${playerId}'s ${expectedZone} zone`);
@@ -471,8 +495,8 @@ export function castSpell(
    * with the mana below - so an unaffordable cast takes no counters off first.
    */
   const removeCounterFrom = options.removeCounterFrom ?? [];
-  if (castingFromGraveyard) {
-    const need = def.castFromGraveyard!.removeCounters;
+  if (castingFromGraveyard && def.castFromGraveyard) {
+    const need = def.castFromGraveyard.removeCounters;
     if (removeCounterFrom.length !== need) {
       throw new Error(`${def.name} needs ${need} counters removed to cast from the graveyard`);
     }
@@ -662,6 +686,17 @@ export function castSpell(
   }
   const payment = payManaCostFor(player, cost, def);
   const restrictionsUsed = payment.restrictions;
+  // Retrace: discard a land as the additional cost (Six). Chainer's permission
+  // to cast a creature from the graveyard is spent as it is used.
+  if (castingViaRetrace && options.retraceDiscard) {
+    const land = player.hand.find((c) => c.instanceId === options.retraceDiscard);
+    if (!land || !requireDefinition(state, land.definitionId).types.includes("Land")) {
+      throw new Error("Retrace requires discarding a land card");
+    }
+    log(state, `${playerId} discards ${cardNameOf(state, land.definitionId)} (retrace)`);
+    moveCard(state, land.instanceId, "graveyard");
+  }
+  if (castingViaChainer) player.mayCastCreatureFromGraveyardThisTurn = false;
   // Delve's exiles are paid in the same breath as the mana.
   for (const id of delved) moveCard(state, id, "exile");
   if (delved.length > 0) log(state, `${playerId} delves, exiling ${delved.length} card${delved.length === 1 ? "" : "s"}`);
@@ -716,8 +751,12 @@ export function castSpell(
   // Offspring: remembered on the card so the token copy is made as it enters,
   // long after the stack object has gone.
   if (options.payOffspring) instance.offspringPaid = true;
+  // "if you didn't cast it from your hand" - Chainer. Remembered before the card
+  // leaves for the stack, so the permanent it becomes knows how it was cast.
+  const castFromHand = instance.zone === "hand";
 
   moveCard(state, instanceId, "stack");
+  instance.wasCastFromHand = castFromHand;
   log(state, `${playerId} casts ${def.name}`);
 
   if (options.fromCommandZone) {

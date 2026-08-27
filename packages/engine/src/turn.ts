@@ -358,6 +358,7 @@ function runAutomaticStepActions(state: GameState): void {
         // Spirit of the Labyrinth's are per turn, so they reset with it.
         player.spellTypesCastThisTurn = [];
         player.cardsDrawnThisTurn = 0;
+        player.mayCastCreatureFromGraveyardThisTurn = false; // Chainer's permission is "this turn"
       }
       /*
        * "Your maximum hand size is five." - Necrodominance, and the ordinary

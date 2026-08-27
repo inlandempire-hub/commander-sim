@@ -2310,6 +2310,59 @@ export function applyEffect(
       }
       return;
     }
+    case "enableCastCreatureFromGraveyard": {
+      // "You may cast a creature spell from your graveyard this turn." - Chainer.
+      controller.mayCastCreatureFromGraveyardThisTurn = true;
+      log(state, `${controllerId} may cast a creature spell from their graveyard this turn`);
+      return;
+    }
+    case "revealPutLandRestGraveyard": {
+      // "Reveal the top N. You may put a land onto the battlefield tapped. Put
+      // the rest into your graveyard." - Shigeki. Engine takes the first land.
+      const looked = controller.library.slice(0, effect.amount).map((c) => c.instanceId);
+      const land = looked.find((id) => requireDefinition(state, findInstance(state, id)!.instance.definitionId).types.includes("Land"));
+      for (const id of looked) {
+        if (id === land) {
+          moveCard(state, id, "battlefield");
+          const found = findInstance(state, id);
+          if (found) found.instance.tapped = true;
+          log(state, `${controllerId} puts ${cardName(state, id)} onto the battlefield tapped`);
+        } else {
+          moveCard(state, id, "graveyard");
+        }
+      }
+      return;
+    }
+    case "returnManyFromGraveyard": {
+      // "Return X target nonlegendary cards from your graveyard to your hand." -
+      // Shigeki's Channel. Engine takes the highest mana values.
+      const max = evaluateAmount(state, controllerId, effect.max, "return count", sourceInstanceId);
+      const eligible = controller.graveyard
+        .filter((c) => {
+          const def = requireDefinition(state, c.definitionId);
+          if (effect.nonlegendaryOnly && def.supertypes?.includes("Legendary")) return false;
+          return true;
+        })
+        .sort((a, b) => manaValue(requireDefinition(state, b.definitionId).manaCost ?? { generic: 0, colors: {} }) - manaValue(requireDefinition(state, a.definitionId).manaCost ?? { generic: 0, colors: {} }))
+        .slice(0, max)
+        .map((c) => c.instanceId);
+      for (const id of eligible) moveCard(state, id, "hand");
+      if (eligible.length > 0) log(state, `${controllerId} returns ${eligible.length} card${eligible.length === 1 ? "" : "s"} from their graveyard`);
+      return;
+    }
+    case "grantHasteToEventPermanent": {
+      // "It gains haste until your next turn." - Chainer, granted to the creature
+      // the arrival event was about (the trigger's card target).
+      const subject = targets.find((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card");
+      if (!subject) return;
+      const found = findInstance(state, subject.instanceId);
+      if (found && found.instance.zone === "battlefield") {
+        found.instance.grantedKeywordsUntilYourNextTurn.push("Haste");
+        found.instance.summoningSickness = false;
+        log(state, `${cardName(state, subject.instanceId)} gains haste`);
+      }
+      return;
+    }
     case "loot": {
       // "You may discard a card. If you do, draw a card." - Restless Vents. The
       // engine takes the loot: discard from the back of hand, then draw as many.

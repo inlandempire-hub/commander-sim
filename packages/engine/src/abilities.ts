@@ -19,7 +19,7 @@ import { sacrificePermanent } from "./sba.js";
 import { isValidTarget, legalTargetsFor, targetSelectorOf } from "./targeting.js";
 import { canCastAtSorcerySpeed } from "./casting.js";
 import { attemptWardPayments } from "./ward.js";
-import { resolveAmounts } from "./x.js";
+import { costWithX, resolveAmounts } from "./x.js";
 
 /**
  * Which of a permanent's activated abilities its controller could use right
@@ -315,7 +315,7 @@ export function activateAbility(
    * which cards to discard for Psychic Frog's "Discard a card", paid on
    * activation the way a spell's sacrifice cost is.
    */
-  options: { discardInstanceIds?: string[] } = {},
+  options: { discardInstanceIds?: string[]; chosenX?: number } = {},
 ): void {
   const found = findInstance(state, instanceId);
   if (!found) throw new Error(`Unknown card instance: ${instanceId}`);
@@ -358,7 +358,10 @@ export function activateAbility(
   if (ability.onlyOncePerGame && instance.abilitiesUsedThisGame.includes(abilityIndex)) {
     throw new Error(`${def.name} has already used that ability`);
   }
-  const manaCost = abilityManaCost(state, playerId, ability, instance);
+  const baseManaCost = abilityManaCost(state, playerId, ability, instance);
+  // Channel and the other {X} abilities: X is announced with the activation, and
+  // each {X} symbol adds X generic - Shigeki's {X}{X}{G}{G}.
+  const manaCost = baseManaCost ? costWithX(baseManaCost, options.chosenX ?? 0) : baseManaCost;
   if (manaCost && !canPayManaCost(player, manaCost)) {
     throw new Error(`${playerId} cannot pay the activation cost of ${def.name}`);
   }
@@ -472,6 +475,12 @@ export function activateAbility(
     log(state, `${playerId} exiles ${def.name}`);
     moveCard(state, instanceId, "exile");
   }
+  // "Return Shigeki to its owner's hand" as a cost - the ability still resolves
+  // from a source that has left the battlefield.
+  if (ability.cost.returnSelfToHand) {
+    log(state, `${playerId} returns ${def.name} to their hand`);
+    moveCard(state, instanceId, "hand");
+  }
   /*
    * "Sacrifice a Treasure" - paid here with the rest of the cost, so the
    * Treasure is gone before the ability resolves and the mana it could have made
@@ -583,7 +592,7 @@ export function activateAbility(
       state.passesInSuccession = 0;
       return;
     }
-    pushOntoStack(state, instanceId, playerId, resolveAmounts(effect, { x: 0, sourceCounters }), targets, false);
+    pushOntoStack(state, instanceId, playerId, resolveAmounts(effect, { x: options.chosenX ?? 0, sourceCounters }), targets, false);
     state.passesInSuccession = 0;
   }
 }

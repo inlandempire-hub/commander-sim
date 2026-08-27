@@ -203,6 +203,9 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   if (!found) throw new Error(`Cannot move unknown instance: ${instanceId}`);
   const { instance } = found;
   const owner = requirePlayer(state, instance.ownerId);
+  // "Cast from hand" is a property of this cast; a card that leaves for anywhere
+  // but the stack or battlefield (dying, being tucked) is no longer one.
+  if (destination !== "battlefield" && destination !== "stack") instance.wasCastFromHand = false;
 
   if (instance.zone === "stack") {
     const idx = state.stackCards.indexOf(instance);

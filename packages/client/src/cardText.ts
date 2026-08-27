@@ -746,6 +746,14 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Surveil ${effect.amount}.`;
     case "giveControlToOpponent":
       return "An opponent gains control of this permanent.";
+    case "enableCastCreatureFromGraveyard":
+      return "You may cast a creature spell from your graveyard this turn.";
+    case "revealPutLandRestGraveyard":
+      return `Reveal the top ${effect.amount} cards of your library. You may put a land card from among them onto the battlefield tapped. Put the rest into your graveyard.`;
+    case "returnManyFromGraveyard":
+      return `Return ${plainAmount(effect.max)} target ${effect.nonlegendaryOnly ? "nonlegendary " : ""}cards from your graveyard to your hand.`;
+    case "grantHasteToEventPermanent":
+      return "It gains haste until your next turn.";
     case "millTakeLandToHand":
       return `Mill ${effect.amount} cards. You may put a land card from among them into your hand.`;
     case "pendantDraw":
