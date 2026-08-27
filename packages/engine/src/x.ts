@@ -128,6 +128,9 @@ export function resolveAmounts(effect: Effect, values: AmountContext): Effect {
       // "mill *that many* cards" - the combat damage dealt, carried as an
       // event-amount and settled here as the trigger goes on the stack.
       return { ...effect, amount: value(effect.amount, values) };
+    case "returnManyFromGraveyard":
+      // "Return **X** target nonlegendary cards" - Shigeki's Channel.
+      return { ...effect, max: value(effect.max, values) };
     case "sacrificeChosen":
       /*
        * The "if you do" half is *not* substituted here, and that is the point
