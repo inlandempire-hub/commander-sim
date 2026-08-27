@@ -18348,6 +18348,224 @@ export const PULSE_OF_MURASA: CardDefinition = {
   tier: "scripted",
 };
 
+/* ---------------------------------------------------------------------------
+ * Winter chaos deck - batch 4 (2026-08-27). Tokens the deck needs, then seven
+ * more cards on the round-1 engine capabilities.
+ * ------------------------------------------------------------------------- */
+
+// 3/3 green Beast - Elder Gargaroth's token.
+export const TOKEN_G_33_BEAST: CardDefinition = {
+  id: "token-g-33-beast",
+  name: "Beast",
+  types: ["Creature"],
+  subtypes: ["Beast"],
+  colorIdentity: ["G"],
+  power: 3,
+  toughness: 3,
+  isToken: true,
+  tier: "vanilla",
+};
+
+// Blood token - "{1}, {T}, Discard a card, Sacrifice this artifact: Draw a card."
+export const TOKEN_BLOOD: CardDefinition = {
+  id: "token-blood",
+  name: "Blood",
+  types: ["Artifact"],
+  subtypes: ["Blood"],
+  colorIdentity: [],
+  isToken: true,
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: {} }, tap: true, discard: 1, sacrificeSelf: true },
+      effect: { kind: "draw", amount: 1 },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Reach, vigilance, trample; attacks or blocks -> choose one.
+export const ELDER_GARGAROTH: CardDefinition = {
+  id: "elder-gargaroth",
+  name: "Elder Gargaroth",
+  scryfallId: "d51269cf-a333-4a64-94cd-245798d840d2",
+  types: ["Creature"],
+  subtypes: ["Beast"],
+  manaCost: { generic: 3, colors: { G: 2 } },
+  colorIdentity: ["G"],
+  power: 6,
+  toughness: 6,
+  keywords: ["Reach", "Vigilance", "Trample"],
+  triggeredAbilities: [
+    {
+      event: "attacks-or-blocks",
+      effect: {
+        kind: "modal",
+        modes: [
+          { label: "Create a 3/3 green Beast creature token", effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-g-33-beast" } },
+          { label: "You gain 3 life", effect: { kind: "gainLife", amount: 3 } },
+          { label: "Draw a card", effect: { kind: "draw", amount: 1 } },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Flying, Ascend. Upkeep with the city's blessing: reveal top, to hand, drain MV.
+export const TWILIGHT_PROPHET: CardDefinition = {
+  id: "twilight-prophet",
+  name: "Twilight Prophet",
+  scryfallId: "050ca791-265a-4e7b-9640-4fd5a6d8cd3a",
+  types: ["Creature"],
+  subtypes: ["Vampire", "Cleric"],
+  manaCost: { generic: 2, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  power: 2,
+  toughness: 4,
+  keywords: ["Flying"],
+  ascend: true,
+  triggeredAbilities: [
+    {
+      event: "upkeep",
+      watches: "controller",
+      onlyIf: { kind: "board", condition: { kind: "citys-blessing" } },
+      effect: { kind: "revealTopDrainByManaValue" },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Draw your second card each turn -> drain 2. Dies -> reanimate a small creature.
+export const GIXIAN_PUPPETEER: CardDefinition = {
+  id: "gixian-puppeteer",
+  name: "Gixian Puppeteer",
+  scryfallId: "2cc86e18-ffbc-4c5f-a694-922332b146cc",
+  types: ["Creature"],
+  subtypes: ["Phyrexian", "Warlock"],
+  manaCost: { generic: 3, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  power: 4,
+  toughness: 3,
+  triggeredAbilities: [
+    {
+      event: "card-drawn",
+      watchFor: { controlledBy: "you" },
+      nthDrawThisTurn: 2,
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "loseLife", amount: 2, who: "each-opponent" },
+          { kind: "gainLife", amount: 2 },
+        ],
+      },
+    },
+    {
+      event: "dies",
+      effect: {
+        kind: "returnFromGraveyard",
+        destination: "battlefield",
+        target: { kind: "card-in-your-graveyard", cardType: "Creature", maxManaValue: 3 },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Planeswalker: make a Zombie + mill; reanimate as a Zombie; wrath non-Zombies.
+export const LILIANA_DEATHS_MAJESTY: CardDefinition = {
+  id: "liliana-deaths-majesty",
+  name: "Liliana, Death's Majesty",
+  scryfallId: "b63ae119-f91e-4d0d-8bbd-65350a4d47c4",
+  types: ["Planeswalker"],
+  supertypes: ["Legendary"],
+  subtypes: ["Liliana"],
+  manaCost: { generic: 3, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  loyalty: 5,
+  loyaltyAbilities: [
+    {
+      cost: 1,
+      label: "Create a 2/2 black Zombie creature token. Mill two cards.",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "createToken", count: 1, tokenDefinitionId: "token-b-22-zombie" },
+          { kind: "mill", amount: 2 },
+        ],
+      },
+    },
+    {
+      cost: -3,
+      label: "Return target creature card from your graveyard to the battlefield as a black Zombie.",
+      effect: {
+        kind: "returnFromGraveyard",
+        destination: "battlefield",
+        target: { kind: "card-in-your-graveyard", cardType: "Creature" },
+        alsoType: { subtypes: ["Zombie"], colors: ["B"] },
+      },
+    },
+    {
+      cost: -7,
+      label: "Destroy all non-Zombie creatures.",
+      effect: { kind: "destroyAll", cardTypes: ["Creature"], excludeSubtype: "Zombie" },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Reveal five, take a creature or land to hand, rest to the graveyard.
+export const GRISLY_SALVAGE: CardDefinition = {
+  id: "grisly-salvage",
+  name: "Grisly Salvage",
+  scryfallId: "12a90f7a-28df-4017-b221-0e9234ff74a7",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  castEffect: { kind: "revealToHandRestToGraveyard", amount: 5, cardTypes: ["Creature", "Land"] },
+  tier: "scripted",
+};
+
+// Dies: each player may fetch up to two basics.
+export const VETERAN_EXPLORER: CardDefinition = {
+  id: "veteran-explorer",
+  name: "Veteran Explorer",
+  scryfallId: "1a6c19cc-6469-4958-a547-1d0fe97c70e8",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier", "Scout"],
+  manaCost: { generic: 0, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [{ event: "dies", effect: { kind: "eachPlayerFetchBasics", count: 2 } }],
+  tier: "scripted",
+};
+
+// Enters and each upkeep: mill a card and make a token keyed to its type.
+export const OLD_RUTSTEIN: CardDefinition = {
+  id: "old-rutstein",
+  name: "Old Rutstein",
+  scryfallId: "625b8023-2ef1-4b7b-9e48-4f774fee14e0",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Human", "Peasant"],
+  manaCost: { generic: 1, colors: { B: 1, G: 1 } },
+  colorIdentity: ["B", "G"],
+  power: 1,
+  toughness: 4,
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "millAndBranchToken", landToken: "token-treasure", creatureToken: "token-g-11-insect", otherToken: "token-blood" },
+    },
+    {
+      event: "upkeep",
+      watches: "controller",
+      effect: { kind: "millAndBranchToken", landToken: "token-treasure", creatureToken: "token-g-11-insect", otherToken: "token-blood" },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -19516,5 +19734,15 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   WINTER_MISANTHROPIC_GUIDE,
   RAKDOS_CHARM,
   PULSE_OF_MURASA,
+  // Winter list, batch 4
+  TOKEN_G_33_BEAST,
+  TOKEN_BLOOD,
+  ELDER_GARGAROTH,
+  TWILIGHT_PROPHET,
+  GIXIAN_PUPPETEER,
+  LILIANA_DEATHS_MAJESTY,
+  GRISLY_SALVAGE,
+  VETERAN_EXPLORER,
+  OLD_RUTSTEIN,
   ].map((def) => [def.id, def]),
 );
