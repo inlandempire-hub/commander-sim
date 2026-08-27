@@ -1679,6 +1679,19 @@ export type Effect =
    * so no forced draw-and-loss; the descend payoff is the card's engine.
    */
   | { kind: "surveilThenDrawLose"; surveil: number; lifePerCard: number }
+  /**
+   * "Surveil N" for N greater than 1 (Pile On's Surveil 2). The engine keeps the
+   * cards on top - the safe surveil - so this looks but changes nothing, the
+   * documented shortcut the single-card `surveil` already takes for its choice.
+   */
+  | { kind: "surveilN"; amount: number }
+  /**
+   * "Return another target permanent card from your graveyard to your hand" as
+   * a kicker rider - Urborg Repossession. Untargeted and engine-picked (the best
+   * permanent card in your graveyard that is not the one already taken), so it
+   * composes into a spell that already has one target.
+   */
+  | { kind: "returnFromGraveyardAuto"; cardTypes: CardType[]; destination: "hand" | "battlefield" }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -3850,6 +3863,10 @@ export interface CardDefinition {
   };
   /** "As an additional cost to cast this spell, ..." - paid at cast time. */
   additionalCost?: AdditionalCost;
+  /** "Kicker {1}{G} ... If this spell was kicked, ..." - Urborg Repossession. An optional extra cost that runs an extra effect. */
+  kicker?: { cost: ManaCost; effect: Effect };
+  /** "Convoke" - creatures may be tapped to help pay, each for {1} or one mana of its colour (Pile On). */
+  convoke?: boolean;
   /** "You may cast this spell without paying its mana cost" - offered at cast time. */
   alternativeCost?: AlternativeCost;
   triggeredAbilities?: TriggeredAbility[];

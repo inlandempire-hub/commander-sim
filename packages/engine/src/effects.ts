@@ -2244,6 +2244,29 @@ export function applyEffect(
       if (top.length > 0) log(state, `${controllerId} surveils ${top.length}`);
       return;
     }
+    case "surveilN": {
+      // "Surveil N" - the engine keeps the cards on top, the safe choice. No-op
+      // beyond the look, exactly as single-card surveil's conservative default.
+      log(state, `${controllerId} surveils ${effect.amount}`);
+      return;
+    }
+    case "returnFromGraveyardAuto": {
+      // "Return another target permanent card from your graveyard to your hand"
+      // - Urborg's kicker. Engine-picked: the first matching card not already
+      // being returned by the base effect this resolution.
+      const alreadyTaken = new Set(
+        targets.filter((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card").map((t) => t.instanceId),
+      );
+      const pick = controller.graveyard.find((c) => {
+        if (alreadyTaken.has(c.instanceId)) return false;
+        return effect.cardTypes.some((t) => requireDefinition(state, c.definitionId).types.includes(t));
+      });
+      if (!pick) return;
+      if (effect.destination === "battlefield") putOntoBattlefield(state, pick.instanceId);
+      else moveCard(state, pick.instanceId, "hand");
+      log(state, `${controllerId} returns ${cardName(state, pick.instanceId)} from their graveyard`);
+      return;
+    }
     case "loot": {
       // "You may discard a card. If you do, draw a card." - Restless Vents. The
       // engine takes the loot: discard from the back of hand, then draw as many.

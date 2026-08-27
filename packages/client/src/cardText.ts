@@ -739,6 +739,13 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return "Each player shuffles all permanents they own into their library, then reveals that many cards from the top of their library and puts all permanent cards revealed this way onto the battlefield.";
     case "surveilThenDrawLose":
       return `Surveil ${effect.surveil}. Then for each card you put on top of your library, you draw a card and you lose ${effect.lifePerCard} life.`;
+    case "surveilN":
+      return `Surveil ${effect.amount}.`;
+    case "returnFromGraveyardAuto": {
+      const noun = listOr(effect.cardTypes.map((t) => t.toLowerCase()));
+      const where = effect.destination === "hand" ? "your hand" : "the battlefield";
+      return `Return another target ${noun} card from your graveyard to ${where}.`;
+    }
     case "loot":
       return effect.amount === 1 ? "You may discard a card. If you do, draw a card." : `You may discard up to ${effect.amount} cards. If you do, draw that many cards.`;
     case "exileGraveyardCard":

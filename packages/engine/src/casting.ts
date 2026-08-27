@@ -9,7 +9,7 @@ import {
   payManaCostFor,
   spendablePool,
 } from "./mana.js";
-import { controllerMeets } from "./conditions.js";
+import { cardColors, controllerMeets } from "./conditions.js";
 import { effectivePower, protectionFrom } from "./counters.js";
 import { sacrificePermanent } from "./sba.js";
 import { describeSubject, fireLandPlayed, fireWatchers, pushOntoStack, pushSpellCopyOntoStack, putOntoBattlefield } from "./permanents.js";
@@ -163,6 +163,10 @@ export interface CastOptions {
    * the mana cost that makes a 1/1 token copy of the creature as it enters.
    */
   payOffspring?: boolean;
+  /** "You may pay an additional {1}{G} as you cast this spell." - the kicker on Urborg Repossession. */
+  kicked?: boolean;
+  /** Creatures tapped to help pay for a convoke spell - Pile On. Each pays {1} or one mana of its colour. */
+  convokeCreatures?: string[];
   /**
    * Which creatures the +1/+1 counters come off to cast this from the graveyard
    * (Quilled Greatwurm) - one instance id per counter removed, so a creature
@@ -431,6 +435,36 @@ export function castSpell(
     cost = { ...cost, generic: cost.generic + (def.offspring.cost.generic ?? 0), colors: merged };
   }
 
+  // Kicker: an additional optional cost that unlocks an extra effect (Urborg
+  // Repossession). Merged onto the mana cost when taken, exactly like Offspring.
+  if (options.kicked) {
+    if (!def.kicker) throw new Error(`${def.name} has no kicker`);
+    const merged = { ...cost.colors };
+    for (const [color, count] of Object.entries(def.kicker.cost.colors ?? {})) {
+      merged[color as keyof typeof merged] = (merged[color as keyof typeof merged] ?? 0) + (count ?? 0);
+    }
+    cost = { ...cost, generic: cost.generic + (def.kicker.cost.generic ?? 0), colors: merged };
+  }
+
+  // Convoke: each creature tapped this way pays for {1} or one mana of its
+  // colour (Pile On). Tapped here, and the cost is reduced before the mana is
+  // paid; the engine spends each creature on a coloured pip it matches, else on
+  // generic.
+  if (options.convokeCreatures && options.convokeCreatures.length > 0) {
+    if (!def.convoke) throw new Error(`${def.name} has no convoke`);
+    for (const id of options.convokeCreatures) {
+      const found = findInstance(state, id);
+      if (!found || found.instance.controllerId !== playerId || found.instance.tapped) {
+        throw new Error(`${cardNameOf(state, found?.instance.definitionId ?? "")} cannot convoke`);
+      }
+      found.instance.tapped = true;
+      const colors = cardColors(requireDefinition(state, found.instance.definitionId));
+      const payColor = colors.find((c) => (cost.colors[c] ?? 0) > 0);
+      if (payColor) cost = { ...cost, colors: { ...cost.colors, [payColor]: (cost.colors[payColor] ?? 0) - 1 } };
+      else if (cost.generic > 0) cost = { ...cost, generic: cost.generic - 1 };
+    }
+  }
+
   /*
    * Quilled Greatwurm's graveyard cost: remove N +1/+1 counters from among your
    * creatures, one per entry in `removeCounterFrom`. Validated whole here, paid
@@ -511,6 +545,11 @@ export function castSpell(
   // The rider runs first, then the spell's own effect.
   if (options.useAlternativeCost && def.alternativeCost?.riderEffect) {
     effect = { kind: "sequence", effects: [def.alternativeCost.riderEffect, effect] };
+  }
+  // "If this spell was kicked, ..." - Urborg Repossession. The kicker's extra
+  // effect runs after the base one.
+  if (options.kicked && def.kicker) {
+    effect = { kind: "sequence", effects: [effect, def.kicker.effect] };
   }
   if (effect.kind === "modal") {
     const modes = effect.modes;
