@@ -18742,6 +18742,153 @@ export const RITES_OF_FLOURISHING: CardDefinition = {
   tier: "scripted",
 };
 
+/* ---------------------------------------------------------------------------
+ * Winter chaos deck - batch 6 (2026-08-27), on the round-3a engine capabilities.
+ * ------------------------------------------------------------------------- */
+
+// Food token - "{2}, {T}, Sacrifice this artifact: You gain 3 life."
+export const TOKEN_FOOD: CardDefinition = {
+  id: "token-food",
+  name: "Food",
+  types: ["Artifact"],
+  subtypes: ["Food"],
+  colorIdentity: [],
+  isToken: true,
+  activatedAbilities: [
+    { cost: { mana: { generic: 2, colors: {} }, tap: true, sacrificeSelf: true }, effect: { kind: "gainLife", amount: 3 } },
+  ],
+  tier: "scripted",
+};
+
+// Alliance: whenever another creature you control enters, choose an unused mode.
+export const GALA_GREETERS: CardDefinition = {
+  id: "gala-greeters",
+  name: "Gala Greeters",
+  scryfallId: "3c1baaa2-bd0b-4627-b93a-0753e0acd0f2",
+  types: ["Creature"],
+  subtypes: ["Elf", "Druid"],
+  manaCost: { generic: 1, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  power: 1,
+  toughness: 1,
+  triggeredAbilities: [
+    {
+      event: "permanent-enters",
+      watches: "controller",
+      watchFor: { type: "Creature" },
+      modalOncePerTurn: true,
+      effect: {
+        kind: "modal",
+        modes: [
+          { label: "Put a +1/+1 counter on this creature", effect: { kind: "addCounter", amount: 1 } },
+          { label: "Create a tapped Treasure token", effect: { kind: "createToken", count: 1, tokenDefinitionId: "token-treasure", tapped: true } },
+          { label: "You gain 2 life", effect: { kind: "gainLife", amount: 2 } },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Pay {1}{B} instead (an opponent draws); exile target creature or planeswalker.
+export const BALEFUL_MASTERY: CardDefinition = {
+  id: "baleful-mastery",
+  name: "Baleful Mastery",
+  scryfallId: "579e20e7-1395-4a6c-a836-ae3419fc8808",
+  types: ["Instant"],
+  manaCost: { generic: 3, colors: { B: 1 } },
+  colorIdentity: ["B"],
+  // No board condition on the printed card - the alternative is always offered.
+  // controls-lands >= 0 is trivially true, so it stands in for "always".
+  alternativeCost: {
+    condition: { kind: "controls-lands", count: 0 },
+    label: "Pay {1}{B} instead (an opponent draws a card)",
+    manaCost: { generic: 1, colors: { B: 1 } },
+    riderEffect: { kind: "draw", amount: 1, who: "an-opponent" },
+  },
+  castEffect: { kind: "exile", target: { kind: "permanent", cardTypes: ["Creature", "Planeswalker"] } },
+  tier: "scripted",
+};
+
+// Free with a commander; a one-sided fog against your opponents' creatures.
+export const OBSCURING_HAZE: CardDefinition = {
+  id: "obscuring-haze",
+  name: "Obscuring Haze",
+  scryfallId: "21c8e59c-edf1-4b4d-982d-3c891e7b96ba",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { G: 1 } },
+  colorIdentity: ["G"],
+  alternativeCost: {
+    condition: { kind: "controls-commander" },
+    label: "Cast without paying its mana cost",
+  },
+  castEffect: { kind: "preventDamageFromOpponentCreatures" },
+  tier: "scripted",
+};
+
+// Everyone floods the board from the top of their libraries.
+export const OVER_THE_TOP: CardDefinition = {
+  id: "over-the-top",
+  name: "Over the Top",
+  scryfallId: "01eb9702-55c5-41b2-8bef-63d33dafa599",
+  types: ["Sorcery"],
+  manaCost: { generic: 5, colors: { R: 2 } },
+  colorIdentity: ["R"],
+  castEffect: { kind: "revealTopPermanentsToBattlefield" },
+  tier: "scripted",
+};
+
+// Manland: B/R, becomes a 2/3 menace, loots when it attacks.
+export const RESTLESS_VENTS: CardDefinition = {
+  id: "restless-vents",
+  name: "Restless Vents",
+  scryfallId: "e628e89b-bee9-408d-bb05-1784fda6b8a1",
+  types: ["Land"],
+  colorIdentity: ["B", "R"],
+  entersTapped: true,
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "R", amount: 1 } },
+    {
+      cost: { mana: { generic: 1, colors: { B: 1, R: 1 } } },
+      effect: { kind: "animateSelf", power: 2, toughness: 3, subtypes: ["Insect"], keywords: ["Menace"] },
+    },
+  ],
+  triggeredAbilities: [{ event: "attacks", effect: { kind: "loot", amount: 1 } }],
+  tier: "scripted",
+};
+
+// Manland: B/G, becomes a 4/4, makes a Food and exiles a graveyard card on attack.
+export const RESTLESS_COTTAGE: CardDefinition = {
+  id: "restless-cottage",
+  name: "Restless Cottage",
+  scryfallId: "787eadf3-5005-4ae5-820f-4012a4d4e1a5",
+  types: ["Land"],
+  colorIdentity: ["B", "G"],
+  entersTapped: true,
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "B", amount: 1 } },
+    { cost: { tap: true }, effect: { kind: "addMana", color: "G", amount: 1 } },
+    {
+      cost: { mana: { generic: 2, colors: { B: 1, G: 1 } } },
+      effect: { kind: "animateSelf", power: 4, toughness: 4, subtypes: ["Horror"], keywords: [] },
+    },
+  ],
+  triggeredAbilities: [
+    {
+      event: "attacks",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "createToken", count: 1, tokenDefinitionId: "token-food" },
+          { kind: "exileGraveyardCard", target: { kind: "card-in-your-graveyard", anyGraveyard: true } },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -19929,5 +20076,13 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   DRUID_OF_PURIFICATION,
   ROOTWEAVER_DRUID,
   RITES_OF_FLOURISHING,
+  // Winter list, batch 6
+  TOKEN_FOOD,
+  GALA_GREETERS,
+  BALEFUL_MASTERY,
+  OBSCURING_HAZE,
+  OVER_THE_TOP,
+  RESTLESS_VENTS,
+  RESTLESS_COTTAGE,
   ].map((def) => [def.id, def]),
 );
