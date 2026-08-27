@@ -159,6 +159,10 @@ export function activatableAbilities(
     if (ability.cost.sacrificeSubtype && !sacrificeCandidate(state, playerId, ability.cost.sacrificeSubtype)) {
       return;
     }
+    // "Remove a wish counter" - unusable with no counter to remove.
+    if (ability.cost.removeOtherCounter !== undefined && instance.otherCounters < ability.cost.removeOtherCounter) return;
+    // "Activate only during your turn." - Wishclaw Talisman.
+    if (ability.onlyOnYourTurn && state.players[state.activePlayerIndex]?.id !== playerId) return;
     /*
      * Every reason this ability is unusable that is not about paying for it -
      * its colour source, its "activate only if", Gemstone Caverns' counter gate.
@@ -387,6 +391,12 @@ export function activateAbility(
   if (!controllerMeets(state, playerId, ability.activateOnlyIf)) {
     throw new Error(`${def.name}'s ability cannot be activated right now`);
   }
+  if (ability.onlyOnYourTurn && state.players[state.activePlayerIndex]?.id !== playerId) {
+    throw new Error(`${def.name}'s ability can only be activated during your turn`);
+  }
+  if (ability.cost.removeOtherCounter !== undefined && instance.otherCounters < ability.cost.removeOtherCounter) {
+    throw new Error(`${def.name} has no counter to remove`);
+  }
   if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) {
     // You may not pay life you do not have. Paying down to exactly 0 is legal
     // and loses the game to the usual state-based action - that is the real
@@ -431,6 +441,10 @@ export function activateAbility(
     const exiled = player.graveyard.slice(0, ability.cost.exileFromGraveyard).map((c) => c.instanceId);
     for (const id of exiled) moveCard(state, id, "exile");
     log(state, `${playerId} exiles ${exiled.length} card${exiled.length === 1 ? "" : "s"} from their graveyard`);
+  }
+  // "Remove a wish counter from this artifact" - Wishclaw Talisman.
+  if (ability.cost.removeOtherCounter !== undefined) {
+    instance.otherCounters = Math.max(0, instance.otherCounters - ability.cost.removeOtherCounter);
   }
   /*
    * The sacrifice happens here, as part of the cost, and that ordering is the

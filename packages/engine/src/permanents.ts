@@ -263,6 +263,12 @@ export function enteredBattlefield(
   options: { tapped?: boolean; attackingPlayerId?: string } = {},
 ): void {
   const def = requireDefinition(state, instance.definitionId);
+  // "This artifact enters under the control of an opponent of your choice." -
+  // Pendant of Prosperity. Handed to the owner's first opponent as it arrives.
+  if (def.entersUnderOpponentControl) {
+    const opponent = state.players.find((p) => p.id !== instance.ownerId && !p.hasLost);
+    if (opponent) moveControl(state, instance, opponent.id);
+  }
   /*
    * "...onto the battlefield tapped and attacking."
    *

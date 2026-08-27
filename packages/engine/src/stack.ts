@@ -134,6 +134,9 @@ function finishResolution(state: GameState, obj: StackObject): void {
   if (obj.isCopy) return;
   const source = findInstance(state, obj.sourceInstanceId);
   if (source && source.instance.zone === "stack") {
-    moveCard(state, obj.sourceInstanceId, "graveyard");
+    // "Exile Healing Technique." - a spell that exiles itself as it resolves,
+    // rather than going to the graveyard.
+    const exiles = state.cardDefinitions[source.instance.definitionId]?.exileAfterResolving;
+    moveCard(state, obj.sourceInstanceId, exiles ? "exile" : "graveyard");
   }
 }

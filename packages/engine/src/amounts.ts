@@ -1,6 +1,7 @@
 import type { Amount, Countable, GameState, StackTarget } from "./types.js";
 import { findInstance, requireDefinition, requirePlayer } from "./state.js";
 import { effectivePower, effectiveToughness, hasCreatureType } from "./counters.js";
+import { manaValue } from "./mana.js";
 
 /**
  * Numbers an effect reads off the game when it resolves.
@@ -64,6 +65,13 @@ export function evaluateAmount(
     if (!first || first.kind !== "card") return 0;
     const found = findInstance(state, first.instanceId);
     return found ? effectiveToughness(state, found.instance) : 0;
+  }
+  if (amount.kind === "target-mana-value") {
+    // "gain life equal to **that card's mana value**" - Healing Technique.
+    const first = (targets ?? []).find((t) => t.kind === "card");
+    if (!first || first.kind !== "card") return 0;
+    const found = findInstance(state, first.instanceId);
+    return found ? manaValue(requireDefinition(state, found.instance.definitionId).manaCost ?? { generic: 0, colors: {} }) : 0;
   }
   /*
    * An unresolved X or event-amount reaching here means a fire site skipped

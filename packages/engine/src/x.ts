@@ -91,6 +91,7 @@ function value(amount: Amount, values: AmountContext): number | Amount {
   if (amount.kind === "target-power") return amount;
   // Likewise read at resolution, off the effect's target and its own source.
   if (amount.kind === "target-toughness") return amount;
+  if (amount.kind === "target-mana-value") return amount;
   if (amount.kind === "source-power") return amount;
   // "Create **twice X**" - Pest Infestation. Declared on the Amount and, until
   // this line, quietly ignored: the card made X tokens instead of 2X.

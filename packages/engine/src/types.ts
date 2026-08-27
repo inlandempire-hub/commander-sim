@@ -377,7 +377,9 @@ export type Amount =
    * above, which reads the thing being pointed at rather than the thing doing the
    * pointing.
    */
-  | { kind: "source-power" };
+  | { kind: "source-power" }
+  /** "You gain life equal to **that card's mana value**" - Healing Technique. The first card target's mana value. */
+  | { kind: "target-mana-value" };
 
 /**
  * What a `count` amount counts. Each entry is a phrase a real card prints, not
@@ -1692,6 +1694,19 @@ export type Effect =
    * composes into a spell that already has one target.
    */
   | { kind: "returnFromGraveyardAuto"; cardTypes: CardType[]; destination: "hand" | "battlefield" }
+  /** "An opponent gains control of this artifact." - Wishclaw Talisman. Hands the source to the first opponent. */
+  | { kind: "giveControlToOpponent" }
+  /**
+   * "Mill three cards. You may put a land card from among them into your hand." -
+   * Six. The engine takes the first milled land.
+   */
+  | { kind: "millTakeLandToHand"; amount: number }
+  /**
+   * "Draw a card, then you may put a land from your hand onto the battlefield.
+   * This artifact's owner then does the same." - Pendant of Prosperity's
+   * symmetric ability, run for the controller and the owner in turn.
+   */
+  | { kind: "pendantDraw" }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**
@@ -2971,6 +2986,8 @@ export interface ActivatedAbilityCost {
    * hidden-order zone changes nothing this deck can read.
    */
   exileFromGraveyard?: number;
+  /** "Remove a wish counter from this artifact" as a cost - Wishclaw Talisman. */
+  removeOtherCounter?: number;
 }
 
 /**
@@ -3160,6 +3177,8 @@ export interface ActivatedAbility {
    * activate at a price you can afford.
    */
   costReducedPer?: "legendary-creature-you-control";
+  /** "Activate only during your turn." - Wishclaw Talisman. */
+  onlyOnYourTurn?: boolean;
 }
 
 /**
@@ -3861,6 +3880,12 @@ export interface CardDefinition {
     per?: "creatures-on-battlefield" | "creature-cards-in-your-graveyard";
     onlyIf?: BoardCondition;
   };
+  /** "This artifact enters under the control of an opponent of your choice." - Pendant of Prosperity. */
+  entersUnderOpponentControl?: boolean;
+  /** "Demonstrate (When you cast this spell, you may copy it, and an opponent copies it too.)" - Healing Technique. */
+  demonstrate?: boolean;
+  /** "Exile [this spell]." - Healing Technique goes to exile instead of the graveyard as it resolves. */
+  exileAfterResolving?: boolean;
   /** "As an additional cost to cast this spell, ..." - paid at cast time. */
   additionalCost?: AdditionalCost;
   /** "Kicker {1}{G} ... If this spell was kicked, ..." - Urborg Repossession. An optional extra cost that runs an extra effect. */

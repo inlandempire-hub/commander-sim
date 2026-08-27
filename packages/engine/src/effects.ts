@@ -2267,6 +2267,49 @@ export function applyEffect(
       log(state, `${controllerId} returns ${cardName(state, pick.instanceId)} from their graveyard`);
       return;
     }
+    case "giveControlToOpponent": {
+      // "An opponent gains control of this artifact." - Wishclaw Talisman.
+      const source = findInstance(state, sourceInstanceId);
+      if (!source || source.instance.zone !== "battlefield") return;
+      const opponent = state.players.find((p) => p.id !== source.instance.controllerId && !p.hasLost);
+      if (opponent) {
+        moveControl(state, source.instance, opponent.id);
+        log(state, `${opponent.id} gains control of ${cardName(state, sourceInstanceId)}`);
+      }
+      return;
+    }
+    case "millTakeLandToHand": {
+      // "Mill N cards. You may put a land card from among them into your hand." -
+      // Six. The engine takes the first milled land.
+      const milled = controller.library.slice(0, effect.amount).map((c) => c.instanceId);
+      for (const id of milled) moveCard(state, id, "graveyard");
+      const land = milled.find((id) => {
+        const found = findInstance(state, id);
+        return found && found.instance.zone === "graveyard" && requireDefinition(state, found.instance.definitionId).types.includes("Land");
+      });
+      if (land) {
+        moveCard(state, land, "hand");
+        log(state, `${controllerId} puts ${cardName(state, land)} into their hand`);
+      }
+      return;
+    }
+    case "pendantDraw": {
+      // "Draw a card, then you may put a land from your hand onto the
+      // battlefield. This artifact's owner does the same." - Pendant of
+      // Prosperity. The controller first, then the owner.
+      const source = findInstance(state, sourceInstanceId);
+      const ownerId = source?.instance.ownerId ?? controllerId;
+      for (const pid of ownerId === controllerId ? [controllerId] : [controllerId, ownerId]) {
+        drawCard(state, pid, 1);
+        const p = requirePlayer(state, pid);
+        const land = p.hand.find((c) => requireDefinition(state, c.definitionId).types.includes("Land"));
+        if (land) {
+          moveCard(state, land.instanceId, "battlefield");
+          log(state, `${pid} puts a land onto the battlefield`);
+        }
+      }
+      return;
+    }
     case "loot": {
       // "You may discard a card. If you do, draw a card." - Restless Vents. The
       // engine takes the loot: discard from the back of hand, then draw as many.

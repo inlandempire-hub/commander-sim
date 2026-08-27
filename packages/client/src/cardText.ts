@@ -214,6 +214,7 @@ function signedAmount(amount: Amount): string {
   if (amount.kind === "sacrificed-power") return "that creature's power";
   if (amount.kind === "target-power") return "its power";
   if (amount.kind === "target-toughness") return "its toughness";
+  if (amount.kind === "target-mana-value") return "that card's mana value";
   if (amount.kind === "source-power") return "its power";
   return amount.negate ? "-X" : "+X";
 }
@@ -233,6 +234,7 @@ function countAmount(amount: Amount): string {
   if (amount.kind === "target-power") return "its power";
   // "life equal to **its toughness**" - Noxious Gearhulk.
   if (amount.kind === "target-toughness") return "its toughness";
+  if (amount.kind === "target-mana-value") return "that card's mana value";
   // "damage equal to **its power**" - Eomer, reading its own.
   if (amount.kind === "source-power") return "its power";
   // "Create **twice X**" - Pest Infestation, whose {X}{X} cost charges X twice
@@ -305,6 +307,7 @@ function plainAmount(amount: Amount): string {
   if (amount.kind === "sacrificed-power") return "X";
   if (amount.kind === "target-power") return "its power";
   if (amount.kind === "target-toughness") return "its toughness";
+  if (amount.kind === "target-mana-value") return "that card's mana value";
   return "X";
 }
 
@@ -741,6 +744,12 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Surveil ${effect.surveil}. Then for each card you put on top of your library, you draw a card and you lose ${effect.lifePerCard} life.`;
     case "surveilN":
       return `Surveil ${effect.amount}.`;
+    case "giveControlToOpponent":
+      return "An opponent gains control of this permanent.";
+    case "millTakeLandToHand":
+      return `Mill ${effect.amount} cards. You may put a land card from among them into your hand.`;
+    case "pendantDraw":
+      return "Draw a card, then you may put a land card from your hand onto the battlefield. This artifact's owner draws a card, then that player may put a land card from their hand onto the battlefield.";
     case "returnFromGraveyardAuto": {
       const noun = listOr(effect.cardTypes.map((t) => t.toLowerCase()));
       const where = effect.destination === "hand" ? "your hand" : "the battlefield";

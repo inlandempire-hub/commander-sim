@@ -806,6 +806,15 @@ export function castSpell(
     }
     log(state, `Storm: ${def.name} is copied ${priorSpells} time${priorSpells === 1 ? "" : "s"}`);
   }
+  // Demonstrate: "you may copy it. If you do, choose an opponent to also copy
+  // it." - Healing Technique. The engine takes it: a copy for you and one for
+  // the first opponent, same targets (the documented copy simplification).
+  if (def.demonstrate) {
+    pushSpellCopyOntoStack(state, instanceId, playerId, effect, targets);
+    const opponent = state.players.find((p) => p.id !== playerId && !p.hasLost);
+    if (opponent) pushSpellCopyOntoStack(state, instanceId, opponent.id, effect, targets);
+    log(state, `Demonstrate: ${def.name} is copied`);
+  }
 
   /*
    * "When you next cast an instant or sorcery spell this turn, copy that spell."
