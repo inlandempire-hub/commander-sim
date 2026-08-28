@@ -61,8 +61,5 @@
 1 Solitude
 1 The Mountain-king's Return
 1 Ranger-Captain of Eos
-1 Jeong Jeong's Deserters
-1 Null Elemental Blast
-1 Appa, Steadfast Guardian
 1 Winter Moon
 36 Plains
