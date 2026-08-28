@@ -650,6 +650,8 @@ export type TargetSelector =
       nonland?: boolean;
       /** "another target permanent" / "other target nonland permanent" - Flickerwisp, Phelia. */
       excludeSource?: boolean;
+      /** "target nonland permanent ... **with mana value 2 or less**" - Portable Hole. */
+      maxManaValue?: number;
       /**
        * "target attacking creature **with lesser power**" - mentor, on Legion
        * Warboss.
@@ -2946,6 +2948,8 @@ export interface TriggeredAbility {
      * the graveyard, so a check made afterwards would never once be true.
      */
     withCounter?: boolean;
+    /** "another creature you control with power 2 or less enters" - Mentor of the Meek. */
+    maxPower?: number;
     /** "a **nontoken** creature you control dies" - Blight Mound. */
     nontoken?: boolean;
     /**

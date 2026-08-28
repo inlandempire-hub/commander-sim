@@ -1050,6 +1050,9 @@ export function matchesWatchFor(
     if (barred.some((subtype) => (subject.def.subtypes ?? []).includes(subtype))) return false;
   }
   if (watchFor.withCounter && !subject.hadCounters) return false;
+  // "another creature you control **with power 2 or less** enters" - Mentor of
+  // the Meek. Read off printed power, like every other enter-time check here.
+  if (watchFor.maxPower !== undefined && (subject.def.power ?? 0) > watchFor.maxPower) return false;
   /*
    * "an artifact or creature an opponent controls enters **untapped**" -
    * Charismatic Conqueror. Read off the permanent as the event happens, which

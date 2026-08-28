@@ -184,6 +184,10 @@ export function isValidTarget(
       // "**another** target permanent" / "up to one **other** target nonland
       // permanent" - Flickerwisp, Phelia. The source is never a legal target.
       if (selector.excludeSource && found.instance.instanceId === sourceInstanceId) return false;
+      // "with mana value 2 or less" - Portable Hole.
+      if (selector.maxManaValue !== undefined && manaValue(def.manaCost ?? { generic: 0, colors: {} }) > selector.maxManaValue) {
+        return false;
+      }
       if (selector.attacking && state.attackers[found.instance.instanceId] === undefined) return false;
       // "attacking **or blocking**" - Eiganjo. Either map will do.
       if (
