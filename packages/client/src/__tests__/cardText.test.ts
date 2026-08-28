@@ -755,7 +755,8 @@ describe("no fixture carries a clause the panel never mentions", () => {
     {
       field: "activated.marksMana",
       applies: (d) => (d.activatedAbilities ?? []).some((a) => a.marksMana !== undefined),
-      expect: /scry \d/,
+      // Path of Ancestry marks its mana with a scry; Tecutlan marks it with a discover.
+      expect: /scry \d|discover/,
     },
     {
       field: "activated.addsOtherCounterToSelf",
