@@ -19196,6 +19196,96 @@ export const SHIGEKI_JUKAI_VISIONARY: CardDefinition = {
   tier: "scripted",
 };
 
+/* ---------------------------------------------------------------------------
+ * Winter chaos deck - batch 11 (2026-08-27): the last three. Adventure, a
+ * transforming discover artifact, and a shared impulse pile.
+ * ------------------------------------------------------------------------- */
+
+// Adventure: cast Locthwain Scorn now (-3/-3 + gain 2), the enchantment later.
+export const VIRTUE_OF_PERSISTENCE: CardDefinition = {
+  id: "virtue-of-persistence",
+  name: "Virtue of Persistence",
+  scryfallId: "f1e5cafb-b0e6-4ee5-8c58-6f8e5ef2b9da",
+  types: ["Enchantment"],
+  manaCost: { generic: 5, colors: { B: 2 } },
+  colorIdentity: ["B"],
+  adventure: {
+    name: "Locthwain Scorn",
+    cost: { generic: 1, colors: { B: 1 } },
+    effect: {
+      kind: "sequence",
+      effects: [
+        { kind: "pump", power: -3, toughness: -3, target: { kind: "creature" } },
+        { kind: "gainLife", amount: 2 },
+      ],
+    },
+  },
+  triggeredAbilities: [
+    {
+      event: "upkeep",
+      watches: "controller",
+      effect: {
+        kind: "returnFromGraveyard",
+        destination: "battlefield",
+        target: { kind: "card-in-your-graveyard", cardType: "Creature", anyGraveyard: true },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+// Front: rummage on arrival, transforms after grinding three bore counters.
+export const BRASSS_TUNNEL_GRINDER: CardDefinition = {
+  id: "brasss-tunnel-grinder",
+  name: "Brass's Tunnel-Grinder",
+  scryfallId: "d61d8895-7f2e-4c77-951f-4f1a49e96f57",
+  types: ["Artifact"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 2, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  transformsInto: "tecutlan-the-searing-rift",
+  triggeredAbilities: [
+    { event: "enters-battlefield", effect: { kind: "discardAnyNumberDrawThatMany", plusOne: true } },
+    { event: "end-step", watches: "controller", effect: { kind: "brassEndStep", boreToTransform: 3 } },
+  ],
+  tier: "scripted",
+};
+
+// Back face: a mana land whose mana discovers when it fuels a permanent spell.
+export const TECUTLAN_THE_SEARING_RIFT: CardDefinition = {
+  id: "tecutlan-the-searing-rift",
+  name: "Tecutlan, the Searing Rift",
+  scryfallId: "d61d8895-7f2e-4c77-951f-4f1a49e96f57",
+  types: ["Land"],
+  supertypes: ["Legendary"],
+  subtypes: ["Cave"],
+  colorIdentity: ["R"],
+  isBackFace: true,
+  activatedAbilities: [
+    {
+      cost: { tap: true },
+      effect: { kind: "addMana", color: "R", amount: 1 },
+      marksMana: { kind: "discover-on-permanent-spell" },
+    },
+  ],
+  tier: "scripted",
+};
+
+// A shared impulse pile refilled from every library.
+export const SHARE_THE_SPOILS: CardDefinition = {
+  id: "share-the-spoils",
+  name: "Share the Spoils",
+  scryfallId: "5e35d719-8766-47dc-8c0d-8e2b37b907a8",
+  types: ["Enchantment"],
+  manaCost: { generic: 1, colors: { R: 1 } },
+  colorIdentity: ["R"],
+  triggeredAbilities: [
+    { event: "enters-battlefield", effect: { kind: "shareTheSpoilsExile" } },
+    { event: "opponent-lost", effect: { kind: "shareTheSpoilsExile" } },
+  ],
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -20409,5 +20499,10 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   SIX,
   CHAINER_NIGHTMARE_ADEPT,
   SHIGEKI_JUKAI_VISIONARY,
+  // Winter list, batch 11 (final)
+  VIRTUE_OF_PERSISTENCE,
+  BRASSS_TUNNEL_GRINDER,
+  TECUTLAN_THE_SEARING_RIFT,
+  SHARE_THE_SPOILS,
   ].map((def) => [def.id, def]),
 );
