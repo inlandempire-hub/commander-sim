@@ -1,6 +1,7 @@
 import type { DeckList } from "./commander.js";
 import { BLECH_DECK } from "./cardLab.js";
 import { WINOTA_DECK } from "./winotaDeck.js";
+import { WINTER_DECK } from "./winterDeck.js";
 import { FELIX_DECK } from "./demoGame.js";
 
 /**
@@ -330,6 +331,14 @@ export const ARCHETYPES: Archetype[] = [
     name: "Felix Five-Boots (Sultai)",
     plan: "Grind card advantage behind counters and removal, then close with Felix's doubled combat triggers or a Twenty-Toed Toad / Laboratory Maniac win.",
     deck: FELIX_DECK,
+  },
+  {
+    // The Jund chaos deck, grown list-first over eleven batches - every one of
+    // its 100 cards implemented because the list wanted it. Selectable with
+    // ?deck=winter.
+    name: "Winter, Misanthropic Guide (Jund chaos)",
+    plan: "Flood everyone with cards and symmetrical value, punish the draws with Winter's delirium hand-size squeeze and the draw-matters pieces, then reset the board with a group wipe or Warp World.",
+    deck: WINTER_DECK,
   },
 ];
 
