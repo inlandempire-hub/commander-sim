@@ -1,5 +1,6 @@
 import type { CardDefinition } from "../types.js";
 import { GENERATED_CARD_DEFINITIONS } from "./generatedCards.js";
+import { SUPREMACY_CARD_DEFINITIONS } from "./supremacyCards.js";
 
 /**
  * A hand-picked set of real, accurately-represented cards used to exercise
@@ -20517,5 +20518,7 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   TECUTLAN_THE_SEARING_RIFT,
   SHARE_THE_SPOILS,
   THIEVES_AUCTION,
+  // Supremacy list (Phelia mono-white) - see cards/supremacyCards.ts.
+  ...SUPREMACY_CARD_DEFINITIONS,
   ].map((def) => [def.id, def]),
 );
