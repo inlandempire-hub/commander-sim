@@ -58,6 +58,21 @@ describe("Winter batch 11: the last three", () => {
     expect(brass.definitionId).toBe("tecutlan-the-searing-rift");
   });
 
+  it("Thieves' Auction exiles every nontoken permanent and hands them back out", () => {
+    const state = makeTestGame();
+    const alice = state.players[0]!.id;
+    const bob = state.players[1]!.id;
+    createCardInstance(state, "elder-gargaroth", alice, "battlefield");
+    createCardInstance(state, "willow-elf", bob, "battlefield");
+    const src = createCardInstance(state, "thieves-auction", alice, "graveyard");
+    applyEffect(state, alice, src.instanceId, { kind: "thievesAuction" }, []);
+    // Both permanents are back on the battlefield, redistributed and tapped.
+    const board = [...requirePlayer(state, alice).battlefield, ...requirePlayer(state, bob).battlefield];
+    const redistributed = board.filter((c) => c.definitionId === "elder-gargaroth" || c.definitionId === "willow-elf");
+    expect(redistributed.length).toBe(2);
+    expect(redistributed.every((c) => c.tapped)).toBe(true);
+  });
+
   it("Share the Spoils exiles the top of each library into a shared pile the active player may use", () => {
     const state = makeTestGame();
     const alice = state.players[0]!.id;

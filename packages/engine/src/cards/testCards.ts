@@ -19286,6 +19286,18 @@ export const SHARE_THE_SPOILS: CardDefinition = {
   tier: "scripted",
 };
 
+// The last card: exile every nontoken permanent and auction the pile back out.
+export const THIEVES_AUCTION: CardDefinition = {
+  id: "thieves-auction",
+  name: "Thieves' Auction",
+  scryfallId: "c9e8ad32-a701-4b77-bb7e-0e440e4072da",
+  types: ["Sorcery"],
+  manaCost: { generic: 4, colors: { R: 3 } },
+  colorIdentity: ["R"],
+  castEffect: { kind: "thievesAuction" },
+  tier: "scripted",
+};
+
 export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.fromEntries(
   [
     /*
@@ -20504,5 +20516,6 @@ export const TEST_CARD_DEFINITIONS: Record<string, CardDefinition> = Object.from
   BRASSS_TUNNEL_GRINDER,
   TECUTLAN_THE_SEARING_RIFT,
   SHARE_THE_SPOILS,
+  THIEVES_AUCTION,
   ].map((def) => [def.id, def]),
 );
