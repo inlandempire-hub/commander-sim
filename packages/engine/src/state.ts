@@ -312,6 +312,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   if (destination !== "battlefield" && destination !== "stack") instance.dashed = false;
   instance.animation = undefined; // an animated land that leaves play is a land card again
   instance.attachedTo = undefined; // an Equipment that changes zones falls off
+  instance.exiledBy = undefined; // the O-Ring link belongs to the exiled object, and this move is it leaving that state
   instance.controllerId = owner.id; // zone changes return control to the owner
   instance.summoningSickness = destination === "battlefield";
 

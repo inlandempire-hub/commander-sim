@@ -55,7 +55,7 @@ describe("flicker", () => {
 
     // Advance to the end step; the delayed return fires and goes on the stack.
     let guard = 20;
-    while (state.step !== "end" && guard-- > 0) advanceStep(state);
+    while ((state.step as string) !== "end" && guard-- > 0) advanceStep(state);
     let g2 = 20;
     while (state.stack.length > 0 && g2-- > 0) resolveTopOfStack(state);
 

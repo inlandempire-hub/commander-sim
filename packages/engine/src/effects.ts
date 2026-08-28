@@ -2995,6 +2995,32 @@ export function applyEffect(
       }
       return;
     }
+    case "exileUntilLeaves": {
+      // Oblivion Ring: exile the target and link it to this permanent, so its
+      // own leaves-battlefield trigger can bring it back later.
+      for (const target of targets) {
+        if (target.kind !== "card") continue;
+        const found = findInstance(state, target.instanceId);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        moveCard(state, target.instanceId, "exile");
+        const nowExiled = findInstance(state, target.instanceId);
+        if (nowExiled) nowExiled.instance.exiledBy = sourceInstanceId;
+        log(state, `${cardName(state, target.instanceId)} is exiled by ${cardName(state, sourceInstanceId)}`);
+      }
+      return;
+    }
+    case "returnExiledByThis": {
+      // The source has left the battlefield; return everything it exiled.
+      for (const player of state.players) {
+        for (const card of [...player.exile]) {
+          if (card.exiledBy === sourceInstanceId) {
+            log(state, `${cardName(state, card.instanceId)} returns to the battlefield`);
+            putOntoBattlefield(state, card.instanceId);
+          }
+        }
+      }
+      return;
+    }
     case "searchLibrary": {
       /*
        * "Choose two target players. Each of them searches their library." -

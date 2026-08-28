@@ -413,6 +413,8 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
      * same here.
      */
     case "flicker":
+    /* Oblivion Ring's ETB: the permanent it exiles until it leaves. */
+    case "exileUntilLeaves":
       return effect.target;
     /*
      * "Untap one or two target attacking creatures" targets; "untap this

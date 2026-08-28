@@ -2135,6 +2135,18 @@ export type Effect =
       counterSourceIfYours?: boolean;
     }
   /**
+   * The Oblivion Ring pattern: "exile target ... until this leaves the
+   * battlefield." The exiled card is linked to the source (`exiledBy`), and the
+   * source carries a `leaves-battlefield` trigger whose `returnExiledByThis`
+   * body brings everything it exiled back under its owner's control.
+   *
+   * Banishing Light, Makeshift Binding, Thopter Arrest, Prayer of Binding,
+   * Portable Hole, Touch the Spirit Realm and the O-Ring auras all share it.
+   */
+  | { kind: "exileUntilLeaves"; target: TargetSelector }
+  /** The body of the source's own leaves-battlefield trigger. */
+  | { kind: "returnExiledByThis" }
+  /**
    * Grist's +1, which is a loop: "create a token, then mill a card. If an
    * Insect card was milled this way, put a loyalty counter on Grist and repeat
    * this process."
@@ -4135,6 +4147,12 @@ export interface CardInstance {
   wasCastFromHand?: boolean;
   /** In exile as an Adventure, castable later as the creature/enchantment - Virtue of Persistence. */
   adventuredInExile?: boolean;
+  /**
+   * While this card is exiled by an Oblivion Ring effect, the instance id of the
+   * permanent that exiled it. When that permanent leaves the battlefield its
+   * `returnExiledByThis` trigger brings this card back. Cleared on any zone change.
+   */
+  exiledBy?: string;
   /** Modal-trigger modes already taken on this permanent this turn - Gala Greeters' "hasn't been chosen this turn". Cleared each cleanup. */
   modesChosenThisTurn: string[];
   /** Creature subtypes granted on the battlefield - Liliana's "that creature is a black Zombie". Cleared on any zone change. */
