@@ -760,6 +760,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Discover ${plainAmount(effect.amount)}.`;
     case "shareTheSpoilsExile":
       return "Exile the top card of each player's library.";
+    case "thievesAuction":
+      return "Exile all nontoken permanents. Starting with you, each player chooses one of the exiled cards and puts it onto the battlefield tapped under their control. Repeat this process until all cards exiled this way have been chosen.";
     case "millTakeLandToHand":
       return `Mill ${effect.amount} cards. You may put a land card from among them into your hand.`;
     case "pendantDraw":

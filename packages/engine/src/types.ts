@@ -1739,6 +1739,13 @@ export type Effect =
   | { kind: "discover"; amount: Amount }
   /** "Exile the top card of each player's library." - Share the Spoils, into the shared impulse pile. */
   | { kind: "shareTheSpoilsExile" }
+  /**
+   * "Exile all nontoken permanents. Starting with you, each player chooses one
+   * of the exiled cards and puts it onto the battlefield tapped under their
+   * control. Repeat until all have been chosen." - Thieves' Auction. The engine
+   * distributes round-robin, each player taking the highest-value card available.
+   */
+  | { kind: "thievesAuction" }
   /** "Return target card you own from exile to your hand / the battlefield." */
   | { kind: "returnFromExile"; destination: "hand" | "battlefield"; target: TargetSelector }
   /**

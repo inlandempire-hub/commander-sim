@@ -2430,6 +2430,54 @@ export function applyEffect(
       }
       return;
     }
+    case "thievesAuction": {
+      // "Exile all nontoken permanents. Starting with you, each player takes one
+      // of the exiled cards onto the battlefield tapped, round-robin, until all
+      // are gone." - Thieves' Auction. The engine hands each player the highest
+      // mana value available on their pick.
+      const exiled: string[] = [];
+      for (const p of state.players) {
+        for (const c of [...p.battlefield]) {
+          if (!c.isTokenCopy && !requireDefinition(state, c.definitionId).isToken) exiled.push(c.instanceId);
+        }
+      }
+      for (const id of exiled) moveCard(state, id, "exile");
+      const order = [
+        ...state.players.slice(state.players.findIndex((p) => p.id === controllerId)),
+        ...state.players.slice(0, state.players.findIndex((p) => p.id === controllerId)),
+      ].filter((p) => !p.hasLost);
+      const pool = new Set(exiled);
+      let turnIndex = 0;
+      while (pool.size > 0) {
+        const chooser = order[turnIndex % order.length]!;
+        // The highest mana value still available, this chooser's pick.
+        let best: string | undefined;
+        let bestMv = -1;
+        for (const id of pool) {
+          const found = findInstance(state, id);
+          if (!found || found.instance.zone !== "exile") {
+            pool.delete(id);
+            continue;
+          }
+          const mv = manaValue(requireDefinition(state, found.instance.definitionId).manaCost ?? { generic: 0, colors: {} });
+          if (mv > bestMv) {
+            bestMv = mv;
+            best = id;
+          }
+        }
+        if (!best) break;
+        pool.delete(best);
+        putOntoBattlefield(state, best);
+        const found = findInstance(state, best);
+        if (found && found.instance.zone === "battlefield") {
+          found.instance.tapped = true;
+          moveControl(state, found.instance, chooser.id);
+        }
+        log(state, `${chooser.id} takes ${cardName(state, best)} from the auction`);
+        turnIndex += 1;
+      }
+      return;
+    }
     case "loot": {
       // "You may discard a card. If you do, draw a card." - Restless Vents. The
       // engine takes the loot: discard from the back of hand, then draw as many.
