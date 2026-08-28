@@ -521,15 +521,18 @@ function fireDelayedTriggers(state: GameState): void {
      * resolving over an empty list does nothing - which is the rule rather than
      * a shortcut.
      */
+    // A return-from-exile blink acts on cards sitting in exile; every other
+    // delayed body acts on permanents still on the battlefield.
+    const wantZone = trigger.action === "return-from-exile" ? "exile" : "battlefield";
     const targets: StackTarget[] = trigger.instanceIds
-      .filter((instanceId) => findInstance(state, instanceId)?.instance.zone === "battlefield")
+      .filter((instanceId) => findInstance(state, instanceId)?.instance.zone === wantZone)
       .map((instanceId) => ({ kind: "card", instanceId }));
     if (targets.length === 0) continue;
     pushOntoStack(
       state,
       trigger.sourceInstanceId,
       trigger.controllerId,
-      { kind: "delayedRemoval", action: trigger.action },
+      { kind: "delayedRemoval", action: trigger.action, returnCounterToSource: trigger.returnCounterToSource },
       targets,
       false,
     );

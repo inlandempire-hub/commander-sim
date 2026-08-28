@@ -847,7 +847,22 @@ export function applyEffect(
       for (const target of targets) {
         if (target.kind !== "card") continue;
         const found = findInstance(state, target.instanceId);
-        if (!found || found.instance.zone !== "battlefield") continue;
+        if (!found) continue;
+        if (effect.action === "return-from-exile") {
+          // A blink scheduled to the next end step - Phelia, Flickerwisp. The
+          // card is in exile, not on the battlefield, so it is the one delayed
+          // body that does not want the battlefield filter above.
+          if (found.instance.zone !== "exile") continue;
+          const ownerIsController = found.instance.ownerId === controllerId;
+          log(state, `${cardName(state, target.instanceId)} returns to the battlefield`);
+          putOntoBattlefield(state, target.instanceId);
+          if (effect.returnCounterToSource && ownerIsController) {
+            const src = findInstance(state, sourceInstanceId);
+            if (src?.instance.zone === "battlefield") src.instance.plusOneCounters += 1;
+          }
+          continue;
+        }
+        if (found.instance.zone !== "battlefield") continue;
         if (effect.action === "sacrifice") {
           // Sacrificing is a death, so anything watching for one sees it. That
           // is the whole difference from Rionya's exile.
@@ -2949,6 +2964,37 @@ export function applyEffect(
       }
       return;
     }
+    case "flicker": {
+      /*
+       * Blink: exile the permanents, then bring them back. `moveCard` makes each
+       * a new object under its owner's control - counters, auras and damage all
+       * gone - and `putOntoBattlefield` fires its enter triggers again, which is
+       * the whole point. Immediate for Cloudshift and Ephemerate; scheduled to
+       * the next end step for Phelia, Flickerwisp and Charming Prince.
+       */
+      const cards = targets
+        .filter((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card")
+        .map((t) => findInstance(state, t.instanceId)?.instance)
+        .filter((c): c is CardInstance => c !== undefined && c.zone === "battlefield");
+      for (const card of cards) {
+        const ownerIsController = card.ownerId === controllerId;
+        moveCard(state, card.instanceId, "exile");
+        if (effect.timing === "immediate") {
+          putOntoBattlefield(state, card.instanceId);
+          if (effect.counterSourceIfYours && ownerIsController) {
+            const src = findInstance(state, sourceInstanceId);
+            if (src?.instance.zone === "battlefield") src.instance.plusOneCounters += 1;
+          }
+        }
+      }
+      if (effect.timing === "next-end-step") {
+        const exiled = cards.map((c) => findInstance(state, c.instanceId)?.instance).filter((c): c is CardInstance => c !== undefined);
+        if (exiled.length > 0) {
+          scheduleDelayedRemoval(state, controllerId, sourceInstanceId, exiled, "return-from-exile", "end-step", effect.counterSourceIfYours);
+        }
+      }
+      return;
+    }
     case "searchLibrary": {
       /*
        * "Choose two target players. Each of them searches their library." -
@@ -4094,6 +4140,8 @@ function scheduleDelayedRemoval(
   action: DelayedAction,
   /** "at end of combat" rather than the next end step - The Ring's third ability. */
   at: "end-step" | "end-of-combat" = "end-step",
+  /** Phelia's rider, carried through to the return-from-exile body. */
+  returnCounterToSource?: boolean,
 ): void {
   const alreadyPastIt = at === "end-step" && state.phase === "ending";
   state.delayedTriggers.push({
@@ -4102,6 +4150,7 @@ function scheduleDelayedRemoval(
     sourceInstanceId,
     action,
     at,
+    returnCounterToSource,
     readyOnTurn: state.turnNumber + (alreadyPastIt ? 1 : 0),
   });
 }

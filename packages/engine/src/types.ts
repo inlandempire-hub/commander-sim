@@ -2106,6 +2106,33 @@ export type Effect =
        * own body does when it fires.
        */
       at?: "end-of-combat";
+      /**
+       * Phelia's rider, carried on the "return-from-exile" body: after the card
+       * comes back under its owner's control, if that owner is this ability's
+       * controller ("if it entered under your control"), put a +1/+1 counter on
+       * the source.
+       */
+      returnCounterToSource?: boolean;
+    }
+  /**
+   * Flicker: exile one or more permanents, then return them to the battlefield.
+   *
+   * "Blink" - Cloudshift, Ephemerate, Restoration Angel return at once; Phelia,
+   * Flickerwisp, Charming Prince, Touch the Spirit Realm return "at the beginning
+   * of the next end step" instead. Returning is `putOntoBattlefield`, so the card
+   * comes back as a new object under its owner's control and its enter triggers
+   * fire again - which is the whole point of a blink.
+   */
+  | {
+      kind: "flicker";
+      target: TargetSelector;
+      /** At once, or scheduled for the next end step. */
+      timing: "immediate" | "next-end-step";
+      /**
+       * Phelia: "If it entered under your control, put a +1/+1 counter on Phelia."
+       * Applied only when the returned card's owner is the flickerer's controller.
+       */
+      counterSourceIfYours?: boolean;
     }
   /**
    * Grist's +1, which is a loop: "create a token, then mill a card. If an
@@ -4398,7 +4425,7 @@ export interface CardInstance {
  * What a delayed trigger does when its end step arrives. A closed list of the
  * phrases the pool prints, like every other list in this DSL.
  */
-export type DelayedAction = "sacrifice" | "exile" | "return-to-hand";
+export type DelayedAction = "sacrifice" | "exile" | "return-to-hand" | "return-from-exile";
 
 /**
  * "Sacrifice it at the beginning of the next end step." - a one-shot ability
@@ -4427,6 +4454,11 @@ export interface DelayedTrigger {
   /** The card that scheduled it, for the log and the stack panel. Need not still exist. */
   sourceInstanceId: string;
   action: DelayedAction;
+  /**
+   * Phelia's rider: on a "return-from-exile" trigger, put a +1/+1 counter on the
+   * source if the returned card came back under this ability's controller.
+   */
+  returnCounterToSource?: boolean;
   /**
    * The earliest turn whose end step this may fire in.
    *

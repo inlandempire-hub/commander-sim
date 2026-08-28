@@ -406,6 +406,13 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "addCounter":
     case "loseLife":
     case "exileGraveyard":
+    /*
+     * Flicker's target is the permanent it exiles-and-returns. "Up to one" is
+     * the selector's own optionality (Phelia, Flickerwisp), the same way every
+     * other "up to one target" is; a compulsory flicker (Cloudshift) reads the
+     * same here.
+     */
+    case "flicker":
       return effect.target;
     /*
      * "Untap one or two target attacking creatures" targets; "untap this

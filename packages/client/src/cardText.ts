@@ -1045,6 +1045,11 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
           : "";
       return `Return ${describeTarget(effect.target)} ${where}.${also}`;
     }
+    case "flicker": {
+      const when = effect.timing === "immediate" ? ", then return it" : ". Return it at the beginning of the next end step";
+      const rider = effect.counterSourceIfYours ? " If it entered under your control, put a +1/+1 counter on this permanent." : "";
+      return `Exile ${describeTarget(effect.target)}${when} to the battlefield under its owner's control.${rider}`;
+    }
     case "modal": {
       // The printed wording: "Choose one - A; or B."
       return `Choose one - ${effect.modes.map((mode) => mode.label).join("; or ")}.`;
