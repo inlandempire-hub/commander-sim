@@ -2,6 +2,10 @@ import { BLECH_DECK, type LabDeck } from "./cardLab.js";
 import { LAB_SCENARIOS } from "./cardLabScenarios.js";
 import { WINOTA_DECK } from "./winotaDeck.js";
 import { WINOTA_LAB_SCENARIOS } from "./winotaLabScenarios.js";
+import { WINTER_DECK } from "./winterDeck.js";
+import { WINTER_LAB_SCENARIOS } from "./winterLabScenarios.js";
+import { FELIX_DECK } from "./demoGame.js";
+import { FELIX_LAB_SCENARIOS } from "./felixLabScenarios.js";
 
 /**
  * The decks the card lab can walk.
@@ -99,6 +103,56 @@ const WINOTA_LIBRARY_TAIL: string[] = [
   ...Array.from({ length: 12 }, (_, i) => (i % 2 === 0 ? "plains" : "mountain")),
 ];
 
+/**
+ * The pile under a Winter, Misanthropic Guide board.
+ *
+ * This deck searches its library a dozen ways and self-mills constantly, so the
+ * tail is stocked to answer all of it: a basic of every type for Farseek and the
+ * fetches, creatures and permanents for the recursion and reveal effects, and
+ * enough depth that milling and each-player draws cannot bottom it out.
+ */
+const WINTER_LIBRARY_TAIL: string[] = [
+  // A basic of each type - Farseek wants Plains/Island/Swamp/Mountain, the rest
+  // want the deck's own Swamp/Forest/Mountain.
+  "swamp",
+  "forest",
+  "mountain",
+  "plains",
+  "island",
+  // Creatures and permanents, for the reveal, recursion and Over the Top lines.
+  "sakura-tribe-elder",
+  "eternal-witness",
+  "elder-gargaroth",
+  "solemn-simulacrum",
+  "essence-warden",
+  "howling-mine",
+  "command-tower",
+  ...Array.from({ length: 12 }, (_, i) => (i % 2 === 0 ? "swamp" : "forest")),
+];
+
+/**
+ * The pile under a Felix Five-Boots board.
+ *
+ * Sultai wants its library three ways at once: basics for Cultivate and the
+ * fetches, an artifact for Fabricate, an instant for Waterlogged Teachings, and
+ * a Demon for Demonic Counsel - so the tail carries one of each, plus depth for
+ * the wheels and big draws this deck leans on.
+ */
+const FELIX_LIBRARY_TAIL: string[] = [
+  "forest",
+  "island",
+  "swamp",
+  // An artifact for Fabricate, an instant for Waterlogged Teachings, a creature
+  // for the graveyard-value lines.
+  "arcane-signet",
+  "baleful-strix",
+  "brainstorm",
+  "psychic-frog",
+  "shadowmage-infiltrator",
+  "necropolis-regent",
+  ...Array.from({ length: 14 }, (_, i) => ["forest", "island", "swamp"][i % 3]!),
+];
+
 export const LAB_DECKS: LabDeck[] = [
   {
     slug: "blech",
@@ -119,6 +173,26 @@ export const LAB_DECKS: LabDeck[] = [
     identity: ["R", "W"],
     libraryTail: WINOTA_LIBRARY_TAIL,
     scenarios: WINOTA_LAB_SCENARIOS,
+  },
+  {
+    slug: "winter",
+    name: "Winter, Misanthropic Guide",
+    blurb:
+      "Flood everyone with cards and symmetrical value, punish the draws with the delirium hand-size squeeze, then reset the board with a group wipe or Warp World.",
+    deck: WINTER_DECK,
+    identity: ["B", "R", "G"],
+    libraryTail: WINTER_LIBRARY_TAIL,
+    scenarios: WINTER_LAB_SCENARIOS,
+  },
+  {
+    slug: "felix",
+    name: "Felix Five-Boots",
+    blurb:
+      "Grind card advantage behind counters and removal, then close with Felix's doubled combat triggers or a Twenty-Toed Toad / Laboratory Maniac win.",
+    deck: FELIX_DECK,
+    identity: ["B", "G", "U"],
+    libraryTail: FELIX_LIBRARY_TAIL,
+    scenarios: FELIX_LAB_SCENARIOS,
   },
 ];
 

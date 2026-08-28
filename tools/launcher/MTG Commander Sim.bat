@@ -53,6 +53,7 @@ echo.
 echo   Or:
 echo.
 echo     D   Deck builder - build your own deck, then play it
+echo     L   Card lab      - stand up any card on its own board and test what it does
 echo     N   Host a game over the network for a friend
 echo     Q   Quit
 echo.
@@ -84,6 +85,7 @@ if /i "%CHOICE%"=="5" set "MYDECK=tidewall"
 if /i "%CHOICE%"=="6" set "MYDECK=felix"
 if /i "%CHOICE%"=="7" set "MYDECK=winter"
 if /i "%CHOICE%"=="D" set "URL=http://localhost:%PORT%/?mode=deck"
+if /i "%CHOICE%"=="L" set "URL=http://localhost:%PORT%/?mode=lab"
 if /i "%CHOICE%"=="N" set "NETWORK=1"
 if /i "%CHOICE%"=="Q" exit /b 0
 
