@@ -4851,21 +4851,26 @@ Boros basics, attack with a non-Human, be offered the Humans from the top six.
 
 The third decklist through the deck-led loop, on branch `deck/winter-chaos-v2`.
 
-**Status 2026-08-27: 63 / 100 implemented** (batches 1-3). Every engine
-capability landed on `main` first (per docs/BRANCHING.md), the card data on the
-branch. Done so far: the commander itself (Ward {2}, symmetric upkeep draw, the
-Delirium max-hand-size static), the tapland/dual/fetch base, the ramp and
-graveyard-recursion creatures, the draw-matters chaos pieces (Scrawling Crawler,
-Spiteful Visions, Howling Mine), and the cost-reduced removal (Blasphemous Act,
-Mortality Spear, Drag to the Roots, Overwhelming Remorse). The remaining ~37 are
-the tier-3 "weird" tail, each a deliberate bespoke feature: adventure, kicker,
-convoke, retrace, channel, demonstrate, transform DFC + discover, planeswalker
-type-changing reanimation, a single discard door (Sangromancer), nth-draw
-triggers (Gixian Puppeteer), reveal-to-graveyard choice flows (Grisly Salvage),
-each-player multi-basic search, symmetric extra-land, manlands, control-changing
-artifacts, impulse-from-exile, and the group-choice board resets (Thieves'
-Auction, Warp World, Over the Top). WINTER_DECK is registered into
-`archetypes.ts` only once all 100 are in.
+**Status 2026-08-28: COMPLETE, 100 / 100 implemented** across eleven fixture
+batches. Every engine capability landed on `main` first (per docs/BRANCHING.md),
+the card data + `winterDeck.ts` + the `archetypes.ts` registration on the branch.
+Registered as the sixth pre-built archetype - `?deck=winter`, launcher deck 7 -
+and confirmed Commander-legal by `deck.test.ts`. Every card was verified against
+the Scryfall bulk data.
+
+The tier-3 tail all landed: adventure (Virtue of Persistence), kicker (Urborg
+Repossession), convoke (Pile On), retrace (Six), channel (Shigeki), demonstrate
+(Healing Technique), transform + discover (Brass's Tunnel-Grinder, discover
+fired exactly through a mana-mark rider), Liliana's reanimate-as-Zombie, the
+single discard door (Sangromancer), nth-draw triggers (Gixian Puppeteer),
+reveal-choice flows (Grisly Salvage), each-player multi-basic search (Veteran
+Explorer, Tempt with Discovery, Rootweaver Druid), symmetric extra land (Rites
+of Flourishing), the manlands (Restless Vents/Cottage), the control-changing
+artifacts (Wishclaw Talisman, Pendant of Prosperity), the Share the Spoils
+impulse pile, and the group-choice board resets (Thieves' Auction, Warp World,
+Over the Top). Where the real card asks a player a choice the engine has no UI
+for, the engine auto-resolves it with the safe/best option - the same
+documented posture searchLibrary and the edicts already take.
 
 The original plan, written before any code so the shape of the work was arguable
 while it was still cheap:
