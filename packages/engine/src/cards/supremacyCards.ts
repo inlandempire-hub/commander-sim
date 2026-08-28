@@ -297,6 +297,100 @@ export const FUMIGATE: CardDefinition = {
   tier: "scripted",
 };
 
+/** "When this enchantment... " no - Portable Hole is an artifact: "When this artifact enters, exile target nonland permanent an opponent controls with mana value 2 or less until this artifact leaves the battlefield." */
+export const PORTABLE_HOLE: CardDefinition = {
+  id: "portable-hole",
+  name: "Portable Hole",
+  scryfallId: "80fca8c0-ae3e-439e-b202-228b9f360e9a",
+  types: ["Artifact"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "exileUntilLeaves",
+        target: { kind: "permanent", nonland: true, controlledBy: "opponent", maxManaValue: 2 },
+      },
+    },
+    O_RING_RETURN,
+  ],
+  tier: "weird",
+};
+
+/**
+ * "Choose one - Creatures you control get +2/+1 until end of turn; or Destroy
+ * target artifact or enchantment. You gain 2 life."
+ */
+export const THORINS_LAST_STAND: CardDefinition = {
+  id: "thorins-last-stand",
+  name: "Thorin's Last Stand",
+  scryfallId: "127367b6-9cfe-4516-9bfd-5b951468a25c",
+  types: ["Instant"],
+  manaCost: { generic: 2, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  castEffect: {
+    kind: "modal",
+    modes: [
+      { label: "Creatures you control get +2/+1 until end of turn", effect: { kind: "pumpAll", power: 2, toughness: 1, scope: "controller" } },
+      {
+        label: "Destroy target artifact or enchantment. You gain 2 life",
+        effect: {
+          kind: "sequence",
+          effects: [
+            { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact", "Enchantment"] } },
+            { kind: "gainLife", amount: 2 },
+          ],
+        },
+      },
+    ],
+  },
+  tier: "scripted",
+};
+
+/** "Flash. Natural Shelter - When this creature enters, you may return another permanent you control to its owner's hand." */
+export const RESCUER_CHWINGA: CardDefinition = {
+  id: "rescuer-chwinga",
+  name: "Rescuer Chwinga",
+  scryfallId: "73b17c29-c796-460b-a0c6-7638fb80e397",
+  types: ["Creature"],
+  subtypes: ["Elemental", "Spirit"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Flash"],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      optional: true,
+      effect: { kind: "returnToHand", target: { kind: "permanent", controlledBy: "you", excludeSource: true } },
+    },
+  ],
+  tier: "scripted",
+};
+
+/** "Whenever another creature you control with power 2 or less enters, you may pay {1}. If you do, draw a card." */
+export const MENTOR_OF_THE_MEEK: CardDefinition = {
+  id: "mentor-of-the-meek",
+  name: "Mentor of the Meek",
+  scryfallId: "05b6a101-4d12-4f50-8f02-5c778e08b149",
+  types: ["Creature"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [
+    {
+      event: "permanent-enters",
+      watchFor: { type: "Creature", maxPower: 2, controlledBy: "you" },
+      effect: { kind: "mayPay", cost: { mana: { generic: 1, colors: {} } }, then: { kind: "draw", amount: 1 } },
+    },
+  ],
+  tier: "scripted",
+};
+
 /** "Destroy all lands." */
 export const ARMAGEDDON: CardDefinition = {
   id: "armageddon",
@@ -325,4 +419,8 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   NOVICE_INSPECTOR,
   FUMIGATE,
   ARMAGEDDON,
+  PORTABLE_HOLE,
+  THORINS_LAST_STAND,
+  RESCUER_CHWINGA,
+  MENTOR_OF_THE_MEEK,
 ];
