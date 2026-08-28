@@ -181,6 +181,9 @@ export function isValidTarget(
        */
       if (selector.colorless && cardColors(def).length > 0) return false;
       if (selector.nonland && def.types.includes("Land")) return false;
+      // "**another** target permanent" / "up to one **other** target nonland
+      // permanent" - Flickerwisp, Phelia. The source is never a legal target.
+      if (selector.excludeSource && found.instance.instanceId === sourceInstanceId) return false;
       if (selector.attacking && state.attackers[found.instance.instanceId] === undefined) return false;
       // "attacking **or blocking**" - Eiganjo. Either map will do.
       if (

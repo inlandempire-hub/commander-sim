@@ -406,6 +406,8 @@ export function applyEffect(
         destroyed += 1;
       }
       if (effect.thenDraw && destroyed > 0) drawCard(state, controllerId, destroyed);
+      // "You gain 1 life for each creature destroyed this way" - Fumigate.
+      if (effect.thenGainLife && destroyed > 0) controller.life += destroyed;
       if (effect.manaPerDestroyed && effect.manaPerDestroyed.length > 0) {
         // One mana per permanent destroyed, spread round-robin across the colours.
         for (let i = 0; i < destroyed; i++) {

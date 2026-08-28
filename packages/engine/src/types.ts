@@ -648,6 +648,8 @@ export type TargetSelector =
        */
       colorless?: boolean;
       nonland?: boolean;
+      /** "another target permanent" / "other target nonland permanent" - Flickerwisp, Phelia. */
+      excludeSource?: boolean;
       /**
        * "target attacking creature **with lesser power**" - mentor, on Legion
        * Warboss.
@@ -935,6 +937,8 @@ export type Effect =
       /** "Destroy all **non-Zombie** creatures" - Liliana, Death's Majesty. Spares creatures of this subtype. */
       excludeSubtype?: string;
       thenDraw?: boolean;
+      /** "You gain 1 life for each creature destroyed this way" - Fumigate. */
+      thenGainLife?: boolean;
       /**
        * "Add {B} or {G} for each permanent destroyed this way" - Culling Ritual.
        * One mana per permanent destroyed, spread as evenly as possible across
