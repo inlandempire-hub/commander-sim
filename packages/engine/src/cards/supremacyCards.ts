@@ -287,6 +287,68 @@ export const DIMENSIONAL_EXILE: CardDefinition = {
   tier: "weird",
 };
 
+// --- Modal double-faced cards ------------------------------------------------
+
+/** Front: "When this creature enters, destroy target artifact or enchantment an opponent controls." Back: a white land. */
+export const WITCH_ENCHANTER: CardDefinition = {
+  id: "witch-enchanter",
+  name: "Witch Enchanter",
+  scryfallId: "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b",
+  types: ["Creature"],
+  subtypes: ["Human", "Warlock"],
+  manaCost: { generic: 3, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  backFaceId: "witch-blessed-meadow",
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Artifact", "Enchantment"], controlledBy: "opponent" } },
+    },
+  ],
+  tier: "scripted",
+};
+
+/** "As this land enters, you may pay 3 life. If you don't, it enters tapped. {T}: Add {W}." */
+export const WITCH_BLESSED_MEADOW: CardDefinition = {
+  id: "witch-blessed-meadow",
+  name: "Witch-Blessed Meadow",
+  scryfallId: "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b",
+  types: ["Land"],
+  colorIdentity: ["W"],
+  entersTappedUnlessPayLife: 3,
+  isBackFace: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } }],
+  tier: "scripted",
+};
+
+/** Front: "Deals 3 damage to target attacking or blocking creature." Back: a white land. */
+export const RAZORGRASS_AMBUSH: CardDefinition = {
+  id: "razorgrass-ambush",
+  name: "Razorgrass Ambush",
+  scryfallId: "57065dca-f90e-4184-bbc4-95d726a4160b",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  backFaceId: "razorgrass-field",
+  castEffect: { kind: "damage", amount: 3, target: { kind: "permanent", cardTypes: ["Creature"], attackingOrBlocking: true } },
+  tier: "scripted",
+};
+
+/** "As this land enters, you may pay 3 life. If you don't, it enters tapped. {T}: Add {W}." */
+export const RAZORGRASS_FIELD: CardDefinition = {
+  id: "razorgrass-field",
+  name: "Razorgrass Field",
+  scryfallId: "57065dca-f90e-4184-bbc4-95d726a4160b",
+  types: ["Land"],
+  colorIdentity: ["W"],
+  entersTappedUnlessPayLife: 3,
+  isBackFace: true,
+  activatedAbilities: [{ cost: { tap: true }, effect: { kind: "addMana", color: "W", amount: 1 } }],
+  tier: "scripted",
+};
+
 /** "Flash. If a nontoken creature would enter and it wasn't cast, exile it instead." */
 export const CONTAINMENT_PRIEST: CardDefinition = {
   id: "containment-priest",
@@ -649,4 +711,8 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   REPRIEVE,
   OUST,
   CONTAINMENT_PRIEST,
+  WITCH_ENCHANTER,
+  WITCH_BLESSED_MEADOW,
+  RAZORGRASS_AMBUSH,
+  RAZORGRASS_FIELD,
 ];
