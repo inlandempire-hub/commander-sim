@@ -121,10 +121,30 @@ export function putOntoBattlefield(
     replacementSettled?: boolean;
     /** Which half of a Room was paid for - the door it arrives with unlocked. */
     roomDoor?: "front" | "back";
+    /** This permanent is entering because a spell resolved (it was cast), which Containment Priest checks. */
+    wasCast?: boolean;
   } = {},
 ): CardInstance {
   const found = findInstance(state, instanceId);
   const def = found ? state.cardDefinitions[found.instance.definitionId] : undefined;
+  /*
+   * "If a nontoken creature would enter and it wasn't cast, exile it instead." -
+   * Containment Priest. Reanimation, blinks and Warp World all reach here without
+   * `wasCast`, which is exactly what the hatebear is meant to catch (its own
+   * controller's included).
+   */
+  if (
+    found &&
+    def &&
+    !options.wasCast &&
+    !def.isToken &&
+    !found.instance.isTokenCopy &&
+    def.types.includes("Creature") &&
+    state.players.some((p) => p.battlefield.some((c) => state.cardDefinitions[c.definitionId]?.staticRules?.exileNoncastCreatures))
+  ) {
+    log(state, `${def.name} was not cast and is exiled (Containment Priest)`);
+    return moveCard(state, instanceId, "exile");
+  }
   const discard = def?.entersOnlyIfYouDiscard;
   if (found && discard && !options.replacementSettled) {
     /*

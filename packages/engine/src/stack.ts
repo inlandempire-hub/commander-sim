@@ -22,7 +22,9 @@ export function resolveTopOfStack(state: GameState): void {
 
   if (obj.isPermanentSpell) {
     log(state, `${obj.controllerId} resolves ${cardName(state, obj.sourceInstanceId)}`);
-    putOntoBattlefield(state, obj.sourceInstanceId, { roomDoor: obj.roomDoor });
+    // wasCast: a permanent spell resolving *is* the cast, so Containment Priest
+    // does not exile it - only creatures that arrive some other way.
+    putOntoBattlefield(state, obj.sourceInstanceId, { roomDoor: obj.roomDoor, wasCast: true });
     return;
   }
 

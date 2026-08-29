@@ -3398,6 +3398,8 @@ export interface StaticRules {
   reduceControllerSpellsOfColor?: { color: Color; generic: number };
   /** "Players can't untap more than one nonbasic land during their untap steps." - Winter Moon. */
   untapOnlyOneNonbasicLand?: boolean;
+  /** "If a nontoken creature would enter and it wasn't cast, exile it instead." - Containment Priest. */
+  exileNoncastCreatures?: boolean;
   /**
    * "If an opponent would search a library, that player searches the **top
    * four cards** of that library instead." - Aven Mindcensor.
