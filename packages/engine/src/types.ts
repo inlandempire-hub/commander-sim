@@ -973,7 +973,7 @@ export type Effect =
    * `PendingSearch.noShuffle`); only the destination differs, which is exactly
    * the difference between the two keywords.
    */
-  | { kind: "scry"; amount: 1 }
+  | { kind: "scry"; amount: number }
   /**
    * "You may sacrifice another creature. **If you do**, ..." - Disciple of
    * Freyalise.
@@ -3385,6 +3385,8 @@ export interface StaticRules {
    * question, rather than being applied to lands already in play.
    */
   opponentsNonbasicLandsEnterTapped?: boolean;
+  /** "Creatures your opponents control enter tapped." - Authority of the Consuls. */
+  opponentsCreaturesEnterTapped?: boolean;
   /**
    * "If an opponent would search a library, that player searches the **top
    * four cards** of that library instead." - Aven Mindcensor.

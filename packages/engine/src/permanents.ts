@@ -192,15 +192,16 @@ function entersTappedByOpponentsRule(
   instance: CardInstance,
   def: CardDefinition,
 ): boolean {
-  if (!def.types.includes("Land")) return false;
-  if (def.supertypes?.includes("Basic")) return false;
+  const isNonbasicLand = def.types.includes("Land") && !def.supertypes?.includes("Basic");
+  const isCreature = def.types.includes("Creature");
+  if (!isNonbasicLand && !isCreature) return false;
   return state.players.some(
     (player) =>
       player.id !== instance.controllerId &&
-      player.battlefield.some(
-        (permanent) =>
-          state.cardDefinitions[permanent.definitionId]?.staticRules?.opponentsNonbasicLandsEnterTapped,
-      ),
+      player.battlefield.some((permanent) => {
+        const rules = state.cardDefinitions[permanent.definitionId]?.staticRules;
+        return (isNonbasicLand && rules?.opponentsNonbasicLandsEnterTapped) || (isCreature && rules?.opponentsCreaturesEnterTapped);
+      }),
   );
 }
 
