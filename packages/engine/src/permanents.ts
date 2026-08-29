@@ -482,10 +482,12 @@ export function enteredBattlefield(
     }
   }
 
-  // Triggers printed on the permanent that just arrived.
+  // Triggers printed on the permanent that just arrived. Elesh Norn doubles the
+  // controller's own enter triggers and suppresses opponents' entirely.
+  const selfMult = enterTriggerMultiplier(state, instance.controllerId);
   for (const trigger of effectiveTriggers(state, instance)) {
     if (trigger.event === "enters-battlefield") {
-      pushTrigger(state, instance.instanceId, instance.controllerId, trigger);
+      for (let i = 0; i < selfMult; i++) pushTrigger(state, instance.instanceId, instance.controllerId, trigger);
     }
   }
 
@@ -603,6 +605,23 @@ export function describeSubject(
  * another) both watch their own deaths, so the dying card is offered its own
  * triggers explicitly.
  */
+/**
+ * How many times an enter-caused trigger fires for `controllerId`, under Elesh
+ * Norn. An opponent's Elesh Norn suppresses it to 0 (a "can't trigger" beats a
+ * doubling); your own doubles it to 2; otherwise it fires once.
+ */
+export function enterTriggerMultiplier(state: GameState, controllerId: string): number {
+  let opponentHas = false;
+  let youHave = false;
+  for (const player of state.players) {
+    const has = player.battlefield.some((c) => state.cardDefinitions[c.definitionId]?.staticRules?.eleshNornEntersDoubler);
+    if (!has) continue;
+    if (player.id === controllerId) youHave = true;
+    else opponentHas = true;
+  }
+  return opponentHas ? 0 : youHave ? 2 : 1;
+}
+
 export function fireWatchers(
   state: GameState,
   event:
@@ -655,21 +674,27 @@ export function fireWatchers(
        * stack object could name them. Harmless for every other watcher event:
        * an ability that reads no player target ignores it.
        */
-      pushTrigger(
-        state,
-        watcher.instanceId,
-        watcher.controllerId,
-        trigger,
-        subject.counters,
-        event === "spell-cast" ? subject.controllerId : undefined,
-        /*
-         * "**That permanent**" - the thing the event happened to, which
-         * Charismatic Conqueror needs to point at. Only for arrivals: a
-         * permanent that died or left has no instance worth acting on, and a
-         * spell is not a permanent at all.
-         */
-        event === "permanent-enters" ? subject.instanceId : undefined,
-      );
+      // Elesh Norn: a permanent entering doubles the watcher-controller's own
+      // enter-caused triggers and suppresses opponents'. Only for the enter
+      // event - a death or an attack is not "a permanent entering".
+      const times = event === "permanent-enters" ? enterTriggerMultiplier(state, watcher.controllerId) : 1;
+      for (let i = 0; i < times; i++) {
+        pushTrigger(
+          state,
+          watcher.instanceId,
+          watcher.controllerId,
+          trigger,
+          subject.counters,
+          event === "spell-cast" ? subject.controllerId : undefined,
+          /*
+           * "**That permanent**" - the thing the event happened to, which
+           * Charismatic Conqueror needs to point at. Only for arrivals: a
+           * permanent that died or left has no instance worth acting on, and a
+           * spell is not a permanent at all.
+           */
+          event === "permanent-enters" ? subject.instanceId : undefined,
+        );
+      }
     }
   }
 }

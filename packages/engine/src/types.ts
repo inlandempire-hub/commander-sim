@@ -3401,6 +3401,12 @@ export interface StaticRules {
   /** "If a nontoken creature would enter and it wasn't cast, exile it instead." - Containment Priest. */
   exileNoncastCreatures?: boolean;
   /**
+   * Elesh Norn, Mother of Machines: a permanent entering makes your permanents'
+   * triggered abilities trigger an additional time, and makes your opponents'
+   * not trigger at all. Both halves come from this one flag.
+   */
+  eleshNornEntersDoubler?: boolean;
+  /**
    * "If an opponent would search a library, that player searches the **top
    * four cards** of that library instead." - Aven Mindcensor.
    *
