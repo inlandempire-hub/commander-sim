@@ -103,6 +103,19 @@ export const FLICKERWISP: CardDefinition = {
  * creature you control, then return that card to the battlefield under your
  * control."
  */
+/** "Exile target creature you control, then return it to the battlefield under its owner's control. Rebound." */
+export const EPHEMERATE: CardDefinition = {
+  id: "ephemerate",
+  name: "Ephemerate",
+  scryfallId: "2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  rebound: true,
+  castEffect: { kind: "flicker", timing: "immediate", target: { kind: "creature", controlledBy: "you" } },
+  tier: "scripted",
+};
+
 export const RESTORATION_ANGEL: CardDefinition = {
   id: "restoration-angel",
   name: "Restoration Angel",
@@ -751,6 +764,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   TOKEN_CLUE,
   PHELIA_EXUBERANT_SHEPHERD,
   CLOUDSHIFT,
+  EPHEMERATE,
   FLICKERWISP,
   RESTORATION_ANGEL,
   BANISHING_LIGHT,
