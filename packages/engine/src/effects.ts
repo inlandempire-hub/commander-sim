@@ -289,7 +289,13 @@ export function applyEffect(
       }
       for (const target of cardTargets) {
         const found = findInstance(state, target.instanceId);
-        if (found) found.instance.plusOneCounters += countersPlaced(state, found.instance, amount);
+        if (!found) continue;
+        found.instance.plusOneCounters += countersPlaced(state, found.instance, amount);
+        // "It gains hexproof until end of turn." - The Duke, whose counter and
+        // grant land on the same target in one effect.
+        if (effect.grantKeyword && !found.instance.grantedKeywords.includes(effect.grantKeyword)) {
+          found.instance.grantedKeywords.push(effect.grantKeyword);
+        }
       }
       return;
     }

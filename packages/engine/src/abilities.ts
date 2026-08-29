@@ -161,6 +161,8 @@ export function activatableAbilities(
     }
     // "Remove a wish counter" - unusable with no counter to remove.
     if (ability.cost.removeOtherCounter !== undefined && instance.otherCounters < ability.cost.removeOtherCounter) return;
+    // "Remove a +1/+1 counter from this creature" - The Duke, unusable with none.
+    if (ability.cost.removePlusOneCounter && instance.plusOneCounters < 1) return;
     // "Activate only during your turn." - Wishclaw Talisman.
     if (ability.onlyOnYourTurn && state.players[state.activePlayerIndex]?.id !== playerId) return;
     /*
@@ -404,6 +406,9 @@ export function activateAbility(
   if (ability.cost.removeOtherCounter !== undefined && instance.otherCounters < ability.cost.removeOtherCounter) {
     throw new Error(`${def.name} has no counter to remove`);
   }
+  if (ability.cost.removePlusOneCounter && instance.plusOneCounters < 1) {
+    throw new Error(`${def.name} has no +1/+1 counter to remove`);
+  }
   if (ability.cost.payLife !== undefined && player.life < ability.cost.payLife) {
     // You may not pay life you do not have. Paying down to exactly 0 is legal
     // and loses the game to the usual state-based action - that is the real
@@ -452,6 +457,10 @@ export function activateAbility(
   // "Remove a wish counter from this artifact" - Wishclaw Talisman.
   if (ability.cost.removeOtherCounter !== undefined) {
     instance.otherCounters = Math.max(0, instance.otherCounters - ability.cost.removeOtherCounter);
+  }
+  // "Remove a +1/+1 counter from this creature" - The Duke, Rebel Sentry.
+  if (ability.cost.removePlusOneCounter) {
+    instance.plusOneCounters = Math.max(0, instance.plusOneCounters - 1);
   }
   /*
    * The sacrifice happens here, as part of the cost, and that ordering is the

@@ -860,6 +860,8 @@ export type Effect =
        */
       amount: Amount;
       target?: TargetSelector;
+      /** "It gains hexproof until end of turn." - The Duke: a keyword granted to the counter's target. */
+      grantKeyword?: Keyword;
     }
   /**
    * "Move all counters from this permanent onto target creature" - The
@@ -3087,6 +3089,8 @@ export interface ActivatedAbilityCost {
   exileFromGraveyard?: number;
   /** "Remove a wish counter from this artifact" as a cost - Wishclaw Talisman. */
   removeOtherCounter?: number;
+  /** "Remove a +1/+1 counter from this creature" as a cost - The Duke, Rebel Sentry. */
+  removePlusOneCounter?: boolean;
   /** "Return Shigeki to its owner's hand" as a cost - Shigeki, Jukai Visionary. */
   returnSelfToHand?: boolean;
 }
