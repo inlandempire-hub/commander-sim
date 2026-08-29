@@ -287,6 +287,66 @@ export const DIMENSIONAL_EXILE: CardDefinition = {
   tier: "weird",
 };
 
+// --- More spells -------------------------------------------------------------
+
+/** "Flying. Keen Sight - When this creature enters, if an opponent controls more lands than you, search your library for a basic Plains card, put it onto the battlefield tapped, then shuffle." */
+export const SCOUTING_HAWK: CardDefinition = {
+  id: "scouting-hawk",
+  name: "Scouting Hawk",
+  scryfallId: "bce2209e-7a5c-4394-876c-e0f68cfba9ca",
+  types: ["Creature"],
+  subtypes: ["Bird"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  keywords: ["Flying"],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      onlyIf: { kind: "board", condition: { kind: "opponent-controls-more-lands" } },
+      effect: { kind: "searchLibrary", basicLandOnly: true, subtypes: ["Plains"], destination: "battlefield", tapped: true },
+    },
+  ],
+  tier: "scripted",
+};
+
+/** "Return target spell to its owner's hand. Draw a card." */
+export const REPRIEVE: CardDefinition = {
+  id: "reprieve",
+  name: "Reprieve",
+  scryfallId: "1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db",
+  types: ["Instant"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "counter", toHand: true, target: { kind: "spell" } },
+      { kind: "draw", amount: 1 },
+    ],
+  },
+  tier: "scripted",
+};
+
+/** "Put target creature into its owner's library second from the top. Its controller gains 3 life." */
+export const OUST: CardDefinition = {
+  id: "oust",
+  name: "Oust",
+  scryfallId: "2c655916-08fc-4971-be2a-1e33bf8b22f3",
+  types: ["Sorcery"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  castEffect: {
+    kind: "sequence",
+    effects: [
+      { kind: "tuckToLibrary", fromTop: 2, target: { kind: "creature" } },
+      { kind: "gainLife", amount: 3, who: "target-controller" },
+    ],
+  },
+  tier: "scripted",
+};
+
 // --- Static artifacts --------------------------------------------------------
 
 /** "White spells you cast cost {1} less to cast." */
@@ -500,7 +560,7 @@ export const CHARMING_PRINCE: CardDefinition = {
           { label: "Scry 2", effect: { kind: "scry", amount: 2 } },
           { label: "You gain 3 life", effect: { kind: "gainLife", amount: 3 } },
           {
-            label: "Exile another creature you control, return it at the next end step",
+            label: "Exile another target creature you control, return it at the next end step",
             effect: { kind: "flicker", timing: "next-end-step", target: { kind: "creature", controlledBy: "you", excludeSource: true } },
           },
         ],
@@ -569,4 +629,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   AUTHORITY_OF_THE_CONSULS,
   PEARL_MEDALLION,
   WINTER_MOON,
+  SCOUTING_HAWK,
+  REPRIEVE,
+  OUST,
 ];
