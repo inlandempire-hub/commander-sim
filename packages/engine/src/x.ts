@@ -122,6 +122,11 @@ export function resolveAmounts(effect: Effect, values: AmountContext): Effect {
       return { ...effect, amount: value(effect.amount, values) };
     case "gainLife":
       return { ...effect, amount: value(effect.amount, values) };
+    case "drain":
+      // "Each opponent loses X life. You gain life equal to the life lost." -
+      // Exsanguinate. Without this the X in the amount reached the drain handler
+      // unresolved and threw when the spell was actually cast.
+      return { ...effect, amount: value(effect.amount, values) };
     case "draw":
       return { ...effect, amount: value(effect.amount, values) };
     case "millThenPlayLands":
