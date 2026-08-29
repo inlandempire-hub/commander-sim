@@ -287,6 +287,22 @@ export const DIMENSIONAL_EXILE: CardDefinition = {
   tier: "weird",
 };
 
+/** "Flash. If a nontoken creature would enter and it wasn't cast, exile it instead." */
+export const CONTAINMENT_PRIEST: CardDefinition = {
+  id: "containment-priest",
+  name: "Containment Priest",
+  scryfallId: "a24e8dba-5c86-4e32-8a52-61402f7fe9f0",
+  types: ["Creature"],
+  subtypes: ["Human", "Cleric"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  keywords: ["Flash"],
+  staticRules: { exileNoncastCreatures: true },
+  tier: "scripted",
+};
+
 // --- More spells -------------------------------------------------------------
 
 /** "Flying. Keen Sight - When this creature enters, if an opponent controls more lands than you, search your library for a basic Plains card, put it onto the battlefield tapped, then shuffle." */
@@ -632,4 +648,5 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   SCOUTING_HAWK,
   REPRIEVE,
   OUST,
+  CONTAINMENT_PRIEST,
 ];
