@@ -446,6 +446,20 @@ export const ELESH_NORN_MOTHER_OF_MACHINES: CardDefinition = {
   tier: "weird",
 };
 
+/** "{T}: Add {C}. {T}: Draw a card. Activate only if you have exactly seven cards in hand." */
+export const LIBRARY_OF_ALEXANDRIA: CardDefinition = {
+  id: "library-of-alexandria",
+  name: "Library of Alexandria",
+  scryfallId: "e5145f31-a4ac-44ef-8f85-e4d95f2c9ff5",
+  types: ["Land"],
+  colorIdentity: [],
+  activatedAbilities: [
+    { cost: { tap: true }, effect: { kind: "addMana", color: "C", amount: 1 } },
+    { cost: { tap: true }, activateOnlyIf: { kind: "cards-in-hand-exactly", count: 7 }, effect: { kind: "draw", amount: 1 } },
+  ],
+  tier: "scripted",
+};
+
 // --- Static artifacts --------------------------------------------------------
 
 /** "White spells you cast cost {1} less to cast." */
@@ -737,4 +751,5 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   RAZORGRASS_AMBUSH,
   RAZORGRASS_FIELD,
   ELESH_NORN_MOTHER_OF_MACHINES,
+  LIBRARY_OF_ALEXANDRIA,
 ];
