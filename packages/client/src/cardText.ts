@@ -1646,6 +1646,10 @@ function negateCondition(condition: BoardCondition): string {
       return "you control no commander";
     case "controls-lands":
       return `you control fewer than ${condition.count} lands`;
+    case "opponent-controls-more-lands":
+      return "no opponent controls more lands than you";
+    case "cards-in-hand-exactly":
+      return `you don't have exactly ${condition.count} cards in hand`;
     case "attached-to-a-creature":
       return "this permanent is not attached to a creature";
     case "life-at-least":
@@ -1904,6 +1908,10 @@ function describeCondition(condition: BoardCondition): string {
       return "you control a commander";
     case "controls-lands":
       return `you control ${condition.count} or more ${condition.basic ? "basic " : ""}lands`;
+    case "opponent-controls-more-lands":
+      return "an opponent controls more lands than you";
+    case "cards-in-hand-exactly":
+      return `you have exactly ${condition.count} cards in hand`;
     case "any-player-life-at-most":
       return `a player has ${condition.life} or less life`;
     case "creature-cards-in-graveyard":
