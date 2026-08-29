@@ -431,12 +431,15 @@ export function castSpell(
 
   // `free` gates only commander tax below; the amount actually paid is `cost`,
   // so an alternative with a real price (Blasphemous Edict's {B}) still pays it.
-  const free = alternative !== undefined || options.free === true || options.omniscienceFree === true;
+  // Rebound: a card exiled with a free playable-from-exile permission (Ephemerate)
+  // is recast without paying its mana cost.
+  const freeFromExile = fromExile && instance.playableFromExile?.free === true;
+  const free = alternative !== undefined || options.free === true || options.omniscienceFree === true || freeFromExile;
   let cost: ManaCost = alternative
     ? // Blasphemous Edict pays a reduced {B}; every other alternative is free of
       // mana (paid by a sacrifice, or by nothing).
       (alternative.manaCost ?? { generic: 0, colors: {} })
-    : options.free === true || options.omniscienceFree === true
+    : options.free === true || options.omniscienceFree === true || freeFromExile
       ? { generic: 0, colors: {} }
       : options.useWarp
         ? // Warp replaces the mana cost with its own, like an alternative cost -

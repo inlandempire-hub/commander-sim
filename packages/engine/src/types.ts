@@ -4018,6 +4018,13 @@ export interface CardDefinition {
   demonstrate?: boolean;
   /** "Exile [this spell]." - Healing Technique goes to exile instead of the graveyard as it resolves. */
   exileAfterResolving?: boolean;
+  /**
+   * "Rebound - If you cast this spell from your hand, exile it as it resolves. At
+   * the beginning of your next upkeep, you may cast this card from exile without
+   * paying its mana cost." - Ephemerate. Modeled as a free playable-from-exile
+   * permission for the caster's next turn.
+   */
+  rebound?: boolean;
   /** "As an additional cost to cast this spell, ..." - paid at cast time. */
   additionalCost?: AdditionalCost;
   /** "Kicker {1}{G} ... If this spell was kicked, ..." - Urborg Repossession. An optional extra cost that runs an extra effect. */
@@ -4426,7 +4433,7 @@ export interface CardInstance {
    * `lands` is the difference between the two cards: Face-Breaker says "play",
    * which includes a land drop, and Ragavan says "cast", which does not.
    */
-  playableFromExile?: { playerId: string; untilTurn: number; lands: boolean };
+  playableFromExile?: { playerId: string; untilTurn: number; lands: boolean; free?: boolean };
   /** Exiled with Share the Spoils: the active player may play or cast it from exile any turn, and it re-fills the pile when played. */
   shareTheSpoilsExiled?: boolean;
   /**

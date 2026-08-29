@@ -136,11 +136,27 @@ function finishResolution(state: GameState, obj: StackObject): void {
   if (obj.isCopy) return;
   const source = findInstance(state, obj.sourceInstanceId);
   if (source && source.instance.zone === "stack") {
+    const def = state.cardDefinitions[source.instance.definitionId];
+    /*
+     * Rebound: "If you cast this spell from your hand, exile it as it resolves.
+     * At the beginning of your next upkeep, you may cast this card from exile
+     * without paying its mana cost." Exiled with a free playable-from-exile
+     * permission for the caster's next turn.
+     */
+    if (def?.rebound && source.instance.wasCastFromHand) {
+      const exiled = moveCard(state, obj.sourceInstanceId, "exile");
+      exiled.playableFromExile = {
+        playerId: obj.controllerId,
+        untilTurn: state.turnNumber + state.players.length,
+        lands: false,
+        free: true,
+      };
+      return;
+    }
     // "Exile Healing Technique." - a spell that exiles itself as it resolves,
     // rather than going to the graveyard. An adventure half likewise exiles the
     // card (to be cast later as the creature/enchantment).
-    const exiles =
-      state.cardDefinitions[source.instance.definitionId]?.exileAfterResolving || source.instance.adventuredInExile;
+    const exiles = def?.exileAfterResolving || source.instance.adventuredInExile;
     moveCard(state, obj.sourceInstanceId, exiles ? "exile" : "graveyard");
   }
 }
