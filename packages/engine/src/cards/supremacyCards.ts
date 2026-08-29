@@ -228,6 +228,65 @@ export const PRAYER_OF_BINDING: CardDefinition = {
   tier: "weird",
 };
 
+// --- Aura cluster ------------------------------------------------------------
+
+/** "Enchant creature. Enchanted creature can't attack or block." */
+export const PACIFISM: CardDefinition = {
+  id: "pacifism",
+  name: "Pacifism",
+  scryfallId: "433eed50-81af-4a59-b624-57b6f5f1bb0f",
+  types: ["Enchantment"],
+  subtypes: ["Aura"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  enchant: { kind: "creature" },
+  auraCantAttackOrBlock: true,
+  tier: "weird",
+};
+
+/** "Enchant basic land you control. When this Aura enters, exile target creature or planeswalker an opponent controls until this Aura leaves the battlefield." */
+export const OSSIFICATION: CardDefinition = {
+  id: "ossification",
+  name: "Ossification",
+  scryfallId: "0da03224-c1af-438f-96c2-b0e41e1070b7",
+  types: ["Enchantment"],
+  subtypes: ["Aura"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  enchant: { kind: "permanent", cardTypes: ["Land"], controlledBy: "you" },
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "exileUntilLeaves",
+        target: { kind: "permanent", cardTypes: ["Creature", "Planeswalker"], controlledBy: "opponent" },
+      },
+    },
+    O_RING_RETURN,
+  ],
+  tier: "weird",
+};
+
+/** "Enchant basic land you control. When this Aura enters, exile target creature an opponent controls until this Aura leaves the battlefield." */
+export const DIMENSIONAL_EXILE: CardDefinition = {
+  id: "dimensional-exile",
+  name: "Dimensional Exile",
+  scryfallId: "be8d96fb-a1be-4fff-b844-e38d185884e1",
+  types: ["Enchantment"],
+  subtypes: ["Aura"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  enchant: { kind: "permanent", cardTypes: ["Land"], controlledBy: "you" },
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "exileUntilLeaves", target: { kind: "creature", controlledBy: "opponent" } },
+    },
+    O_RING_RETURN,
+  ],
+  tier: "weird",
+};
+
 // --- Reuse cluster -----------------------------------------------------------
 
 /** "Flying. When this creature enters, you gain 1 life and draw a card." */
@@ -423,4 +482,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   THORINS_LAST_STAND,
   RESCUER_CHWINGA,
   MENTOR_OF_THE_MEEK,
+  PACIFISM,
+  OSSIFICATION,
+  DIMENSIONAL_EXILE,
 ];
