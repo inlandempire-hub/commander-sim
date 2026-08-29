@@ -446,6 +446,37 @@ export const ELESH_NORN_MOTHER_OF_MACHINES: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * "The Duke enters with a +1/+1 counter on him. {T}, Remove a counter from The
+ * Duke: Put a +1/+1 counter on another target creature you control. It gains
+ * hexproof until end of turn."
+ */
+export const THE_DUKE_REBEL_SENTRY: CardDefinition = {
+  id: "the-duke-rebel-sentry",
+  name: "The Duke, Rebel Sentry",
+  scryfallId: "cd9d91a8-7315-4355-af99-941f3cf7398c",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Human", "Rebel", "Ally"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 0,
+  toughness: 1,
+  entersWithCounters: 1,
+  activatedAbilities: [
+    {
+      cost: { tap: true, removePlusOneCounter: true },
+      effect: {
+        kind: "addCounter",
+        amount: 1,
+        grantKeyword: "Hexproof",
+        target: { kind: "creature", controlledBy: "you", excludeSource: true },
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
 /** "{T}: Add {C}. {T}: Draw a card. Activate only if you have exactly seven cards in hand." */
 export const LIBRARY_OF_ALEXANDRIA: CardDefinition = {
   id: "library-of-alexandria",
@@ -752,4 +783,5 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   RAZORGRASS_FIELD,
   ELESH_NORN_MOTHER_OF_MACHINES,
   LIBRARY_OF_ALEXANDRIA,
+  THE_DUKE_REBEL_SENTRY,
 ];
