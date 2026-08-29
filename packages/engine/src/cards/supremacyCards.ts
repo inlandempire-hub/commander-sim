@@ -287,6 +287,32 @@ export const DIMENSIONAL_EXILE: CardDefinition = {
   tier: "weird",
 };
 
+// --- Static artifacts --------------------------------------------------------
+
+/** "White spells you cast cost {1} less to cast." */
+export const PEARL_MEDALLION: CardDefinition = {
+  id: "pearl-medallion",
+  name: "Pearl Medallion",
+  scryfallId: "dc49601d-d6f6-4981-8604-f6822a2ba2be",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  staticRules: { reduceControllerSpellsOfColor: { color: "W", generic: 1 } },
+  tier: "scripted",
+};
+
+/** "Players can't untap more than one nonbasic land during their untap steps." */
+export const WINTER_MOON: CardDefinition = {
+  id: "winter-moon",
+  name: "Winter Moon",
+  scryfallId: "f76bc2da-8f4b-4153-8a7b-c601b19affaf",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  staticRules: { untapOnlyOneNonbasicLand: true },
+  tier: "scripted",
+};
+
 // --- Reuse cluster -----------------------------------------------------------
 
 /** "Flying. When this creature enters, you gain 1 life and draw a card." */
@@ -541,4 +567,6 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   DIMENSIONAL_EXILE,
   CHARMING_PRINCE,
   AUTHORITY_OF_THE_CONSULS,
+  PEARL_MEDALLION,
+  WINTER_MOON,
 ];
