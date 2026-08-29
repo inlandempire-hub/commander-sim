@@ -1530,7 +1530,7 @@ export type Effect =
    * Only spells can be targeted, never triggered or activated abilities - see
    * `isSpellOnStack`.
    */
-  | { kind: "counter"; target: TargetSelector; unlessPays?: ManaCost }
+  | { kind: "counter"; target: TargetSelector; unlessPays?: ManaCost; toHand?: boolean }
   /**
    * "Return target creature card from your graveyard to your hand" - or to the
    * battlefield, for the reanimation spells. Entering the battlefield this way
@@ -2153,6 +2153,11 @@ export type Effect =
   /** The body of the source's own leaves-battlefield trigger. */
   | { kind: "returnExiledByThis" }
   /**
+   * "Put target creature into its owner's library **second from the top**" -
+   * Oust. `fromTop` is 1-indexed: 1 is the very top, 2 is second from the top.
+   */
+  | { kind: "tuckToLibrary"; target: TargetSelector; fromTop: number }
+  /**
    * Grist's +1, which is a loop: "create a token, then mill a card. If an
    * Insect card was milled this way, put a loyalty counter on Grist and repeat
    * this process."
@@ -2421,6 +2426,8 @@ export type BoardCondition =
    * Marsh). Read off the Basic supertype, so a dual land does not count.
    */
   | { kind: "controls-lands"; count: number; basic?: boolean }
+  /** "if an opponent controls more lands than you" - Scouting Hawk. */
+  | { kind: "opponent-controls-more-lands" }
   /**
    * "unless a player has 13 or less life" - Strangled Cemetery, and the
    * horror-land cycle. Any player at all, the controller included, which is

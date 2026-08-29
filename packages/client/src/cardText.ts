@@ -1054,6 +1054,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Exile ${describeTarget(effect.target)} until this permanent leaves the battlefield.`;
     case "returnExiledByThis":
       return "Return the exiled cards to the battlefield.";
+    case "tuckToLibrary":
+      return `Put ${describeTarget(effect.target)} into its owner's library ${effect.fromTop === 1 ? "on top" : `${effect.fromTop} from the top`}.`;
     case "modal": {
       // The printed wording: "Choose one - A; or B."
       return `Choose one - ${effect.modes.map((mode) => mode.label).join("; or ")}.`;

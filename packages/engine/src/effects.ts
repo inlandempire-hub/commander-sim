@@ -2833,6 +2833,20 @@ export function applyEffect(
         const obj = state.stack[index]!;
         if (!isSpellOnStack(state, obj)) continue;
 
+        /*
+         * "Return target spell to its owner's hand." - Reprieve. Not a counter,
+         * so "can't be countered" does not stop it; the spell simply leaves the
+         * stack for its owner's hand instead of the graveyard.
+         */
+        if (effect.toHand) {
+          state.stack.splice(index, 1);
+          if (findInstance(state, obj.sourceInstanceId)?.instance.zone === "stack") {
+            moveCard(state, obj.sourceInstanceId, "hand");
+            log(state, `${cardName(state, obj.sourceInstanceId)} is returned to its owner's hand`);
+          }
+          continue;
+        }
+
         // "This spell can't be countered." The counterspell was still cast, still
         // targeted this legally, and still resolves - it simply does nothing,
         // which is exactly what the real rules say. It is deliberately not a
@@ -3008,6 +3022,23 @@ export function applyEffect(
         const nowExiled = findInstance(state, target.instanceId);
         if (nowExiled) nowExiled.instance.exiledBy = sourceInstanceId;
         log(state, `${cardName(state, target.instanceId)} is exiled by ${cardName(state, sourceInstanceId)}`);
+      }
+      return;
+    }
+    case "tuckToLibrary": {
+      for (const target of targets) {
+        if (target.kind !== "card") continue;
+        const found = findInstance(state, target.instanceId);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        const owner = requirePlayer(state, found.instance.ownerId);
+        const name = cardName(state, target.instanceId);
+        moveCard(state, target.instanceId, "library"); // appends to the end
+        const moved = owner.library.pop(); // take it back off the end
+        if (moved) {
+          const pos = Math.min(Math.max(effect.fromTop - 1, 0), owner.library.length);
+          owner.library.splice(pos, 0, moved);
+        }
+        log(state, `${name} is put ${effect.fromTop === 1 ? "on top of" : `${effect.fromTop} from the top of`} its owner's library`);
       }
       return;
     }

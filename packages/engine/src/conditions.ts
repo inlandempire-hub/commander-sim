@@ -139,6 +139,12 @@ export function meetsBoardCondition(
         }).length >= condition.count
       );
     }
+    case "opponent-controls-more-lands": {
+      const landsOf = (p: typeof player) =>
+        p.battlefield.filter((c) => state.cardDefinitions[c.definitionId]?.types.includes("Land")).length;
+      const mine = landsOf(player);
+      return state.players.some((p) => p.id !== player.id && landsOf(p) > mine);
+    }
     case "any-player-life-at-most":
       // "unless a player has 13 or less life" - Strangled Cemetery. Any player,
       // the controller included.

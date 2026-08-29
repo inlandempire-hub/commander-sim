@@ -422,6 +422,8 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     case "flicker":
     /* Oblivion Ring's ETB: the permanent it exiles until it leaves. */
     case "exileUntilLeaves":
+    /* Oust: the creature tucked into its owner's library. */
+    case "tuckToLibrary":
       return effect.target;
     /*
      * "Untap one or two target attacking creatures" targets; "untap this
