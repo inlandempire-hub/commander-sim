@@ -425,6 +425,27 @@ export const OUST: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Vigilance. If a permanent entering causes a triggered ability of a permanent
+ * you control to trigger, that ability triggers an additional time. Permanents
+ * entering don't cause abilities of permanents your opponents control to trigger."
+ */
+export const ELESH_NORN_MOTHER_OF_MACHINES: CardDefinition = {
+  id: "elesh-norn-mother-of-machines",
+  name: "Elesh Norn, Mother of Machines",
+  scryfallId: "44dcab01-1d13-4dfc-ae2f-fbaa3dd35087",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Phyrexian", "Praetor"],
+  manaCost: { generic: 4, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 4,
+  toughness: 7,
+  keywords: ["Vigilance"],
+  staticRules: { eleshNornEntersDoubler: true },
+  tier: "weird",
+};
+
 // --- Static artifacts --------------------------------------------------------
 
 /** "White spells you cast cost {1} less to cast." */
@@ -715,4 +736,5 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   WITCH_BLESSED_MEADOW,
   RAZORGRASS_AMBUSH,
   RAZORGRASS_FIELD,
+  ELESH_NORN_MOTHER_OF_MACHINES,
 ];
