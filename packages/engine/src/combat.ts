@@ -90,7 +90,22 @@ export function attackProblem(state: GameState, playerId: string, attackerInstan
   if (instance.summoningSickness && !hasHaste) {
     return `${def.name} came into play this turn and cannot attack yet`;
   }
+  if (pacifiedBy(state, instance)) return `${def.name} can't attack (Pacifism)`;
   return null;
+}
+
+/**
+ * The Aura, if any, that stops this creature attacking or blocking - Pacifism.
+ * Any aura attached to it whose card says "can't attack or block".
+ */
+function pacifiedBy(state: GameState, instance: CardInstance): boolean {
+  for (const player of state.players) {
+    for (const aura of player.battlefield) {
+      if (aura.attachedTo !== instance.instanceId) continue;
+      if (requireDefinition(state, aura.definitionId).auraCantAttackOrBlock) return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -203,6 +218,7 @@ export function blockWouldBeIllegal(
   // "Skrelv can't block." Printed text with no keyword of its own - the mirror
   // of Defender, which is the same restriction pointed the other way.
   if (blockerDef.cantBlock) return `${blockerDef.name} can't block`;
+  if (pacifiedBy(state, blocker)) return `${blockerDef.name} can't block (Pacifism)`;
   if (blocker.tapped) return `${blockerDef.name} is tapped and cannot block`;
 
   /*

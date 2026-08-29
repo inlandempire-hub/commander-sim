@@ -420,6 +420,17 @@ export function enteredBattlefield(
   }
 
   /*
+   * An Aura arrives attached to the permanent it was cast onto. If that host has
+   * gone in the meantime, it still enters unattached and a state-based action
+   * puts it into the graveyard - which is the real rule, not a shortcut.
+   */
+  if (def.enchant && instance.enchantTarget) {
+    const host = findInstance(state, instance.enchantTarget);
+    if (host && host.instance.zone === "battlefield") instance.attachedTo = instance.enchantTarget;
+    instance.enchantTarget = undefined;
+  }
+
+  /*
    * Devour: "as this enters, you may sacrifice any number of creatures. It
    * enters with that many +1/+1 counters on it."
    *

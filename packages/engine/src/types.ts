@@ -3941,6 +3941,14 @@ export interface CardDefinition {
    * creature. It is still a creature card; it simply is not a creature while
    * it is attached to one.
    */
+  /**
+   * An Aura: what it enchants. The spell targets this on cast and attaches to it
+   * as it enters (the same shape bestow already uses). An Aura on the battlefield
+   * whose host has gone is put into its owner's graveyard by a state-based action.
+   */
+  enchant?: TargetSelector;
+  /** "Enchanted creature can't attack or block." - Pacifism, Dog Umbra (while another player controls it). */
+  auraCantAttackOrBlock?: boolean;
   bestowCost?: ManaCost;
   /**
    * "**Dash {1}{R}**" - Ragavan.
@@ -4161,6 +4169,8 @@ export interface CardInstance {
    * `returnExiledByThis` trigger brings this card back. Cleared on any zone change.
    */
   exiledBy?: string;
+  /** For an Aura being cast: the permanent it will attach to as it enters. Cleared on any zone change. */
+  enchantTarget?: string;
   /** Modal-trigger modes already taken on this permanent this turn - Gala Greeters' "hasn't been chosen this turn". Cleared each cleanup. */
   modesChosenThisTurn: string[];
   /** Creature subtypes granted on the battlefield - Liliana's "that creature is a black Zombie". Cleared on any zone change. */

@@ -636,7 +636,9 @@ export function castSpell(
   // would otherwise leave the game half-cast - mana spent and the card sitting
   // on the stack - and an illegal target is the easy way to hit that now that
   // targets can disappear in response to a spell.
-  const selectors = targetSelectorsOf(effect);
+  // An Aura targets what it enchants on cast (the same shape bestow uses); the
+  // enchant selector leads, before any selector the aura's own effect carries.
+  const selectors = def.enchant ? [def.enchant, ...targetSelectorsOf(effect)] : targetSelectorsOf(effect);
   if (selectors.length > 1) {
     /*
      * Two selectors of different kinds - Infectious Bite's "creature you
@@ -747,6 +749,9 @@ export function castSpell(
    * as the permanent arrives - long after the stack object has gone.
    */
   instance.bestowTarget = options.bestowOnto;
+  // An Aura remembers its host - chosen now, attached as it arrives, long after
+  // the stack object has gone. Its target leads the list validated above.
+  if (def.enchant && targets[0]?.kind === "card") instance.enchantTarget = targets[0].instanceId;
   // Dash, for the same reason: the haste and the return home are applied as the
   // creature arrives, not while it is a spell.
   instance.dashed = options.useDashCost === true;

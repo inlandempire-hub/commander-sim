@@ -104,6 +104,8 @@ export function canPlayCardNow(state: GameState, playerId: string, instanceId: s
   // Cost reductions apply first, or a Blasphemous Act stays greyed out on a
   // full board it can actually afford.
   if (!couldAfford(state, playerId, castCostReduction(state, playerId, def, def.manaCost ?? EMPTY_COST))) return false;
+  // An Aura needs a legal permanent to enchant, or it cannot be cast at all.
+  if (def.enchant && legalTargetsFor(state, def.enchant, playerId, instanceId).length === 0) return false;
   return hasSomethingToTarget(state, playerId, def.castEffect);
 }
 

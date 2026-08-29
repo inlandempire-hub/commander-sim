@@ -226,6 +226,23 @@ export function checkStateBasedActions(state: GameState): void {
     }
 
     /*
+     * An Aura attached to nothing is put into its owner's graveyard (rule
+     * 704.5m). This fires the turn after the equipment-detach loop above has
+     * unhooked an Aura whose host left - a Pacifism outlives its creature by no
+     * time at all - and also catches an Aura that entered with no legal host.
+     */
+    for (const player of state.players) {
+      for (const instance of [...player.battlefield]) {
+        const def = requireDefinition(state, instance.definitionId);
+        if (!def.enchant) continue;
+        if (instance.attachedTo && findInstance(state, instance.attachedTo)?.instance.zone === "battlefield") continue;
+        log(state, `${def.name} is put into the graveyard - it is attached to nothing`);
+        moveCard(state, instance.instanceId, "graveyard");
+        changed = true;
+      }
+    }
+
+    /*
      * A planeswalker with no loyalty left is put into its owner's graveyard
      * (rule 704.5i). Checked with the creatures rather than after them, because
      * a loyalty ability that killed the walker should take effect before

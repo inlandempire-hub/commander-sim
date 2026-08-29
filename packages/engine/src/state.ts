@@ -313,6 +313,7 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.animation = undefined; // an animated land that leaves play is a land card again
   instance.attachedTo = undefined; // an Equipment that changes zones falls off
   instance.exiledBy = undefined; // the O-Ring link belongs to the exiled object, and this move is it leaving that state
+  instance.enchantTarget = undefined; // an Aura that never reached its host is a card again
   instance.controllerId = owner.id; // zone changes return control to the owner
   instance.summoningSickness = destination === "battlefield";
 
