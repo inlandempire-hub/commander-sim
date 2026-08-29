@@ -450,6 +450,60 @@ export const MENTOR_OF_THE_MEEK: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "When this creature enters, choose one - Scry 2; or You gain 3 life; or Exile
+ * another target creature you own. Return it to the battlefield under your control
+ * at the beginning of the next end step."
+ */
+export const CHARMING_PRINCE: CardDefinition = {
+  id: "charming-prince",
+  name: "Charming Prince",
+  scryfallId: "aa7b47e1-7e32-4f2f-aecf-bac7ca197081",
+  types: ["Creature"],
+  subtypes: ["Human", "Noble"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 2,
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "modal",
+        modes: [
+          { label: "Scry 2", effect: { kind: "scry", amount: 2 } },
+          { label: "You gain 3 life", effect: { kind: "gainLife", amount: 3 } },
+          {
+            label: "Exile another creature you control, return it at the next end step",
+            effect: { kind: "flicker", timing: "next-end-step", target: { kind: "creature", controlledBy: "you", excludeSource: true } },
+          },
+        ],
+      },
+    },
+  ],
+  tier: "scripted",
+};
+
+/** "Creatures your opponents control enter tapped. Whenever a creature an opponent controls enters, you gain 1 life." */
+export const AUTHORITY_OF_THE_CONSULS: CardDefinition = {
+  id: "authority-of-the-consuls",
+  name: "Authority of the Consuls",
+  scryfallId: "42ce2d7f-5924-47c0-b5ed-dacf9f9617a0",
+  types: ["Enchantment"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  staticRules: { opponentsCreaturesEnterTapped: true },
+  triggeredAbilities: [
+    {
+      event: "permanent-enters",
+      watches: "any",
+      watchFor: { type: "Creature", controlledBy: "opponent" },
+      effect: { kind: "gainLife", amount: 1 },
+    },
+  ],
+  tier: "scripted",
+};
+
 /** "Destroy all lands." */
 export const ARMAGEDDON: CardDefinition = {
   id: "armageddon",
@@ -485,4 +539,6 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   PACIFISM,
   OSSIFICATION,
   DIMENSIONAL_EXILE,
+  CHARMING_PRINCE,
+  AUTHORITY_OF_THE_CONSULS,
 ];
