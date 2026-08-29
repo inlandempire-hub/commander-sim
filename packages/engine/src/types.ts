@@ -3387,6 +3387,10 @@ export interface StaticRules {
   opponentsNonbasicLandsEnterTapped?: boolean;
   /** "Creatures your opponents control enter tapped." - Authority of the Consuls. */
   opponentsCreaturesEnterTapped?: boolean;
+  /** "White spells you cast cost {1} less to cast." - Pearl Medallion. One per matching permanent. */
+  reduceControllerSpellsOfColor?: { color: Color; generic: number };
+  /** "Players can't untap more than one nonbasic land during their untap steps." - Winter Moon. */
+  untapOnlyOneNonbasicLand?: boolean;
   /**
    * "If an opponent would search a library, that player searches the **top
    * four cards** of that library instead." - Aven Mindcensor.

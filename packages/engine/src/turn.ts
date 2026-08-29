@@ -225,6 +225,13 @@ function runAutomaticStepActions(state: GameState): void {
       break;
     }
     case "untap": {
+      // "Players can't untap more than one nonbasic land during their untap
+      // steps." - Winter Moon. The engine untaps the first nonbasic land and
+      // leaves the rest tapped (a documented auto-resolution of the choice).
+      const oneNonbasicOnly = state.players.some((p) =>
+        p.battlefield.some((c) => state.cardDefinitions[c.definitionId]?.staticRules?.untapOnlyOneNonbasicLand),
+      );
+      let nonbasicLandsUntapped = 0;
       for (const instance of activePlayer.battlefield) {
         /*
          * "An exerted creature won't untap during your next untap step."
@@ -259,6 +266,19 @@ function runAutomaticStepActions(state: GameState): void {
         } else if (instance.exerted) {
           instance.exerted = false;
           log(state, `${requireDefinition(state, instance.definitionId).name} was exerted and does not untap`);
+        } else if (
+          oneNonbasicOnly &&
+          instance.tapped &&
+          (() => {
+            const d = state.cardDefinitions[instance.definitionId];
+            return d?.types.includes("Land") === true && d.supertypes?.includes("Basic") !== true;
+          })()
+        ) {
+          if (nonbasicLandsUntapped === 0) {
+            instance.tapped = false;
+            nonbasicLandsUntapped += 1;
+          }
+          // Otherwise it stays tapped - Winter Moon caps the untap at one.
         } else {
           instance.tapped = false;
         }

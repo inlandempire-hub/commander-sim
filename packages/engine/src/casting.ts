@@ -36,24 +36,31 @@ export function castCostReduction(
   def: CardDefinition,
   cost: ManaCost,
 ): ManaCost {
-  const rule = def.costReduction;
-  if (!rule) return cost;
   let reduction = 0;
-  if (rule.per) {
-    let count = 0;
-    if (rule.per === "creatures-on-battlefield") {
-      for (const p of state.players) {
-        for (const c of p.battlefield) {
-          if (requireDefinition(state, c.definitionId).types.includes("Creature")) count += 1;
+  const rule = def.costReduction;
+  if (rule) {
+    if (rule.per) {
+      let count = 0;
+      if (rule.per === "creatures-on-battlefield") {
+        for (const p of state.players) {
+          for (const c of p.battlefield) {
+            if (requireDefinition(state, c.definitionId).types.includes("Creature")) count += 1;
+          }
         }
+      } else {
+        const player = requirePlayer(state, playerId);
+        count = player.graveyard.filter((c) => requireDefinition(state, c.definitionId).types.includes("Creature")).length;
       }
-    } else {
-      const player = requirePlayer(state, playerId);
-      count = player.graveyard.filter((c) => requireDefinition(state, c.definitionId).types.includes("Creature")).length;
+      reduction = rule.generic * count;
+    } else if (!rule.onlyIf || controllerMeets(state, playerId, rule.onlyIf)) {
+      reduction = rule.generic;
     }
-    reduction = rule.generic * count;
-  } else if (!rule.onlyIf || controllerMeets(state, playerId, rule.onlyIf)) {
-    reduction = rule.generic;
+  }
+  // Static reducers on the caster's own battlefield - "White spells you cast cost
+  // {1} less" (Pearl Medallion). One per matching permanent, by the spell's colour.
+  for (const permanent of requirePlayer(state, playerId).battlefield) {
+    const medallion = requireDefinition(state, permanent.definitionId).staticRules?.reduceControllerSpellsOfColor;
+    if (medallion && cardColors(def).includes(medallion.color)) reduction += medallion.generic;
   }
   if (reduction <= 0) return cost;
   return { ...cost, generic: Math.max(0, cost.generic - reduction) };
