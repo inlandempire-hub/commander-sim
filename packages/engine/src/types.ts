@@ -2428,6 +2428,8 @@ export type BoardCondition =
   | { kind: "controls-lands"; count: number; basic?: boolean }
   /** "if an opponent controls more lands than you" - Scouting Hawk. */
   | { kind: "opponent-controls-more-lands" }
+  /** "if you have exactly seven cards in hand" - Library of Alexandria. */
+  | { kind: "cards-in-hand-exactly"; count: number }
   /**
    * "unless a player has 13 or less life" - Strangled Cemetery, and the
    * horror-land cycle. Any player at all, the controller included, which is

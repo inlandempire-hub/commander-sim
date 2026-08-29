@@ -145,6 +145,8 @@ export function meetsBoardCondition(
       const mine = landsOf(player);
       return state.players.some((p) => p.id !== player.id && landsOf(p) > mine);
     }
+    case "cards-in-hand-exactly":
+      return player.hand.length === condition.count;
     case "any-player-life-at-most":
       // "unless a player has 13 or less life" - Strangled Cemetery. Any player,
       // the controller included.
