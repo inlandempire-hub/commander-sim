@@ -1035,6 +1035,32 @@ export const OVERLORD_OF_THE_MISTMOORS: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * "Flash. Flying. When Appa enters, airbend any number of other target nonland
+ * permanents you control. (Exile them; while each is exiled, its owner may cast
+ * it for {2}.)" (Cut from the deck; the cast-from-exile Ally token is a gap.)
+ */
+export const APPA_STEADFAST_GUARDIAN: CardDefinition = {
+  id: "appa-steadfast-guardian",
+  name: "Appa, Steadfast Guardian",
+  scryfallId: "829d91e9-4878-4e55-a262-ac0d55b65d4e",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Bison", "Ally"],
+  manaCost: { generic: 2, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 4,
+  keywords: ["Flash", "Flying"],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "airbend", target: { kind: "permanent", nonland: true, controlledBy: "you", excludeSource: true, count: { min: 0, max: 99 } } },
+    },
+  ],
+  tier: "weird",
+};
+
 // --- Static artifacts --------------------------------------------------------
 
 /** "White spells you cast cost {1} less to cast." */
@@ -1295,6 +1321,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   TOKEN_CLUE,
   TOKEN_W_21_INSECT_FLYING,
   OVERLORD_OF_THE_MISTMOORS,
+  APPA_STEADFAST_GUARDIAN,
   PHELIA_EXUBERANT_SHEPHERD,
   CLOUDSHIFT,
   EPHEMERATE,

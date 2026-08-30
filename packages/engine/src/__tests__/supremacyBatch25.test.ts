@@ -30,7 +30,7 @@ describe("Supremacy batch 25 (Overlord / impending)", () => {
     for (let turn = 0; turn < 8 && inPlay.timeCounters > 0; turn++) {
       // move to end step of the current active turn
       let guard = 30;
-      while (!(state.phase === "ending" && state.step === "end") && guard-- > 0) advanceStep(state);
+      while (!((state.phase as string) === "ending" && (state.step as string) === "end") && guard-- > 0) advanceStep(state);
       advanceStep(state); // process past end
     }
     expect(inPlay.timeCounters, "counters removed").toBe(0);
