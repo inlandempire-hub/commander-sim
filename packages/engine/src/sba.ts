@@ -1,4 +1,4 @@
-import type { GameState } from "./types.js";
+import type { CardInstance, GameState } from "./types.js";
 import { findInstance, log, moveCard, requireDefinition } from "./state.js";
 import type { TriggerSubject } from "./permanents.js";
 import { describeSubject, fireCreaturesDie, fireOpponentLost, fireWatchers, pushTrigger } from "./permanents.js";
