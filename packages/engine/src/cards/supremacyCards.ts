@@ -243,6 +243,24 @@ export const PRAYER_OF_BINDING: CardDefinition = {
 
 // --- Aura cluster ------------------------------------------------------------
 
+/**
+ * "Flash. Enchant creature. As long as another player controls enchanted
+ * creature, it can't attack or block. Otherwise, this Aura has umbra armor."
+ */
+export const DOG_UMBRA: CardDefinition = {
+  id: "dog-umbra",
+  name: "Dog Umbra",
+  scryfallId: "8d4ba710-eddb-40ca-b2fe-0e4e778aab9c",
+  types: ["Enchantment"],
+  subtypes: ["Aura"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  keywords: ["Flash"],
+  enchant: { kind: "creature" },
+  dogUmbra: true,
+  tier: "weird",
+};
+
 /** "Enchant creature. Enchanted creature can't attack or block." */
 export const PACIFISM: CardDefinition = {
   id: "pacifism",
@@ -1258,6 +1276,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   RESCUER_CHWINGA,
   MENTOR_OF_THE_MEEK,
   PACIFISM,
+  DOG_UMBRA,
   OSSIFICATION,
   DIMENSIONAL_EXILE,
   CHARMING_PRINCE,

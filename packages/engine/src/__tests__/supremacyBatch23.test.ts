@@ -34,7 +34,7 @@ describe("Supremacy batch 23 (The Mountain-king's Return / saga)", () => {
     state.phase = "ending"; state.step = "end";
     advanceStep(state); // -> Alice's untap...
     let guard = 30;
-    while (!(state.activePlayerIndex === 0 && state.phase === "precombat-main") && guard-- > 0) advanceStep(state);
+    while (!(state.activePlayerIndex === 0 && (state.phase as string) === "precombat-main") && guard-- > 0) advanceStep(state);
     settle(state);
     expect(saga.loreCounters, "second lore counter after the draw step").toBe(2);
     expect(alice.battlefield.some((c) => c.definitionId === "grizzly-bears"), "chapter II reanimated the Bears").toBe(true);
