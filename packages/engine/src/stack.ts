@@ -97,12 +97,17 @@ export function resolveConfirmation(state: GameState, playerId: string, accept: 
   let paid = accept;
   if (accept && cost) {
     const player = requirePlayer(state, playerId);
-    const affordable = (!cost.mana || canPayManaCost(player, cost.mana)) && player.life > (cost.life ?? 0);
+    const affordable =
+      (!cost.mana || canPayManaCost(player, cost.mana)) && player.life > (cost.life ?? 0) && player.energy >= (cost.energy ?? 0);
     if (affordable) {
       if (cost.mana) payManaCost(player, cost.mana);
       if (cost.life) {
         player.life -= cost.life;
         log(state, `${playerId} pays ${cost.life} life`);
+      }
+      if (cost.energy) {
+        player.energy -= cost.energy;
+        log(state, `${playerId} pays ${cost.energy} energy`);
       }
     } else {
       paid = false;

@@ -437,6 +437,9 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
     /* Oust: the creature tucked into its owner's library. */
     case "tuckToLibrary":
       return effect.target;
+    /* Guide of Souls' attack payoff points at a target attacking creature. */
+    case "addKeywordCounter":
+      return effect.target;
     /*
      * "Untap one or two target attacking creatures" targets; "untap this
      * artifact" does not, and applies to its own source. The same question

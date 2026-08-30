@@ -37,6 +37,7 @@ export function createPlayer(id: string): Player {
     spellTypesCastThisTurn: [],
     cardsDrawnThisTurn: 0,
     poisonCounters: 0,
+    energy: 0,
     lifeGainedThisTurn: 0,
     plusOneCountersPlacedThisTurn: 0,
     // Ascend grants it; nothing ever takes it away.

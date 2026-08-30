@@ -388,6 +388,8 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
       return `Add ${effect.mana
         .map((part) => `{${part.color}}`.repeat(part.amount))
         .join("")}.`;
+    case "gainEnergy":
+      return `You get ${effect.amount} energy.`;
     case "gainLife":
       /*
        * Through `countAmount` rather than interpolated straight in. The amount
@@ -1652,6 +1654,8 @@ function negateCondition(condition: BoardCondition): string {
       return `you don't have exactly ${condition.count} cards in hand`;
     case "card-in-hand-of-color":
       return `you have no ${colorWord(condition.color)} card in hand`;
+    case "coven":
+      return "you don't control three creatures with different powers";
     case "attached-to-a-creature":
       return "this permanent is not attached to a creature";
     case "life-at-least":
@@ -1916,6 +1920,8 @@ function describeCondition(condition: BoardCondition): string {
       return `you have exactly ${condition.count} cards in hand`;
     case "card-in-hand-of-color":
       return `you have a ${colorWord(condition.color)} card in hand`;
+    case "coven":
+      return "you control three or more creatures with different powers";
     case "any-player-life-at-most":
       return `a player has ${condition.life} or less life`;
     case "creature-cards-in-graveyard":

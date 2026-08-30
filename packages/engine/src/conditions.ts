@@ -152,6 +152,16 @@ export function meetsBoardCondition(
         const d = state.cardDefinitions[c.definitionId];
         return d ? cardColors(d).includes(condition.color) : false;
       });
+    case "coven": {
+      // Three or more creatures you control with different powers. Read live
+      // power, so counters and pumps count.
+      const powers = new Set<number>();
+      for (const c of player.battlefield) {
+        const d = state.cardDefinitions[c.definitionId];
+        if (d?.types.includes("Creature")) powers.add((d.power ?? 0) + c.plusOneCounters - c.minusOneCounters);
+      }
+      return powers.size >= 3;
+    }
     case "any-player-life-at-most":
       // "unless a player has 13 or less life" - Strangled Cemetery. Any player,
       // the controller included.

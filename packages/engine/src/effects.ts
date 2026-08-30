@@ -1137,7 +1137,8 @@ export function applyEffect(
        */
       const mana = effect.cost.mana;
       const life = effect.cost.life ?? 0;
-      const affordable = (!mana || canPayManaCost(controller, mana)) && controller.life > life;
+      const energy = effect.cost.energy ?? 0;
+      const affordable = (!mana || canPayManaCost(controller, mana)) && controller.life > life && controller.energy >= energy;
       if (!affordable) {
         if (effect.otherwise) applyEffect(state, controllerId, sourceInstanceId, effect.otherwise, targets);
         return;
@@ -1392,7 +1393,12 @@ export function applyEffect(
        * is why it lives in its own list on the instance. Both counters in one
        * effect because the card puts them on together.
        */
-      const found = findInstance(state, sourceInstanceId);
+      // Usually on the source; Guide of Souls puts it on a target attacking
+      // creature instead, and also makes it an Angel.
+      const targetId = effect.target
+        ? targets.find((t): t is Extract<StackTarget, { kind: "card" }> => t.kind === "card")?.instanceId
+        : sourceInstanceId;
+      const found = targetId ? findInstance(state, targetId) : undefined;
       if (!found || found.instance.zone !== "battlefield") return;
       if (!found.instance.keywordCounters.includes(effect.keyword)) {
         found.instance.keywordCounters.push(effect.keyword);
@@ -1401,6 +1407,9 @@ export function applyEffect(
         // Through `countersPlaced`, like every other counter here, so a doubler
         // reaches it - the +1/+1 half of this really is an ordinary counter.
         found.instance.plusOneCounters += countersPlaced(state, found.instance, effect.alsoPlusOne);
+      }
+      if (effect.becomesSubtype) {
+        found.instance.grantedSubtypes = [...(found.instance.grantedSubtypes ?? []), effect.becomesSubtype];
       }
       log(
         state,
@@ -2970,6 +2979,11 @@ export function applyEffect(
         if (!found || found.instance.zone !== "battlefield") continue;
         damageCreature(state, found.instance, effect.amount, {});
       }
+      return;
+    }
+    case "gainEnergy": {
+      controller.energy += effect.amount;
+      log(state, `${controllerId} gets ${effect.amount} energy (now ${controller.energy})`);
       return;
     }
     case "returnFromExile": {

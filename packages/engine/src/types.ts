@@ -1983,7 +1983,7 @@ export type Effect =
   | {
       kind: "millThenMayTake";
       amount: number;
-      cost: { mana?: ManaCost; life?: number };
+      cost: { mana?: ManaCost; life?: number; energy?: number };
       /** Only milled cards of none of these types may be taken - Fallaji's "noncreature, nonland". */
       excludeTypes?: CardType[];
       /** "If you don't, put a +1/+1 counter on this creature" - Fallaji Archaeologist. */
@@ -2195,7 +2195,7 @@ export type Effect =
    */
   | {
       kind: "mayPay";
-      cost: { mana?: ManaCost; life?: number };
+      cost: { mana?: ManaCost; life?: number; energy?: number };
       then: Effect;
       otherwise?: Effect;
     }
@@ -2348,7 +2348,9 @@ export type Effect =
    * A keyword held as a counter rather than granted for the turn, which is the
    * whole difference: it does not wear off. See `CardInstance.keywordCounters`.
    */
-  | { kind: "addKeywordCounter"; keyword: Keyword; alsoPlusOne?: number }
+  | { kind: "addKeywordCounter"; keyword: Keyword; alsoPlusOne?: number; target?: TargetSelector; becomesSubtype?: string }
+  /** "you gain 1 life and get {E}" / "get {E}{E}" - Guide of Souls. */
+  | { kind: "gainEnergy"; amount: number }
   /**
    * "You may **exile Ajani, then return him to the battlefield transformed**
    * under his owner's control."
@@ -2442,6 +2444,8 @@ export type BoardCondition =
   | { kind: "cards-in-hand-exactly"; count: number }
   /** "you have a white card in hand" - the evoke availability check (Solitude). */
   | { kind: "card-in-hand-of-color"; color: Color }
+  /** Coven - "you control three or more creatures with different powers" - Ambitious Farmhand. */
+  | { kind: "coven" }
   /**
    * "unless a player has 13 or less life" - Strangled Cemetery, and the
    * horror-land cycle. Any player at all, the controller included, which is
@@ -4667,7 +4671,7 @@ export interface PendingConfirmation {
    * A price the yes costs - Springheart Nantuko's {1}{G}. Absent on every
    * ordinary "you may", which is free to accept.
    */
-  cost?: { mana?: ManaCost; life?: number };
+  cost?: { mana?: ManaCost; life?: number; energy?: number };
   /**
    * What happens on a no. Absent on every ordinary "you may", where declining
    * simply means nothing happens - and present on Springheart Nantuko, where
@@ -4790,7 +4794,7 @@ export interface PendingCardChoice {
    */
   keepTypes?: CardType[];
   /** A price paid only if something is chosen - Ripples of Undeath. */
-  cost?: { mana?: ManaCost; life?: number };
+  cost?: { mana?: ManaCost; life?: number; energy?: number };
   /**
    * Run after the choice, whatever it was. Braids' punishment lives here, and
    * fires only when the opponent declined.
@@ -5159,6 +5163,8 @@ export interface Player {
    * action beside the life total.
    */
   poisonCounters: number;
+  /** Energy counters (Guide of Souls). Gained with {E}, spent to pay {E} costs. */
+  energy: number;
   /**
    * How many of The Ring's four abilities this player has - 0 while they have
    * never been tempted.
