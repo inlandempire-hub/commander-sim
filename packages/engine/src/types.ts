@@ -654,6 +654,8 @@ export type TargetSelector =
       excludeSource?: boolean;
       /** "target nonland permanent ... **with mana value 2 or less**" - Portable Hole. */
       maxManaValue?: number;
+      /** "target creature an opponent controls **with mana value 3 or greater**" - Elspeth, Storm Slayer. */
+      minManaValue?: number;
       /** "Destroy target **multicolored** permanent" - Null Elemental Blast. Two or more colours. */
       multicolored?: boolean;
       /**

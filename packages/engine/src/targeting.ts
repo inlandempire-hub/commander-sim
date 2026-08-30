@@ -190,6 +190,10 @@ export function isValidTarget(
       }
       // "Destroy target multicolored permanent" - Null Elemental Blast.
       if (selector.multicolored && cardColors(def).length < 2) return false;
+      // "with mana value 3 or greater" - Elspeth, Storm Slayer.
+      if (selector.minManaValue !== undefined && manaValue(def.manaCost ?? { generic: 0, colors: {} }) < selector.minManaValue) {
+        return false;
+      }
       if (selector.attacking && state.attackers[found.instance.instanceId] === undefined) return false;
       // "attacking **or blocking**" - Eiganjo. Either map will do.
       if (
