@@ -147,6 +147,11 @@ export function meetsBoardCondition(
     }
     case "cards-in-hand-exactly":
       return player.hand.length === condition.count;
+    case "card-in-hand-of-color":
+      return player.hand.some((c) => {
+        const d = state.cardDefinitions[c.definitionId];
+        return d ? cardColors(d).includes(condition.color) : false;
+      });
     case "any-player-life-at-most":
       // "unless a player has 13 or less life" - Strangled Cemetery. Any player,
       // the controller included.

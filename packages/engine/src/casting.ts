@@ -140,6 +140,8 @@ export interface CastOptions {
    * battlefield.
    */
   sacrificeInstanceId?: string;
+  /** Evoke: which card in hand is exiled to pay the alternative cost. */
+  exileFromHandInstanceId?: string;
   /**
    * Take the card's alternative cost - "you may cast this spell without paying
    * its mana cost".
@@ -583,6 +585,18 @@ export function castSpell(
     }
     if (alternative.sacrifice.nontoken && vdef.isToken) throw new Error(`${vdef.name} is a token`);
     sacrificeId = altSacId;
+  }
+  if (alternative?.exileCardFromHand) {
+    // Evoke: exile a card of the named colour from hand, in place of mana.
+    const exileId = options.exileFromHandInstanceId;
+    if (!exileId) throw new Error(`${def.name}'s evoke cost requires a card to exile from hand`);
+    const chosen = player.hand.find((c) => c.instanceId === exileId);
+    if (!chosen) throw new Error(`${playerId} has no such card in hand`);
+    const cdef = requireDefinition(state, chosen.definitionId);
+    const col = alternative.exileCardFromHand.color;
+    if (col && !cardColors(cdef).includes(col)) throw new Error(`${cdef.name} is not ${col}`);
+    if (chosen.instanceId === instanceId) throw new Error(`${def.name} cannot pay for itself`);
+    moveCard(state, exileId, "exile");
   }
 
   // A mode is chosen as the spell is cast, so the modal wrapper is unwrapped

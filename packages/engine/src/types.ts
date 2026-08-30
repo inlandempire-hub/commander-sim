@@ -2440,6 +2440,8 @@ export type BoardCondition =
   | { kind: "opponent-controls-more-lands" }
   /** "if you have exactly seven cards in hand" - Library of Alexandria. */
   | { kind: "cards-in-hand-exactly"; count: number }
+  /** "you have a white card in hand" - the evoke availability check (Solitude). */
+  | { kind: "card-in-hand-of-color"; color: Color }
   /**
    * "unless a player has 13 or less life" - Strangled Cemetery, and the
    * horror-land cycle. Any player at all, the controller included, which is
@@ -3342,6 +3344,12 @@ export interface AlternativeCost {
    * named creature (via `options.sacrificeInstanceId`) rather than being free.
    */
   sacrifice?: { color?: Color; nontoken?: boolean };
+  /**
+   * "Evoke - Exile a white card from your hand." - Solitude and the Incarnations.
+   * Choosing the alternative costs exiling a card of this colour from hand (via
+   * `options.exileFromHandInstanceId`) in place of the mana cost.
+   */
+  exileCardFromHand?: { color?: Color };
   /**
    * "You may pay {B} rather than pay this spell's mana cost ..." - Blasphemous
    * Edict. The reduced cost paid when the alternative is chosen; omitted means

@@ -1650,6 +1650,8 @@ function negateCondition(condition: BoardCondition): string {
       return "no opponent controls more lands than you";
     case "cards-in-hand-exactly":
       return `you don't have exactly ${condition.count} cards in hand`;
+    case "card-in-hand-of-color":
+      return `you have no ${colorWord(condition.color)} card in hand`;
     case "attached-to-a-creature":
       return "this permanent is not attached to a creature";
     case "life-at-least":
@@ -1912,6 +1914,8 @@ function describeCondition(condition: BoardCondition): string {
       return "an opponent controls more lands than you";
     case "cards-in-hand-exactly":
       return `you have exactly ${condition.count} cards in hand`;
+    case "card-in-hand-of-color":
+      return `you have a ${colorWord(condition.color)} card in hand`;
     case "any-player-life-at-most":
       return `a player has ${condition.life} or less life`;
     case "creature-cards-in-graveyard":
