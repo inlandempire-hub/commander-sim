@@ -854,6 +854,40 @@ export const ORIMS_CHANT: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Indestructible. When The One Ring enters, if you cast it, you gain protection
+ * from everything until your next turn. At the beginning of your upkeep, you lose
+ * 1 life for each burden counter. {T}: Put a burden counter on The One Ring, then
+ * draw a card for each burden counter on it."
+ */
+export const THE_ONE_RING: CardDefinition = {
+  id: "the-one-ring",
+  name: "The One Ring",
+  scryfallId: "d5806e68-1054-458e-866d-1f2470f682b2",
+  types: ["Artifact"],
+  supertypes: ["Legendary"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  keywords: ["Indestructible"],
+  triggeredAbilities: [
+    { event: "enters-battlefield", effect: { kind: "gainProtectionFromEverything" } },
+    { event: "upkeep", effect: { kind: "loseLife", who: "self", amount: { kind: "source-other-counters" } } },
+  ],
+  activatedAbilities: [
+    {
+      cost: { tap: true },
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "addOtherCounter", amount: 1 },
+          { kind: "draw", amount: { kind: "source-other-counters" } },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 // --- Static artifacts --------------------------------------------------------
 
 /** "White spells you cast cost {1} less to cast." */
@@ -1150,6 +1184,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   THE_DUKE_REBEL_SENTRY,
   GUIDE_OF_SOULS,
   ORIMS_CHANT,
+  THE_ONE_RING,
   STEEL_SERAPH,
   SEASONED_CATHAR,
   AMBITIOUS_FARMHAND,
