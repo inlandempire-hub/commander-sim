@@ -72,6 +72,13 @@ export function castCostReduction(
       }
     }
   }
+  // "Spells with the chosen name cost {N} more" - Disruptor Flute.
+  for (const p of state.players) {
+    for (const permanent of p.battlefield) {
+      const flute = requireDefinition(state, permanent.definitionId).staticRules?.disruptorFluteTax;
+      if (flute && permanent.chosenOnEntry?.cardName === def.name) tax += flute;
+    }
+  }
   if (reduction <= 0 && tax <= 0) return cost;
   return { ...cost, generic: Math.max(0, cost.generic - reduction + tax) };
 }

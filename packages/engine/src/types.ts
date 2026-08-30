@@ -84,7 +84,9 @@ export type EnterChoice =
   /** "choose two abilities from among first strike, vigilance, and lifelink" - Greymond. */
   | { kind: "keywords"; from: Keyword[]; count: number }
   /** "choose Mardu or Jeskai" - Windcrag Siege. */
-  | { kind: "mode"; options: string[] };
+  | { kind: "mode"; options: string[] }
+  /** "choose a card name" - Disruptor Flute. */
+  | { kind: "card-name" };
 
 /**
  * What was chosen, once it has been. Every field optional because one card only
@@ -97,6 +99,8 @@ export interface ChosenOnEntry {
   basicLandType?: string;
   keywords?: Keyword[];
   mode?: string;
+  /** The named card - Disruptor Flute. */
+  cardName?: string;
 }
 
 /**
@@ -3437,6 +3441,8 @@ export interface StaticRules {
   exileNoncastCreatures?: boolean;
   /** "Noncreature spells cost {N} more to cast." - Thalia, Guardian of Thraben. Symmetric, all players. */
   taxNoncreatureSpells?: number;
+  /** "Spells with the chosen name cost {N} more; abilities of that name can't be activated." - Disruptor Flute (reads chosenOnEntry.cardName). */
+  disruptorFluteTax?: number;
   /**
    * Elesh Norn, Mother of Machines: a permanent entering makes your permanents'
    * triggered abilities trigger an additional time, and makes your opponents'

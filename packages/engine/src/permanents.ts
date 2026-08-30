@@ -1534,6 +1534,8 @@ export function describeEnterChoice(choice: EnterChoice): string {
       return "choose a number";
     case "basic-land-type":
       return "choose a basic land type";
+    case "card-name":
+      return "choose a card name";
     case "keywords":
       /*
        * "first strike, vigilance, **and** lifelink" - the card prints a list
@@ -1583,6 +1585,8 @@ export function resolveEnterChoice(
     if (picked.some((k: Keyword) => !choice.from.includes(k))) throw new Error("That ability was not on offer");
   } else if (choice.kind === "mode") {
     if (!answer.mode || !choice.options.includes(answer.mode)) throw new Error("That mode was not on offer");
+  } else if (choice.kind === "card-name") {
+    if (!answer.cardName) throw new Error("A card name must be chosen");
   }
 
   // The permanent may already have left - killed in response is not possible

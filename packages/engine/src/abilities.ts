@@ -342,6 +342,19 @@ export function activateAbility(
   const forbidden = activateRestrictionProblem(state, playerId, def);
   if (forbidden) throw new Error(forbidden);
 
+  // Disruptor Flute: "activated abilities of sources with the chosen name can't
+  // be activated unless they're mana abilities."
+  if (ability.effect.kind !== "addMana") {
+    for (const p of state.players) {
+      for (const permanent of p.battlefield) {
+        const flute = requireDefinition(state, permanent.definitionId).staticRules?.disruptorFluteTax;
+        if (flute && permanent.chosenOnEntry?.cardName === def.name) {
+          throw new Error(`${def.name}'s abilities can't be activated (Disruptor Flute)`);
+        }
+      }
+    }
+  }
+
   // Validate every part of the cost before paying any of it - costs are paid
   // simultaneously, so an ability whose mana can't be covered must not leave
   // the permanent tapped as a side effect of the attempt.

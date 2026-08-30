@@ -1019,6 +1019,10 @@ function chooseOnEntry(state: GameState, me: Player): ChosenOnEntry {
       return { keywords: choice.from.slice(0, choice.count) };
     case "mode":
       return { mode: choice.options[0]! };
+    case "card-name":
+      // Disruptor Flute: a defensible default - name the most common troublesome
+      // artifact. The point is that the game continues.
+      return { cardName: "Sol Ring" };
   }
 }
 
