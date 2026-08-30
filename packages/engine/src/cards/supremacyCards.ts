@@ -556,6 +556,26 @@ export const NULL_ELEMENTAL_BLAST: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Fading 5. Remove a fade counter from this enchantment: Exile target creature.
+ * When this enchantment leaves the battlefield, each player returns to the
+ * battlefield all cards they own exiled with it."
+ */
+export const PARALLAX_WAVE: CardDefinition = {
+  id: "parallax-wave",
+  name: "Parallax Wave",
+  scryfallId: "fe30c0ff-f74b-456a-a61e-3720d84d713f",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  fading: 5,
+  activatedAbilities: [
+    { cost: { removeOtherCounter: 1 }, effect: { kind: "exileUntilLeaves", target: { kind: "creature" } } },
+  ],
+  triggeredAbilities: [O_RING_RETURN],
+  tier: "weird",
+};
+
 // --- Elspeth, Storm Slayer ---------------------------------------------------
 
 /**
@@ -1204,6 +1224,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   ORIMS_CHANT,
   THE_ONE_RING,
   DISRUPTOR_FLUTE,
+  PARALLAX_WAVE,
   STEEL_SERAPH,
   SEASONED_CATHAR,
   AMBITIOUS_FARMHAND,
