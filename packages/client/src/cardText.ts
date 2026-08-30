@@ -393,6 +393,10 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
         .join("")}.`;
     case "gainEnergy":
       return `You get ${effect.amount} energy.`;
+    case "gainProtectionFromEverything":
+      return "You gain protection from everything until your next turn.";
+    case "airbend":
+      return `Airbend ${describeTarget(effect.target)} - exile them; their owners may cast them for {2}.`;
     case "gainLife":
       /*
        * Through `countAmount` rather than interpolated straight in. The amount

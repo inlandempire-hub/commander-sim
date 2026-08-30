@@ -3021,6 +3021,20 @@ export function applyEffect(
       log(state, `${controllerId} gains protection from everything until their next turn`);
       return;
     }
+    case "airbend": {
+      // Exile the targets; each is castable from exile for {2} by its owner.
+      for (const target of targets) {
+        if (target.kind !== "card") continue;
+        const found = findInstance(state, target.instanceId);
+        if (!found || found.instance.zone !== "battlefield") continue;
+        const owner = found.instance.ownerId;
+        moveCard(state, target.instanceId, "exile");
+        const exiled = findInstance(state, target.instanceId);
+        if (exiled) exiled.instance.playableFromExile = { playerId: owner, lands: true, fixedCost: { generic: 2, colors: {} } };
+        log(state, `${cardName(state, target.instanceId)} is airbent into exile`);
+      }
+      return;
+    }
     case "returnFromExile": {
       for (const target of targets) {
         if (target.kind !== "card") continue;

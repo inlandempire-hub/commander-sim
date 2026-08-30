@@ -2363,6 +2363,8 @@ export type Effect =
   | { kind: "gainEnergy"; amount: number }
   /** "you gain protection from everything until your next turn" - The One Ring (modeled as preventing all damage to you). */
   | { kind: "gainProtectionFromEverything" }
+  /** "airbend any number of other target nonland permanents you control" - Appa: exile them, castable from exile for {2}. */
+  | { kind: "airbend"; target: TargetSelector }
   /**
    * "You may **exile Ajani, then return him to the battlefield transformed**
    * under his owner's control."
@@ -4499,7 +4501,7 @@ export interface CardInstance {
    * `lands` is the difference between the two cards: Face-Breaker says "play",
    * which includes a land drop, and Ragavan says "cast", which does not.
    */
-  playableFromExile?: { playerId: string; untilTurn: number; lands: boolean; free?: boolean };
+  playableFromExile?: { playerId: string; untilTurn?: number; lands: boolean; free?: boolean; fixedCost?: ManaCost };
   /** Exiled with Share the Spoils: the active player may play or cast it from exile any turn, and it re-fills the pile when played. */
   shareTheSpoilsExiled?: boolean;
   /**

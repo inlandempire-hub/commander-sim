@@ -457,8 +457,10 @@ export function castSpell(
   // Rebound: a card exiled with a free playable-from-exile permission (Ephemerate)
   // is recast without paying its mana cost.
   const freeFromExile = fromExile && instance.playableFromExile?.free === true;
+  // Airbend: "may cast it for {2} rather than its mana cost."
+  const fixedFromExile = fromExile ? instance.playableFromExile?.fixedCost : undefined;
   const free = alternative !== undefined || options.free === true || options.omniscienceFree === true || freeFromExile;
-  let cost: ManaCost = alternative
+  let cost: ManaCost = fixedFromExile ?? (alternative
     ? // Blasphemous Edict pays a reduced {B}; every other alternative is free of
       // mana (paid by a sacrifice, or by nothing).
       (alternative.manaCost ?? { generic: 0, colors: {} })
@@ -481,7 +483,7 @@ export function castSpell(
               ? // Adventure (Virtue of Persistence's Locthwain Scorn) - cast the
                 // adventure half for its own cost; the card then waits in exile.
                 def.adventure!.cost
-              : costWithX(printedCost, chosenX);
+              : costWithX(printedCost, chosenX));
   // "This spell costs {N} less" - applied to an ordinary cast only. An
   // alternative/free/warp/dash/bestow cast has replaced the mana cost outright,
   // and none of those printings carry a generic reduction on top.
@@ -1118,7 +1120,8 @@ export function mayPlayFromExile(state: GameState, playerId: string, instance: C
   const permission = instance.playableFromExile;
   if (!permission || instance.zone !== "exile") return false;
   if (permission.playerId !== playerId) return false;
-  if (state.turnNumber !== permission.untilTurn) return false;
+  // untilTurn undefined means no time limit - airbend's "may cast it for {2}".
+  if (permission.untilTurn !== undefined && state.turnNumber !== permission.untilTurn) return false;
   const def = state.cardDefinitions[instance.definitionId];
   // "You may **cast** that card" does not include a land drop.
   if (!permission.lands && def?.types.includes("Land")) return false;

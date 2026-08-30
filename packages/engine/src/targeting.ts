@@ -439,6 +439,8 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
       return effect.target;
     /* Guide of Souls' attack payoff points at a target attacking creature. */
     case "addKeywordCounter":
+    /* Appa's airbend targets your own nonland permanents. */
+    case "airbend":
       return effect.target;
     /*
      * "Untap one or two target attacking creatures" targets; "untap this
