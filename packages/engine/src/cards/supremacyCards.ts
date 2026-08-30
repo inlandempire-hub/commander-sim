@@ -835,6 +835,25 @@ export const LIBRARY_OF_ALEXANDRIA: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Kicker {W}. Target player can't cast spells this turn. If this spell was
+ * kicked, creatures can't attack this turn."
+ */
+export const ORIMS_CHANT: CardDefinition = {
+  id: "orims-chant",
+  name: "Orim's Chant",
+  scryfallId: "ee241079-1e5a-4224-b9cb-4fd3e0da687c",
+  types: ["Instant"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  kicker: {
+    cost: { generic: 0, colors: { W: 1 } },
+    effect: { kind: "restrictThisTurn", restriction: { kind: "creatures-cannot-attack" } },
+  },
+  castEffect: { kind: "restrictThisTurn", restriction: { kind: "player-cannot-cast" } },
+  tier: "scripted",
+};
+
 // --- Static artifacts --------------------------------------------------------
 
 /** "White spells you cast cost {1} less to cast." */
@@ -1130,6 +1149,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   LIBRARY_OF_ALEXANDRIA,
   THE_DUKE_REBEL_SENTRY,
   GUIDE_OF_SOULS,
+  ORIMS_CHANT,
   STEEL_SERAPH,
   SEASONED_CATHAR,
   AMBITIOUS_FARMHAND,
