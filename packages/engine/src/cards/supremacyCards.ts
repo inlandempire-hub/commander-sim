@@ -378,6 +378,47 @@ export const CONTAINMENT_PRIEST: CardDefinition = {
   tier: "scripted",
 };
 
+// --- Elspeth, Storm Slayer ---------------------------------------------------
+
+/**
+ * "If one or more tokens would be created under your control, twice that many
+ * are created instead. +1: Create a 1/1 white Soldier. 0: Put a +1/+1 counter
+ * on each creature you control; they gain flying until your next turn. -3:
+ * Destroy target creature an opponent controls with mana value 3 or greater."
+ */
+export const ELSPETH_STORM_SLAYER: CardDefinition = {
+  id: "elspeth-storm-slayer",
+  name: "Elspeth, Storm Slayer",
+  scryfallId: "1ad6fc6f-c6f5-4343-949f-b7470bfb5255",
+  types: ["Planeswalker"],
+  supertypes: ["Legendary"],
+  subtypes: ["Elspeth"],
+  manaCost: { generic: 3, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  loyalty: 5,
+  replacementEffects: [{ kind: "tokens-created", multiply: 2 }],
+  loyaltyAbilities: [
+    { cost: 1, label: "Create a 1/1 white Soldier creature token.", effect: { kind: "createToken", count: 1, tokenDefinitionId: "soldier-token" } },
+    {
+      cost: 0,
+      label: "Put a +1/+1 counter on each creature you control. Those creatures gain flying until your next turn.",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "addCounterToEachOther", amount: 1 },
+          { kind: "pumpAll", power: 0, toughness: 0, scope: "controller", grants: ["Flying"], grantsUntil: "your-next-turn" },
+        ],
+      },
+    },
+    {
+      cost: -3,
+      label: "Destroy target creature an opponent controls with mana value 3 or greater.",
+      effect: { kind: "destroy", target: { kind: "permanent", cardTypes: ["Creature"], controlledBy: "opponent", minManaValue: 3 } },
+    },
+  ],
+  tier: "weird",
+};
+
 // --- Tail batch 1 ------------------------------------------------------------
 
 /** "When this enchantment enters, exile target nonland permanent an opponent controls with mana value 2 or less until this enchantment leaves the battlefield." */
@@ -915,4 +956,5 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   TOUCH_THE_SPIRIT_REALM,
   THALIA_GUARDIAN_OF_THRABEN,
   STARFIELD_SHEPHERD,
+  ELSPETH_STORM_SLAYER,
 ];
