@@ -11,6 +11,20 @@ import type { CardDefinition } from "../types.js";
  * re-transcribed. Only the cards this list adds live here.
  */
 
+// A 2/1 white Insect with flying - Overlord of the Mistmoors.
+export const TOKEN_W_21_INSECT_FLYING: CardDefinition = {
+  id: "token-w-21-insect-flying",
+  name: "Insect",
+  types: ["Creature"],
+  subtypes: ["Insect"],
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 1,
+  keywords: ["Flying"],
+  isToken: true,
+  tier: "vanilla",
+};
+
 // A Clue token - "{2}, Sacrifice this artifact: Draw a card." - made by
 // investigate (Thraben Inspector, Novice Inspector).
 export const TOKEN_CLUE: CardDefinition = {
@@ -999,6 +1013,28 @@ export const THE_MOUNTAIN_KINGS_RETURN: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * "Impending 4 - {2}{W}{W}. Whenever this permanent enters or attacks, create
+ * two 2/1 white Insect creature tokens with flying."
+ */
+export const OVERLORD_OF_THE_MISTMOORS: CardDefinition = {
+  id: "overlord-of-the-mistmoors",
+  name: "Overlord of the Mistmoors",
+  scryfallId: "6bcafc2e-cef6-412d-8c5d-1658c3337292",
+  types: ["Enchantment", "Creature"],
+  subtypes: ["Avatar", "Horror"],
+  manaCost: { generic: 5, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 6,
+  toughness: 6,
+  impending: { timeCounters: 4, cost: { generic: 2, colors: { W: 2 } } },
+  triggeredAbilities: [
+    { event: "enters-battlefield", effect: { kind: "createToken", count: 2, tokenDefinitionId: "token-w-21-insect-flying" } },
+    { event: "attacks", effect: { kind: "createToken", count: 2, tokenDefinitionId: "token-w-21-insect-flying" } },
+  ],
+  tier: "weird",
+};
+
 // --- Static artifacts --------------------------------------------------------
 
 /** "White spells you cast cost {1} less to cast." */
@@ -1257,6 +1293,8 @@ export const ARMAGEDDON: CardDefinition = {
 /** Every Supremacy card this module adds, spread into TEST_CARD_DEFINITIONS. */
 export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   TOKEN_CLUE,
+  TOKEN_W_21_INSECT_FLYING,
+  OVERLORD_OF_THE_MISTMOORS,
   PHELIA_EXUBERANT_SHEPHERD,
   CLOUDSHIFT,
   EPHEMERATE,
