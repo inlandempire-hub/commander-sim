@@ -62,8 +62,18 @@ export function castCostReduction(
     const medallion = requireDefinition(state, permanent.definitionId).staticRules?.reduceControllerSpellsOfColor;
     if (medallion && cardColors(def).includes(medallion.color)) reduction += medallion.generic;
   }
-  if (reduction <= 0) return cost;
-  return { ...cost, generic: Math.max(0, cost.generic - reduction) };
+  // "Noncreature spells cost {N} more" - Thalia. Symmetric: read off every
+  // player's battlefield, and only for a noncreature spell.
+  let tax = 0;
+  if (!def.types.includes("Creature")) {
+    for (const p of state.players) {
+      for (const permanent of p.battlefield) {
+        tax += requireDefinition(state, permanent.definitionId).staticRules?.taxNoncreatureSpells ?? 0;
+      }
+    }
+  }
+  if (reduction <= 0 && tax <= 0) return cost;
+  return { ...cost, generic: Math.max(0, cost.generic - reduction + tax) };
 }
 
 /** Sorcery-speed casting requires: you're the active player, it's a main phase, and the stack is empty. */

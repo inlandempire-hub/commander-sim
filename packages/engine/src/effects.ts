@@ -3322,6 +3322,15 @@ function matchesSearch(
 ): boolean {
   const definition = state.cardDefinitions[card.definitionId];
   if (!definition) return false;
+  // "...or a creature card with mana value N or less" - Starfield Shepherd. The
+  // alternative half satisfies the search on its own, alongside the main filter.
+  if (
+    effect.orCreatureMaxManaValue !== undefined &&
+    definition.types.includes("Creature") &&
+    manaValue(definition.manaCost ?? { generic: 0, colors: {} }) <= effect.orCreatureMaxManaValue
+  ) {
+    return true;
+  }
   if (effect.basicLandOnly && !definition.supertypes?.includes("Basic")) return false;
   // "An artifact or enchantment card" - any one of the listed types qualifies.
   // `cardType` may be one type (with an optional `orHasKeyword` fallback, e.g.

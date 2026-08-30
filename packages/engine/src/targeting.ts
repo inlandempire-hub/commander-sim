@@ -188,6 +188,8 @@ export function isValidTarget(
       if (selector.maxManaValue !== undefined && manaValue(def.manaCost ?? { generic: 0, colors: {} }) > selector.maxManaValue) {
         return false;
       }
+      // "Destroy target multicolored permanent" - Null Elemental Blast.
+      if (selector.multicolored && cardColors(def).length < 2) return false;
       if (selector.attacking && state.attackers[found.instance.instanceId] === undefined) return false;
       // "attacking **or blocking**" - Eiganjo. Either map will do.
       if (
@@ -251,6 +253,12 @@ export function isValidTarget(
         const def = cast ? requireDefinition(state, cast.instance.definitionId) : undefined;
         const gy = requirePlayer(state, obj.controllerId).graveyard.length;
         if (def && manaValue(def.manaCost ?? { generic: 0, colors: {} }) > gy) return false;
+      }
+      if (selector.multicolored) {
+        // "Counter target multicolored spell" - two or more colours.
+        const cast = findInstance(state, obj.sourceInstanceId);
+        const def = cast ? requireDefinition(state, cast.instance.definitionId) : undefined;
+        if (!def || cardColors(def).length < 2) return false;
       }
       return true;
     }

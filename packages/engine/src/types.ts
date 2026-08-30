@@ -568,6 +568,8 @@ export type TargetSelector =
       /** "target **instant** spell" (Dispel), "target **noncreature** spell". */
       spellType?: CardType;
       notSpellType?: CardType;
+      /** "Counter target **multicolored** spell" - Null Elemental Blast. Two or more colours. */
+      multicolored?: boolean;
       /** Cap the spell's mana value by a card in the controller's graveyard - Drown in the Loch. */
       maxMvFromControllerGraveyard?: boolean;
     }
@@ -652,6 +654,8 @@ export type TargetSelector =
       excludeSource?: boolean;
       /** "target nonland permanent ... **with mana value 2 or less**" - Portable Hole. */
       maxManaValue?: number;
+      /** "Destroy target **multicolored** permanent" - Null Elemental Blast. Two or more colours. */
+      multicolored?: boolean;
       /**
        * "target attacking creature **with lesser power**" - mentor, on Legion
        * Warboss.
@@ -1811,6 +1815,8 @@ export type Effect =
       maxManaValue?: number;
       /** Narrows further to basic lands only, for the ramp spells. */
       basicLandOnly?: boolean;
+      /** "...**or a creature card with mana value N or less**" - Starfield Shepherd's alternative find. */
+      orCreatureMaxManaValue?: number;
       /**
        * Any one of these subtypes will do - "a Swamp or Mountain card", which
        * is what every fetchland asks for.
@@ -3406,6 +3412,8 @@ export interface StaticRules {
   untapOnlyOneNonbasicLand?: boolean;
   /** "If a nontoken creature would enter and it wasn't cast, exile it instead." - Containment Priest. */
   exileNoncastCreatures?: boolean;
+  /** "Noncreature spells cost {N} more to cast." - Thalia, Guardian of Thraben. Symmetric, all players. */
+  taxNoncreatureSpells?: number;
   /**
    * Elesh Norn, Mother of Machines: a permanent entering makes your permanents'
    * triggered abilities trigger an additional time, and makes your opponents'
