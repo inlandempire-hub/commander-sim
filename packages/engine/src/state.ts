@@ -316,7 +316,9 @@ export function moveCard(state: GameState, instanceId: string, destination: Zone
   instance.exiledBy = undefined; // the O-Ring link belongs to the exiled object, and this move is it leaving that state
   instance.basePowerOverride = undefined; // a prototype's size belongs to that object; a new one is the printed creature
   instance.baseToughnessOverride = undefined;
-  instance.prototypePaid = false;
+  // prototypePaid is deliberately NOT reset here - like offspringPaid, it is set
+  // as the spell is cast and read by enteredBattlefield after the move to the
+  // battlefield, which clears it once the prototype size has been applied.
   // enchantTarget is deliberately NOT reset here - like bestowTarget, it is set as
   // the Aura is cast and read as it arrives, so it has to survive the move to the
   // stack in between. putOntoBattlefield clears it once the Aura has attached.
