@@ -3974,6 +3974,8 @@ export interface CardDefinition {
    * remove one each of your upkeeps, and cast it free when the last is gone.
    */
   suspend?: { timeCounters: number; cost: ManaCost };
+  /** "Fading N" - enters with N fade counters (held as other-counters); at your upkeep remove one, and sacrifice it if you can't. Parallax Wave. */
+  fading?: number;
   /**
    * "Prototype {1}{W}{W} - 3/3 (You may cast this spell with a different mana
    * cost, colour and size. It keeps its abilities and types.)" - Steel Seraph.

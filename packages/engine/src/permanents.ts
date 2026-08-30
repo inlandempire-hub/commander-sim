@@ -421,6 +421,8 @@ export function enteredBattlefield(
     );
     if (extra > 0) instance.plusOneCounters += extra;
   }
+  // "Fading N" - enters with N fade counters, held as other-counters.
+  if (def.fading !== undefined) instance.otherCounters += def.fading;
   if (def.loyalty !== undefined && instance.loyalty === 0) {
     instance.loyalty = def.loyalty;
   }

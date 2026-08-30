@@ -6,6 +6,7 @@ import { castSuspended } from "./casting.js";
 import { applyEffect } from "./effects.js";
 import { moveControl, pushOntoStack, pushTrigger } from "./permanents.js";
 import { effectiveTriggers } from "./counters.js";
+import { sacrificePermanent } from "./sba.js";
 
 const TURN_SEQUENCE: Array<{ phase: Phase; step: Step }> = [
   { phase: "beginning", step: "untap" },
@@ -205,6 +206,18 @@ function runAutomaticStepActions(state: GameState): void {
       state.delayedUpkeepEffects = state.delayedUpkeepEffects.filter((d) => d.fireAtTurn > state.turnNumber);
       for (const d of due) {
         applyEffect(state, d.controllerId, d.controllerId, d.effect, []);
+      }
+      // Fading: "at the beginning of your upkeep, remove a fade counter; if you
+      // can't, sacrifice it." - Parallax Wave.
+      {
+        const active = state.players[state.activePlayerIndex];
+        if (active) {
+          for (const inst of [...active.battlefield]) {
+            if (state.cardDefinitions[inst.definitionId]?.fading === undefined) continue;
+            if (inst.otherCounters > 0) inst.otherCounters -= 1;
+            else sacrificePermanent(state, inst.instanceId);
+          }
+        }
       }
       /*
        * Suspend: "At the beginning of your upkeep, remove a time counter. When
