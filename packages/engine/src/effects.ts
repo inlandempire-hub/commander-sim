@@ -181,7 +181,7 @@ export function applyEffect(
         // opponent; the controller's choice among several, engine-picked.
         drawer = state.players.find((p) => p.id !== controllerId && !p.hasLost)?.id ?? controllerId;
       }
-      drawCard(state, drawer, evaluateAmount(state, drawer, effect.amount, "draw amount"));
+      drawCard(state, drawer, evaluateAmount(state, drawer, effect.amount, "draw amount", sourceInstanceId));
       return;
     }
     case "addMana": {
@@ -2989,6 +2989,11 @@ export function applyEffect(
     case "gainEnergy": {
       controller.energy += effect.amount;
       log(state, `${controllerId} gets ${effect.amount} energy (now ${controller.energy})`);
+      return;
+    }
+    case "gainProtectionFromEverything": {
+      controller.protectionFromEverything = true;
+      log(state, `${controllerId} gains protection from everything until their next turn`);
       return;
     }
     case "returnFromExile": {

@@ -44,6 +44,11 @@ export function evaluateAmount(
   if (typeof amount === "number") return amount;
   // "...times N" (Peer into the Abyss reads the multiplier off the amount).
   if (amount.kind === "count") return countOf(state, controllerId, amount.of, sourceInstanceId) * (amount.times ?? 1);
+  if (amount.kind === "source-other-counters") {
+    // "for each burden counter on The One Ring" - the source's other-counter tally.
+    const source = sourceInstanceId ? findInstance(state, sourceInstanceId) : undefined;
+    return source ? source.instance.otherCounters : 0;
+  }
   if (amount.kind === "source-power") {
     // "Eomer deals damage equal to **its** power" - the permanent the ability is
     // printed on, read at resolution so a pumped Eomer hits harder.

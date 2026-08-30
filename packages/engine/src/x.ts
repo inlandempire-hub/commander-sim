@@ -93,6 +93,7 @@ function value(amount: Amount, values: AmountContext): number | Amount {
   if (amount.kind === "target-toughness") return amount;
   if (amount.kind === "target-mana-value") return amount;
   if (amount.kind === "source-power") return amount;
+  if (amount.kind === "source-other-counters") return amount; // read at resolution off the source
   // "Create **twice X**" - Pest Infestation. Declared on the Amount and, until
   // this line, quietly ignored: the card made X tokens instead of 2X.
   const scaled = values.x * (amount.multiply ?? 1);

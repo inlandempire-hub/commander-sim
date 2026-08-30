@@ -285,6 +285,8 @@ function runAutomaticStepActions(state: GameState): void {
         instance.summoningSickness = false;
       }
       activePlayer.landsPlayedThisTurn = 0;
+      // "until your next turn" - The One Ring's protection ends as your turn begins.
+      activePlayer.protectionFromEverything = false;
       break;
     }
     case "draw": {

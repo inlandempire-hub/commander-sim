@@ -323,6 +323,8 @@ export type Amount =
    * inventing a figure.
    */
   | { kind: "event-amount" }
+  /** "for each burden counter on The One Ring" - the source permanent's other-counter count. */
+  | { kind: "source-other-counters" }
   /**
    * "Draw a card **for each creature you control with a +1/+1 counter on it**"
    * - a number read off the board when the effect resolves.
@@ -2355,6 +2357,8 @@ export type Effect =
   | { kind: "addKeywordCounter"; keyword: Keyword; alsoPlusOne?: number; target?: TargetSelector; becomesSubtype?: string }
   /** "you gain 1 life and get {E}" / "get {E}{E}" - Guide of Souls. */
   | { kind: "gainEnergy"; amount: number }
+  /** "you gain protection from everything until your next turn" - The One Ring (modeled as preventing all damage to you). */
+  | { kind: "gainProtectionFromEverything" }
   /**
    * "You may **exile Ajani, then return him to the battlefield transformed**
    * under his owner's control."
@@ -5170,6 +5174,8 @@ export interface Player {
   poisonCounters: number;
   /** Energy counters (Guide of Souls). Gained with {E}, spent to pay {E} costs. */
   energy: number;
+  /** "protection from everything until your next turn" - The One Ring. Prevents all damage to you; cleared at your untap. */
+  protectionFromEverything?: boolean;
   /**
    * How many of The Ring's four abilities this player has - 0 while they have
    * never been tempted.

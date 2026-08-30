@@ -216,6 +216,7 @@ function signedAmount(amount: Amount): string {
   if (amount.kind === "target-toughness") return "its toughness";
   if (amount.kind === "target-mana-value") return "that card's mana value";
   if (amount.kind === "source-power") return "its power";
+  if (amount.kind === "source-other-counters") return "the counters on it";
   return amount.negate ? "-X" : "+X";
 }
 
@@ -237,6 +238,8 @@ function countAmount(amount: Amount): string {
   if (amount.kind === "target-mana-value") return "that card's mana value";
   // "damage equal to **its power**" - Eomer, reading its own.
   if (amount.kind === "source-power") return "its power";
+  // "for each burden counter on The One Ring".
+  if (amount.kind === "source-other-counters") return "the number of counters on it";
   // "Create **twice X**" - Pest Infestation, whose {X}{X} cost charges X twice
   // and whose token count is doubled again on top. Printing a plain "X" here
   // halves the card in the panel you decide what to cast it for.

@@ -101,6 +101,8 @@ export function damagePlayer(
    * that matches how both cards are played, and it is the only order in which
    * "prevent the next 3 damage" means the 3 that actually arrive.
    */
+  // "protection from everything until your next turn" - The One Ring prevents all damage to you.
+  if (player.protectionFromEverything) return { dealt: 0, prevented: amount };
   const doubled = damageDealt(state, amount, options.sourceInstanceId);
   const result = applyShield(player, doubled);
   /*
