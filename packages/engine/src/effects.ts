@@ -35,6 +35,7 @@ import {
   enteredBattlefield,
   fireLibrarySearched,
   moveControl,
+  pushOntoStack,
   pushTrigger,
   putOntoBattlefield,
   tapPermanent,
@@ -73,6 +74,30 @@ export function shareTheSpoilsRefill(state: GameState, playerId: string): void {
   const found = findInstance(state, top.instanceId);
   if (found) found.instance.shareTheSpoilsExiled = true;
   log(state, `${playerId} exiles the top card of their library (Share the Spoils)`);
+}
+
+/**
+ * Advances a Saga: add a lore counter, put the chapter at that count on the
+ * stack (auto-targeted, the documented simplification), and sacrifice the Saga
+ * once its last chapter has been reached. Called as it enters and after each of
+ * the controller's draw steps.
+ */
+export function advanceSaga(state: GameState, instanceId: string, controllerId: string): void {
+  const found = findInstance(state, instanceId);
+  if (!found || found.instance.zone !== "battlefield") return;
+  const def = requireDefinition(state, found.instance.definitionId);
+  if (!def.saga) return;
+  found.instance.loreCounters = (found.instance.loreCounters ?? 0) + 1;
+  const chapter = def.saga.chapters[found.instance.loreCounters - 1];
+  if (chapter) {
+    const sel = targetSelectorOf(chapter);
+    const targets = sel ? legalTargetsFor(state, sel, controllerId, instanceId).slice(0, 1) : [];
+    pushOntoStack(state, instanceId, controllerId, chapter, targets, false);
+  }
+  // "Sacrifice after III." - once the last chapter has been reached.
+  if (found.instance.loreCounters >= def.saga.chapters.length) {
+    sacrificePermanent(state, instanceId);
+  }
 }
 
 export function applyEffect(

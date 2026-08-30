@@ -3,7 +3,7 @@ import { discardCard, drawCard, findInstance, log, moveCard, requireDefinition }
 import { emptyManaPool } from "./mana.js";
 import { combatHasFirstStrike, dealCombatDamage } from "./combat.js";
 import { castSuspended } from "./casting.js";
-import { applyEffect } from "./effects.js";
+import { advanceSaga, applyEffect } from "./effects.js";
 import { moveControl, pushOntoStack, pushTrigger } from "./permanents.js";
 import { effectiveTriggers } from "./counters.js";
 import { sacrificePermanent } from "./sba.js";
@@ -328,6 +328,10 @@ function runAutomaticStepActions(state: GameState): void {
       // finding seven cards in hand reads as the mulligan being broken.
       const isOpeningTurn = state.turnNumber === 1 && state.players.length === 2;
       if (!isOpeningTurn) drawCard(state, activePlayer.id, 1);
+      // "After your draw step, add a lore counter." - each Saga you control advances.
+      for (const inst of [...activePlayer.battlefield]) {
+        if (state.cardDefinitions[inst.definitionId]?.saga) advanceSaga(state, inst.instanceId, activePlayer.id);
+      }
       break;
     }
     case "begin-combat": {

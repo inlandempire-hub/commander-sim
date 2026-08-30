@@ -17,6 +17,7 @@ import { effectiveTriggers, hasKeyword, hasCreatureType } from "./counters.js";
 import { evaluateAmount } from "./amounts.js";
 import { resolveAmounts } from "./x.js";
 import { legalTargetsFor, targetCountOf, targetSelectorOf } from "./targeting.js";
+import { advanceSaga } from "./effects.js";
 
 /**
  * The two ways an object arrives somewhere and may set triggers off: onto the
@@ -423,6 +424,8 @@ export function enteredBattlefield(
   }
   // "Fading N" - enters with N fade counters, held as other-counters.
   if (def.fading !== undefined) instance.otherCounters += def.fading;
+  // A Saga's first chapter fires as it enters, with its first lore counter.
+  if (def.saga) advanceSaga(state, instance.instanceId, instance.controllerId);
   if (def.loyalty !== undefined && instance.loyalty === 0) {
     instance.loyalty = def.loyalty;
   }

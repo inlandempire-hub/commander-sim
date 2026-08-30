@@ -3979,6 +3979,12 @@ export interface CardDefinition {
   /** "Fading N" - enters with N fade counters (held as other-counters); at your upkeep remove one, and sacrifice it if you can't. Parallax Wave. */
   fading?: number;
   /**
+   * A Saga: one effect per chapter (I, II, III...). A lore counter is added as it
+   * enters and after each of your draw steps; the chapter at that count fires,
+   * and the Saga is sacrificed after the last. The Mountain-king's Return.
+   */
+  saga?: { chapters: Effect[] };
+  /**
    * "Prototype {1}{W}{W} - 3/3 (You may cast this spell with a different mana
    * cost, colour and size. It keeps its abilities and types.)" - Steel Seraph.
    * Cast for the prototype cost and the creature enters with the prototype P/T.
@@ -4293,6 +4299,8 @@ export interface CardInstance {
   loyaltyUsedThisTurn: boolean;
   /** Time counters, while this card sits suspended in exile. */
   timeCounters: number;
+  /** Lore counters on a Saga. */
+  loreCounters?: number;
   /**
    * "While it's prepared, you may cast a copy of its spell." - Eccentric
    * Pestfinder.
