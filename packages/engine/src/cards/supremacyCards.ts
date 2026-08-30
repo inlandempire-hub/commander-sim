@@ -414,6 +414,46 @@ export const SOLITUDE: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * "Whenever another creature you control enters, you gain 1 life and get {E}.
+ * Whenever you attack, you may pay {E}{E}{E}. When you do, put two +1/+1
+ * counters and a flying counter on target attacking creature. It becomes an
+ * Angel in addition to its other types."
+ */
+export const GUIDE_OF_SOULS: CardDefinition = {
+  id: "guide-of-souls",
+  name: "Guide of Souls",
+  scryfallId: "76c3cad2-1e25-4abe-878d-9194de6fcc27",
+  types: ["Creature"],
+  subtypes: ["Human", "Cleric"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 2,
+  triggeredAbilities: [
+    {
+      event: "permanent-enters",
+      watchFor: { type: "Creature", controlledBy: "you" },
+      effect: { kind: "sequence", effects: [{ kind: "gainLife", amount: 1 }, { kind: "gainEnergy", amount: 1 }] },
+    },
+    {
+      event: "you-attack",
+      effect: {
+        kind: "mayPay",
+        cost: { energy: 3 },
+        then: {
+          kind: "addKeywordCounter",
+          keyword: "Flying",
+          alsoPlusOne: 2,
+          becomesSubtype: "Angel",
+          target: { kind: "permanent", cardTypes: ["Creature"], controlledBy: "you", attacking: true },
+        },
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 // --- Tail batch 2 ------------------------------------------------------------
 
 /**
@@ -1089,6 +1129,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   ELESH_NORN_MOTHER_OF_MACHINES,
   LIBRARY_OF_ALEXANDRIA,
   THE_DUKE_REBEL_SENTRY,
+  GUIDE_OF_SOULS,
   STEEL_SERAPH,
   SEASONED_CATHAR,
   AMBITIOUS_FARMHAND,
