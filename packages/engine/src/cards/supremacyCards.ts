@@ -888,6 +888,24 @@ export const THE_ONE_RING: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * "Flash. As this artifact enters, choose a card name. Spells with the chosen
+ * name cost {3} more to cast. Activated abilities of sources with the chosen
+ * name can't be activated unless they're mana abilities."
+ */
+export const DISRUPTOR_FLUTE: CardDefinition = {
+  id: "disruptor-flute",
+  name: "Disruptor Flute",
+  scryfallId: "5cad8671-4761-4014-a8a3-af45627e6e79",
+  types: ["Artifact"],
+  manaCost: { generic: 2, colors: {} },
+  colorIdentity: [],
+  keywords: ["Flash"],
+  enterChoice: { kind: "card-name" },
+  staticRules: { disruptorFluteTax: 3 },
+  tier: "weird",
+};
+
 // --- Static artifacts --------------------------------------------------------
 
 /** "White spells you cast cost {1} less to cast." */
@@ -1185,6 +1203,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   GUIDE_OF_SOULS,
   ORIMS_CHANT,
   THE_ONE_RING,
+  DISRUPTOR_FLUTE,
   STEEL_SERAPH,
   SEASONED_CATHAR,
   AMBITIOUS_FARMHAND,
