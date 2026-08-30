@@ -13,7 +13,7 @@ import type {
 } from "./types.js";
 import { cardName, findInstance, log, moveCard, requireDefinition, requirePlayer } from "./state.js";
 import { meetsBoardCondition } from "./conditions.js";
-import { effectiveTriggers, hasKeyword } from "./counters.js";
+import { effectiveTriggers, hasKeyword, hasCreatureType } from "./counters.js";
 import { evaluateAmount } from "./amounts.js";
 import { resolveAmounts } from "./x.js";
 import { legalTargetsFor, targetCountOf, targetSelectorOf } from "./targeting.js";
@@ -1205,7 +1205,27 @@ export function pushTrigger(
   for (let i = 0; i < extraAttackTriggers(state, controllerId, trigger); i++) {
     pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount, eventPlayerId, eventInstanceId);
   }
+  for (let i = 0; i < extraRoamingThroneTriggers(state, controllerId, sourceInstanceId); i++) {
+    pushTriggerOnce(state, sourceInstanceId, controllerId, trigger, eventAmount, eventPlayerId, eventInstanceId);
+  }
   return first;
+}
+
+/**
+ * How many *additional* times a trigger of a creature you control fires because
+ * of a Roaming Throne naming that creature's type - "another creature you
+ * control of the chosen type."
+ */
+function extraRoamingThroneTriggers(state: GameState, controllerId: string, sourceInstanceId: string): number {
+  const source = findInstance(state, sourceInstanceId);
+  if (!source || !requireDefinition(state, source.instance.definitionId).types.includes("Creature")) return 0;
+  return requirePlayer(state, controllerId).battlefield.filter((permanent) => {
+    if (permanent.instanceId === sourceInstanceId) return false; // "another creature"
+    const def = requireDefinition(state, permanent.definitionId);
+    if (!def.staticRules?.roamingThroneChosenTypeDoubler) return false;
+    const type = permanent.chosenOnEntry?.creatureType;
+    return type !== undefined && hasCreatureType(state, source.instance, type);
+  }).length;
 }
 
 /** How many *additional* times an attack-caused trigger goes on the stack. */

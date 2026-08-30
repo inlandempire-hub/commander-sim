@@ -3443,6 +3443,8 @@ export interface StaticRules {
   taxNoncreatureSpells?: number;
   /** "Spells with the chosen name cost {N} more; abilities of that name can't be activated." - Disruptor Flute (reads chosenOnEntry.cardName). */
   disruptorFluteTax?: number;
+  /** "If a triggered ability of another creature you control of the chosen type triggers, it triggers an additional time." - Roaming Throne (reads chosenOnEntry.creatureType). */
+  roamingThroneChosenTypeDoubler?: boolean;
   /**
    * Elesh Norn, Mother of Machines: a permanent entering makes your permanents'
    * triggered abilities trigger an additional time, and makes your opponents'
