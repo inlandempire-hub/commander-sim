@@ -1779,6 +1779,8 @@ function describeTrigger(
       } deals combat damage during your turn, ${tail}`;
     case "attack-with-two-or-more":
       return `Whenever you attack with two or more creatures, ${tail}`;
+    case "you-attack":
+      return `Whenever you attack, ${tail}`;
     case "upkeep":
       return `At the beginning of ${whoseStep} upkeep, ${tail}`;
     case "first-main":

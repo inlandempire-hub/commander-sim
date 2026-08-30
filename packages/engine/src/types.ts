@@ -2710,6 +2710,7 @@ export type TriggerEvent =
    * controller of the permanent printing it. Fired from `declareAttackers`.
    */
   | "attack-with-two-or-more"
+  | "you-attack"
   | "upkeep"
   /**
    * "At the beginning of your first main phase" - the precombat main only.

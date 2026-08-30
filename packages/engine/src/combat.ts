@@ -381,6 +381,19 @@ export function declareAttackers(state: GameState, playerId: string, declaration
     }
   }
 
+  /*
+   * "Whenever you attack, ..." - Guide of Souls. Once for the whole swing, for
+   * any number of attackers (one is enough), fired here for the same reason the
+   * two-or-more trigger is.
+   */
+  if (declarations.length >= 1) {
+    for (const instance of player.battlefield) {
+      for (const trigger of effectiveTriggers(state, instance)) {
+        if (trigger.event === "you-attack") pushTrigger(state, instance.instanceId, playerId, trigger);
+      }
+    }
+  }
+
   if (declarations.length > 0) {
     log(
       state,
