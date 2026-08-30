@@ -2,6 +2,7 @@ import type { DeckList } from "./commander.js";
 import { BLECH_DECK } from "./cardLab.js";
 import { WINOTA_DECK } from "./winotaDeck.js";
 import { WINTER_DECK } from "./winterDeck.js";
+import { SUPREMACY_DECK } from "./supremacyDeck.js";
 import { FELIX_DECK } from "./demoGame.js";
 
 /**
@@ -339,6 +340,16 @@ export const ARCHETYPES: Archetype[] = [
     name: "Winter, Misanthropic Guide (Jund chaos)",
     plan: "Flood everyone with cards and symmetrical value, punish the draws with Winter's delirium hand-size squeeze and the draw-matters pieces, then reset the board with a group wipe or Warp World.",
     deck: WINTER_DECK,
+  },
+  {
+    // The Phelia, Exuberant Shepherd mono-white flicker/control deck, grown
+    // list-first over 26 batches - every one of its cards implemented because
+    // the list wanted it. The paper list was 103; three cards (Jeong Jeong's
+    // Deserters, Null Elemental Blast, Appa) were cut to reach 100, and remain
+    // in the pool as buildable fixtures. Selectable with ?deck=supremacy.
+    name: "Supremacy (Phelia, mono-white flicker)",
+    plan: "Answer threats with exile removal, blink your own creatures for repeated enter-the-battlefield value, tax and deny with cheap white hate, and grind ahead on card advantage behind Phelia's flicker engine.",
+    deck: SUPREMACY_DECK,
   },
 ];
 

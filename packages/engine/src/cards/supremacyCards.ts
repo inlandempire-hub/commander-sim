@@ -52,6 +52,7 @@ export const PHELIA_EXUBERANT_SHEPHERD: CardDefinition = {
   id: "phelia-exuberant-shepherd",
   name: "Phelia, Exuberant Shepherd",
   scryfallId: "55707746-da6e-46e5-a5ca-7ac843fdc38e",
+  supertypes: ["Legendary"],
   types: ["Creature"],
   subtypes: ["Dog"],
   manaCost: { generic: 1, colors: { W: 1 } },
@@ -59,6 +60,7 @@ export const PHELIA_EXUBERANT_SHEPHERD: CardDefinition = {
   power: 2,
   toughness: 2,
   keywords: ["Flash"],
+  canBeCommander: true,
   triggeredAbilities: [
     {
       event: "attacks",

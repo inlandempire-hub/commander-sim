@@ -49,6 +49,7 @@ echo     4   Gravebound      (black)    Kill everything good, grind them down
 echo     5   Tidewall        (blue)     Counter their spells, win in the air
 echo     6   Felix Five-Boots (Sultai)  Grind card advantage, close with doubled combat triggers
 echo     7   Winter          (Jund)     Draw the table into chaos, punish it, reset the board
+echo     8   Supremacy       (white)    Exile removal, blink your own creatures for value, tax and grind
 echo.
 echo   Or:
 echo.
@@ -84,6 +85,7 @@ if /i "%CHOICE%"=="4" set "MYDECK=gravebound"
 if /i "%CHOICE%"=="5" set "MYDECK=tidewall"
 if /i "%CHOICE%"=="6" set "MYDECK=felix"
 if /i "%CHOICE%"=="7" set "MYDECK=winter"
+if /i "%CHOICE%"=="8" set "MYDECK=supremacy"
 if /i "%CHOICE%"=="D" set "URL=http://localhost:%PORT%/?mode=deck"
 if /i "%CHOICE%"=="L" set "URL=http://localhost:%PORT%/?mode=lab"
 if /i "%CHOICE%"=="N" set "NETWORK=1"
@@ -199,10 +201,10 @@ exit /b 1
 
 REM Picks a random deck that isn't the one the player chose.
 :pickOpponent
-set "POOL=winota radiant blech gravebound tidewall felix winter"
+set "POOL=winota radiant blech gravebound tidewall felix winter supremacy"
 set "PICKED="
 :reroll
-set /a "N=(%RANDOM% %% 7) + 1"
+set /a "N=(%RANDOM% %% 8) + 1"
 for /f "tokens=%N%" %%D in ("%POOL%") do set "PICKED=%%D"
 if /i "%PICKED%"=="%~1" goto reroll
 set "THEIRDECK=%PICKED%"
