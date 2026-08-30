@@ -494,6 +494,9 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
      */
     case "mayPay":
       return targetSelectorOf(effect.then);
+    /* "Target player can't cast spells this turn." - Orim's Chant. */
+    case "restrictThisTurn":
+      return effect.restriction.kind === "player-cannot-cast" ? { kind: "player" } : undefined;
     /*
      * "...if you control a red permanent other than Ajani, he deals damage ...
      * to **any target**." - Ajani's 0, whose target is inside the condition.

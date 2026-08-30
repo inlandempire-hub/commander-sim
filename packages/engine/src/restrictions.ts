@@ -31,6 +31,8 @@ interface ActiveRestriction {
    * has no permanent, and for every card that is never asked.
    */
   chosen?: ChosenOnEntry;
+  /** The player a targeted turn restriction binds - Orim's Chant's "target player". */
+  boundPlayerId?: string;
 }
 
 /**
@@ -71,6 +73,11 @@ function applies(state: GameState, active: ActiveRestriction, playerId: string):
       return playerId !== controllerId;
     case "cannot-activate":
       return restriction.who === "each-player" || playerId !== controllerId;
+    case "player-cannot-cast":
+      // Orim's Chant: only the named target.
+      return active.boundPlayerId === playerId;
+    case "creatures-cannot-attack":
+      return false; // a combat restriction, not a cast one - handled in combat.ts
     default:
       // "**Each player** can't cast more than one spell each turn" - symmetrical,
       // and it binds the controller too. Archon of Emeria is a real cost to its
@@ -110,6 +117,11 @@ export function castRestrictionProblem(
       return restriction.duringYourTurnOnly
         ? "You can't cast spells during that player's turn"
         : "You can't cast spells this turn";
+    }
+
+    if (restriction.kind === "player-cannot-cast") {
+      // Orim's Chant: the named player can't cast anything this turn.
+      return "You can't cast spells this turn";
     }
 
     if (restriction.kind === "opponents-cast-from-hand-only" && fromZone !== "hand") {

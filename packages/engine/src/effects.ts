@@ -1742,7 +1742,12 @@ export function applyEffect(
       return;
     }
     case "restrictThisTurn": {
-      state.turnRestrictions.push({ restriction: effect.restriction, controllerId });
+      // "Target player can't cast spells" binds the target, not the caster.
+      const boundPlayerId =
+        effect.restriction.kind === "player-cannot-cast"
+          ? targets.find((t): t is Extract<StackTarget, { kind: "player" }> => t.kind === "player")?.playerId
+          : undefined;
+      state.turnRestrictions.push({ restriction: effect.restriction, controllerId, boundPlayerId });
       return;
     }
     case "deployFromTop": {

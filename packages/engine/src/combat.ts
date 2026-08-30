@@ -91,6 +91,10 @@ export function attackProblem(state: GameState, playerId: string, attackerInstan
     return `${def.name} came into play this turn and cannot attack yet`;
   }
   if (pacifiedBy(state, instance)) return `${def.name} can't attack (Pacifism)`;
+  // "Creatures can't attack this turn." - Orim's Chant, kicked.
+  if (state.turnRestrictions.some((r) => r.restriction.kind === "creatures-cannot-attack")) {
+    return "Creatures can't attack this turn";
+  }
   return null;
 }
 

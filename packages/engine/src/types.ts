@@ -154,7 +154,11 @@ export type ActionRestriction =
    * chosen restricts nothing, rather than defaulting to zero and switching off
    * every land-cycler in the format.
    */
-  | { kind: "cannot-cast-chosen-mana-value"; only?: "noncreature" };
+  | { kind: "cannot-cast-chosen-mana-value"; only?: "noncreature" }
+  /** "Target player can't cast spells this turn." - Orim's Chant. Bound to the target at resolution. */
+  | { kind: "player-cannot-cast" }
+  /** "Creatures can't attack this turn." - Orim's Chant, kicked. */
+  | { kind: "creatures-cannot-attack" };
 
 export type Keyword =
   | "Flying"
@@ -5253,7 +5257,7 @@ export interface GameState {
    * Cleared in the cleanup step, so they outlive the spell that made them and
    * nothing else.
    */
-  turnRestrictions: { restriction: ActionRestriction; controllerId: string }[];
+  turnRestrictions: { restriction: ActionRestriction; controllerId: string; boundPlayerId?: string }[];
   /**
    * A permanent that has just entered and is waiting on its controller's
    * choice. Like `pendingSearch`, the game holds here until it is answered.

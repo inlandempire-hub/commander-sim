@@ -2562,6 +2562,10 @@ export function describeRestriction(restriction: ActionRestriction): string {
     }
     case "cannot-cast-chosen-mana-value":
       return `${restriction.only === "noncreature" ? "Noncreature spells" : "Spells"} with mana value equal to the chosen number can't be cast`;
+    case "player-cannot-cast":
+      return "Target player can't cast spells this turn";
+    case "creatures-cannot-attack":
+      return "Creatures can't attack this turn";
     case "draw-limit":
       return `Each player can't draw more than ${limitWord(restriction.perTurn)} card${
         restriction.perTurn === 1 ? "" : "s"
