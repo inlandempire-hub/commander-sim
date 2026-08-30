@@ -362,6 +362,10 @@ export function typesOf(state: GameState, instance: CardInstance): CardType[] {
   if (instance.bestowed) {
     return [...def.types.filter((t) => t !== "Creature"), "Enchantment"];
   }
+  // Impending: "isn't a creature until the last time counter is removed."
+  if (instance.impendingActive && instance.timeCounters > 0) {
+    return def.types.filter((t) => t !== "Creature");
+  }
   /*
    * "This land becomes a 1/1 Blinkmoth **artifact creature** ... It's still a
    * land." Added to the printed types rather than replacing them, which is what

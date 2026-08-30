@@ -3990,6 +3990,8 @@ export interface CardDefinition {
    * Cast for the prototype cost and the creature enters with the prototype P/T.
    */
   prototype?: { cost: ManaCost; power: number; toughness: number };
+  /** "Impending N - {cost}" - cast for the impending cost, enters with N time counters and isn't a creature until the last is removed. Overlord of the Mistmoors. */
+  impending?: { timeCounters: number; cost: ManaCost };
   /**
    * "Warp {2}{U}{U} (You may cast this card from your hand for its warp cost.
    * Exile this creature at the beginning of the next end step, then you may cast
@@ -4294,6 +4296,8 @@ export interface CardInstance {
   baseToughnessOverride?: number;
   /** Cast for its prototype cost - it enters with the prototype P/T (Steel Seraph). */
   prototypePaid?: boolean;
+  /** Cast for its impending cost - not a creature while time counters remain (Overlord of the Mistmoors). */
+  impendingActive?: boolean;
   /**
    * Offspring: this creature was cast for its Offspring cost, so a 1/1 token
    * copy of it is made as it enters. Set at cast, spent (and cleared) in

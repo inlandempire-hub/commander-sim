@@ -426,6 +426,8 @@ export function enteredBattlefield(
   if (def.fading !== undefined) instance.otherCounters += def.fading;
   // A Saga's first chapter fires as it enters, with its first lore counter.
   if (def.saga) advanceSaga(state, instance.instanceId, instance.controllerId);
+  // Impending: enters with N time counters (and, via impendingActive, isn't a creature yet).
+  if (instance.impendingActive && def.impending) instance.timeCounters = def.impending.timeCounters;
   if (def.loyalty !== undefined && instance.loyalty === 0) {
     instance.loyalty = def.loyalty;
   }

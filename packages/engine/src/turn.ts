@@ -349,6 +349,21 @@ function runAutomaticStepActions(state: GameState): void {
       break;
     }
     case "end": {
+      // Impending: "at the beginning of your end step, remove a time counter."
+      // When the last is removed it becomes a creature (impendingActive off).
+      {
+        const active = state.players[state.activePlayerIndex];
+        if (active) {
+          for (const inst of active.battlefield) {
+            if (!inst.impendingActive || inst.timeCounters <= 0) continue;
+            inst.timeCounters -= 1;
+            if (inst.timeCounters === 0) {
+              inst.impendingActive = false;
+              inst.summoningSickness = false; // it has been under your control since it entered
+            }
+          }
+        }
+      }
       /*
        * Warp: "Exile this creature at the beginning of the next end step, then
        * you may cast it from exile on a later turn." - Starwinder. A turn-based
