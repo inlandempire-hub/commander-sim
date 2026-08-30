@@ -414,6 +414,108 @@ export const SOLITUDE: CardDefinition = {
   tier: "weird",
 };
 
+// --- Tail batch 2 ------------------------------------------------------------
+
+/**
+ * "Prototype {1}{W}{W} - 3/3. Flying. At the beginning of combat on your turn,
+ * target creature you control gains your choice of flying, vigilance, or
+ * lifelink until end of turn."
+ */
+export const STEEL_SERAPH: CardDefinition = {
+  id: "steel-seraph",
+  name: "Steel Seraph",
+  scryfallId: "1b6ef5f5-4058-4f89-a573-9e2da87a9f2e",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Angel"],
+  manaCost: { generic: 6, colors: {} },
+  colorIdentity: ["W"],
+  power: 5,
+  toughness: 4,
+  keywords: ["Flying"],
+  prototype: { cost: { generic: 1, colors: { W: 2 } }, power: 3, toughness: 3 },
+  triggeredAbilities: [
+    {
+      event: "begin-combat",
+      effect: {
+        kind: "modal",
+        modes: [
+          { label: "Target creature you control gains flying until end of turn", effect: { kind: "pump", power: 0, toughness: 0, grants: ["Flying"], target: { kind: "creature", controlledBy: "you" } } },
+          { label: "Target creature you control gains vigilance until end of turn", effect: { kind: "pump", power: 0, toughness: 0, grants: ["Vigilance"], target: { kind: "creature", controlledBy: "you" } } },
+          { label: "Target creature you control gains lifelink until end of turn", effect: { kind: "pump", power: 0, toughness: 0, grants: ["Lifelink"], target: { kind: "creature", controlledBy: "you" } } },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
+/** The back face of Ambitious Farmhand. */
+export const SEASONED_CATHAR: CardDefinition = {
+  id: "seasoned-cathar",
+  name: "Seasoned Cathar",
+  scryfallId: "0b3482ee-18fb-41d9-ad6c-8cff26dade44",
+  types: ["Creature"],
+  subtypes: ["Human", "Knight"],
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 3,
+  keywords: ["Lifelink"],
+  isBackFace: true,
+  tier: "scripted",
+};
+
+/**
+ * "When this creature enters, you may search your library for a basic Plains
+ * card, put it into your hand. Coven - {1}{W}{W}: Transform this creature.
+ * Activate only if you control three or more creatures with different powers."
+ */
+export const AMBITIOUS_FARMHAND: CardDefinition = {
+  id: "ambitious-farmhand",
+  name: "Ambitious Farmhand",
+  scryfallId: "0b3482ee-18fb-41d9-ad6c-8cff26dade44",
+  types: ["Creature"],
+  subtypes: ["Human", "Peasant"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 1,
+  backFaceId: "seasoned-cathar",
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      optional: true,
+      effect: { kind: "searchLibrary", basicLandOnly: true, subtypes: ["Plains"], destination: "hand" },
+    },
+  ],
+  activatedAbilities: [
+    {
+      cost: { mana: { generic: 1, colors: { W: 2 } } },
+      activateOnlyIf: { kind: "coven" },
+      effect: { kind: "transform" },
+    },
+  ],
+  tier: "scripted",
+};
+
+/** "Choose one - Counter target multicolored spell; or Destroy target multicolored permanent." */
+export const NULL_ELEMENTAL_BLAST: CardDefinition = {
+  id: "null-elemental-blast",
+  name: "Null Elemental Blast",
+  scryfallId: "8e259868-d29a-4c03-8ec3-49e914f849fb",
+  types: ["Instant"],
+  // {C} - the engine folds colourless into generic, so a one-mana generic cost.
+  manaCost: { generic: 1, colors: {} },
+  colorIdentity: [],
+  castEffect: {
+    kind: "modal",
+    modes: [
+      { label: "Counter target multicolored spell", effect: { kind: "counter", target: { kind: "spell", multicolored: true } } },
+      { label: "Destroy target multicolored permanent", effect: { kind: "destroy", target: { kind: "permanent", multicolored: true } } },
+    ],
+  },
+  tier: "scripted",
+};
+
 // --- Elspeth, Storm Slayer ---------------------------------------------------
 
 /**
@@ -987,6 +1089,10 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   ELESH_NORN_MOTHER_OF_MACHINES,
   LIBRARY_OF_ALEXANDRIA,
   THE_DUKE_REBEL_SENTRY,
+  STEEL_SERAPH,
+  SEASONED_CATHAR,
+  AMBITIOUS_FARMHAND,
+  NULL_ELEMENTAL_BLAST,
   SEAM_RIP,
   JEONG_JEONGS_DESERTERS,
   TOUCH_THE_SPIRIT_REALM,
