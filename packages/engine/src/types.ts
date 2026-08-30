@@ -3956,6 +3956,12 @@ export interface CardDefinition {
    */
   suspend?: { timeCounters: number; cost: ManaCost };
   /**
+   * "Prototype {1}{W}{W} - 3/3 (You may cast this spell with a different mana
+   * cost, colour and size. It keeps its abilities and types.)" - Steel Seraph.
+   * Cast for the prototype cost and the creature enters with the prototype P/T.
+   */
+  prototype?: { cost: ManaCost; power: number; toughness: number };
+  /**
    * "Warp {2}{U}{U} (You may cast this card from your hand for its warp cost.
    * Exile this creature at the beginning of the next end step, then you may cast
    * it from exile on a later turn.)" - Starwinder.
@@ -4252,6 +4258,8 @@ export interface CardInstance {
    */
   basePowerOverride?: number;
   baseToughnessOverride?: number;
+  /** Cast for its prototype cost - it enters with the prototype P/T (Steel Seraph). */
+  prototypePaid?: boolean;
   /**
    * Offspring: this creature was cast for its Offspring cost, so a 1/1 token
    * copy of it is made as it enters. Set at cast, spent (and cleared) in

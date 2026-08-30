@@ -497,6 +497,12 @@ export function enteredBattlefield(
    * makes no copy of its own. Put on the stack like the printed ETB triggers
    * above so it resolves in step with them.
    */
+  // Prototype: the creature arrives with the prototype P/T (Steel Seraph).
+  if (instance.prototypePaid && def.prototype) {
+    instance.prototypePaid = false;
+    instance.basePowerOverride = def.prototype.power;
+    instance.baseToughnessOverride = def.prototype.toughness;
+  }
   if (instance.offspringPaid) {
     instance.offspringPaid = false;
     pushOntoStack(

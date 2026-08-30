@@ -177,6 +177,8 @@ export interface CastOptions {
    * and takes none of this.
    */
   useWarp?: boolean;
+  /** Cast for the prototype cost/size - Steel Seraph. */
+  usePrototype?: boolean;
   /**
    * Pay the Offspring cost (Thundertrap Trainer) - an additional cost on top of
    * the mana cost that makes a 1/1 token copy of the creature as it enters.
@@ -453,7 +455,10 @@ export function castSpell(
       (alternative.manaCost ?? { generic: 0, colors: {} })
     : options.free === true || options.omniscienceFree === true || freeFromExile
       ? { generic: 0, colors: {} }
-      : options.useWarp
+      : options.usePrototype
+        ? // Prototype replaces the mana cost (and later the P/T) with its own.
+          def.prototype!.cost
+        : options.useWarp
         ? // Warp replaces the mana cost with its own, like an alternative cost -
           // but it is not "free", so it stays out of the free branch above.
           def.warp!.cost
@@ -805,6 +810,7 @@ export function castSpell(
   // Offspring: remembered on the card so the token copy is made as it enters,
   // long after the stack object has gone.
   if (options.payOffspring) instance.offspringPaid = true;
+  if (options.usePrototype) instance.prototypePaid = true;
   // "if you didn't cast it from your hand" - Chainer. Remembered before the card
   // leaves for the stack, so the permanent it becomes knows how it was cast.
   const castFromHand = instance.zone === "hand";
