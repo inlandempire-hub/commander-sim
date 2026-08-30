@@ -378,6 +378,118 @@ export const CONTAINMENT_PRIEST: CardDefinition = {
   tier: "scripted",
 };
 
+// --- Tail batch 1 ------------------------------------------------------------
+
+/** "When this enchantment enters, exile target nonland permanent an opponent controls with mana value 2 or less until this enchantment leaves the battlefield." */
+export const SEAM_RIP: CardDefinition = {
+  id: "seam-rip",
+  name: "Seam Rip",
+  scryfallId: "f22e8056-b68b-4cae-b811-f0b0cae33c84",
+  types: ["Enchantment"],
+  manaCost: { generic: 0, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "exileUntilLeaves", target: { kind: "permanent", nonland: true, controlledBy: "opponent", maxManaValue: 2 } },
+    },
+    O_RING_RETURN,
+  ],
+  tier: "weird",
+};
+
+/** "When this creature enters, put a +1/+1 counter on target creature." */
+export const JEONG_JEONGS_DESERTERS: CardDefinition = {
+  id: "jeong-jeongs-deserters",
+  name: "Jeong Jeong's Deserters",
+  scryfallId: "060966f9-5e56-4512-9ef3-2b216daf093c",
+  types: ["Creature"],
+  subtypes: ["Human", "Rebel", "Ally"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 1,
+  toughness: 2,
+  triggeredAbilities: [
+    { event: "enters-battlefield", effect: { kind: "addCounter", amount: 1, target: { kind: "creature" } } },
+  ],
+  tier: "scripted",
+};
+
+/**
+ * "When this enchantment enters, exile up to one target artifact or creature
+ * until this enchantment leaves. Channel - {1}{W}, Discard this card: Exile
+ * target artifact or creature. Return it to the battlefield at the next end step."
+ */
+export const TOUCH_THE_SPIRIT_REALM: CardDefinition = {
+  id: "touch-the-spirit-realm",
+  name: "Touch the Spirit Realm",
+  scryfallId: "e16ab44e-4257-4c0c-b705-8ac1e9c1d835",
+  types: ["Enchantment"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "exileUntilLeaves",
+        target: { kind: "permanent", cardTypes: ["Artifact", "Creature"], count: { min: 0, max: 1 } },
+      },
+    },
+    O_RING_RETURN,
+  ],
+  activatedAbilities: [
+    {
+      // Channel - discard from hand.
+      cost: { mana: { generic: 1, colors: { W: 1 } }, fromHand: "discard" },
+      effect: { kind: "flicker", timing: "next-end-step", target: { kind: "permanent", cardTypes: ["Artifact", "Creature"] } },
+    },
+  ],
+  tier: "weird",
+};
+
+/** "First strike. Noncreature spells cost {1} more to cast." */
+export const THALIA_GUARDIAN_OF_THRABEN: CardDefinition = {
+  id: "thalia-guardian-of-thraben",
+  name: "Thalia, Guardian of Thraben",
+  scryfallId: "34626d08-cb6d-4667-8173-60a60b390537",
+  types: ["Creature"],
+  supertypes: ["Legendary"],
+  subtypes: ["Human", "Soldier"],
+  manaCost: { generic: 1, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  power: 2,
+  toughness: 1,
+  keywords: ["First Strike"],
+  staticRules: { taxNoncreatureSpells: 1 },
+  tier: "scripted",
+};
+
+/**
+ * "Flying. When this creature enters, search your library for a basic Plains
+ * card or a creature card with mana value 1 or less, put it into your hand.
+ * Warp {1}{W}."
+ */
+export const STARFIELD_SHEPHERD: CardDefinition = {
+  id: "starfield-shepherd",
+  name: "Starfield Shepherd",
+  scryfallId: "1226e575-aa78-4c68-be1d-6e5c2dc6315b",
+  types: ["Creature"],
+  subtypes: ["Angel"],
+  manaCost: { generic: 3, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 2,
+  keywords: ["Flying"],
+  warp: { cost: { generic: 1, colors: { W: 1 } } },
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: { kind: "searchLibrary", basicLandOnly: true, subtypes: ["Plains"], orCreatureMaxManaValue: 1, destination: "hand" },
+    },
+  ],
+  tier: "scripted",
+};
+
 // --- More spells -------------------------------------------------------------
 
 /** "Flying. Keen Sight - When this creature enters, if an opponent controls more lands than you, search your library for a basic Plains card, put it onto the battlefield tapped, then shuffle." */
@@ -798,4 +910,9 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   ELESH_NORN_MOTHER_OF_MACHINES,
   LIBRARY_OF_ALEXANDRIA,
   THE_DUKE_REBEL_SENTRY,
+  SEAM_RIP,
+  JEONG_JEONGS_DESERTERS,
+  TOUCH_THE_SPIRIT_REALM,
+  THALIA_GUARDIAN_OF_THRABEN,
+  STARFIELD_SHEPHERD,
 ];
