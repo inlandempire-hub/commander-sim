@@ -926,6 +926,29 @@ export const DISRUPTOR_FLUTE: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * "Ward {2}. As this creature enters, choose a creature type. This creature is
+ * the chosen type in addition to its other types. If a triggered ability of
+ * another creature you control of the chosen type triggers, it triggers an
+ * additional time."
+ */
+export const ROAMING_THRONE: CardDefinition = {
+  id: "roaming-throne",
+  name: "Roaming Throne",
+  scryfallId: "32fd8b7c-baf3-4d3d-be6f-044a917b11a0",
+  types: ["Artifact", "Creature"],
+  subtypes: ["Golem"],
+  manaCost: { generic: 4, colors: {} },
+  colorIdentity: [],
+  power: 4,
+  toughness: 4,
+  keywords: ["Ward"],
+  wardCost: { generic: 2, colors: {} },
+  enterChoice: { kind: "creature-type" },
+  staticRules: { roamingThroneChosenTypeDoubler: true },
+  tier: "weird",
+};
+
 // --- Static artifacts --------------------------------------------------------
 
 /** "White spells you cast cost {1} less to cast." */
@@ -1225,6 +1248,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   THE_ONE_RING,
   DISRUPTOR_FLUTE,
   PARALLAX_WAVE,
+  ROAMING_THRONE,
   STEEL_SERAPH,
   SEASONED_CATHAR,
   AMBITIOUS_FARMHAND,
