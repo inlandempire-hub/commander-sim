@@ -487,6 +487,14 @@ export function targetSelectorOf(effect: Effect): TargetSelector | undefined {
       return targeted[0];
     }
     /*
+     * "you may pay {E}{E}{E}. When you do, ... target attacking creature." -
+     * Guide of Souls. The reflexive ability's target is read through the mayPay
+     * wrapper so the trigger asks for it (chosen up front, a documented
+     * simplification of "when you do").
+     */
+    case "mayPay":
+      return targetSelectorOf(effect.then);
+    /*
      * "...if you control a red permanent other than Ajani, he deals damage ...
      * to **any target**." - Ajani's 0, whose target is inside the condition.
      *
