@@ -4027,8 +4027,13 @@ export interface CardDefinition {
    * whose host has gone is put into its owner's graveyard by a state-based action.
    */
   enchant?: TargetSelector;
-  /** "Enchanted creature can't attack or block." - Pacifism, Dog Umbra (while another player controls it). */
+  /** "Enchanted creature can't attack or block." - Pacifism. */
   auraCantAttackOrBlock?: boolean;
+  /**
+   * Dog Umbra: while ANOTHER player controls the enchanted creature it can't
+   * attack or block; while you control it, the Aura has umbra armor (totem armor).
+   */
+  dogUmbra?: boolean;
   bestowCost?: ManaCost;
   /**
    * "**Dash {1}{R}**" - Ragavan.

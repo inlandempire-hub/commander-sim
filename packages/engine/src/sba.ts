@@ -112,7 +112,28 @@ export function leaveBattlefield(state: GameState, instanceId: string, destinati
 export function destroyPermanent(state: GameState, instanceId: string): void {
   const found = findInstance(state, instanceId);
   if (!found || found.instance.zone !== "battlefield") return;
+  // Totem armor (Dog Umbra, while you control the enchanted creature): "if it
+  // would be destroyed, instead remove all damage from it and destroy this Aura."
+  const totem = totemArmorFor(state, found.instance);
+  if (totem) {
+    found.instance.damageMarked = 0;
+    log(state, `${requireDefinition(state, found.instance.definitionId).name} is saved by totem armor`);
+    moveDyingCreatureToItsZone(state, totem.instanceId, totem.isCommander === true);
+    return;
+  }
   moveDyingCreatureToItsZone(state, instanceId, found.instance.isCommander === true);
+}
+
+/** A totem-armor Aura protecting this creature (attached, and you control the creature), or undefined. */
+function totemArmorFor(state: GameState, creature: CardInstance): CardInstance | undefined {
+  for (const player of state.players) {
+    for (const aura of player.battlefield) {
+      if (aura.attachedTo !== creature.instanceId) continue;
+      const def = requireDefinition(state, aura.definitionId);
+      if (def.dogUmbra && aura.controllerId === creature.controllerId) return aura;
+    }
+  }
+  return undefined;
 }
 
 /**

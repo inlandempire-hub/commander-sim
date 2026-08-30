@@ -106,7 +106,10 @@ function pacifiedBy(state: GameState, instance: CardInstance): boolean {
   for (const player of state.players) {
     for (const aura of player.battlefield) {
       if (aura.attachedTo !== instance.instanceId) continue;
-      if (requireDefinition(state, aura.definitionId).auraCantAttackOrBlock) return true;
+      const def = requireDefinition(state, aura.definitionId);
+      if (def.auraCantAttackOrBlock) return true;
+      // Dog Umbra: locks the creature only while another player controls it.
+      if (def.dogUmbra && aura.controllerId !== instance.controllerId) return true;
     }
   }
   return false;
