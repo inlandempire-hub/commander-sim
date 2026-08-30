@@ -378,6 +378,42 @@ export const CONTAINMENT_PRIEST: CardDefinition = {
   tier: "scripted",
 };
 
+/**
+ * "Flash. Lifelink. When this creature enters, exile up to one other target
+ * creature. That creature's controller gains life equal to its power.
+ * Evoke - Exile a white card from your hand."
+ */
+export const SOLITUDE: CardDefinition = {
+  id: "solitude",
+  name: "Solitude",
+  scryfallId: "47a6234f-309f-4e03-9263-66da48b57153",
+  types: ["Creature"],
+  subtypes: ["Elemental", "Incarnation"],
+  manaCost: { generic: 3, colors: { W: 2 } },
+  colorIdentity: ["W"],
+  power: 3,
+  toughness: 2,
+  keywords: ["Flash", "Lifelink"],
+  alternativeCost: {
+    condition: { kind: "card-in-hand-of-color", color: "W" },
+    label: "Evoke - Exile a white card from your hand",
+    exileCardFromHand: { color: "W" },
+  },
+  triggeredAbilities: [
+    {
+      event: "enters-battlefield",
+      effect: {
+        kind: "sequence",
+        effects: [
+          { kind: "gainLife", amount: { kind: "target-power" }, who: "target-controller" },
+          { kind: "exile", target: { kind: "permanent", cardTypes: ["Creature"], excludeSource: true, count: { min: 0, max: 1 } } },
+        ],
+      },
+    },
+  ],
+  tier: "weird",
+};
+
 // --- Elspeth, Storm Slayer ---------------------------------------------------
 
 /**
@@ -957,4 +993,5 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   THALIA_GUARDIAN_OF_THRABEN,
   STARFIELD_SHEPHERD,
   ELSPETH_STORM_SLAYER,
+  SOLITUDE,
 ];
