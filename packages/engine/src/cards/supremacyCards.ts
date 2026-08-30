@@ -949,6 +949,38 @@ export const ROAMING_THRONE: CardDefinition = {
   tier: "weird",
 };
 
+/**
+ * "(As this Saga enters and after your draw step, add a lore counter. Sacrifice
+ * after III.) I - Recruit (draw, then discard; a nonland discard makes a 1/1
+ * Soldier). II - Return target creature card with mana value 3 or less from your
+ * graveyard to the battlefield. III - Put a +1/+1 counter on up to one target
+ * creature."
+ */
+export const THE_MOUNTAIN_KINGS_RETURN: CardDefinition = {
+  id: "the-mountain-kings-return",
+  name: "The Mountain-king's Return",
+  scryfallId: "68f4893d-e9a5-4f89-ade3-9ab78a834ad5",
+  types: ["Enchantment"],
+  subtypes: ["Saga"],
+  manaCost: { generic: 2, colors: { W: 1 } },
+  colorIdentity: ["W"],
+  saga: {
+    chapters: [
+      // I - Recruit. Loot; the Soldier-on-nonland-discard rider is a documented gap.
+      { kind: "loot", amount: 1 },
+      // II - Return a small creature from your graveyard.
+      {
+        kind: "returnFromGraveyard",
+        destination: "battlefield",
+        target: { kind: "card-in-your-graveyard", cardType: "Creature", maxManaValue: 3 },
+      },
+      // III - A +1/+1 counter on up to one creature.
+      { kind: "addCounter", amount: 1, target: { kind: "permanent", cardTypes: ["Creature"], count: { min: 0, max: 1 } } },
+    ],
+  },
+  tier: "weird",
+};
+
 // --- Static artifacts --------------------------------------------------------
 
 /** "White spells you cast cost {1} less to cast." */
@@ -1249,6 +1281,7 @@ export const SUPREMACY_CARD_DEFINITIONS: CardDefinition[] = [
   DISRUPTOR_FLUTE,
   PARALLAX_WAVE,
   ROAMING_THRONE,
+  THE_MOUNTAIN_KINGS_RETURN,
   STEEL_SERAPH,
   SEASONED_CATHAR,
   AMBITIOUS_FARMHAND,
