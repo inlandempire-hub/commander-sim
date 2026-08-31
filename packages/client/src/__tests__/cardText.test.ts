@@ -655,8 +655,10 @@ describe("no fixture carries a clause the panel never mentions", () => {
         ),
       // Any of the three narrowings has to surface: "another" (excludeSource,
       // e.g. Noxious Gearhulk's "another target creature"), "nonlegendary", or a
-      // control restriction.
-      expect: /another target creature|target nonlegendary creature|target (nonlegendary |non-\w+ )?creature (you control|an opponent controls)/,
+      // control restriction. Case-insensitive: a modal mode capitalises its
+      // clause ("Choose one - Target creature you control gains flying"), which
+      // surfaces the narrowing just as well as a mid-sentence lowercase one.
+      expect: /another target creature|target nonlegendary creature|target (nonlegendary |non-\w+ )?creature (you control|an opponent controls)/i,
     },
     {
       field: "effect.gainControl",

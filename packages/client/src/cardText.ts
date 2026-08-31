@@ -517,11 +517,18 @@ export function describeEffect(effect: Effect, definitions: Definitions = {}): s
     case "addKeywordCounter": {
       // Both counters, and the keyword one named as a counter rather than as a
       // grant - which is the difference between a Quicksilver that keeps double
-      // strike and one that has it until end of turn.
-      const plus = effect.alsoPlusOne ? `a +1/+1 counter and ` : "";
-      return sentence(
-        `put ${plus}a ${effect.keyword.toLowerCase()} counter on this creature.`,
-      );
+      // strike and one that has it until end of turn. `alsoPlusOne` is a count,
+      // so two counters read as "two +1/+1 counters", not "a +1/+1 counter".
+      const n = effect.alsoPlusOne ?? 0;
+      const plus = n > 0 ? `${n === 1 ? "a +1/+1 counter" : `${countWord(n)} +1/+1 counters`} and ` : "";
+      // Guide of Souls buffs a chosen attacker; the Double Strike counter card
+      // has no target and stays on the creature it triggers from.
+      const who = effect.target ? describeTarget(effect.target) : "this creature";
+      // "It becomes an Angel in addition to its other types." - Guide of Souls.
+      const becomes = effect.becomesSubtype
+        ? ` It becomes ${article(effect.becomesSubtype)} ${effect.becomesSubtype} in addition to its other types.`
+        : "";
+      return sentence(`put ${plus}a ${effect.keyword.toLowerCase()} counter on ${who}.`) + becomes;
     }
     case "exileAndReturnTransformed":
       // The card's own words. "Transformed" is the whole of it - what he becomes
